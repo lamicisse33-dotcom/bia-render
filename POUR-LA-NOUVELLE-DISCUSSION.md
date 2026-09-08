@@ -130,6 +130,32 @@ navigateur, en `fr-FR`. Le motif du refus est écrit dans les journaux Render.
 La retouche phonétique (`x`→kh, `ñ`→gn, `u`→ou) ne s'applique **qu'au wolof**.
 Appliquée au français, elle donnait « tchommounitchation ».
 
+### Sa mémoire
+
+Le fil est gardé sur l'appareil (localStorage), pas sur le serveur : deux
+testeurs ne se voient pas. Au-delà de trente messages, les plus anciens sont
+condensés par `/api/resumer` en un mémo (prénom, métier, ville, décisions),
+retirés du fil, et le mémo est renvoyé au modèle à chaque question. Douze
+échanges au lieu de six.
+
+### Son lexique
+
+Bouton « Mal dit » sous chaque réponse → `/api/corriger` → Supabase, table
+`bia_lexique` du projet `khalam-classement`. Sécurité au niveau des lignes
+active sans aucune politique : seule la clé *service_role*, côté serveur, y
+accède.
+
+À chaque question : correction de la MÊME question → imposée au modèle ;
+questions proches → montrées comme exemples faisant autorité. Cache d'une
+minute, sinon chaque question ajoute un aller-retour Supabase.
+
+### Ce qu'elle sait de KHALAM
+
+`data/khalam.md`, en français lisible, injecté dans la consigne. Seule source
+autorisée ; la section « À COMPLÉTER » est retirée avant l'envoi. Pour
+enrichir : modifier le fichier, déposer sur GitHub. **Ne jamais écrire dans ce
+fichier une information que Lamine n'a pas confirmée.**
+
 ## 5. Ce qui reste, par ordre
 
 **1. Éprouver le wolof** sur de vraies questions dakaroises. Rien ne l'a
@@ -137,12 +163,12 @@ encore été.
 
 **2. Le quota de questions ne survit pas au réveil.** Voir plus haut.
 
-**3. Aucune mémoire.** Six échanges au maximum, rien ne survit à la fermeture
-de l'onglet.
+**3. Compléter `data/khalam.md`.** Les trous connus y sont listés : histoire du
+studio, règles des jeux, prix, contact, réseaux, ce qui arrive. Les DEMANDER à
+Lamine, jamais les deviner.
 
-**4. Aucun corpus.** Contrairement à l'Interprète, BIA ne garde ni les
-enregistrements ni les corrections. Rien ne l'améliore avec l'usage — pas de
-bouton « Mal traduit », pas de lexique.
+**4. Aucun corpus audio.** Les corrections de texte sont gardées, pas les
+enregistrements. Rien ne permettra d'affiner un modèle d'écoute.
 
 **5. L'oreille.** Scribe se trompe sur environ 40 % des mots wolof, et rien
 de mieux n'existe en service payant. Piste repérée le 8 septembre :

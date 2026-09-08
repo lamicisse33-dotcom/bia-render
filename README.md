@@ -161,20 +161,58 @@ entraîné ailleurs. C'est le sens de cette priorité.
 Le lexique est lu au maximum une fois par minute (cache), sinon chaque
 question ajouterait un aller-retour Supabase au délai de réponse.
 
-**La table à créer**, une seule fois, dans l'éditeur SQL de Supabase :
+### Une table pour les trois applications
+
+Le lexique est **commun à BIA, BIBA et l'Interprète**. Une correction faite
+dans l'une profite aux trois : c'est de la langue wolof, pas de la marque.
+La colonne `application` dit d'où vient chaque correction ; toutes sont lues,
+quelle que soit leur origine.
+
+**Si tu pars de zéro**, dans l'éditeur SQL de Supabase :
 
 ```sql
-create table bia_lexique (
-  id        bigserial primary key,
-  source    text not null,
-  corrigee  text not null,
-  proposee  text,
-  langue    text,
-  auteur    text,
-  date      timestamptz default now()
+create table khalam_lexique (
+  id           bigserial primary key,
+  source       text not null,
+  corrigee     text not null,
+  proposee     text,
+  langue       text,
+  auteur       text,
+  application  text,
+  date         timestamptz default now()
 );
-alter table bia_lexique enable row level security;
+alter table khalam_lexique enable row level security;
 ```
+
+**Si `bia_lexique` existe déjà**, il suffit de la renommer et d'ajouter la
+colonne — rien n'est perdu :
+
+```sql
+alter table bia_lexique rename to khalam_lexique;
+alter table khalam_lexique add column if not exists application text;
+update khalam_lexique set application = 'bia' where application is null;
+```
+
+Pour brancher GÉWEL et l'Interprète dessus, leur donner les mêmes
+`SUPABASE_URL` et `SUPABASE_SERVICE_KEY`, la même table, et un `KHALAM_APP`
+différent (`biba`, `interprete`).
+
+### Verser un lexique existant
+
+Les corrections déjà accumulées par l'Interprète (`data/lexique.json`) se
+versent dans la table commune en une fois. Réservé au code maître, et les
+doublons sont écartés — rejouer le même fichier ne gonfle pas la base :
+
+```
+curl -X POST https://bia-render.onrender.com/api/importer \
+  -H "content-type: application/json" \
+  -H "x-bia-code: TON-CODE-MAITRE" \
+  -d @lexique-pret.json
+```
+
+Le fichier attendu : `{"entrees":[{"source":"…","corrigee":"…","langue_source":"fr"}, …]}`.
+C'est presque la forme du `lexique.json` de l'Interprète — il suffit de
+l'envelopper dans `{"entrees": …}`.
 
 La sécurité au niveau des lignes est activée sans aucune politique : personne
 ne peut lire la table depuis l'extérieur. Seule la clé *service_role*, qui
@@ -183,6 +221,18 @@ vit uniquement sur le serveur de BIA, la traverse.
 Sans `SUPABASE_URL` et `SUPABASE_SERVICE_KEY`, les corrections tiennent en
 mémoire vive et disparaissent au réveil de Render. `/api/etat` le dit
 franchement.
+
+## Ce qu'elle sait de KHALAM
+
+Tout est dans **`data/khalam.md`**, en français lisible. C'est la seule source
+de BIA sur le studio : elle a pour consigne de ne rien inventer au-delà et de
+dire qu'elle ne sait pas quand la réponse n'y est pas.
+
+**Pour l'enrichir : modifie ce fichier, dépose-le sur GitHub.** Render
+redéploie, BIA sait la suite. Aucun code à toucher.
+
+Le fichier se termine par une liste « À COMPLÉTER » — les trous connus. Cette
+partie n'est jamais envoyée au modèle : c'est un pense-bête, pas un savoir.
 
 ## Ce qui reste à faire
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { correctionExacte, exemplesPour } from "@/lib/lexique";
+import { savoirKhalam } from "@/lib/khalam";
 
 const local = [
   {keys:["khalam lan","c'est quoi khalam","qu est ce que khalam"],answer:"KHALAM studio créatif bu Sénégal la, nekk Dakar. Dafay defar jeux, applications, animation, audiovisuel ak intelligence artificielle. Li mu bëgg mooy sos ay univers yu am cosaanu fii te mën a dem fu nekk."},
@@ -53,13 +54,11 @@ N'invente rien sur KHALAM. Si tu ignores un détail, dis-le.
 Sur le médical, le juridique et le financier grave, réponds utilement puis
 recommande un professionnel — sans te dérober.
 
-KHALAM
-Studio créatif sénégalais, à Dakar, fondé par Khadi et Lamine. Il crée des jeux,
-des applications, de l'animation, de l'audiovisuel et de l'intelligence
-artificielle, pour un public d'abord ouest-africain francophone. Ses jeux se
-jouent dans le navigateur, sans téléchargement : ÉQUILIBRE sur les quatre
-piliers de la vie, GALGAL le jeu de cartes, Les Quatre Dames. Site : khalam.app.
-BIA n'est pas BIBA et ne partage avec elle ni fichiers, ni mémoire, ni code.`;
+CE QUE TU SAIS DE KHALAM
+Tu ne connais de KHALAM que ce qui t'est donné ci-dessous, à la fin de cette
+consigne. N'invente RIEN au-delà : si on te demande un détail qui n'y figure
+pas, dis simplement que tu ne le sais pas et propose d'écrire à KHALAM sur
+khalam.app.`;
 
 
 
@@ -89,6 +88,8 @@ export async function POST(request:NextRequest){
       const history=(body.history||[]).slice(-12).map(item=>({role:item.role==="bia"?"assistant":"user",content:String(item.text||"").slice(0,1500)}));
 
       let consigne=system;
+      const savoir=await savoirKhalam();
+      if(savoir)consigne+=`\n\n═══ CE QUE TU SAIS DE KHALAM ═══\n${savoir}\n═══ fin de ce que tu sais de KHALAM ═══`;
       const resume=String(body.resume||"").trim().slice(0,1500);
       if(resume)consigne+=`\n\nCE QUE TU SAIS DÉJÀ DE CETTE PERSONNE\n${resume}\nUtilise-le naturellement, sans jamais dire que tu l'as \u00abnoté\u00bb.`;
 

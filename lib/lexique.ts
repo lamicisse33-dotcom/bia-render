@@ -12,7 +12,10 @@ const env = process.env;
 export const lexiqueConfig = {
   url: (env.SUPABASE_URL || "").replace(/\/$/, ""),
   cle: env.SUPABASE_SERVICE_KEY || "",
-  table: env.SUPABASE_TABLE_LEXIQUE || "bia_lexique",
+  // Une seule table pour BIA, BIBA et l'Interprète : une correction faite
+  // dans l'une profite aux trois. C'est de la langue, pas de la marque.
+  table: env.SUPABASE_TABLE_LEXIQUE || "khalam_lexique",
+  application: env.KHALAM_APP || "bia",
   get actif() { return Boolean(this.url && this.cle); },
 };
 
@@ -22,6 +25,7 @@ export type Entree = {
   proposee?: string | null;
   langue?: string | null;
   auteur?: string | null;
+  application?: string | null;
 };
 
 const enMemoire: Entree[] = [];
@@ -45,6 +49,10 @@ export async function ajouterCorrection(e: Entree): Promise<number> {
     body: JSON.stringify([{
       source: e.source, corrigee: e.corrigee,
       proposee: e.proposee || null, langue: e.langue || null, auteur: e.auteur || null,
+      // D'où vient la correction. On les LIT toutes, quelle que soit
+      // l'application : c'est tout l'intérêt du partage. Ce champ sert à
+      // savoir plus tard laquelle fait le plus progresser le wolof.
+      application: e.application || lexiqueConfig.application,
     }]),
   });
   if (!r.ok) throw new Error(`Supabase ${r.status} : ${(await r.text()).slice(0, 300)}`);
@@ -56,7 +64,7 @@ async function toutes(): Promise<Entree[]> {
   if (!lexiqueConfig.actif) return enMemoire;
 
   const r = await fetch(
-    `${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}?select=source,corrigee,langue&order=id.desc&limit=500`,
+    `${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}?select=source,corrigee,langue,application&order=id.desc&limit=800`,
     { headers: entetes() },
   );
   if (!r.ok) return cache?.valeurs || [];
