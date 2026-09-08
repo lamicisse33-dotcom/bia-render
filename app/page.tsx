@@ -1,0 +1,467 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+
+type Message = { role: "bia" | "user"; text: string };
+type Face = "neutral" | "blink" | "happy" | "thinking" | "concerned" | "surprised" | "a" | "o" | "m";
+type Recognition = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  start: () => void;
+  stop: () => void;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onresult: ((event: any) => void) | null;
+};
+
+const welcome = "Salaam! Man maa di BIA. Waxal ak man ci wolof walla ci français.";
+
+/* ── Quelle langue ? ───────────────────────────────────────────────────────
+   Le navigateur n'a pas de voix wolof. Sans ce test, la retouche phonétique
+   ci-dessous s'appliquait AUSSI au français : « communication » devenait
+   « tchommounitchation ». On ne la déclenche donc que sur du wolof.        */
+const motsFrancais = /\b(le|la|les|un|une|des|du|de|et|est|sont|pour|dans|avec|vous|nous|je|tu|il|elle|que|qui|ne|pas|sur|ce|cette|mais|plus|tout|faire|peut|comme|son|sa|ses|au|aux|par|en|si|bien|très|donc|alors|quand)\b/g;
+const motsWolof = /\b(naa|nga|ngeen|ci|ak|bi|bu|la|lu|mooy|moo|dafa|dafay|ngir|waaw|déedéet|sama|yow|man|ñu|ñi|yi|te|walla|léegi|mën|bëgg|am|amul|lan|ban|def|dem|wax|jàng|jëf|nekk|jamm|noo|kañ|fu|nu)\b/g;
+
+function estWolof(texte: string) {
+  const t = texte.toLowerCase();
+  if (/[ñŋë]/.test(t)) return true;
+  const fr = (t.match(motsFrancais) || []).length;
+  const wo = (t.match(motsWolof) || []).length;
+  return wo >= fr;
+}
+
+function phoneticWolof(text: string) {
+  return text
+    .replace(/khalam\.app/gi, "Khalam point app")
+    .replace(/ñ/gi, "gn").replace(/ŋ/gi, "ng").replace(/x/gi, "kh")
+    .replace(/c/gi, "tch").replace(/j/gi, "dj").replace(/ë/gi, "eu")
+    .replace(/u/gi, "ou");
+}
+
+function emotionFor(text: string): Face {
+  const value = text.toLowerCase();
+  if (/désolé|jafe-jafe|mënuma|triste|malheureusement/.test(value)) return "concerned";
+  if (/waaw|bég|félicitations|excellent|magnifique/.test(value)) return "happy";
+  if (/[!?]|lan moo|naka|pourquoi/.test(value)) return "surprised";
+  return "neutral";
+}
+
+export default function Home() {
+  const [history, setHistory] = useState<Message[]>([]);
+  const [face, setFace] = useState<Face>("neutral");
+  const [mode, setMode] = useState<"ready" | "listening" | "thinking" | "speaking" | "error">("ready");
+  const [clavier, setClavier] = useState(false);
+  const [saisie, setSaisie] = useState("");
+  const [legende, setLegende] = useState("");
+  const [code, setCode] = useState<string | null>(null);
+  const [codeSaisi, setCodeSaisi] = useState("");
+  const [codeErreur, setCodeErreur] = useState("");
+  const [moteurs, setMoteurs] = useState<{ voix: string; ecoute: string } | null>(null);
+
+  const recognitionRef = useRef<Recognition | null>(null);
+  const mouthTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const busyRef = useRef(false);
+  const historyRef = useRef<Message[]>([]);
+  const accueilRef = useRef(false);
+  const filRef = useRef<HTMLDivElement | null>(null);
+  const champRef = useRef<HTMLInputElement | null>(null);
+  const codeRef = useRef<string>("");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const enregistreurRef = useRef<MediaRecorder | null>(null);
+  const moteursRef = useRef<{ voix: string; ecoute: string } | null>(null);
+
+  historyRef.current = history;
+  codeRef.current = code || "";
+
+  // Le code est gardé sur l'appareil : le testeur ne le retape pas à chaque fois.
+  useEffect(() => {
+    try { const g = localStorage.getItem("bia-code"); if (g) setCode(g); } catch {}
+    fetch("/api/etat")
+      .then((r) => r.json())
+      .then((e) => { setMoteurs(e); moteursRef.current = e; })
+      .catch(() => {});
+  }, []);
+
+  const stopMouth = useCallback((answer = "") => {
+    if (mouthTimer.current) clearInterval(mouthTimer.current);
+    mouthTimer.current = null;
+    setMode("ready");
+    setFace(emotionFor(answer));
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => setFace("neutral"), 1400);
+  }, []);
+
+  const bouche = useCallback((actif: boolean, answer = "") => {
+    if (actif) {
+      setMode("speaking");
+      const shapes: Face[] = ["a", "m", "o", "a", "m"];
+      let index = 0;
+      if (mouthTimer.current) clearInterval(mouthTimer.current);
+      mouthTimer.current = setInterval(() => setFace(shapes[index++ % shapes.length]), 110);
+    } else {
+      stopMouth(answer);
+    }
+  }, [stopMouth]);
+
+  /* La voix du navigateur : béquille, gardée pour le cas où Oolel ne répond
+     pas. Elle ne sait pas dire le wolof, d'où la réécriture phonétique — et
+     seulement pour le wolof, sinon le français ressort déformé. */
+  const parlerAvecLeTelephone = useCallback((answer: string) => {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const voices = window.speechSynthesis.getVoices();
+    const wolof = voices.find((v) => v.lang.toLowerCase().startsWith("wo"));
+    const french =
+      voices.find((v) => /^fr[-_](sn|fr)/i.test(v.lang)) ||
+      voices.find((v) => v.lang.toLowerCase().startsWith("fr"));
+
+    const enWolof = estWolof(answer);
+    const utterance = new SpeechSynthesisUtterance(wolof || !enWolof ? answer : phoneticWolof(answer));
+    if (wolof && enWolof) { utterance.voice = wolof; utterance.lang = wolof.lang; }
+    else if (french) { utterance.voice = french; utterance.lang = french.lang; }
+    else utterance.lang = "fr-FR";
+    utterance.rate = enWolof ? 1.02 : 1.06;
+    utterance.onstart = () => bouche(true);
+    utterance.onend = () => bouche(false, answer);
+    utterance.onerror = () => bouche(false, answer);
+    window.speechSynthesis.speak(utterance);
+  }, [bouche]);
+
+  /* La vraie voix : Oolel Voices, la même que BIBA. Le serveur découpe la
+     réponse — Soynade n'accepte que 500 caractères — et on va chercher le
+     morceau suivant PENDANT que le précédent est lu, sinon un silence
+     s'installe entre chaque phrase. */
+  const speak = useCallback(async (answer: string) => {
+    window.speechSynthesis?.cancel();
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    if (!answer.trim()) return;
+
+    if (moteursRef.current && moteursRef.current.voix === "navigateur") {
+      parlerAvecLeTelephone(answer);
+      return;
+    }
+
+    const demander = async (partie: number) => {
+      const r = await fetch("/api/voix", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+        body: JSON.stringify({ texte: answer, partie }),
+      });
+      if (!r.ok) throw new Error("voix indisponible");
+      return await r.json() as { parties: number; audio: string | null; type_mime?: string };
+    };
+
+    try {
+      let bloc = await demander(0);
+      if (!bloc.audio) { parlerAvecLeTelephone(answer); return; }
+
+      bouche(true);
+      let suivant = bloc.parties > 1 ? demander(1) : null;
+
+      for (let i = 0; i < bloc.parties; i++) {
+        const son = new Audio(`data:${bloc.type_mime || "audio/wav"};base64,${bloc.audio}`);
+        audioRef.current = son;
+        const attendu = suivant;                       // on prépare le suivant
+        suivant = i + 2 < bloc.parties ? demander(i + 2) : null;
+        await new Promise<void>((fini) => {
+          son.onended = () => fini();
+          son.onerror = () => fini();
+          son.play().catch(() => fini());
+        });
+        if (audioRef.current !== son) return;          // une nouvelle réponse a pris la main
+        if (!attendu) break;
+        const prochain = await attendu;
+        if (!prochain.audio) break;
+        bloc = { ...bloc, audio: prochain.audio, type_mime: prochain.type_mime };
+      }
+      audioRef.current = null;
+      bouche(false, answer);
+    } catch {
+      parlerAvecLeTelephone(answer);
+    }
+  }, [bouche, parlerAvecLeTelephone]);
+
+  const askBia = useCallback(async (question: string) => {
+    const clean = question.trim();
+    if (!clean || busyRef.current) return;
+    busyRef.current = true;
+    setSaisie("");
+    setHistory((items) => [...items, { role: "user", text: clean }]);
+    setMode("thinking");
+    setFace("thinking");
+    setLegende("");
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+        body: JSON.stringify({ message: clean, history: historyRef.current.slice(-6) }),
+      });
+      const data = (await response.json()) as { reply: string; motif?: string };
+      if (response.status === 401) {
+        // Code refusé : on renvoie le testeur à l'écran d'entrée avec le motif.
+        try { localStorage.removeItem("bia-code"); } catch {}
+        setCode(null);
+        setCodeErreur(data.reply);
+        setMode("ready"); setFace("neutral");
+        return;
+      }
+      if (!response.ok) throw new Error("BIA unavailable");
+      setHistory((items) => [...items, { role: "bia", text: data.reply }]);
+      setLegende(data.reply);
+      speak(data.reply);
+    } catch {
+      const fallback = "Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.";
+      setHistory((items) => [...items, { role: "bia", text: fallback }]);
+      setLegende(fallback);
+      setFace("concerned");
+      setMode("error");
+      speak(fallback);
+    } finally {
+      busyRef.current = false;
+    }
+  }, [speak]);
+
+  // Clignement des yeux au repos.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (mode !== "ready") return;
+      setFace("blink");
+      setTimeout(() => setFace("neutral"), 150);
+    }, 4300);
+    return () => clearInterval(timer);
+  }, [mode]);
+
+  const arreterEnregistrement = useCallback(() => {
+    const e = enregistreurRef.current;
+    if (e && e.state !== "inactive") e.stop();
+  }, []);
+
+  /* Le micro de BIA se comporte comme celui de BIBA : une fois ouvert, il
+     attend une voix aussi longtemps qu'il faut ; dès que quelqu'un a parlé,
+     il se ferme deux secondes après le dernier son. Un second appui conclut
+     tout de suite. */
+  const ecouter = useCallback(async () => {
+    try {
+      const flux = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const enregistreur = new MediaRecorder(flux);
+      const morceaux: Blob[] = [];
+      enregistreurRef.current = enregistreur;
+
+      const contexte = new AudioContext();
+      const analyse = contexte.createAnalyser();
+      analyse.fftSize = 512;
+      contexte.createMediaStreamSource(flux).connect(analyse);
+      const tampon = new Uint8Array(analyse.frequencyBinCount);
+      let aParle = false;
+      let dernierSon = 0;
+
+      const veille = setInterval(() => {
+        analyse.getByteTimeDomainData(tampon);
+        let creux = 0;
+        for (const v of tampon) creux = Math.max(creux, Math.abs(v - 128));
+        if (creux > 8) { aParle = true; dernierSon = Date.now(); }
+        else if (aParle && Date.now() - dernierSon > 2000) arreterEnregistrement();
+      }, 120);
+
+      enregistreur.ondataavailable = (e) => { if (e.data.size) morceaux.push(e.data); };
+      enregistreur.onstop = async () => {
+        clearInterval(veille);
+        flux.getTracks().forEach((t) => t.stop());
+        contexte.close().catch(() => {});
+        enregistreurRef.current = null;
+        if (!aParle || !morceaux.length) { setMode("ready"); return; }
+
+        setMode("thinking");
+        setFace("thinking");
+        const forme = new FormData();
+        forme.append("audio", new Blob(morceaux, { type: "audio/webm" }), "parole.webm");
+        try {
+          const r = await fetch("/api/ecouter", { method: "POST", headers: { "x-bia-code": codeRef.current }, body: forme });
+          const d = await r.json() as { texte?: string };
+          if (d.texte) void askBia(d.texte);
+          else { setMode("ready"); setFace("neutral"); }
+        } catch { setMode("error"); }
+      };
+
+      enregistreur.start();
+      setMode("listening");
+      setFace("neutral");
+    } catch {
+      setMode("error");
+    }
+  }, [arreterEnregistrement, askBia]);
+
+  /* Repli quand aucun moteur d'écoute n'est branché : la reconnaissance du
+     navigateur. Elle ne connaît pas le wolof — « wo-SN » n'existe nulle part
+     — donc on lui donne le décodeur français, le plus proche à l'oreille. */
+  useEffect(() => {
+    if (moteurs && moteurs.ecoute !== "navigateur") return;
+    const scope = window as typeof window & {
+      SpeechRecognition?: new () => Recognition;
+      webkitSpeechRecognition?: new () => Recognition;
+    };
+    const RecognitionClass = scope.SpeechRecognition || scope.webkitSpeechRecognition;
+    if (!RecognitionClass) return;
+    const recognition = new RecognitionClass();
+    recognition.lang = "fr-FR";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.onstart = () => { setMode("listening"); setFace("neutral"); };
+    recognition.onend = () => setMode((c) => (c === "listening" ? "ready" : c));
+    recognition.onerror = () => setMode("error");
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results as ArrayLike<any>)
+        .map((r: any) => r[0].transcript).join("");
+      if (event.results[event.results.length - 1].isFinal) void askBia(transcript);
+    };
+    recognitionRef.current = recognition;
+    return () => { recognition.stop(); recognitionRef.current = null; };
+  }, [askBia, moteurs]);
+
+  useEffect(() => () => {
+    if (mouthTimer.current) clearInterval(mouthTimer.current);
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    window.speechSynthesis?.cancel();
+    audioRef.current?.pause();
+  }, []);
+
+  useEffect(() => {
+    if (clavier) filRef.current?.scrollTo({ top: filRef.current.scrollHeight, behavior: "smooth" });
+  }, [history, clavier]);
+
+  // Le navigateur refuse toute voix avant un geste de l'utilisateur : le mot
+  // d'accueil ne peut donc pas partir au chargement, il part au premier appui.
+  function accueil() {
+    if (accueilRef.current) return;
+    accueilRef.current = true;
+    setLegende(welcome);
+    speak(welcome);
+  }
+
+  function toggleMicrophone() {
+    window.speechSynthesis?.cancel();
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    if (!accueilRef.current) { accueil(); return; }
+
+    const parScribe = moteurs ? moteurs.ecoute !== "navigateur" : false;
+    if (parScribe) {
+      if (mode === "listening") { arreterEnregistrement(); return; }
+      void ecouter();
+      return;
+    }
+    if (!recognitionRef.current) { setMode("error"); return; }
+    if (mode === "listening") { recognitionRef.current.stop(); return; }
+    try { recognitionRef.current.start(); } catch { setMode("error"); }
+  }
+
+  function ouvrirClavier() {
+    accueilRef.current = true;
+    setClavier(true);
+    setTimeout(() => champRef.current?.focus(), 90);
+  }
+
+  const labels = {
+    ready: "Parler à BIA",
+    listening: "BIA vous écoute. Appuyer pour arrêter",
+    thinking: "BIA réfléchit",
+    speaking: "BIA répond",
+    error: "Micro indisponible. Appuyer pour réessayer",
+  };
+
+  async function entrer() {
+    const propre = codeSaisi.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (propre.length < 6) { setCodeErreur("Code trop court."); return; }
+    try { localStorage.setItem("bia-code", propre); } catch {}
+    setCode(propre);
+    setCodeSaisi("");
+    setCodeErreur("");
+  }
+
+  if (!code) {
+    return (
+      <main className="bia-presence" data-mode="ready">
+        <div className="portrait" aria-hidden="true"><div className="avatar" data-face="neutral" /></div>
+        <section className="porte">
+          <p className="porte-titre">BIA</p>
+          <p className="porte-texte">Duggal sa kod ngir waxtaan ak BIA.</p>
+          <div className="saisie">
+            <input
+              value={codeSaisi}
+              onChange={(e) => setCodeSaisi(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void entrer(); }}
+              placeholder="KOD"
+              aria-label="Code d'accès"
+              autoCapitalize="characters"
+              autoComplete="off"
+              enterKeyHint="go"
+            />
+            <button type="button" onClick={() => void entrer()} disabled={!codeSaisi.trim()} aria-label="Entrer">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12 2-12 2Z" /></svg>
+            </button>
+          </div>
+          {codeErreur ? <p className="porte-erreur">{codeErreur}</p> : null}
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"}>
+      <div className="portrait" aria-hidden="true">
+        <div className="avatar" data-face={face} />
+      </div>
+
+      {legende && !clavier ? <p className="legende">{legende}</p> : null}
+
+      <div className="barre">
+        <button className="clavier-ouvrir" type="button" onClick={ouvrirClavier} aria-label="Écrire à BIA">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 6h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Zm2 3v2h2V9H5Zm4 0v2h2V9H9Zm4 0v2h2V9h-2Zm4 0v2h2V9h-2ZM5 13v2h2v-2H5Zm4 0v2h6v-2H9Zm8 0v2h2v-2h-2Z" />
+          </svg>
+        </button>
+
+        <button className="microphone" type="button" onClick={toggleMicrophone} aria-label={labels[mode]}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V5a3.5 3.5 0 0 0-7 0v6a3.5 3.5 0 0 0 3.5 3.5Zm-6-4a1 1 0 0 1 2 0V11a4 4 0 0 0 8 0v-.5a1 1 0 1 1 2 0V11a6 6 0 0 1-5 5.92V19h3a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3v-2.08A6 6 0 0 1 6 11v-.5Z" />
+          </svg>
+        </button>
+
+        <span className="cale" aria-hidden="true" />
+      </div>
+
+      <section className="clavier" aria-hidden={!clavier}>
+        <button className="clavier-fermer" type="button" onClick={() => setClavier(false)} aria-label="Replier le clavier">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.4 5.3 8.7l1.4-1.4 5.3 5.3 5.3-5.3 1.4 1.4Z" /></svg>
+        </button>
+
+        <div className="fil scrollbar-thin" ref={filRef}>
+          {history.length === 0 ? <p className="fil-vide">{welcome}</p> : null}
+          {history.map((m, i) => (
+            <p key={i} className={m.role === "bia" ? "bulle bulle-bia" : "bulle bulle-moi"}>{m.text}</p>
+          ))}
+        </div>
+
+        <div className="saisie">
+          <input
+            ref={champRef}
+            value={saisie}
+            onChange={(e) => setSaisie(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void askBia(saisie); }}
+            placeholder="Bindal ci wolof walla ci français…"
+            aria-label="Écrire un message à BIA"
+            enterKeyHint="send"
+          />
+          <button type="button" onClick={() => void askBia(saisie)} disabled={!saisie.trim()} aria-label="Envoyer">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12 2-12 2Z" /></svg>
+          </button>
+        </div>
+      </section>
+
+      <p className="sr-only" aria-live="polite">{labels[mode]}</p>
+    </main>
+  );
+}
