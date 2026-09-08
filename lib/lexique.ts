@@ -76,10 +76,36 @@ async function toutes(): Promise<Entree[]> {
   return valeurs;
 }
 
-const normaliser = (s: string) => String(s || "").toLowerCase()
-  .replace(/[’']/g, "'").replace(/[.,!?;:()«»"…]/g, " ").replace(/\s+/g, " ").trim();
+const normaliser = (s: string)=> String(s || "").toLowerCase()
+  .replace(/[\u2019']/g, "'").replace(/[.,!?;:()«»"\u2026]/g, " ").replace(/\s+/g, " ").trim();
 
-const motsUtiles = (t: string) => new Set(normaliser(t).split(" ").filter((m) => m.length > 2));
+/* Les mots qui ne disent rien du SUJET d'une phrase.
+
+   Sans ce filtre, « sama », « naka », « bëgg », « comment », « pour » liaient
+   entre elles des questions qui n'ont rien à voir : n'importe quelle phrase
+   wolof partage deux ou trois de ces mots avec n'importe quelle autre. Le
+   modèle recevait alors huit « corrections faisant autorité » sans rapport
+   avec la question posée — et les recopiait. C'est la mécanique qui faisait
+   réciter BIA. */
+const OUTILS = new Set([
+  // wolof — pronoms, copules, marqueurs, prépositions, liaisons
+  "maa","mangi","maangi","naa","nga","ngeen","yaa","yow","moom","noo","nu","ñu","ñungi","ñoom","yeen",
+  "mooy","moo","lañu","lañ","laa","nañu","dafa","dafay","dama","damay","dinaa","dina","dinañu","doon",
+  "naan","wara","war","mën","menn","ndax","ndaxte","walla","waaye","itam","rekk","kay","waay","noppi",
+  "ci","ak","ak","te","bala","ginnaaw","fii","foofu","bi","yi","bu","gi","mi","ji","ki","sama","sa",
+  "lan","lu","kan","ku","fan","fu","kañ","ana","naka","ñaata","naata","lépp","lepp","yépp","bépp",
+  "waaw","déedéet","deedeet","léegi","leegi","tey","man",
+  // français — outils grammaticaux et interrogatifs
+  "le","la","les","de","des","du","un","une","et","est","sont","etait","était","je","tu","il","elle",
+  "nous","vous","ils","elles","on","que","qui","quoi","pour","avec","dans","sur","sous","chez","pas",
+  "mais","donc","alors","aussi","tres","très","plus","moins","combien","pourquoi","comment","quand",
+  "ou","où","quel","quelle","ce","cette","ces","mon","ma","mes","ton","votre","vos","leur","au","aux",
+  "en","se","me","te","lui","nos","notre","son","sa","ses","par","si","bien","comme","tout","tous",
+  "cela","etre","être","avoir","fait","faire","peux","peut","veux","veut","dire","dis",
+]);
+
+const motsUtiles = (t: string) =>
+  new Set(normaliser(t).split(" ").filter((m) => m.length > 2 && !OUTILS.has(m)));
 
 /** Correction exacte de la même phrase : elle fait autorité, on la sert telle quelle. */
 export async function correctionExacte(texte: string): Promise<Entree | null> {
@@ -87,21 +113,34 @@ export async function correctionExacte(texte: string): Promise<Entree | null> {
   return (await toutes()).find((e) => normaliser(e.source) === cle) || null;
 }
 
-/** Les corrections les plus proches, à montrer au modèle comme exemples. */
-export async function exemplesPour(texte: string, max = 8): Promise<Entree[]> {
+/* Deux phrases se ressemblent si elles partagent l'essentiel de leurs mots
+   pleins, pas un seul. On mesure donc la part commune des deux vocabulaires
+   (Jaccard) et on exige un vrai recouvrement. Mieux vaut n'envoyer aucun
+   exemple qu'un exemple hors sujet : sans exemple, BIA réfléchit ; avec un
+   exemple hors sujet, elle récite. */
+const SEUIL = 0.34;
+
+/** Les corrections vraiment proches, à montrer au modèle comme exemples de style. */
+export async function exemplesPour(texte: string, max = 5): Promise<Entree[]> {
   const entrees = await toutes();
   if (!entrees.length) return [];
+
   const mots = motsUtiles(texte);
-  if (!mots.size) return entrees.slice(0, Math.min(3, max));
+  // Une question sans mot plein (« naka ? », « waaw ») n'a rien à rapprocher.
+  if (!mots.size) return [];
 
   return entrees
     .map((e) => {
       const siens = motsUtiles(e.source);
+      if (!siens.size) return { e, score: 0, communs: 0 };
       let communs = 0;
       for (const m of mots) if (siens.has(m)) communs += 1;
-      return { e, score: communs };
+      const union = mots.size + siens.size - communs;
+      return { e, score: union ? communs / union : 0, communs };
     })
-    .filter((n) => n.score > 0)
+    // Deux mots pleins en commun au minimum — sauf pour une question d'un
+    // seul mot plein, où ce mot EST le sujet et suffit s'il est bien le sien.
+    .filter((n) => n.score >= SEUIL && (n.communs >= 2 || mots.size === 1))
     .sort((a, b) => b.score - a.score)
     .slice(0, max)
     .map((n) => n.e);
