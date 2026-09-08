@@ -3,7 +3,36 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Message = { role: "bia" | "user"; text: string };
-type Face = "neutral" | "blink" | "happy" | "thinking" | "concerned" | "surprised" | "a" | "o" | "m";
+/* Les 24 cases de la planche, dans l'ordre du fichier.
+   01-07 les bouches, 08-11 le repos, 12-20 les émotions, 21-24 les rires. */
+const CASES = {
+  bouche_fermee: 1, bouche_entr: 2, bouche_a: 3, bouche_A: 4,
+  bouche_o: 5, bouche_ou: 6, bouche_i: 7,
+  yeux_ouverts: 8, yeux_mi: 9, yeux_fermes: 10, regard_cote: 11,
+  douce: 12, joie: 13, etonnement: 14, surprise: 15,
+  ecoute: 16, concernee: 17, triste: 18, malice: 19, pensive: 20,
+  rire: 21, rire_tete: 22, fourire: 23, rire_retenu: 24,
+} as const;
+type Face = keyof typeof CASES;
+
+/* Ce que BIA renvoie → ce qu'on affiche. Les rires ne sont pas une image
+   fixe : ils s'animent, d'où les suites plus bas. */
+const EMOTION_VERS_FACE: Record<string, Face> = {
+  neutre: "yeux_ouverts", douce: "douce", joie: "joie", rire: "rire",
+  fourire: "fourire", etonnement: "etonnement", surprise: "surprise",
+  ecoute: "ecoute", concernee: "concernee", triste: "triste",
+  malice: "malice", pensive: "pensive",
+};
+
+/* Un rire ne tient pas sur une seule image. On enchaîne quelques cases pour
+   que le visage bouge — c'est ce qui donne l'impression du vrai. */
+const SUITES: Partial<Record<string, Array<[Face, number]>>> = {
+  rire:    [["joie",120],["rire",260],["rire_tete",300],["rire",240],["joie",200]],
+  fourire: [["rire",160],["rire_tete",320],["fourire",520],["rire_tete",240],["joie",220]],
+  surprise:[["etonnement",140],["surprise",700],["etonnement",260]],
+  malice:  [["douce",160],["malice",900]],
+  pensive: [["pensive",900],["regard_cote",320]],
+};
 type Recognition = {
   lang: string;
   interimResults: boolean;
@@ -41,17 +70,11 @@ function phoneticWolof(text: string) {
     .replace(/u/gi, "ou");
 }
 
-function emotionFor(text: string): Face {
-  const value = text.toLowerCase();
-  if (/désolé|jafe-jafe|mënuma|triste|malheureusement/.test(value)) return "concerned";
-  if (/waaw|bég|félicitations|excellent|magnifique/.test(value)) return "happy";
-  if (/[!?]|lan moo|naka|pourquoi/.test(value)) return "surprised";
-  return "neutral";
-}
+
 
 export default function Home() {
   const [history, setHistory] = useState<Message[]>([]);
-  const [face, setFace] = useState<Face>("neutral");
+  const [face, setFace] = useState<Face>("yeux_ouverts");
   const [mode, setMode] = useState<"ready" | "listening" | "thinking" | "speaking" | "error">("ready");
   const [clavier, setClavier] = useState(false);
   const [saisie, setSaisie] = useState("");
@@ -82,6 +105,7 @@ export default function Home() {
   const tourRef = useRef<object | null>(null);
   const resumeRef = useRef("");
   const resumeEnCours = useRef(false);
+  const emotionRef = useRef("neutre");
 
   historyRef.current = history;
   resumeRef.current = resume;
@@ -104,13 +128,25 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
-  const stopMouth = useCallback((answer = "") => {
+  /* Quand elle a fini de parler, son visage garde l'émotion de ce qu'elle
+     vient de dire, puis revient au repos. Certaines émotions s'animent au
+     lieu de rester figées — un rire, ça bouge. */
+  const stopMouth = useCallback((_answer = "") => {
     if (mouthTimer.current) clearInterval(mouthTimer.current);
     mouthTimer.current = null;
     setMode("ready");
-    setFace(emotionFor(answer));
     if (resetTimer.current) clearTimeout(resetTimer.current);
-    resetTimer.current = setTimeout(() => setFace("neutral"), 1400);
+
+    const emo = emotionRef.current || "neutre";
+    const suite = SUITES[emo];
+    if (suite) {
+      let t = 0;
+      for (const [f, d] of suite) { setTimeout(() => setFace(f), t); t += d; }
+      resetTimer.current = setTimeout(() => setFace("yeux_ouverts"), t + 900);
+    } else {
+      setFace(EMOTION_VERS_FACE[emo] || "yeux_ouverts");
+      resetTimer.current = setTimeout(() => setFace("yeux_ouverts"), 2600);
+    }
   }, []);
 
   /* Bouche à l'aveugle : une forme toutes les 110 ms, sans rapport avec le
@@ -119,7 +155,7 @@ export default function Home() {
   const bouche = useCallback((actif: boolean, answer = "") => {
     if (actif) {
       setMode("speaking");
-      const shapes: Face[] = ["a", "m", "o", "a", "m"];
+      const shapes: Face[] = ["bouche_a", "bouche_fermee", "bouche_o", "bouche_A", "bouche_entr"];
       let index = 0;
       if (mouthTimer.current) clearInterval(mouthTimer.current);
       mouthTimer.current = setInterval(() => setFace(shapes[index++ % shapes.length]), 110);
@@ -146,6 +182,18 @@ export default function Home() {
 
   /* L'enveloppe du son : l'énergie moyenne par tranche de 45 ms. C'est elle
      qui dira à la bouche quand s'ouvrir, au lieu d'une minuterie aveugle. */
+  /* Sept formes au lieu de trois. L'énergie du son donne l'ouverture ; on
+     alterne ensuite entre les formes de même ouverture pour que la bouche ne
+     répète pas indéfiniment la même image sur une voyelle tenue. */
+  const formeBouche = (part: number, i: number): Face => {
+    if (part < 0.05) return "bouche_fermee";
+    if (part < 0.14) return "bouche_entr";
+    if (part < 0.30) return i % 2 ? "bouche_o" : "bouche_entr";
+    if (part < 0.48) return i % 3 === 0 ? "bouche_i" : i % 3 === 1 ? "bouche_a" : "bouche_ou";
+    if (part < 0.72) return i % 2 ? "bouche_a" : "bouche_i";
+    return i % 3 === 0 ? "bouche_a" : "bouche_A";
+  };
+
   const enveloppeDe = (mémoire: AudioBuffer) => {
     const donnees = mémoire.getChannelData(0);
     const fenetre = Math.max(1, Math.floor(mémoire.sampleRate * 0.030));
@@ -180,7 +228,7 @@ export default function Home() {
         if (sourceRef.current !== source) return;
         const i = Math.floor((ctx.currentTime - depart) / pas);
         const part = i >= 0 && i < valeurs.length ? valeurs[i] / pic : 0;
-        const forme: Face = part < 0.06 ? "m" : part < 0.32 ? "o" : "a";
+        const forme = formeBouche(part, i);
         if (forme !== precedente) { precedente = forme; setFace(forme); }
         animationRef.current = requestAnimationFrame(suivre);
       };
@@ -284,7 +332,7 @@ export default function Home() {
     setSaisie("");
     setHistory((items) => [...items, { role: "user", text: clean }]);
     setMode("thinking");
-    setFace("thinking");
+    setFace("pensive");
     setLegende("");
     try {
       const response = await fetch("/api/chat", {
@@ -292,24 +340,30 @@ export default function Home() {
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
         body: JSON.stringify({ message: clean, history: historyRef.current.slice(-12), resume: resumeRef.current }),
       });
-      const data = (await response.json()) as { reply: string; motif?: string };
+      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string };
       if (response.status === 401) {
         // Code refusé : on renvoie le testeur à l'écran d'entrée avec le motif.
         try { localStorage.removeItem("bia-code"); } catch {}
         setCode(null);
         setCodeErreur(data.reply);
-        setMode("ready"); setFace("neutral");
+        setMode("ready"); setFace("yeux_ouverts");
         return;
       }
       if (!response.ok) throw new Error("BIA unavailable");
+      emotionRef.current = data.emotion || "neutre";
       setHistory((items) => [...items, { role: "bia", text: data.reply }]);
       setLegende(data.reply);
+      // Le visage prend l'émotion tout de suite, avant même la voix : c'est
+      // ce qui donne l'impression qu'elle réagit à ce qu'on lui a dit.
+      const suite = SUITES[emotionRef.current];
+      if (!suite) setFace(EMOTION_VERS_FACE[emotionRef.current] || "yeux_ouverts");
       speak(data.reply);
     } catch {
+      emotionRef.current = "concernee";
       const fallback = "Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.";
       setHistory((items) => [...items, { role: "bia", text: fallback }]);
       setLegende(fallback);
-      setFace("concerned");
+      setFace("concernee");
       setMode("error");
       speak(fallback);
     } finally {
@@ -319,12 +373,22 @@ export default function Home() {
 
   // Clignement des yeux au repos.
   useEffect(() => {
+    /* Un clignement franc paraît mécanique. Trois images descendantes puis
+       trois remontantes, et un regard qui glisse de temps en temps, suffisent
+       à donner l'impression d'une présence plutôt que d'une photo. */
+    const minuteries: Array<ReturnType<typeof setTimeout>> = [];
     const timer = setInterval(() => {
       if (mode !== "ready") return;
-      setFace("blink");
-      setTimeout(() => setFace("neutral"), 150);
-    }, 4300);
-    return () => clearInterval(timer);
+      const suite: Array<[Face, number]> = Math.random() < 0.22
+        ? [["regard_cote", 900], ["yeux_ouverts", 0]]
+        : [["yeux_mi", 60], ["yeux_fermes", 90], ["yeux_mi", 60], ["yeux_ouverts", 0]];
+      let t = 0;
+      for (const [f, d] of suite) {
+        minuteries.push(setTimeout(() => setFace(f), t));
+        t += d;
+      }
+    }, 3900);
+    return () => { clearInterval(timer); minuteries.forEach(clearTimeout); };
   }, [mode]);
 
   const arreterEnregistrement = useCallback(() => {
@@ -368,20 +432,20 @@ export default function Home() {
         if (!aParle || !morceaux.length) { setMode("ready"); return; }
 
         setMode("thinking");
-        setFace("thinking");
+        setFace("pensive");
         const forme = new FormData();
         forme.append("audio", new Blob(morceaux, { type: "audio/webm" }), "parole.webm");
         try {
           const r = await fetch("/api/ecouter", { method: "POST", headers: { "x-bia-code": codeRef.current }, body: forme });
           const d = await r.json() as { texte?: string };
           if (d.texte) void askBia(d.texte);
-          else { setMode("ready"); setFace("neutral"); }
+          else { setMode("ready"); setFace("yeux_ouverts"); }
         } catch { setMode("error"); }
       };
 
       enregistreur.start();
       setMode("listening");
-      setFace("neutral");
+      setFace("ecoute");
     } catch {
       setMode("error");
     }
@@ -402,7 +466,7 @@ export default function Home() {
     recognition.lang = "fr-FR";
     recognition.interimResults = true;
     recognition.continuous = false;
-    recognition.onstart = () => { setMode("listening"); setFace("neutral"); };
+    recognition.onstart = () => { setMode("listening"); setFace("ecoute"); };
     recognition.onend = () => setMode((c) => (c === "listening" ? "ready" : c));
     recognition.onerror = () => setMode("error");
     recognition.onresult = (event: any) => {
@@ -548,7 +612,7 @@ export default function Home() {
   if (!code) {
     return (
       <main className="bia-presence" data-mode="ready">
-        <div className="portrait" aria-hidden="true"><div className="avatar" data-face="neutral" /></div>
+        <div className="portrait" aria-hidden="true"><div className="avatar" data-face="yeux_ouverts" /></div>
         <section className="porte">
           <p className="porte-titre">BIA</p>
           <p className="porte-texte">Duggal sa kod ngir waxtaan ak BIA.</p>

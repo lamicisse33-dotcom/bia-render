@@ -102,6 +102,34 @@ Réglages de départ : exagération 0,12 — CFG 0,28 — température 0,35. Voi
 douce et posée, à la demande de Lamine. **Ce ne sont pas les valeurs de
 l'Interprète** (0,20 / 0,50 / 0,10), qui visent la netteté d'une traduction.
 
+### Le visage : 24 expressions
+
+`public/bia-24.webp`, planche de 6 colonnes sur 4 lignes, cases 209 × 314.
+Ordre : 01-07 les bouches, 08-11 le repos, 12-20 les émotions, 21-24 les
+rires. Les noms des cases sont dans `CASES` en haut de `app/page.tsx`.
+
+Les 24 images d'origine étaient décalées entre elles — jusqu'à 11 px
+horizontalement, 16 px verticalement. Elles ont été **recalées par
+corrélation sur le front et les yeux** (sur les épaules pour la 22, dont la
+tête renversée est voulue). Les 7 bouches sont maintenant à 0 px d'écart :
+c'est ce qui supprime le tremblement quand elles alternent.
+
+**Si de nouvelles images arrivent, refaire ce recalage.** Coller les images
+brutes telles quelles fera trembler le visage.
+
+### L'émotion vient du modèle
+
+BIA termine chaque réponse par `[[emotion:X]]`, retiré du texte avant
+affichage et avant la voix. X ∈ neutre, douce, joie, rire, fourire,
+etonnement, surprise, ecoute, concernee, triste, malice, pensive.
+
+Avant, l'émotion était devinée par mots-clés dans la réponse — grossier et
+souvent faux. Le modèle sait ce qu'il dit ; il est mieux placé. Si la balise
+manque, le visage reste neutre : on ne devine pas.
+
+Les rires et la surprise ne sont pas une image fixe mais une petite suite
+(`SUITES` dans `app/page.tsx`) — un rire, ça bouge.
+
 ### La bouche
 
 Elle suit l'énergie du son, tranche par tranche de 30 ms : silence → lèvres
