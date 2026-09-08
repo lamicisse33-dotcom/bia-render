@@ -27,11 +27,11 @@ const EMOTION_VERS_FACE: Record<string, Face> = {
 /* Un rire ne tient pas sur une seule image. On enchaîne quelques cases pour
    que le visage bouge — c'est ce qui donne l'impression du vrai. */
 const SUITES: Partial<Record<string, Array<[Face, number]>>> = {
-  rire:    [["joie",120],["rire",260],["rire_tete",300],["rire",240],["joie",200]],
-  fourire: [["rire",160],["rire_tete",320],["fourire",520],["rire_tete",240],["joie",220]],
-  surprise:[["etonnement",140],["surprise",700],["etonnement",260]],
-  malice:  [["douce",160],["malice",900]],
-  pensive: [["pensive",900],["regard_cote",320]],
+  rire:    [["joie",320],["rire",620],["rire_tete",720],["rire",560],["joie",480]],
+  fourire: [["rire",380],["rire_tete",700],["fourire",1100],["rire_tete",560],["joie",520]],
+  surprise:[["etonnement",340],["surprise",1300],["etonnement",600]],
+  malice:  [["douce",380],["malice",1600]],
+  pensive: [["pensive",1500],["regard_cote",700]],
 };
 type Recognition = {
   lang: string;
@@ -142,10 +142,10 @@ export default function Home() {
     if (suite) {
       let t = 0;
       for (const [f, d] of suite) { setTimeout(() => setFace(f), t); t += d; }
-      resetTimer.current = setTimeout(() => setFace("yeux_ouverts"), t + 900);
+      resetTimer.current = setTimeout(() => setFace("yeux_ouverts"), t + 1800);
     } else {
       setFace(EMOTION_VERS_FACE[emo] || "yeux_ouverts");
-      resetTimer.current = setTimeout(() => setFace("yeux_ouverts"), 2600);
+      resetTimer.current = setTimeout(() => setFace("yeux_ouverts"), 4200);
     }
   }, []);
 
@@ -196,7 +196,7 @@ export default function Home() {
 
   const enveloppeDe = (mémoire: AudioBuffer) => {
     const donnees = mémoire.getChannelData(0);
-    const fenetre = Math.max(1, Math.floor(mémoire.sampleRate * 0.030));
+    const fenetre = Math.max(1, Math.floor(mémoire.sampleRate * 0.075));
     const valeurs: number[] = [];
     let pic = 0;
     for (let i = 0; i < donnees.length; i += fenetre) {
@@ -207,7 +207,7 @@ export default function Home() {
       if (v > pic) pic = v;
       valeurs.push(v);
     }
-    return { valeurs, pic: pic || 1, pas: 0.030 };
+    return { valeurs, pic: pic || 1, pas: 0.075 };
   };
 
   /* Joue un morceau et fait suivre la bouche. Les seuils sont choisis pour
@@ -224,12 +224,22 @@ export default function Home() {
 
       const depart = ctx.currentTime;
       let precedente: Face | null = null;
+      /* Une bouche humaine ne change pas de forme dix fois par seconde. On
+         impose un temps minimum entre deux images : sans lui, le visage
+         papillonne et paraît nerveux — c'est ce que Lamine a vu. */
+      const MINIMUM = 130; // millisecondes
+      let dernierChangement = 0;
       const suivre = () => {
         if (sourceRef.current !== source) return;
-        const i = Math.floor((ctx.currentTime - depart) / pas);
+        const ecoule = (ctx.currentTime - depart) * 1000;
+        const i = Math.floor(ecoule / (pas * 1000));
         const part = i >= 0 && i < valeurs.length ? valeurs[i] / pic : 0;
         const forme = formeBouche(part, i);
-        if (forme !== precedente) { precedente = forme; setFace(forme); }
+        if (forme !== precedente && ecoule - dernierChangement >= MINIMUM) {
+          precedente = forme;
+          dernierChangement = ecoule;
+          setFace(forme);
+        }
         animationRef.current = requestAnimationFrame(suivre);
       };
 
@@ -380,14 +390,14 @@ export default function Home() {
     const timer = setInterval(() => {
       if (mode !== "ready") return;
       const suite: Array<[Face, number]> = Math.random() < 0.22
-        ? [["regard_cote", 900], ["yeux_ouverts", 0]]
-        : [["yeux_mi", 60], ["yeux_fermes", 90], ["yeux_mi", 60], ["yeux_ouverts", 0]];
+        ? [["regard_cote", 1600], ["yeux_ouverts", 0]]
+        : [["yeux_mi", 110], ["yeux_fermes", 150], ["yeux_mi", 110], ["yeux_ouverts", 0]];
       let t = 0;
       for (const [f, d] of suite) {
         minuteries.push(setTimeout(() => setFace(f), t));
         t += d;
       }
-    }, 3900);
+    }, 5600);
     return () => { clearInterval(timer); minuteries.forEach(clearTimeout); };
   }, [mode]);
 
