@@ -23,10 +23,8 @@ export default function Reglage() {
   const [exag, setExag] = useState(0.12);
   const [temp, setTemp] = useState(0.35);
   const [cfg, setCfg] = useState(0.28);
-  const [clonage, setClonage] = useState(true);
   const [etat, setEtat] = useState("");
   const [duree, setDuree] = useState<number | null>(null);
-  const [moteur, setMoteur] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => { try { setCode(localStorage.getItem("bia-code") || ""); } catch {} }, []);
@@ -41,17 +39,11 @@ export default function Reglage() {
       const r = await fetch("/api/voix", {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": code },
-        body: JSON.stringify({
-          texte, partie: 0, exaggeration: exag, temperature: temp, cfgWeight: cfg,
-          // Chaîne vide = on demande explicitement la voix d'origine, pour
-          // pouvoir comparer les deux dans la même minute.
-          audioPrompt: clonage ? undefined : "",
-        }),
+        body: JSON.stringify({ texte, partie: 0, exaggeration: exag, temperature: temp, cfgWeight: cfg }),
       });
-      const d = await r.json() as { audio?: string | null; type_mime?: string; erreur?: string; moteur?: string };
+      const d = await r.json() as { audio?: string | null; type_mime?: string; erreur?: string };
       if (!d.audio) { setEtat(d.erreur || "Aucun son n'est revenu."); return; }
       setDuree(Date.now() - depart);
-      setMoteur(d.moteur || "");
       const son = new Audio(`data:${d.type_mime || "audio/wav"};base64,${d.audio}`);
       audioRef.current = son;
       setEtat("");
@@ -85,11 +77,6 @@ export default function Reglage() {
 
       <textarea value={texte} onChange={(e) => setTexte(e.target.value)} rows={3} aria-label="Phrase à lire" />
 
-      <label className="bascule">
-        <input type="checkbox" checked={clonage} onChange={(e) => setClonage(e.target.checked)} />
-        <span>Utiliser <b>ta voix de référence</b> — décoche pour entendre la voix d'origine d'Oolel et comparer.</span>
-      </label>
-
       <div className="rangee">
         {PRESETS.map((p) => (
           <button key={p.nom} className="secondaire" type="button"
@@ -106,10 +93,9 @@ export default function Reglage() {
       <button className="ecouter" type="button" onClick={() => void ecouter()}>Écouter</button>
 
       {etat ? <p className="etat">{etat}</p> : null}
-      {duree !== null ? <p className="etat">Fabriquée en {(duree / 1000).toFixed(1)} s{moteur ? ` — ${moteur}` : ""}.</p> : null}
+      {duree !== null ? <p className="etat">Fabriquée en {(duree / 1000).toFixed(1)} s.</p> : null}
 
       <p className="report">
-        L'extrait de référence : <a href="/voix-bia.wav" target="_blank" rel="noreferrer">voix-bia.wav</a><br /><br />
         Quand ça te plaît, dans Render → Environment :<br />
         <code>SOYNADE_EXAGGERATION = {exag.toFixed(2)}</code><br />
         <code>SOYNADE_CFG_WEIGHT = {cfg.toFixed(2)}</code><br />

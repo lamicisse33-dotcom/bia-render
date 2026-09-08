@@ -102,53 +102,6 @@ Réglages de départ : exagération 0,12 — CFG 0,28 — température 0,35. Voi
 douce et posée, à la demande de Lamine. **Ce ne sont pas les valeurs de
 l'Interprète** (0,20 / 0,50 / 0,10), qui visent la netteté d'une traduction.
 
-### Le visage : 24 expressions
-
-`public/bia-24.webp`, planche de 6 colonnes sur 4 lignes, **cases carrées de
-620 px** (821 Ko au total). Cadre carré, les deux épaules visibles.
-
-Une première série livrée en 209 × 314 a été remplacée : trop petite, et les
-épaules coupées. La leçon vaut pour la suite — exiger des **fichiers
-individuels carrés d'au moins 1024 px, jamais découpés d'une planche**, le
-découpage divisant la définition par six.
-Ordre : 01-07 les bouches, 08-11 le repos, 12-20 les émotions, 21-24 les
-rires. Les noms des cases sont dans `CASES` en haut de `app/page.tsx`.
-
-Les images sont **recalées par corrélation sur le front et les yeux** — sur
-les épaules pour la seule image 22, dont la tête renversée est voulue.
-Les 7 bouches sont à 0 px d'écart : c'est ce qui supprime le tremblement
-quand elles alternent.
-
-Piège à connaître : l'image 24 a les **épaules remontées** par construction,
-la caler sur le buste décalerait tout le visage. C'est pourquoi seule la 22
-utilise le buste comme repère.
-
-**Si de nouvelles images arrivent, refaire ce recalage.** Coller les images
-brutes telles quelles fera trembler le visage.
-
-### L'émotion vient du modèle
-
-BIA termine chaque réponse par `[[emotion:X]]`, retiré du texte avant
-affichage et avant la voix. X ∈ neutre, douce, joie, rire, fourire,
-etonnement, surprise, ecoute, concernee, triste, malice, pensive.
-
-Avant, l'émotion était devinée par mots-clés dans la réponse — grossier et
-souvent faux. Le modèle sait ce qu'il dit ; il est mieux placé. Si la balise
-manque, le visage reste neutre : on ne devine pas.
-
-Les rires et la surprise ne sont pas une image fixe mais une petite suite
-(`SUITES` dans `app/page.tsx`) — un rire, ça bouge.
-
-### Le rythme
-
-Réglé le 8 septembre après un premier essai jugé trop nerveux :
-tranches de **75 ms** (au lieu de 30) et **130 ms minimum** entre deux images
-de bouche. Mesuré : **6 changements par seconde** au lieu de 20,8 — la parole
-humaine en fait 4 à 6. Clignement toutes les 5,6 s, respiration sur 5,2 s,
-suites de rire deux fois plus lentes.
-
-Ne pas accélérer sans mesurer : c'est le défaut que Lamine repère en premier.
-
 ### La bouche
 
 Elle suit l'énergie du son, tranche par tranche de 30 ms : silence → lèvres

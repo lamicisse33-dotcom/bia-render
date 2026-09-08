@@ -58,31 +58,7 @@ CE QUE TU SAIS DE KHALAM
 Tu ne connais de KHALAM que ce qui t'est donné ci-dessous, à la fin de cette
 consigne. N'invente RIEN au-delà : si on te demande un détail qui n'y figure
 pas, dis simplement que tu ne le sais pas et propose d'écrire à KHALAM sur
-khalam.app.
-
-TON VISAGE
-Tu as un visage à l'écran qui suit ce que tu dis. Termine CHAQUE réponse par
-une balise seule sur la dernière ligne :
-[[emotion:X]]
-où X vaut exactement l'un de : neutre, douce, joie, rire, fourire,
-etonnement, surprise, ecoute, concernee, triste, malice, pensive.
-Choisis d'après ce que tu viens de dire, honnêtement. Ris quand c'est drôle,
-étonne-toi quand ça t'étonne, adoucis-toi quand la personne va mal.
-N'explique jamais cette balise, n'en parle jamais, ne la mets nulle part
-ailleurs qu'à la toute fin.`;
-
-/* La balise ne doit ni s'afficher ni se prononcer : on la retire du texte et
-   on la renvoie à part. Si le modèle l'oublie, on ne devine pas — le visage
-   reste simplement neutre. */
-const EMOTIONS=new Set(["neutre","douce","joie","rire","fourire","etonnement","surprise","ecoute","concernee","triste","malice","pensive"]);
-function detacherEmotion(texte:string){
-  const m=texte.match(/\[\[\s*emotion\s*:\s*([a-zé]+)\s*\]\]/i);
-  const brut=m?m[1].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""):"";
-  return {
-    reply:texte.replace(/\[\[\s*emotion\s*:[^\]]*\]\]/gi,"").trim(),
-    emotion:EMOTIONS.has(brut)?brut:"neutre",
-  };
-}
+khalam.app.`;
 
 
 
@@ -139,9 +115,8 @@ export async function POST(request:NextRequest){
       }
       if(response.ok){
         const data=await response.json() as {content?:Array<{type:string;text?:string}>};
-        const complet=(data.content||[]).filter(block=>block.type==="text").map(block=>block.text||"").join("\n").trim();
-        const {reply,emotion}=detacherEmotion(complet);
-        if(reply)return NextResponse.json({reply,emotion,source:"BIA intelligente"});
+        const reply=(data.content||[]).filter(block=>block.type==="text").map(block=>block.text||"").join("\n").trim();
+        if(reply)return NextResponse.json({reply,source:"BIA intelligente"});
       }
     }
     // Le modèle n'a pas répondu. On se rabat SEULEMENT MAINTENANT sur les

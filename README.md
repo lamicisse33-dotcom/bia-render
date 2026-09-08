@@ -107,32 +107,6 @@ Si `ELEVENLABS_API_KEY` manque, le micro retombe sur la reconnaissance du
 navigateur, réglée en français. Elle déforme le wolof : c'est un dépannage,
 pas une solution.
 
-### Sa voix à elle
-
-Oolel-Voices sait **cloner une voix** : on lui donne un extrait de référence,
-il imite la voix qu'il y entend.
-
-L'extrait de BIA est `public/voix-bia.wav` — 19 secondes de parole nette,
-mono, 24 kHz, tirées de l'enregistrement de Lamine. Il est servi par BIA
-elle-même, donc joignable à
-`https://bia-render.onrender.com/voix-bia.wav`, ce qui est nécessaire :
-l'API doit pouvoir aller le chercher.
-
-Pour l'activer, dans Render :
-
-| Variable | Valeur |
-|---|---|
-| `SOYNADE_AUDIO_PROMPT` | `https://bia-render.onrender.com/voix-bia.wav` |
-
-**Si ça ne marche pas du premier coup**, c'est probablement le nom du champ.
-La documentation du modèle ouvert l'appelle `audio_prompt_path`, et c'est ce
-que BIA envoie ; l'API hébergée de Soynade pourrait le nommer autrement.
-Dans ce cas, `SOYNADE_AUDIO_PROMPT_FIELD` permet d'en essayer un autre
-(`audio_prompt`, `reference_audio`, `voice_prompt`…) sans toucher au code.
-
-`/api/etat` affiche `voix_clonee`, et la page `/reglage` a une case pour
-comparer avec et sans, dans la même minute.
-
 ### Régler sa voix
 
 `TON-ADRESSE/reglage`, avec ton code maître. Tu écris une phrase, tu bouges

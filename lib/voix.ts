@@ -18,17 +18,6 @@ export const voixConfig = {
     exaggeration: Number(env.SOYNADE_EXAGGERATION || 0.12),
     temperature: Number(env.SOYNADE_TEMPERATURE || 0.35),
     cfgWeight: Number(env.SOYNADE_CFG_WEIGHT || 0.28),
-    /* Le clonage de voix. Oolel-Voices accepte un extrait de référence et
-       imite la voix qu'il y entend. L'extrait doit être joignable par une
-       adresse publique : le nôtre est servi par BIA elle-même, depuis
-       public/voix-bia.wav.
-
-       Le NOM du champ est réglable parce que je n'ai pas la documentation de
-       l'API hébergée de Soynade — seulement celle du modèle ouvert, où il
-       s'appelle audio_prompt_path. Si l'API le nomme autrement, il suffit de
-       changer SOYNADE_AUDIO_PROMPT_FIELD sans toucher au code. */
-    audioPrompt: env.SOYNADE_AUDIO_PROMPT || "",
-    audioPromptField: env.SOYNADE_AUDIO_PROMPT_FIELD || "audio_prompt_path",
   },
   elevenlabs: {
     apiKey: env.ELEVENLABS_API_KEY || "",
@@ -72,7 +61,7 @@ export function decouper(texte: string): string[] {
   return morceaux.filter(Boolean);
 }
 
-export type Reglages = { exaggeration?: number; temperature?: number; cfgWeight?: number; audioPrompt?: string | null };
+export type Reglages = { exaggeration?: number; temperature?: number; cfgWeight?: number };
 export type Parole = { audio: Buffer; typeMime: string; moteur: string };
 
 const borne = (v: number | undefined, defaut: number) =>
@@ -81,10 +70,6 @@ const borne = (v: number | undefined, defaut: number) =>
 async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages): Promise<Parole> {
   const c = voixConfig.soynade;
   if (!c.apiKey) throw new Error("SOYNADE_API_KEY manquante");
-
-  // Une chaîne vide passée explicitement veut dire « sans clonage », pour
-  // pouvoir comparer les deux dans la page de réglage.
-  const prompt = r?.audioPrompt === "" ? "" : (r?.audioPrompt || c.audioPrompt);
 
   const reponse = await fetch(`${c.baseUrl.replace(/\/$/, "")}/v1/text-to-speech`, {
     method: "POST",
@@ -102,7 +87,6 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages): Pro
       temperature: borne(r?.temperature, c.temperature),
       cfg_weight: borne(r?.cfgWeight, c.cfgWeight),
       seed: 0,
-      ...(prompt ? { [c.audioPromptField]: prompt } : {}),
     }),
   });
 
@@ -110,11 +94,7 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages): Pro
     const detail = (await reponse.text().catch(() => "")).slice(0, 400);
     throw new Error(`Soynade ${reponse.status} : ${detail}`);
   }
-  return {
-    audio: Buffer.from(await reponse.arrayBuffer()),
-    typeMime: "audio/wav",
-    moteur: prompt ? "soynade-oolel-voices (voix clonée)" : "soynade-oolel-voices",
-  };
+  return { audio: Buffer.from(await reponse.arrayBuffer()), typeMime: "audio/wav", moteur: "soynade-oolel-voices" };
 }
 
 async function viaElevenLabs(texte: string, langue: "wo" | "fr"): Promise<Parole> {
