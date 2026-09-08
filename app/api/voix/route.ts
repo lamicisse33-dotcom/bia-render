@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json() as {
       texte?: string; partie?: number; langue?: string;
       exaggeration?: number; temperature?: number; cfgWeight?: number;
+      audioPrompt?: string | null;
     };
     const morceaux = decouper(String(body.texte || ""));
     const partie = Math.max(0, Math.floor(Number(body.partie) || 0));
@@ -31,6 +32,7 @@ export async function POST(request: NextRequest) {
       exaggeration: body.exaggeration,
       temperature: body.temperature,
       cfgWeight: body.cfgWeight,
+      audioPrompt: body.audioPrompt,
     });
     if (!parole) return NextResponse.json({ parties: morceaux.length, audio: null, moteur: "navigateur", langue });
 
