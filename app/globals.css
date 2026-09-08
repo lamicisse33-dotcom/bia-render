@@ -359,3 +359,63 @@ button { font: inherit; touch-action: manipulation; }
   color: #f0d98a;
   font-size: 13px;
 }
+
+/* ── Mémoire et corrections ─────────────────────────────────────────────── */
+.outils { display: flex; align-items: center; gap: 7px; padding: 2px 2px 8px; flex-wrap: wrap; }
+.outils button {
+  padding: 5px 11px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 14px;
+  background: transparent;
+  color: rgba(255,255,255,.6);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.outils button:active { background: rgba(255,255,255,.09); }
+.jauge {
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(212,175,55,.13);
+  color: #d9bd63;
+  font-size: 12px;
+}
+
+.ligne { display: flex; flex-direction: column; }
+.ligne-moi { align-items: flex-end; }
+.ligne-bia { align-items: flex-start; }
+
+.mal-dit {
+  margin: 0 0 6px 4px;
+  padding: 3px 9px;
+  border: 0; border-radius: 10px;
+  background: transparent;
+  color: rgba(255,255,255,.3);
+  font-size: 12px;
+  cursor: pointer;
+}
+.mal-dit:hover, .mal-dit:active { color: #ff9db0; background: rgba(255,157,176,.09); }
+
+.corriger { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; margin: 2px 0 10px; }
+.corriger input {
+  flex: 1 1 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 13px;
+  border: 1px solid rgba(212,175,55,.4);
+  border-radius: 20px;
+  background: rgba(255,255,255,.06);
+  color: #fff;
+  font: inherit; font-size: 16px;
+  outline: none;
+}
+.corriger button {
+  padding: 6px 14px;
+  border: 0; border-radius: 14px;
+  background: #d4af37;
+  color: #17130a;
+  font-size: 13px;
+  cursor: pointer;
+}
+.corriger button.annuler { background: rgba(255,255,255,.09); color: rgba(255,255,255,.65); }
+.avis { margin: 6px 0; color: #d9bd63; font-size: 13.5px; text-align: center; }

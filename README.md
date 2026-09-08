@@ -25,6 +25,8 @@ traduction — et répond **dans la langue où on lui écrit**, le wolof par dé
    | `BIA_LLM_MODEL` | par défaut `claude-sonnet-5` | non |
    | `BIA_MAX_QUESTIONS` | par défaut 15 | non |
    | `SOYNADE_API_KEY` | ta clé Soynade — la même que l'Interprète | pour la voix |
+   | `SUPABASE_URL` | `https://mguiuamwggokbirxbyqc.supabase.co` | pour le lexique |
+   | `SUPABASE_SERVICE_KEY` | la clé *service_role* du projet | pour le lexique |
    | `ELEVENLABS_API_KEY` | ta clé ElevenLabs | pour le micro wolof |
 
    Les autres réglages de Soynade portent les mêmes noms que dans
@@ -127,13 +129,66 @@ caractères d'un coup, donc les longues réponses sont découpées aux frontièr
 de phrase et enchaînées ; et Scribe se trompe sur environ 40 % des mots
 wolof — aucun moteur ne fait mieux aujourd'hui.
 
+## Sa mémoire
+
+BIA retrouve la conversation là où on l'a laissée, même après avoir fermé
+l'onglet. Tout reste **sur l'appareil** : rien n'est envoyé ailleurs, et deux
+testeurs ne se voient pas.
+
+Au-delà de trente messages, les plus anciens sont condensés en un mémo — le
+prénom, le métier, la ville, ce qui a été décidé — puis retirés du fil. Le
+mémo, lui, est renvoyé au modèle à chaque question. C'est ce qui fait qu'elle
+se souvient d'une personne d'une visite à l'autre sans que la conversation
+gonfle sans fin.
+
+Deux boutons dans le panneau du clavier : **Nouvelle conversation** vide le
+fil mais garde les notes ; **Tout oublier** efface aussi les notes.
+
+## Son wolof grandit
+
+Sous chaque réponse de BIA, un bouton **Mal dit**. Le testeur écrit la bonne
+formulation, elle part dans Supabase.
+
+Ensuite, à chaque question :
+- si la **même** question a déjà été corrigée, la formulation validée est
+  imposée au modèle ;
+- sinon, les corrections **proches** (mots en commun) lui sont montrées comme
+  exemples faisant autorité.
+
+Sur le wolof de Dakar, un locuteur d'ici a toujours raison contre un modèle
+entraîné ailleurs. C'est le sens de cette priorité.
+
+Le lexique est lu au maximum une fois par minute (cache), sinon chaque
+question ajouterait un aller-retour Supabase au délai de réponse.
+
+**La table à créer**, une seule fois, dans l'éditeur SQL de Supabase :
+
+```sql
+create table bia_lexique (
+  id        bigserial primary key,
+  source    text not null,
+  corrigee  text not null,
+  proposee  text,
+  langue    text,
+  auteur    text,
+  date      timestamptz default now()
+);
+alter table bia_lexique enable row level security;
+```
+
+La sécurité au niveau des lignes est activée sans aucune politique : personne
+ne peut lire la table depuis l'extérieur. Seule la clé *service_role*, qui
+vit uniquement sur le serveur de BIA, la traverse.
+
+Sans `SUPABASE_URL` et `SUPABASE_SERVICE_KEY`, les corrections tiennent en
+mémoire vive et disparaissent au réveil de Render. `/api/etat` le dit
+franchement.
+
 ## Ce qui reste à faire
 
 - **Le wolof est à éprouver** sur de vraies questions dakaroises.
-- **Aucun corpus** : contrairement à l'Interprète, BIA ne garde ni les
-  enregistrements ni les corrections. Rien ne l'améliore avec l'usage.
-- **Aucune mémoire** entre les sessions ; seuls les six derniers échanges
-  sont renvoyés au modèle.
+- **Aucun corpus audio** : les corrections de texte sont gardées, mais pas
+  les enregistrements. Rien ne permettra d'affiner un modèle d'écoute.
 - **La voix** : le projet parle d'assistante vocale, il n'y a rien dans le code.
 - **Le wolof est à éprouver** sur de vraies questions dakaroises.
 

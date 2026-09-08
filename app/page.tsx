@@ -60,6 +60,10 @@ export default function Home() {
   const [codeSaisi, setCodeSaisi] = useState("");
   const [codeErreur, setCodeErreur] = useState("");
   const [moteurs, setMoteurs] = useState<{ voix: string; ecoute: string } | null>(null);
+  const [resume, setResume] = useState("");
+  const [corrige, setCorrige] = useState<number | null>(null);
+  const [correction, setCorrection] = useState("");
+  const [avis, setAvis] = useState("");
 
   const recognitionRef = useRef<Recognition | null>(null);
   const mouthTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -76,13 +80,24 @@ export default function Home() {
   const enregistreurRef = useRef<MediaRecorder | null>(null);
   const moteursRef = useRef<{ voix: string; ecoute: string } | null>(null);
   const tourRef = useRef<object | null>(null);
+  const resumeRef = useRef("");
+  const resumeEnCours = useRef(false);
 
   historyRef.current = history;
+  resumeRef.current = resume;
   codeRef.current = code || "";
 
   // Le code est gardé sur l'appareil : le testeur ne le retape pas à chaque fois.
   useEffect(() => {
-    try { const g = localStorage.getItem("bia-code"); if (g) setCode(g); } catch {}
+    try {
+      const g = localStorage.getItem("bia-code"); if (g) setCode(g);
+      // BIA retrouve la conversation là où on l'a laissée, même après avoir
+      // fermé l'onglet. Tout reste sur l'appareil : rien n'est envoyé ailleurs.
+      const fil = localStorage.getItem("bia-fil");
+      if (fil) setHistory(JSON.parse(fil) as Message[]);
+      const notes = localStorage.getItem("bia-resume");
+      if (notes) { setResume(notes); resumeRef.current = notes; }
+    } catch {}
     fetch("/api/etat")
       .then((r) => r.json())
       .then((e) => { setMoteurs(e); moteursRef.current = e; })
@@ -275,7 +290,7 @@ export default function Home() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-        body: JSON.stringify({ message: clean, history: historyRef.current.slice(-6) }),
+        body: JSON.stringify({ message: clean, history: historyRef.current.slice(-12), resume: resumeRef.current }),
       });
       const data = (await response.json()) as { reply: string; motif?: string };
       if (response.status === 401) {
@@ -412,6 +427,33 @@ export default function Home() {
     if (clavier) filRef.current?.scrollTo({ top: filRef.current.scrollHeight, behavior: "smooth" });
   }, [history, clavier]);
 
+  /* Le fil est gardé sur l'appareil après chaque échange. Quand il dépasse
+     trente messages, les plus anciens sont condensés en notes et retirés du
+     fil : la conversation ne peut donc pas gonfler sans fin, et ce qui compte
+     — le prénom, le métier, ce qui a été décidé — survit à l'oubli. */
+  useEffect(() => {
+    if (!history.length) return;
+    try { localStorage.setItem("bia-fil", JSON.stringify(history.slice(-40))); } catch {}
+
+    if (history.length <= 30 || resumeEnCours.current || !code) return;
+    resumeEnCours.current = true;
+    const aCondenser = history.slice(0, history.length - 16);
+    fetch("/api/resumer", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-bia-code": code },
+      body: JSON.stringify({ echanges: aCondenser, resume: resumeRef.current }),
+    })
+      .then((r) => r.json())
+      .then((d: { resume?: string }) => {
+        if (!d.resume) return;
+        setResume(d.resume);
+        setHistory((items) => items.slice(-16));
+        try { localStorage.setItem("bia-resume", d.resume); } catch {}
+      })
+      .catch(() => {})
+      .finally(() => { resumeEnCours.current = false; });
+  }, [history, code]);
+
   // Le navigateur refuse toute voix avant un geste de l'utilisateur : le mot
   // d'accueil ne peut donc pas partir au chargement, il part au premier appui.
   function accueil() {
@@ -451,6 +493,48 @@ export default function Home() {
     speaking: "BIA répond",
     error: "Micro indisponible. Appuyer pour réessayer",
   };
+
+  async function envoyerCorrection(index: number) {
+    const bonne = correction.trim();
+    if (!bonne) return;
+    // La question qui a produit cette réponse : le message juste avant.
+    const question = [...history].slice(0, index).reverse().find((m) => m.role === "user");
+    if (!question) { setCorrige(null); return; }
+    setAvis("");
+    try {
+      const r = await fetch("/api/corriger", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+        body: JSON.stringify({
+          source: question.text, proposee: history[index].text, corrigee: bonne,
+          langue: estWolof(bonne) ? "wo" : "fr",
+        }),
+      });
+      const d = await r.json() as { ok?: boolean; erreur?: string };
+      setAvis(d.ok ? "Jërëjëf. BIA le retiendra." : (d.erreur || "La correction n'a pas été gardée."));
+    } catch {
+      setAvis("La correction n'a pas été gardée.");
+    }
+    setCorrection("");
+    setCorrige(null);
+  }
+
+  function nouvelleConversation() {
+    couperSon();
+    window.speechSynthesis?.cancel();
+    setHistory([]);
+    setLegende("");
+    try { localStorage.removeItem("bia-fil"); } catch {}
+    // Les notes ne sont PAS effacées : c'est justement ce qui fait qu'elle se
+    // souvient de la personne d'une conversation à l'autre.
+  }
+
+  function toutOublier() {
+    nouvelleConversation();
+    setResume("");
+    resumeRef.current = "";
+    try { localStorage.removeItem("bia-resume"); } catch {}
+  }
 
   async function entrer() {
     const propre = codeSaisi.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -518,11 +602,41 @@ export default function Home() {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.4 5.3 8.7l1.4-1.4 5.3 5.3 5.3-5.3 1.4 1.4Z" /></svg>
         </button>
 
+        <div className="outils">
+          <button type="button" onClick={nouvelleConversation}>Nouvelle conversation</button>
+          {resume ? <button type="button" onClick={toutOublier}>Tout oublier</button> : null}
+          {resume ? <span className="jauge" title="BIA garde des notes sur toi, sur cet appareil">se souvient de toi</span> : null}
+        </div>
+
         <div className="fil scrollbar-thin" ref={filRef}>
           {history.length === 0 ? <p className="fil-vide">{welcome}</p> : null}
           {history.map((m, i) => (
-            <p key={i} className={m.role === "bia" ? "bulle bulle-bia" : "bulle bulle-moi"}>{m.text}</p>
+            <div key={i} className={m.role === "bia" ? "ligne ligne-bia" : "ligne ligne-moi"}>
+              <p className={m.role === "bia" ? "bulle bulle-bia" : "bulle bulle-moi"}>{m.text}</p>
+              {m.role === "bia" && i > 0 ? (
+                corrige === i ? (
+                  <div className="corriger">
+                    <input
+                      value={correction}
+                      onChange={(e) => setCorrection(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") void envoyerCorrection(i); }}
+                      placeholder="Naka la war a wax ? Écris la bonne formulation…"
+                      aria-label="La bonne formulation"
+                      autoFocus
+                    />
+                    <button type="button" onClick={() => void envoyerCorrection(i)}>Garder</button>
+                    <button type="button" className="annuler" onClick={() => { setCorrige(null); setCorrection(""); }}>Annuler</button>
+                  </div>
+                ) : (
+                  <button className="mal-dit" type="button"
+                    onClick={() => { setCorrige(i); setCorrection(""); setAvis(""); }}>
+                    Mal dit
+                  </button>
+                )
+              ) : null}
+            </div>
           ))}
+          {avis ? <p className="avis">{avis}</p> : null}
         </div>
 
         <div className="saisie">

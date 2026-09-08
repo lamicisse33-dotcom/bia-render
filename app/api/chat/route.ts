@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
+import { correctionExacte, exemplesPour } from "@/lib/lexique";
 
 const local = [
   {keys:["khalam lan","c'est quoi khalam","qu est ce que khalam"],answer:"KHALAM studio créatif bu Sénégal la, nekk Dakar. Dafay defar jeux, applications, animation, audiovisuel ak intelligence artificielle. Li mu bëgg mooy sos ay univers yu am cosaanu fii te mën a dem fu nekk."},
@@ -64,7 +65,7 @@ BIA n'est pas BIBA et ne partage avec elle ni fichiers, ni mémoire, ni code.`;
 
 export async function POST(request:NextRequest){
   try{
-    const body=await request.json() as {message?:string;history?:Array<{role:string;text:string}>};
+    const body=await request.json() as {message?:string;history?:Array<{role:string;text:string}>;resume?:string};
     const question=String(body.message||"").trim().slice(0,1200);
     if(!question)return NextResponse.json({reply:"Bindal walla waxal sa laaj.",source:"validation"});
 
@@ -83,8 +84,29 @@ export async function POST(request:NextRequest){
     const apiKey=process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY;
     const model=process.env.BIA_LLM_MODEL||"claude-sonnet-5";
     if(apiKey){
-      const history=(body.history||[]).slice(-6).map(item=>({role:item.role==="bia"?"assistant":"user",content:String(item.text||"").slice(0,1000)}));
-      const response=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:2000,temperature:.6,system,messages:[...history,{role:"user",content:question}]})});
+      // Douze échanges au lieu de six, et le résumé des plus anciens : c'est
+      // ce qui permet à BIA de suivre un fil au lieu de tout oublier.
+      const history=(body.history||[]).slice(-12).map(item=>({role:item.role==="bia"?"assistant":"user",content:String(item.text||"").slice(0,1500)}));
+
+      let consigne=system;
+      const resume=String(body.resume||"").trim().slice(0,1500);
+      if(resume)consigne+=`\n\nCE QUE TU SAIS DÉJÀ DE CETTE PERSONNE\n${resume}\nUtilise-le naturellement, sans jamais dire que tu l'as \u00abnoté\u00bb.`;
+
+      /* Les corrections des locuteurs natifs passent AVANT le savoir du
+         modèle : sur le wolof de Dakar, un humain d'ici a toujours raison
+         contre un modèle entraîné ailleurs. */
+      try{
+        const exacte=await correctionExacte(question);
+        if(exacte)consigne+=`\n\nFORMULATION VALIDÉE POUR CETTE QUESTION EXACTE\nUn locuteur natif a corrigé la réponse à cette question. Reprends sa formulation :\n« ${exacte.corrigee} »`;
+        else{
+          const exemples=await exemplesPour(question);
+          if(exemples.length)consigne+="\n\nCORRECTIONS DE LOCUTEURS NATIFS (elles font autorité sur ton propre wolof)\n"+exemples.map(e=>`- On t'a demandé « ${e.source} » → la bonne formulation est « ${e.corrigee} »`).join("\n");
+        }
+      }catch(err){
+        // Le lexique injoignable ne doit pas empêcher BIA de répondre.
+        console.error("BIA — lexique injoignable :",(err as Error).message);
+      }
+      const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:2000,temperature:.6,system:consigne,messages:[...history,{role:"user",content:question}]})});
       if(!response.ok){
         // Sans ça, une clé refusée et une clé absente donnaient le même
         // silence : impossible de savoir laquelle des deux.
