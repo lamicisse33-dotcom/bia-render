@@ -13,5 +13,6 @@ export async function GET() {
     modele: process.env.BIA_LLM_MODEL || "claude-sonnet-5",
     cle_modele: Boolean(process.env.BIA_LLM_API_KEY || process.env.ANTHROPIC_API_KEY),
     lexique: lexiqueConfig.actif ? "supabase" : "mémoire vive (perdu au réveil)",
+    voix_clonee: Boolean(voixConfig.soynade.audioPrompt),
   });
 }

@@ -419,3 +419,9 @@ button { font: inherit; touch-action: manipulation; }
 }
 .corriger button.annuler { background: rgba(255,255,255,.09); color: rgba(255,255,255,.65); }
 .avis { margin: 6px 0; color: #d9bd63; font-size: 13.5px; text-align: center; }
+
+.bascule { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 16px; cursor: pointer; }
+.bascule input { margin-top: 3px; width: 18px; height: 18px; accent-color: #d4af37; flex: none; }
+.bascule span { color: rgba(255,255,255,.72); font-size: 14px; line-height: 1.45; }
+.bascule b { color: #d9bd63; font-weight: 600; }
+.reglage a { color: #d9bd63; }
