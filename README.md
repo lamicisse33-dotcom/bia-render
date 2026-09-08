@@ -105,6 +105,23 @@ Si `ELEVENLABS_API_KEY` manque, le micro retombe sur la reconnaissance du
 navigateur, réglée en français. Elle déforme le wolof : c'est un dépannage,
 pas une solution.
 
+### Régler sa voix
+
+`TON-ADRESSE/reglage`, avec ton code maître. Tu écris une phrase, tu bouges
+trois curseurs, tu écoutes. Quand ça te plaît, la page t'affiche les trois
+lignes à recopier dans Render → Environment.
+
+| Réglage | Bas | Haut |
+|---|---|---|
+| `SOYNADE_EXAGGERATION` | calme, retenue | emphase, insistance |
+| `SOYNADE_CFG_WEIGHT` | débit lent et posé | débit rapide et net |
+| `SOYNADE_TEMPERATURE` | régulière, mécanique | vivante, variable |
+
+BIA part sur 0,12 / 0,28 / 0,35 : une voix douce et posée. Ce ne sont PAS les
+valeurs de l'Interprète (0,20 / 0,50 / 0,10), qui visent la netteté d'une
+traduction. Les deux services étant séparés sur Render, changer l'un ne
+touche pas l'autre.
+
 Deux limites héritées des moteurs, pas du code : Soynade ne lit que 500
 caractères d'un coup, donc les longues réponses sont découpées aux frontières
 de phrase et enchaînées ; et Scribe se trompe sur environ 40 % des mots

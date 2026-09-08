@@ -70,9 +70,12 @@ export default function Home() {
   const filRef = useRef<HTMLDivElement | null>(null);
   const champRef = useRef<HTMLInputElement | null>(null);
   const codeRef = useRef<string>("");
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const contexteRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const animationRef = useRef<number | null>(null);
   const enregistreurRef = useRef<MediaRecorder | null>(null);
   const moteursRef = useRef<{ voix: string; ecoute: string } | null>(null);
+  const tourRef = useRef<object | null>(null);
 
   historyRef.current = history;
   codeRef.current = code || "";
@@ -95,6 +98,9 @@ export default function Home() {
     resetTimer.current = setTimeout(() => setFace("neutral"), 1400);
   }, []);
 
+  /* Bouche à l'aveugle : une forme toutes les 110 ms, sans rapport avec le
+     son. Gardée uniquement pour la voix du navigateur, qui ne donne accès à
+     aucun signal audio — impossible de la synchroniser. */
   const bouche = useCallback((actif: boolean, answer = "") => {
     if (actif) {
       setMode("speaking");
@@ -106,6 +112,75 @@ export default function Home() {
       stopMouth(answer);
     }
   }, [stopMouth]);
+
+  const contexte = useCallback(() => {
+    if (!contexteRef.current) {
+      const C = window.AudioContext || (window as any).webkitAudioContext;
+      contexteRef.current = new C();
+    }
+    if (contexteRef.current.state === "suspended") void contexteRef.current.resume();
+    return contexteRef.current;
+  }, []);
+
+  const couperSon = useCallback(() => {
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    animationRef.current = null;
+    try { sourceRef.current?.stop(); } catch {}
+    sourceRef.current = null;
+  }, []);
+
+  /* L'enveloppe du son : l'énergie moyenne par tranche de 45 ms. C'est elle
+     qui dira à la bouche quand s'ouvrir, au lieu d'une minuterie aveugle. */
+  const enveloppeDe = (mémoire: AudioBuffer) => {
+    const donnees = mémoire.getChannelData(0);
+    const fenetre = Math.max(1, Math.floor(mémoire.sampleRate * 0.030));
+    const valeurs: number[] = [];
+    let pic = 0;
+    for (let i = 0; i < donnees.length; i += fenetre) {
+      const fin = Math.min(i + fenetre, donnees.length);
+      let somme = 0;
+      for (let j = i; j < fin; j++) somme += donnees[j] * donnees[j];
+      const v = Math.sqrt(somme / (fin - i));
+      if (v > pic) pic = v;
+      valeurs.push(v);
+    }
+    return { valeurs, pic: pic || 1, pas: 0.030 };
+  };
+
+  /* Joue un morceau et fait suivre la bouche. Les seuils sont choisis pour
+     que le silence ferme vraiment les lèvres : sinon elle mâche dans le vide
+     entre deux phrases, et c'est ce qui se voyait le plus. */
+  const jouerEtAnimer = useCallback((octets: ArrayBuffer) => new Promise<void>((fini) => {
+    const ctx = contexte();
+    ctx.decodeAudioData(octets.slice(0)).then((mémoire) => {
+      const { valeurs, pic, pas } = enveloppeDe(mémoire);
+      const source = ctx.createBufferSource();
+      source.buffer = mémoire;
+      source.connect(ctx.destination);
+      sourceRef.current = source;
+
+      const depart = ctx.currentTime;
+      let precedente: Face | null = null;
+      const suivre = () => {
+        if (sourceRef.current !== source) return;
+        const i = Math.floor((ctx.currentTime - depart) / pas);
+        const part = i >= 0 && i < valeurs.length ? valeurs[i] / pic : 0;
+        const forme: Face = part < 0.06 ? "m" : part < 0.32 ? "o" : "a";
+        if (forme !== precedente) { precedente = forme; setFace(forme); }
+        animationRef.current = requestAnimationFrame(suivre);
+      };
+
+      source.onended = () => {
+        if (animationRef.current) cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+        if (sourceRef.current === source) sourceRef.current = null;
+        fini();
+      };
+      setMode("speaking");
+      source.start();
+      animationRef.current = requestAnimationFrame(suivre);
+    }).catch(() => fini());
+  }), [contexte]);
 
   /* La voix du navigateur : béquille, gardée pour le cas où Oolel ne répond
      pas. Elle ne sait pas dire le wolof, d'où la réécriture phonétique — et
@@ -137,7 +212,7 @@ export default function Home() {
      s'installe entre chaque phrase. */
   const speak = useCallback(async (answer: string) => {
     window.speechSynthesis?.cancel();
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    couperSon();
     if (!answer.trim()) return;
 
     if (moteursRef.current && moteursRef.current.voix === "navigateur") {
@@ -155,35 +230,37 @@ export default function Home() {
       return await r.json() as { parties: number; audio: string | null; type_mime?: string };
     };
 
+    const enOctets = (b64: string) => {
+      const brut = atob(b64);
+      const tableau = new Uint8Array(brut.length);
+      for (let i = 0; i < brut.length; i++) tableau[i] = brut.charCodeAt(i);
+      return tableau.buffer;
+    };
+
     try {
       let bloc = await demander(0);
       if (!bloc.audio) { parlerAvecLeTelephone(answer); return; }
 
-      bouche(true);
+      const jeton = {};
+      tourRef.current = jeton;
       let suivant = bloc.parties > 1 ? demander(1) : null;
 
       for (let i = 0; i < bloc.parties; i++) {
-        const son = new Audio(`data:${bloc.type_mime || "audio/wav"};base64,${bloc.audio}`);
-        audioRef.current = son;
-        const attendu = suivant;                       // on prépare le suivant
+        const attendu = suivant;                       // on prépare déjà le suivant
         suivant = i + 2 < bloc.parties ? demander(i + 2) : null;
-        await new Promise<void>((fini) => {
-          son.onended = () => fini();
-          son.onerror = () => fini();
-          son.play().catch(() => fini());
-        });
-        if (audioRef.current !== son) return;          // une nouvelle réponse a pris la main
+        if (!bloc.audio) break;
+        await jouerEtAnimer(enOctets(bloc.audio));
+        if (tourRef.current !== jeton) return;         // une nouvelle réponse a pris la main
         if (!attendu) break;
         const prochain = await attendu;
         if (!prochain.audio) break;
         bloc = { ...bloc, audio: prochain.audio, type_mime: prochain.type_mime };
       }
-      audioRef.current = null;
-      bouche(false, answer);
+      stopMouth(answer);
     } catch {
       parlerAvecLeTelephone(answer);
     }
-  }, [bouche, parlerAvecLeTelephone]);
+  }, [couperSon, jouerEtAnimer, parlerAvecLeTelephone, stopMouth]);
 
   const askBia = useCallback(async (question: string) => {
     const clean = question.trim();
@@ -326,7 +403,9 @@ export default function Home() {
     if (mouthTimer.current) clearInterval(mouthTimer.current);
     if (resetTimer.current) clearTimeout(resetTimer.current);
     window.speechSynthesis?.cancel();
-    audioRef.current?.pause();
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    try { sourceRef.current?.stop(); } catch {}
+    contexteRef.current?.close().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -344,7 +423,8 @@ export default function Home() {
 
   function toggleMicrophone() {
     window.speechSynthesis?.cancel();
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    couperSon();
+    tourRef.current = null;
     if (!accueilRef.current) { accueil(); return; }
 
     const parScribe = moteurs ? moteurs.ecoute !== "navigateur" : false;

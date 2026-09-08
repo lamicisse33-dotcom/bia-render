@@ -300,3 +300,62 @@ button { font: inherit; touch-action: manipulation; }
 .porte .saisie { padding-top: 0; }
 .porte .saisie input { text-align: center; letter-spacing: .18em; text-transform: uppercase; }
 .porte-erreur { margin: 11px 0 0; color: #ff9db0; font-size: 14px; text-align: center; }
+
+/* ── Page d'écoute de la voix ───────────────────────────────────────────── */
+.reglage {
+  max-width: 620px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 26px 18px calc(40px + env(safe-area-inset-bottom));
+  color: #ececed;
+  overflow-y: auto;
+}
+.reglage h1 { margin: 0 0 6px; color: #d4af37; font-size: 21px; letter-spacing: .04em; }
+.reglage .intro { margin: 0 0 18px; color: rgba(255,255,255,.55); font-size: 14px; line-height: 1.5; }
+.reglage textarea {
+  width: 100%;
+  margin: 10px 0 14px;
+  padding: 11px 13px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 13px;
+  background: rgba(255,255,255,.05);
+  color: #fff;
+  font: inherit; font-size: 15px; line-height: 1.45;
+  resize: vertical;
+}
+.reglage .rangee { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 6px; }
+.reglage .secondaire {
+  padding: 7px 12px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 15px;
+  background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.85);
+  font-size: 13px;
+  cursor: pointer;
+}
+.reglage .secondaire:active { background: rgba(255,255,255,.12); }
+.curseur { display: block; margin: 17px 0; }
+.curseur-titre { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 5px; }
+.curseur-titre b { color: #d4af37; font-variant-numeric: tabular-nums; }
+.curseur input { width: 100%; accent-color: #d4af37; }
+.curseur-aide { display: block; margin-top: 4px; color: rgba(255,255,255,.45); font-size: 13px; }
+.reglage .ecouter {
+  width: 100%;
+  margin-top: 18px;
+  padding: 14px;
+  border: 0; border-radius: 26px;
+  background: #d4af37;
+  color: #17130a;
+  font-size: 16px; font-weight: 600;
+  cursor: pointer;
+}
+.reglage .ecouter:active { transform: scale(.98); }
+.reglage .etat { margin: 12px 0 0; color: rgba(255,255,255,.6); font-size: 14px; text-align: center; }
+.reglage .report { margin-top: 26px; color: rgba(255,255,255,.55); font-size: 13px; line-height: 2; }
+.reglage code {
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgba(255,255,255,.07);
+  color: #f0d98a;
+  font-size: 13px;
+}
