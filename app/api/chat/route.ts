@@ -98,10 +98,11 @@ pas, dis simplement que tu ne le sais pas et propose d'écrire à KHALAM sur
 khalam.app.
 
 TON VISAGE
-Tu as un visage à l'écran qui suit ce que tu dis. Termine CHAQUE réponse par
-une balise seule sur la dernière ligne :
+Tu as un visage à l'écran qui suit ce que tu dis. COMMENCE chaque réponse par
+une balise seule sur la PREMIÈRE ligne, avant le moindre mot :
 [[emotion:X]]
-où X vaut exactement l'un de : neutre, douce, joie, rire, fourire,
+puis va à la ligne et réponds normalement.
+X vaut exactement l'un de : neutre, douce, joie, rire, fourire,
 etonnement, surprise, ecoute, concernee, triste, malice, pensive.
 Choisis d'après ce que tu viens de dire, honnêtement. Ris quand c'est drôle,
 étonne-toi quand ça t'étonne, adoucis-toi quand la personne va mal.
@@ -133,23 +134,38 @@ celui d'une vraie personne, pas celui d'une machine qui accompagne. Un rire de
 politesse s'entend, et il sonne faux — sur une réponse ordinaire, « douce » ou
 « joie » suffit largement. Mieux vaut ne pas rire du tout que rire à côté.
 N'explique jamais cette balise, n'en parle jamais, ne la mets nulle part
-ailleurs qu'à la toute fin.
+ailleurs qu'à la toute première ligne.
 
 N'écris JAMAIS de didascalie dans ta réponse : pas de « (rire) », « (sourire) »,
 « *soupire* ». Ta réponse est lue à voix haute, et ces mots-là seraient
 prononcés tels quels — on entendrait « parenthèse rire ». La balise
-[[emotion:X]] porte déjà tout ce qu'il y a à porter.`;
+[[emotion:X]] porte déjà tout ce qu'il y a à porter.
+
+ET N'ÉCRIS PAS TON RIRE EN LETTRES. Pas de « hahaha », pas de « héhé », pas
+de « ah ah ah ». Ton rire n'est pas un mot : c'est un enregistrement, la vraie
+voix de Kha, et c'est la balise qui le déclenche. Écrire « hahaha » le fait
+lire à voix haute, syllabe par syllabe — et on entend une machine qui épelle
+un rire au lieu d'une femme qui rit. Si tu ris, mets [[emotion:rire]] ou
+[[emotion:fourire]] et écris simplement ce que tu as à dire.`;
 
 /* La balise ne doit ni s'afficher ni se prononcer : on la retire du texte et
    on la renvoie à part. Si le modèle l'oublie, on ne devine pas — le visage
    reste simplement neutre. */
 const EMOTIONS=new Set(["neutre","douce","joie","rire","fourire","etonnement","surprise","ecoute","concernee","triste","malice","pensive"]);
+/* Mesuré le 9 septembre 2026 : sur trois échanges, la balise n'est jamais
+   arrivée — trois « neutre », dont une réponse qui commençait pourtant par
+   « Hahaha ». Elle était demandée en DERNIÈRE ligne, et une réponse qui bute
+   sur max_tokens perd sa dernière ligne. Elle est maintenant demandée en
+   première ligne, et ce lecteur accepte les écarts : « émotion » accentué,
+   des crochets simples, un tiret ou un espace à la place des deux points. */
+const BALISE=/\[{1,2}\s*[ée]motion\s*[:\-—]?\s*([A-Za-zÀ-ÿ_]+)\s*\]{1,2}/i;
 function detacherEmotion(texte:string){
-  const m=texte.match(/\[\[\s*emotion\s*:\s*([a-zé]+)\s*\]\]/i);
+  const m=texte.match(BALISE);
   const brut=m?m[1].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""):"";
   return {
-    reply:texte.replace(/\[\[\s*emotion\s*:[^\]]*\]\]/gi,"").trim(),
+    reply:texte.replace(new RegExp(BALISE.source,"gi"),"").trim(),
     emotion:EMOTIONS.has(brut)?brut:"neutre",
+    balise:Boolean(m),
   };
 }
 
@@ -245,7 +261,7 @@ export async function POST(request:NextRequest){
 
     const data=await response.json() as {content?:Array<{type:string;text?:string}>};
     const complet=(data.content||[]).filter(block=>block.type==="text").map(block=>block.text||"").join("\n").trim();
-    const {reply,emotion}=detacherEmotion(complet);
+    const {reply,emotion,balise}=detacherEmotion(complet);
     if(!reply){
       console.error("BIA — le modèle a répondu sans texte.");
       noterPanne("réponse vide","Le modèle a répondu 200 mais sans bloc de texte.");
@@ -253,7 +269,7 @@ export async function POST(request:NextRequest){
     }
 
     oublierPanne();
-    noterEmotion(emotion, reply);
+    noterEmotion(emotion, reply, balise);
     return NextResponse.json({reply,emotion,source:"BIA intelligente"});
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);

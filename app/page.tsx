@@ -124,7 +124,13 @@ export default function Home() {
   const [mode, setMode] = useState<"ready" | "listening" | "thinking" | "speaking" | "error">("ready");
   const [clavier, setClavier] = useState(false);
   const [saisie, setSaisie] = useState("");
-  const [legende, setLegende] = useState("");
+  /* PLUS DE TEXTE SUR L'ÉCRAN.
+     Demande de Lamine, 9 septembre 2026 : l'écran ne montre que BIA. La
+     dernière réponse s'affichait sous son visage ; elle vit désormais
+     uniquement dans le fil, à l'intérieur du clavier. Qui veut lire ouvre le
+     clavier. Tant que le clavier est replié, il n'y a AUCUN texte : ni la
+     réponse, ni le témoin de panne, rien. Le témoin de panne existe toujours,
+     mais il s'affiche à l'intérieur du clavier, en tête du fil. */
   /* Quand la reponse ne vient pas du modele, on le dit a l ecran. Sans ce
      temoin, une panne du moteur ressemblait a une reponse ordinaire. */
   const [panne, setPanne] = useState("");
@@ -173,10 +179,6 @@ export default function Home() {
   const phraseEnCoursRef = useRef<Promise<number> | null>(null);
   /** Le moment où la phrase en cours devrait se terminer. */
   const finPhraseRef = useRef(0);
-  /* Le texte de la réponse est-il déjà à l'écran ? Si oui, les phrases
-     d'attente continuent de se dire mais n'écrasent plus la légende : on lit
-     la réponse pendant qu'elle achève de meubler. */
-  const texteArriveRef = useRef(false);
   /* LE CHRONOMÈTRE. Idée de Lamine : plutôt que de meubler à l'aveugle, BIA
      mesure combien de temps elle fait attendre, et sert la phrase dont la
      durée remplit ce temps-là. Quatre repères suffisent — le départ, la fin
@@ -696,7 +698,6 @@ export default function Home() {
       if (attenteRef.current !== m.jeton || stopAttenteRef.current) return;
 
       m.avant(choix);
-      if (!texteArriveRef.current) setLegende(texte);
 
       // La suivante se prépare maintenant, pendant que celle-ci se dit.
       const restantApres = m.budget - (Date.now() - depart) - msDe(texte, durees);
@@ -783,14 +784,12 @@ export default function Home() {
     setHistory((items) => [...items, { role: "user", text: clean }]);
     setMode("thinking");
     setFace("pensive");
-    setLegende("");
     setPanne("");
 
     // Le temps où l'humain écoute est du temps gagné : elle meuble en parlant.
     // Après le micro, ce sont les transitions qui tiennent déjà la parole —
     // on ne leur superpose pas une phrase d'attente.
     toursRef.current += 1;
-    texteArriveRef.current = false;
     if (!parole) {
       // Question tapée : le chronomètre part d'ici, sans transcription.
       departAttenteRef.current = Date.now();
@@ -829,8 +828,6 @@ export default function Home() {
       emotionRef.current = data.emotion || "neutre";
       setPanne(data.source && data.source.startsWith("panne") ? data.source : "");
       setHistory((items) => [...items, { role: "bia", text: data.reply }]);
-      setLegende(data.reply);
-      texteArriveRef.current = true;   // la légende ne bougera plus
       // Le visage prend l'émotion tout de suite, avant même la voix : c'est
       // ce qui donne l'impression qu'elle réagit à ce qu'on lui a dit.
       const suite = SUITES[emotionRef.current];
@@ -840,8 +837,6 @@ export default function Home() {
       emotionRef.current = "concernee";
       const fallback = "Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.";
       setHistory((items) => [...items, { role: "bia", text: fallback }]);
-      setLegende(fallback);
-      texteArriveRef.current = true;
       setFace("concernee");
       setMode("error");
       speak(fallback);
@@ -1207,7 +1202,6 @@ export default function Home() {
     couperSon();
     window.speechSynthesis?.cancel();
     setHistory([]);
-    setLegende("");
     try { localStorage.removeItem("bia-fil"); } catch {}
     // Les notes ne sont PAS effacées : c'est justement ce qui fait qu'elle se
     // souvient de la personne d'une conversation à l'autre.
@@ -1263,8 +1257,6 @@ export default function Home() {
         <div className="avatar" data-face={face} />
       </div>
 
-      {legende && !clavier ? <p className="legende">{legende}</p> : null}
-      {panne && !clavier ? <p className="panne">⚠ {panne}</p> : null}
 
       <div className="barre">
         <button className="clavier-ouvrir" type="button" onClick={ouvrirClavier} aria-label="Écrire à BIA">
@@ -1287,6 +1279,8 @@ export default function Home() {
         <button className="clavier-fermer" type="button" onClick={() => setClavier(false)} aria-label="Replier le clavier">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.4 5.3 8.7l1.4-1.4 5.3 5.3 5.3-5.3 1.4 1.4Z" /></svg>
         </button>
+
+        {panne ? <p className="panne">⚠ {panne}</p> : null}
 
         <div className="outils">
           <button type="button" onClick={nouvelleConversation}>Nouvelle conversation</button>

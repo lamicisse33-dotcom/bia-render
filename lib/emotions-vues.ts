@@ -9,14 +9,19 @@
    Une ligne par réponse, gardée en mémoire vive. Rien de la conversation n'y
    passe : l'émotion, et les premiers mots de la réponse pour s'y retrouver. */
 
-export type Vue = { emotion: string; debut: string; quand: string };
+export type Vue = { emotion: string; balise: boolean; debut: string; quand: string };
 
 const GARDEES = 30;
 let vues: Vue[] = [];
 
-export function noterEmotion(emotion: string, reponse: string) {
+export function noterEmotion(emotion: string, reponse: string, balise = false) {
   const entree: Vue = {
     emotion: String(emotion || "neutre"),
+    /* La balise était-elle là ? « neutre » sans balise veut dire que le
+       modèle l'a oubliée ou qu'elle a été coupée ; « neutre » avec balise
+       veut dire qu'elle a vraiment choisi neutre. Deux pannes très
+       différentes, et sans ce booléen elles se ressemblent. */
+    balise: Boolean(balise),
     debut: String(reponse || "").slice(0, 60),
     quand: new Date().toISOString(),
   };
@@ -28,5 +33,6 @@ export function resumeEmotions() {
   if (!vues.length) return null;
   const compte: Record<string, number> = {};
   for (const v of vues) compte[v.emotion] = (compte[v.emotion] || 0) + 1;
-  return { echanges: vues.length, compte, dernieres: vues.slice(-5) };
+  const sansBalise = vues.filter((v) => !v.balise).length;
+  return { echanges: vues.length, compte, sans_balise: sansBalise, dernieres: vues.slice(-5) };
 }

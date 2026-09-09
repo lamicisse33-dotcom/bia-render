@@ -204,29 +204,6 @@ button { font: inherit; touch-action: manipulation; }
 .clavier-ouvrir:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
 .clavier-ouvrir svg { width: 24px; height: 24px; fill: currentColor; }
 
-/* ── Légende : la dernière réponse, lisible sans ouvrir le clavier ──────── */
-.legende {
-  position: absolute;
-  z-index: 2;
-  left: 50%;
-  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 96px);
-  width: min(92vw, 620px);
-  max-height: 5.6em;
-  overflow: hidden;
-  margin: 0;
-  padding: 12px 16px;
-  border-radius: 16px;
-  background: linear-gradient(rgba(6,6,9,.06), rgba(6,6,9,.72));
-  color: rgba(255,255,255,.94);
-  font-size: 16px;
-  line-height: 1.4;
-  text-align: center;
-  text-shadow: 0 2px 12px rgba(0,0,0,.85);
-  transform: translateX(-50%);
-  animation: monte .3s ease both;
-  pointer-events: none;
-}
-
 /* ── Le clavier : replié par défaut, il ne mange jamais l'image ─────────── */
 .clavier {
   position: absolute;
@@ -315,11 +292,10 @@ button { font: inherit; touch-action: manipulation; }
 
 @media (max-width: 600px) and (orientation: portrait) {
   .barre { bottom: max(15px, env(safe-area-inset-bottom)); }
-  .legende { bottom: calc(max(15px, env(safe-area-inset-bottom)) + 92px); font-size: 15px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .clavier, .barre, .legende { transition: none; animation: none; }
+  .clavier, .barre { transition: none; animation: none; }
 }
 
 /* ── L'écran d'entrée : sans code, BIA ne coûte rien ────────────────────── */
@@ -472,17 +448,14 @@ button { font: inherit; touch-action: manipulation; }
 .reglage a { color: #d9bd63; }
 
 /* ── Témoin de panne : discret, mais impossible à confondre avec une réponse ─
-   Il n'apparaît que si la réponse ne vient pas du modèle. Le testeur sait
-   alors que ce n'est pas BIA qui parle mal, c'est le moteur qui ne parle pas. */
+   Il n'apparaît que si la réponse ne vient pas du modèle, et seulement une
+   fois le clavier déplié. Le testeur sait alors que ce n'est pas BIA qui
+   parle mal, c'est le moteur qui ne parle pas. */
 .panne {
-  position: absolute;
-  z-index: 3;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 74px);
-  width: min(92vw, 620px);
-  margin: 0;
-  padding: 4px 12px;
+  /* Il vit désormais DANS le clavier : plus rien ne flotte au-dessus du
+     visage de BIA. */
+  margin: 0 0 8px;
+  padding: 5px 12px;
   border-radius: 10px;
   background: rgba(120, 40, 20, .78);
   color: rgba(255, 236, 230, .96);
