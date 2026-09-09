@@ -43,62 +43,66 @@ export const voixConfig = {
    mot, et le téléphone enchaîne les morceaux. Le découpage est déterministe :
    le même texte donne toujours les mêmes morceaux, donc le client peut
    demander le morceau n sans que le serveur ait rien à mémoriser. */
-const LIMITE = 480;
-
-/* LE PREMIER MORCEAU EST COURT, ET C'EST TOUT L'ENJEU.
+/* LE DÉCOUPAGE, ET POURQUOI IL EST EN ESCALIER.
 
    Mesuré sur le vrai serveur, depuis Dakar : fabriquer la voix coûte environ
-   deux secondes fixes plus 36 millisecondes par caractère. Un premier morceau
-   de 480 signes, c'est donc vingt secondes avant le premier mot — et pendant
-   ces vingt secondes, la personne attend.
+   deux secondes fixes plus 36 millisecondes par signe. Et BIA parle à peu
+   près quinze signes par seconde.
 
-   On coupe donc la PREMIÈRE phrase à part, courte. BIA commence à parler au
-   bout de deux secondes, et le morceau suivant se fabrique pendant qu'elle
-   dit celui-là : le téléphone réclame le morceau n+1 dès qu'il joue le n.
-   Le reste de la réponse garde les gros morceaux, qui sonnent mieux — moins
-   de coutures entre les phrases.
+   Le téléphone joue un morceau pendant que le suivant se fabrique. Pour qu'il
+   n'y ait pas de blanc, il faut donc que la LECTURE d'un morceau dure plus
+   longtemps que la FABRICATION du suivant :
 
-   Sur la mesure du 9 septembre 2026 : 8,0 secondes de voix avant le premier
-   mot. C'était la moitié de l'attente totale. */
-const PREMIER = 110;
+       N / 15  ≥  2 + 0,036 × M
+
+   Un premier morceau court fait donc démarrer BIA vite — c'est ce qu'on a
+   corrigé ce matin — mais il ne laisse que sept secondes pour fabriquer le
+   suivant. Si ce suivant fait 480 signes, sa fabrication en demande dix-neuf :
+   douze secondes de silence au milieu de sa phrase. C'est exactement le blanc
+   que Lamine entend.
+
+   D'où l'escalier : chaque palier est calculé pour tenir dans la lecture du
+   précédent. On finit à 480 signes, la limite de Soynade, où le régime est
+   largement stable — à ce rythme la lecture dure trente-deux secondes pour
+   dix-neuf de fabrication. */
+const LIMITE = 480;
+const PALIERS = [110, 150, 220, 340];
+const tailleDu = (rang: number) => PALIERS[rang] ?? LIMITE;
 
 export function decouper(texte: string): string[] {
   const propre = String(texte || "").replace(/\s+/g, " ").trim();
   if (!propre) return [];
-  if (propre.length <= PREMIER) return [propre];
+  if (propre.length <= tailleDu(0)) return [propre];
 
   const phrases = propre.match(/[^.!?…]+[.!?…]*\s*/g) || [propre];
   const morceaux: string[] = [];
   let courant = "";
 
-  /* La première phrase part seule, si elle est assez courte pour être dite
-     vite. Sinon on la coupe à un espace : mieux vaut une respiration au
-     mauvais endroit qu'un silence de dix secondes avant le premier mot. */
-  let tete = phrases[0] || propre;
-  let suite = phrases.slice(1);
-  if (tete.length > PREMIER) {
-    let coupe = tete.lastIndexOf(" ", PREMIER);
-    if (coupe < PREMIER * 0.5) coupe = PREMIER;
-    suite = [tete.slice(coupe), ...suite];
-    tete = tete.slice(0, coupe);
-  }
-  morceaux.push(tete.trim());
+  const poser = () => {
+    if (courant.trim()) morceaux.push(courant.trim());
+    courant = "";
+  };
 
-  for (const phrase of suite) {
-    if ((courant + phrase).length <= LIMITE) { courant += phrase; continue; }
-    if (courant) { morceaux.push(courant.trim()); courant = ""; }
-    if (phrase.length <= LIMITE) { courant = phrase; continue; }
-    // Phrase à elle seule trop longue : on coupe aux espaces.
+  for (const phrase of phrases) {
+    const taille = tailleDu(morceaux.length);
+    if ((courant + phrase).length <= taille) { courant += phrase; continue; }
+    poser();
+
+    /* Une phrase à elle seule plus longue que le palier : on la coupe à un
+       espace. Mieux vaut une respiration au mauvais endroit qu'un silence de
+       dix secondes au milieu. */
     let reste = phrase;
-    while (reste.length > LIMITE) {
-      let coupe = reste.lastIndexOf(" ", LIMITE);
-      if (coupe < LIMITE * 0.5) coupe = LIMITE;
+    for (;;) {
+      const t = tailleDu(morceaux.length);
+      if (reste.length <= t) break;
+      let coupe = reste.lastIndexOf(" ", t);
+      if (coupe < t * 0.5) coupe = t;
       morceaux.push(reste.slice(0, coupe).trim());
       reste = reste.slice(coupe);
     }
     courant = reste;
   }
-  if (courant.trim()) morceaux.push(courant.trim());
+  poser();
   return morceaux.filter(Boolean);
 }
 

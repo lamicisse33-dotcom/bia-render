@@ -153,6 +153,8 @@ export default function Home() {
   const codeRef = useRef<string>("");
   const contexteRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  /** Les morceaux d'une même réponse, programmés bout à bout. */
+  const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const animationRef = useRef<number | null>(null);
   const enregistreurRef = useRef<MediaRecorder | null>(null);
   const moteursRef = useRef<{ voix: string; ecoute: string } | null>(null);
@@ -282,6 +284,11 @@ export default function Home() {
     animationRef.current = null;
     try { sourceRef.current?.stop(); } catch {}
     sourceRef.current = null;
+    /* Une réponse longue a plusieurs morceaux PROGRAMMÉS à l'avance sur
+       l'horloge du son. Les couper un par un ne suffit pas : ceux qui n'ont
+       pas encore commencé démarreraient tout seuls après. */
+    for (const s of sourcesRef.current) { try { s.stop(); } catch {} }
+    sourcesRef.current.clear();
   }, []);
 
   /* L'enveloppe du son : l'énergie moyenne par tranche de 45 ms. C'est elle
@@ -574,7 +581,14 @@ export default function Home() {
       // La synthèse part TOUT DE SUITE — et pendant ces quelques secondes,
       // l'attente continue de parler. C'est elle qui couvre le trou, plus le
       // silence.
-      let bloc = await demander(0);
+      /* On lance les DEUX premiers morceaux en même temps. Ils sont
+         indépendants : le serveur découpe le même texte de la même façon à
+         chaque appel, il n'a rien à mémoriser. Attendre le premier pour
+         demander le second, c'était ajouter la fabrication de l'un à celle de
+         l'autre — et ce temps-là s'entendait, en plein milieu de sa phrase. */
+      const premier = demander(0);
+      const second = demander(1);
+      let bloc = await premier;
       noterAttente();          // le son est là : l'attente est finie, on la note
       await prendreLaParole();
       if (!bloc.audio) { parlerAvecLeTelephone(answer); return; }
@@ -584,25 +598,102 @@ export default function Home() {
 
       const jeton = {};
       tourRef.current = jeton;
-      let suivant = bloc.parties > 1 ? demander(1) : null;
 
-      for (let i = 0; i < bloc.parties; i++) {
-        const attendu = suivant;                       // on prépare déjà le suivant
-        suivant = i + 2 < bloc.parties ? demander(i + 2) : null;
-        if (!bloc.audio) break;
-        await jouerEtAnimer(enOctets(bloc.audio));
+      /* DEUX MORCEAUX D'AVANCE, pas un.
+         Avec un seul, le moindre à-coup du réseau se transformait en silence.
+         Ils se fabriquent tous en parallèle côté serveur ; garder deux longueurs
+         d'avance coûte une requête de plus et supprime les blancs. */
+      const total = bloc.parties;
+      const enVol = new Map<number, ReturnType<typeof demander>>();
+      enVol.set(0, premier);
+      if (total > 1) enVol.set(1, second);
+      const lancer = (i: number) => {
+        if (i > 1 && i < total && !enVol.has(i)) enVol.set(i, demander(i));
+      };
+
+      /* ── ELLE ENCHAÎNE, COMME QUELQU'UN QUI PARLE ──────────────────────
+
+         Avant, chaque morceau attendait que le précédent se soit ENTENDU
+         finir avant d'être décodé puis lancé. Entre les deux : le décodage du
+         mp3, un tour de boucle du navigateur, et la traîne de silence que
+         Soynade laisse au bout de chaque rendu. Un demi-quart de seconde à
+         chaque couture — et comme la coupure tombe en fin de phrase, là où la
+         voix redescend, on croyait qu'elle avait fini.
+
+         Maintenant les morceaux sont PROGRAMMÉS sur l'horloge du son, à la
+         milliseconde : le suivant démarre à l'instant précis où le précédent
+         se termine, décodé longtemps à l'avance. Il n'y a plus de couture. */
+      const ctx = contexte();
+      const segments: Array<{ debut: number; fin: number; valeurs: number[]; pic: number; pas: number }> = [];
+      let quand = 0;
+
+      const programmer = async (octets: ArrayBuffer) => {
+        const brut = await ctx.decodeAudioData(octets.slice(0));
+        const mémoire = sansSilence(ctx, brut);
+        const { valeurs, pic, pas } = enveloppeDe(mémoire);
+        const source = ctx.createBufferSource();
+        source.buffer = mémoire;
+        source.connect(ctx.destination);
+        // Un souffle de sécurité au premier morceau : programmer dans le passé
+        // le ferait démarrer en retard et tout décaler.
+        const debut = Math.max(ctx.currentTime + 0.06, quand);
+        source.start(debut);
+        sourcesRef.current.add(source);
+        source.onended = () => { sourcesRef.current.delete(source); };
+        quand = debut + mémoire.duration;
+        segments.push({ debut, fin: quand, valeurs, pic, pas });
+      };
+
+      /* Une seule animation pour toute la réponse : elle lit l'horloge du son
+         et cherche dans quel morceau on se trouve. La bouche ne se remet donc
+         pas à zéro entre deux morceaux. */
+      let precedente: Face | null = null;
+      let dernierChangement = -1e9;
+      const MINIMUM = 0.13;   // secondes entre deux images de bouche
+      const suivre = () => {
+        if (tourRef.current !== jeton) return;
+        const t = ctx.currentTime;
+        const seg = segments.find((s) => t >= s.debut && t < s.fin);
+        if (seg) {
+          const i = Math.floor((t - seg.debut) / seg.pas);
+          const part = i >= 0 && i < seg.valeurs.length ? seg.valeurs[i] / seg.pic : 0;
+          const forme = formeBouche(part, i);
+          if (forme !== precedente && t - dernierChangement >= MINIMUM) {
+            precedente = forme;
+            dernierChangement = t;
+            setFace(forme);
+          }
+        }
+        animationRef.current = requestAnimationFrame(suivre);
+      };
+      setMode("speaking");
+      animationRef.current = requestAnimationFrame(suivre);
+
+      for (let i = 0; i < total; i++) {
+        lancer(i + 1);
+        lancer(i + 2);
+        const morceau = i === 0 ? bloc : await enVol.get(i)!;
         if (tourRef.current !== jeton) return;         // une nouvelle réponse a pris la main
-        if (!attendu) break;
-        const prochain = await attendu;
-        if (!prochain.audio) break;
-        bloc = { ...bloc, audio: prochain.audio, type_mime: prochain.type_mime };
+        if (!morceau.audio) break;
+        try { await programmer(enOctets(morceau.audio)); } catch { break; }
+        /* On ne dort pas jusqu'à la fin du morceau : on se réveille deux
+           secondes avant, le temps de décoder et de programmer le suivant
+           sans jamais laisser l'horloge nous rattraper. */
+        const avance = Math.max(0, (quand - ctx.currentTime - 2) * 1000);
+        if (i + 1 < total) await pause(avance);
+        if (tourRef.current !== jeton) return;
       }
+
+      // Elle a fini de parler quand le dernier morceau s'est tu, pas avant.
+      const reste = Math.max(0, (quand - ctx.currentTime) * 1000);
+      await pause(reste + 120);
+      if (tourRef.current !== jeton) return;
       stopMouth(answer);
     } catch {
       await prendreLaParole();
       parlerAvecLeTelephone(answer);
     }
-  }, [couperSon, finirAttente, jouerEtAnimer, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth]);
+  }, [contexte, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth]);
 
   /* ── Ce qu'elle dit pendant qu'elle réfléchit ─────────────────────────
 
