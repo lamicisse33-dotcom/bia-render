@@ -41,7 +41,7 @@ et sans répéter. Réponds par le mémo seul, sans préambule.`;
       headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
         model: process.env.BIA_LLM_MODEL || "claude-sonnet-5",
-        max_tokens: 600, temperature: 0.2, system: consigne, messages,
+        max_tokens: 600, system: consigne, messages,
       }),
     });
     if (!r.ok) {

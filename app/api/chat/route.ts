@@ -156,7 +156,7 @@ export async function POST(request:NextRequest){
       console.error("BIA — lexique injoignable :",(err as Error).message);
     }
 
-    const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:2000,temperature:.6,system:consigne,messages:[...history,{role:"user",content:question}]})});
+    const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:2000,system:consigne,messages:[...history,{role:"user",content:question}]})});
 
     if(!response.ok){
       const detail=await response.text().catch(()=>"");

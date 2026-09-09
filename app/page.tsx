@@ -659,7 +659,7 @@ export default function Home() {
       </div>
 
       {legende && !clavier ? <p className="legende">{legende}</p> : null}
-      {panne && !clavier ? <p className="panne">\u26a0 {panne}</p> : null}
+      {panne && !clavier ? <p className="panne">⚠ {panne}</p> : null}
 
       <div className="barre">
         <button className="clavier-ouvrir" type="button" onClick={ouvrirClavier} aria-label="Écrire à BIA">
