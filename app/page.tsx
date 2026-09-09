@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ATTENTES, SEUIL_MS, choisirAttente, texteAttente } from "@/lib/attente";
+import { fichierDe, souffleDe } from "@/lib/sons";
 
 type Message = { role: "bia" | "user"; text: string };
 /* Les 24 cases de la planche, dans l'ordre du fichier.
@@ -46,6 +48,15 @@ type Recognition = {
 };
 
 const welcome = "Salaam! Man maa di BIA. Waxal ak man ci wolof walla ci français.";
+
+const pause = (ms: number) => new Promise((fini) => setTimeout(fini, ms));
+
+function octetsDeBase64(b64: string) {
+  const brut = atob(b64);
+  const tableau = new Uint8Array(brut.length);
+  for (let i = 0; i < brut.length; i++) tableau[i] = brut.charCodeAt(i);
+  return tableau.buffer;
+}
 
 /* ── Quelle langue ? ───────────────────────────────────────────────────────
    Le navigateur n'a pas de voix wolof. Sans ce test, la retouche phonétique
@@ -109,6 +120,16 @@ export default function Home() {
   const resumeRef = useRef("");
   const resumeEnCours = useRef(false);
   const emotionRef = useRef("neutre");
+  /* L attente parlee. Le jeton dit si la phrase en cours a encore lieu
+     d etre : des que la reponse arrive, il change, et tout ce qui etait
+     en route se tait. */
+  const attenteRef = useRef<object | null>(null);
+  const attenteCache = useRef<Map<string, ArrayBuffer>>(new Map());
+  const dernierAttente = useRef<string | null>(null);
+  const nomDemande = useRef(false);
+  const toursRef = useRef(0);
+  const cacheSons = useRef<Map<string, ArrayBuffer>>(new Map());
+  const dernierSon = useRef<string | null>(null);
 
   historyRef.current = history;
   resumeRef.current = resume;
@@ -282,16 +303,71 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   }, [bouche]);
 
+  /* ── Les sons qui ne s'écrivent pas ───────────────────────────────────
+
+     Un rire synthétisé n'est pas un rire. Ceux-ci sont de vrais
+     enregistrements : on les joue tels quels, et le visage suit la suite
+     d'images prévue pour ce son plutôt que l'ouverture de la bouche. */
+  const jouerSonAvecVisages = useCallback((octets: ArrayBuffer, visages: Array<[string, number]>) =>
+    new Promise<void>((fini) => {
+      const ctx = contexte();
+      ctx.decodeAudioData(octets.slice(0)).then((mémoire) => {
+        const source = ctx.createBufferSource();
+        source.buffer = mémoire;
+        source.connect(ctx.destination);
+        sourceRef.current = source;
+
+        const minuteries: Array<ReturnType<typeof setTimeout>> = [];
+        let t = 0;
+        for (const [visage, duree] of visages) {
+          minuteries.push(setTimeout(() => {
+            if (sourceRef.current === source) setFace(visage as Face);
+          }, t));
+          t += duree;
+        }
+
+        source.onended = () => {
+          for (const m of minuteries) clearTimeout(m);
+          if (sourceRef.current === source) sourceRef.current = null;
+          fini();
+        };
+        setMode("speaking");
+        source.start();
+      }).catch(() => fini());
+    }), [contexte]);
+
+  /* Le rire part AVANT la parole, pendant que la voix se synthétise : on
+     couvre ainsi l'attente du premier morceau, et l'émotion arrive d'un
+     coup au lieu d'être annoncée puis jouée. Si le fichier n'est pas encore
+     déposé, on ne fait rien — le visage rit en silence, comme avant. */
+  const jouerSouffle = useCallback(async (emotion: string) => {
+    const souffle = souffleDe(emotion);
+    if (!souffle) return;
+    const fichier = fichierDe(souffle, dernierSon.current);
+    let octets = cacheSons.current.get(fichier);
+    if (!octets) {
+      try {
+        const r = await fetch(fichier);
+        if (!r.ok) return;
+        octets = await r.arrayBuffer();
+        cacheSons.current.set(fichier, octets);
+      } catch { return; }
+    }
+    dernierSon.current = fichier;
+    await jouerSonAvecVisages(octets, souffle.visages);
+  }, [jouerSonAvecVisages]);
+
   /* La vraie voix : Oolel Voices, la même que BIBA. Le serveur découpe la
      réponse — Soynade n'accepte que 500 caractères — et on va chercher le
      morceau suivant PENDANT que le précédent est lu, sinon un silence
      s'installe entre chaque phrase. */
-  const speak = useCallback(async (answer: string) => {
+  const speak = useCallback(async (answer: string, emotion?: string) => {
     window.speechSynthesis?.cancel();
     couperSon();
     if (!answer.trim()) return;
 
     if (moteursRef.current && moteursRef.current.voix === "navigateur") {
+      if (emotion) await jouerSouffle(emotion);
       parlerAvecLeTelephone(answer);
       return;
     }
@@ -314,7 +390,11 @@ export default function Home() {
     };
 
     try {
-      let bloc = await demander(0);
+      // On lance la synthèse du premier morceau AVANT de rire : le rire
+      // occupe exactement le temps qu'elle prend.
+      const premier = demander(0);
+      if (emotion) await jouerSouffle(emotion);
+      let bloc = await premier;
       if (!bloc.audio) { parlerAvecLeTelephone(answer); return; }
 
       const jeton = {};
@@ -336,7 +416,65 @@ export default function Home() {
     } catch {
       parlerAvecLeTelephone(answer);
     }
-  }, [couperSon, jouerEtAnimer, parlerAvecLeTelephone, stopMouth]);
+  }, [couperSon, jouerEtAnimer, jouerSouffle, parlerAvecLeTelephone, stopMouth]);
+
+  /* ── Ce qu'elle dit pendant qu'elle réfléchit ─────────────────────────
+
+     Le premier passage synthétise la phrase ; on la garde ensuite en
+     mémoire, si bien que les fois suivantes elle part instantanément. */
+  const audioAttente = useCallback(async (texte: string) => {
+    const garde = attenteCache.current.get(texte);
+    if (garde) return garde;
+    const r = await fetch("/api/voix", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+      body: JSON.stringify({ texte, partie: 0 }),
+    });
+    if (!r.ok) throw new Error("voix indisponible");
+    const d = await r.json() as { audio: string | null };
+    if (!d.audio) throw new Error("voix muette");
+    const octets = octetsDeBase64(d.audio);
+    attenteCache.current.set(texte, octets);
+    return octets;
+  }, []);
+
+  /* Elle laisse passer SEUIL_MS avant d'ouvrir la bouche : si la réponse
+     arrive avant, elle se tait, et rien n'aura retardé quoi que ce soit.
+     Deux phrases au maximum par attente — une pour dire qu'elle a entendu,
+     une seconde seulement si l'attente s'éternise. Trois seraient bavardes. */
+  const direAttente = useCallback(async (langue: "wo" | "fr", jeton: object) => {
+    const depart = Date.now();
+    for (let dites = 0; dites < 2; dites++) {
+      await pause(dites === 0 ? SEUIL_MS : 1800);
+      if (attenteRef.current !== jeton) return;
+
+      const choix = choisirAttente({
+        attenteMs: Date.now() - depart,
+        dernierId: dernierAttente.current,
+        // Si elle a des notes sur la personne, elle connaît déjà son prénom.
+        nomConnu: Boolean(resumeRef.current),
+        nomDejaDemande: nomDemande.current,
+        social: toursRef.current % 3 === 0,
+      });
+      if (!choix) return;
+
+      const texte = texteAttente(choix, langue);
+      let octets: ArrayBuffer;
+      try { octets = await audioAttente(texte); } catch { return; }
+      // La réponse a pu arriver pendant la synthèse : alors on se tait.
+      if (attenteRef.current !== jeton) return;
+
+      dernierAttente.current = choix.id;
+      if (choix.quand === "nom") nomDemande.current = true;
+      setFace(choix.visage as Face);
+      setLegende(texte);
+      await jouerEtAnimer(octets);
+      if (attenteRef.current !== jeton) return;
+      // Elle a fini sa phrase, la réponse n'est toujours pas là : elle
+      // retourne réfléchir, et le visage reprend sa boucle.
+      setMode("thinking");
+    }
+  }, [audioAttente, jouerEtAnimer]);
 
   const askBia = useCallback(async (question: string) => {
     const clean = question.trim();
@@ -348,6 +486,13 @@ export default function Home() {
     setFace("pensive");
     setLegende("");
     setPanne("");
+
+    // Le temps où l'humain écoute est du temps gagné : elle meuble en parlant.
+    const jeton = {};
+    attenteRef.current = jeton;
+    toursRef.current += 1;
+    void direAttente(estWolof(clean) ? "wo" : "fr", jeton);
+
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -355,6 +500,7 @@ export default function Home() {
         body: JSON.stringify({ message: clean, history: historyRef.current.slice(-12), resume: resumeRef.current }),
       });
       const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; source?: string };
+      attenteRef.current = null;   // la vraie réponse a la parole
       if (response.status === 401) {
         // Code refusé : on renvoie le testeur à l'écran d'entrée avec le motif.
         try { localStorage.removeItem("bia-code"); } catch {}
@@ -372,7 +518,7 @@ export default function Home() {
       // ce qui donne l'impression qu'elle réagit à ce qu'on lui a dit.
       const suite = SUITES[emotionRef.current];
       if (!suite) setFace(EMOTION_VERS_FACE[emotionRef.current] || "yeux_ouverts");
-      speak(data.reply);
+      speak(data.reply, emotionRef.current);
     } catch {
       emotionRef.current = "concernee";
       const fallback = "Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.";
@@ -382,9 +528,54 @@ export default function Home() {
       setMode("error");
       speak(fallback);
     } finally {
+      attenteRef.current = null;
       busyRef.current = false;
     }
-  }, [speak]);
+  }, [speak, direAttente]);
+
+  /* Pendant qu'elle réfléchit, le visage ne doit pas se figer.
+
+     Une image fixe fait paraître l'attente deux fois plus longue : on ne sait
+     plus si elle cherche ou si tout est bloqué. Un regard qui glisse, une
+     paupière qui tombe, et la même attente devient supportable. La suite
+     tourne en boucle jusqu'à ce que la réponse arrive. */
+  useEffect(() => {
+    if (mode !== "thinking") return;
+    const suite: Array<[Face, number]> = [
+      ["pensive", 900], ["regard_cote", 760], ["pensive", 820],
+      ["yeux_mi", 150], ["yeux_fermes", 190], ["yeux_mi", 130],
+      ["pensive", 1000], ["ecoute", 720], ["regard_cote", 640],
+    ];
+    let vivant = true;
+    let i = 0;
+    let minuterie: ReturnType<typeof setTimeout>;
+    const avancer = () => {
+      if (!vivant) return;
+      const [visage, duree] = suite[i % suite.length];
+      setFace(visage);
+      i += 1;
+      minuterie = setTimeout(avancer, duree);
+    };
+    avancer();
+    return () => { vivant = false; clearTimeout(minuterie); };
+  }, [mode]);
+
+  /* On synthétise les phrases les plus courtes dès l'entrée du code, pendant
+     que personne ne demande rien. La toute première attente est alors déjà
+     instantanée ; les autres phrases se mettront en mémoire à leur premier
+     usage. Une seule à la fois, pour ne pas encombrer la voix si BIA doit
+     répondre pendant ce temps. */
+  useEffect(() => {
+    if (!code) return;
+    let vivant = true;
+    void (async () => {
+      for (const a of ATTENTES.filter((x) => x.quand === "court")) {
+        if (!vivant) return;
+        try { await audioAttente(a.wo); } catch { return; }
+      }
+    })();
+    return () => { vivant = false; };
+  }, [code, audioAttente]);
 
   // Clignement des yeux au repos.
   useEffect(() => {

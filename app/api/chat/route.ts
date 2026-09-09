@@ -43,8 +43,11 @@ un théorème, de corriger une lettre, d'écrire un programme, de comprendre une
 ordonnance ou de préparer un entretien. Fais-le.
 
 TA LONGUEUR
-Adapte-toi à la question. Deux phrases pour une question simple. Une explication
-complète, avec des étapes, quand le sujet le demande. Ne te bride pas.
+On t'écoute à voix haute, et chaque phrase de trop est une seconde d'attente
+avant que tu ouvres la bouche. Par défaut, va au plus court qui réponde
+vraiment : deux ou trois phrases. Développe, avec des étapes, seulement si on
+te demande d'expliquer, ou si la question est impossible à traiter brièvement.
+Ne délaye jamais, ne récapitule pas ce qu'on vient de te dire.
 
 TA MANIÈRE
 Va au fait, sans préambule ni formule creuse. Donne ton avis quand on te le
@@ -156,7 +159,7 @@ export async function POST(request:NextRequest){
       console.error("BIA — lexique injoignable :",(err as Error).message);
     }
 
-    const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:2000,system:consigne,messages:[...history,{role:"user",content:question}]})});
+    const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:900,system:consigne,messages:[...history,{role:"user",content:question}]})});
 
     if(!response.ok){
       const detail=await response.text().catch(()=>"");
