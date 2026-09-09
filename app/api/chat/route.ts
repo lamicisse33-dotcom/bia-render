@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { correctionExacte, exemplesPour } from "@/lib/lexique";
 import { savoirKhalam } from "@/lib/khalam";
+import { SOCLE_RELATIONS, consigneRelations, estSujetRelation } from "@/lib/relations";
 import { noterPanne, oublierPanne } from "@/lib/panne";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
@@ -160,7 +161,18 @@ export async function POST(request:NextRequest){
     // ce qui permet à BIA de suivre un fil au lieu de tout oublier.
     const history=(body.history||[]).slice(-12).map(item=>({role:item.role==="bia"?"assistant":"user",content:String(item.text||"").slice(0,1500)}));
 
-    let consigne=system;
+    /* Le socle des relations accompagne CHAQUE question, même une question de
+       mathématiques : quelqu'un peut demander l'heure et finir par raconter
+       qu'on le frappe. Un plancher de sécurité ne doit jamais dépendre d'un
+       mot-clé. */
+    let consigne=system+"\n\n"+SOCLE_RELATIONS;
+
+    /* La base des 70 situations, elle, ne se charge que si le sujet s'y prête :
+       quinze mille caractères à chaque question tripleraient le coût et
+       noieraient son attention. */
+    const filDitPar=(body.history||[]).map(item=>String(item.text||""));
+    if(estSujetRelation(question,filDitPar))consigne+=await consigneRelations();
+
     const savoir=await savoirKhalam();
     if(savoir)consigne+=`\n\n═══ CE QUE TU SAIS DE KHALAM ═══\n${savoir}\n═══ fin de ce que tu sais de KHALAM ═══`;
     const resume=String(body.resume||"").trim().slice(0,1500);
