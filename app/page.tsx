@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ATTENTES, SEUIL_MS, choisirAttente, texteAttente } from "@/lib/attente";
 import { fichierDe, souffleDe } from "@/lib/sons";
+import { TON_VERS_VISAGE, TRANSITIONS, choisirTransition } from "@/lib/transitions";
 
 type Message = { role: "bia" | "user"; text: string };
 /* Les 24 cases de la planche, dans l'ordre du fichier.
@@ -155,6 +156,13 @@ export default function Home() {
   const toursRef = useRef(0);
   const cacheSons = useRef<Map<string, ArrayBuffer>>(new Map());
   const dernierSon = useRef<string | null>(null);
+  /* Les transitions après le micro : les cinq dernières servies, le ton
+     précédent, et l'état de la transcription — une phrase ne peut annoncer
+     avoir COMPRIS que si le texte est effectivement revenu. */
+  const transitionsRecentes = useRef<number[]>([]);
+  const tonPrecedent = useRef<string | null>(null);
+  const transcritRef = useRef(false);
+  const dernierDitRef = useRef("");
 
   historyRef.current = history;
   resumeRef.current = resume;
@@ -502,7 +510,45 @@ export default function Home() {
     }
   }, [audioAttente, jouerEtAnimer]);
 
-  const askBia = useCallback(async (question: string) => {
+  /* ── Ce qu'elle dit à l'instant où le micro se coupe ───────────────────
+
+     Après la parole, l'attente est certaine : transcrire, interroger le
+     modèle, fabriquer la voix. Trois attentes qui s'additionnent. On parle
+     donc tout de suite, sans le délai de 800 ms des questions écrites.
+
+     Deux phrases au maximum. La première est courte — elle est préchauffée,
+     donc instantanée — et ne peut qu'affirmer avoir ENTENDU, puisque la
+     transcription n'est pas encore revenue. La seconde, plus longue, part
+     seulement si l'attente dure, et peut alors dire avoir compris : à ce
+     moment le texte est arrivé. */
+  const direTransitions = useCallback(async (jeton: object) => {
+    for (let dites = 0; dites < 2; dites++) {
+      if (attenteRef.current !== jeton) return;
+
+      const choix = choisirTransition({
+        duree: dites === 0 ? "courte" : "longue",
+        recentes: transitionsRecentes.current,
+        contexte: dernierDitRef.current,
+        transcrit: transcritRef.current,
+        tonPrecedent: tonPrecedent.current,
+      });
+      if (!choix) return;
+
+      let octets: ArrayBuffer;
+      try { octets = await audioAttente(choix.wo); } catch { return; }
+      if (attenteRef.current !== jeton) return;
+
+      transitionsRecentes.current = [choix.n, ...transitionsRecentes.current].slice(0, 5);
+      tonPrecedent.current = choix.ton;
+      setFace((TON_VERS_VISAGE[choix.ton] || "pensive") as Face);
+      setLegende(choix.wo);
+      await jouerEtAnimer(octets);
+      if (attenteRef.current !== jeton) return;
+      setMode("thinking");
+    }
+  }, [audioAttente, jouerEtAnimer]);
+
+  const askBia = useCallback(async (question: string, parole = false) => {
     const clean = question.trim();
     if (!clean || busyRef.current) return;
     busyRef.current = true;
@@ -514,10 +560,14 @@ export default function Home() {
     setPanne("");
 
     // Le temps où l'humain écoute est du temps gagné : elle meuble en parlant.
-    const jeton = {};
-    attenteRef.current = jeton;
+    // Après le micro, ce sont les transitions qui tiennent déjà la parole —
+    // on ne leur superpose pas une phrase d'attente.
     toursRef.current += 1;
-    void direAttente(estWolof(clean) ? "wo" : "fr", jeton);
+    if (!parole) {
+      const jeton = {};
+      attenteRef.current = jeton;
+      void direAttente(estWolof(clean) ? "wo" : "fr", jeton);
+    }
 
     try {
       const response = await fetch("/api/chat", {
@@ -615,6 +665,12 @@ export default function Home() {
         if (!vivant) return;
         try { await audioAttente(a.wo); } catch { return; }
       }
+      // Puis les dix transitions courtes : ce sont elles qui partent à
+      // l'instant où le micro se coupe, elles doivent être prêtes.
+      for (const t of TRANSITIONS.filter((x) => x.duree === "courte")) {
+        if (!vivant) return;
+        try { await audioAttente(t.wo); } catch { return; }
+      }
     })();
     return () => { vivant = false; };
   }, [code, audioAttente]);
@@ -681,12 +737,25 @@ export default function Home() {
 
         setMode("thinking");
         setFace("pensive");
+
+        /* Elle répond MAINTENANT, sans attendre la transcription : c'est tout
+           l'intérêt: le silence après qu'on a parlé est le plus inquiétant. */
+        const jeton = {};
+        attenteRef.current = jeton;
+        transcritRef.current = false;
+        dernierDitRef.current = "";
+        void direTransitions(jeton);
+
         const forme = new FormData();
         forme.append("audio", new Blob(morceaux, { type: "audio/webm" }), "parole.webm");
         try {
           const r = await fetch("/api/ecouter", { method: "POST", headers: { "x-bia-code": codeRef.current }, body: forme });
           const d = await r.json() as { texte?: string };
-          if (d.texte) void askBia(d.texte);
+          // Le texte est là : les phrases suivantes peuvent dire « j'ai compris »,
+          // et connaissent le sujet — donc éviter un ton léger s'il est grave.
+          transcritRef.current = true;
+          dernierDitRef.current = d.texte || "";
+          if (d.texte) void askBia(d.texte, true);
           else { setMode("ready"); setFace("yeux_ouverts"); }
         } catch { setMode("error"); }
       };
@@ -697,7 +766,7 @@ export default function Home() {
     } catch {
       setMode("error");
     }
-  }, [arreterEnregistrement, askBia]);
+  }, [arreterEnregistrement, askBia, direTransitions]);
 
   /* Repli quand aucun moteur d'écoute n'est branché : la reconnaissance du
      navigateur. Elle ne connaît pas le wolof — « wo-SN » n'existe nulle part
