@@ -25,5 +25,11 @@ export async function GET() {
     lexique_entrees: entrees,
     voix_clonee: Boolean(voixConfig.soynade.audioPrompt),
     derniere_panne: dernierePanne(),
+  }, {
+    /* La page d'attente de bia.khalam.app lit cet état depuis un autre
+       domaine : sans cet en-tête, le navigateur lui refuse la réponse et
+       elle croirait BIA endormie pour toujours. Rien de secret ici — c'est
+       déjà une page ouverte. */
+    headers: { "access-control-allow-origin": "*" },
   });
 }

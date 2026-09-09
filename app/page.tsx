@@ -107,7 +107,6 @@ export default function Home() {
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const busyRef = useRef(false);
   const historyRef = useRef<Message[]>([]);
-  const accueilRef = useRef(false);
   const filRef = useRef<HTMLDivElement | null>(null);
   const champRef = useRef<HTMLInputElement | null>(null);
   const codeRef = useRef<string>("");
@@ -724,20 +723,23 @@ export default function Home() {
       .finally(() => { resumeEnCours.current = false; });
   }, [history, code]);
 
-  // Le navigateur refuse toute voix avant un geste de l'utilisateur : le mot
-  // d'accueil ne peut donc pas partir au chargement, il part au premier appui.
-  function accueil() {
-    if (accueilRef.current) return;
-    accueilRef.current = true;
-    setLegende(welcome);
-    speak(welcome);
-  }
+  /* BIA ne parle JAMAIS la première.
+
+     Le mot d'accueil partait autrefois au premier appui sur le micro : elle
+     se présentait avant qu'on lui ait rien dit, et cet appui-là ne lançait
+     même pas l'écoute. On garde le mot d'accueil à l'écran — écrit, il
+     accueille sans couper la parole — et le premier appui écoute, comme
+     tous les suivants.
+
+     Le geste sert quand même à quelque chose : il débloque le son du
+     navigateur, qui refuse toute lecture audio avant une action de
+     l'utilisateur. */
 
   function toggleMicrophone() {
     window.speechSynthesis?.cancel();
     couperSon();
     tourRef.current = null;
-    if (!accueilRef.current) { accueil(); return; }
+    contexte();   // débloque le son du navigateur, sans rien prononcer
 
     const parScribe = moteurs ? moteurs.ecoute !== "navigateur" : false;
     if (parScribe) {
@@ -751,7 +753,7 @@ export default function Home() {
   }
 
   function ouvrirClavier() {
-    accueilRef.current = true;
+    contexte();
     setClavier(true);
     setTimeout(() => champRef.current?.focus(), 90);
   }
