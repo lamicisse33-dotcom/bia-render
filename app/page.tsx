@@ -1,9 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ATTENTES, SEUIL_MS, choisirAttente, texteAttente } from "@/lib/attente";
+import { ATTENTES, SEUIL_MS, candidatsAttente, texteAttente } from "@/lib/attente";
+import type { Attente } from "@/lib/attente";
+import {
+  attenteEstimee, lireDurees, lireMesures, msDe, noterDuree, noterMesure, pourRemplir,
+} from "@/lib/chrono";
+import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
-import { TON_VERS_VISAGE, TRANSITIONS, choisirTransition } from "@/lib/transitions";
+import { TON_VERS_VISAGE, TRANSITIONS, candidatsTransition } from "@/lib/transitions";
+import type { Transition } from "@/lib/transitions";
 
 type Message = { role: "bia" | "user"; text: string };
 /* Les 24 cases de la planche, dans l'ordre du fichier.
@@ -167,6 +173,16 @@ export default function Home() {
      d'attente continuent de se dire mais n'écrasent plus la légende : on lit
      la réponse pendant qu'elle achève de meubler. */
   const texteArriveRef = useRef(false);
+  /* LE CHRONOMÈTRE. Idée de Lamine : plutôt que de meubler à l'aveugle, BIA
+     mesure combien de temps elle fait attendre, et sert la phrase dont la
+     durée remplit ce temps-là. Quatre repères suffisent — le départ, la fin
+     de la transcription, la fin du modèle, et l'arrivée du son. */
+  const mesuresRef = useRef<Mesure[]>([]);
+  const dureesRef = useRef<Record<string, number>>({});
+  const departAttenteRef = useRef(0);
+  const tTranscritRef = useRef(0);
+  const tModeleRef = useRef(0);
+  const voieRef = useRef<Voie>("ecrit");
   const attenteCache = useRef<Map<string, ArrayBuffer>>(new Map());
   const dernierAttente = useRef<string | null>(null);
   const nomDemande = useRef(false);
@@ -184,6 +200,14 @@ export default function Home() {
   historyRef.current = history;
   resumeRef.current = resume;
   codeRef.current = code || "";
+
+  /* Ce que BIA a mesuré les fois précédentes : combien de temps elle fait
+     attendre, et combien de temps durent ses phrases. Sur l'appareil, jamais
+     au serveur — ces chiffres dépendent du téléphone et du réseau. */
+  useEffect(() => {
+    mesuresRef.current = lireMesures();
+    dureesRef.current = lireDurees();
+  }, []);
 
   // Le code est gardé sur l'appareil : le testeur ne le retape pas à chaque fois.
   useEffect(() => {
@@ -408,6 +432,25 @@ export default function Home() {
     await jouerSonAvecVisages(octets, souffle.visages);
   }, [jouerSonAvecVisages]);
 
+  /* Le trait tiré à la fin de l'attente : du micro coupé jusqu'au son de la
+     réponse. C'est ce total-là qu'il faudra meubler la prochaine fois. */
+  const noterAttente = useCallback(() => {
+    const depart = departAttenteRef.current;
+    if (!depart) return;
+    departAttenteRef.current = 0;
+    const fin = Date.now();
+    const transcrit = tTranscritRef.current;
+    const modele = tModeleRef.current || fin;
+    mesuresRef.current = noterMesure({
+      voie: voieRef.current,
+      transcription: transcrit ? transcrit - depart : 0,
+      modele: Math.max(0, modele - (transcrit || depart)),
+      voix: Math.max(0, fin - modele),
+      total: fin - depart,
+      quand: fin,
+    }, mesuresRef.current);
+  }, []);
+
   /* Reprendre la parole à l'attente, proprement : on lui demande de
      s'arrêter, on laisse finir la phrase commencée, et alors seulement on
      coupe. Couper avant, c'est un mot tranché en deux ; ne pas couper du
@@ -473,6 +516,7 @@ export default function Home() {
       // l'attente continue de parler. C'est elle qui couvre le trou, plus le
       // silence.
       let bloc = await demander(0);
+      noterAttente();          // le son est là : l'attente est finie, on la note
       await prendreLaParole();
       if (!bloc.audio) { parlerAvecLeTelephone(answer); return; }
       // Le rire vient maintenant : entre la dernière phrase d'attente et le
@@ -499,7 +543,7 @@ export default function Home() {
       await prendreLaParole();
       parlerAvecLeTelephone(answer);
     }
-  }, [couperSon, finirAttente, jouerEtAnimer, jouerSouffle, parlerAvecLeTelephone, stopMouth]);
+  }, [couperSon, finirAttente, jouerEtAnimer, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth]);
 
   /* ── Ce qu'elle dit pendant qu'elle réfléchit ─────────────────────────
 
@@ -518,95 +562,158 @@ export default function Home() {
     if (!d.audio) throw new Error("voix muette");
     const octets = octetsDeBase64(d.audio);
     attenteCache.current.set(texte, octets);
+    /* Combien de temps cette phrase dure-t-elle, dite ? On ne l'estime pas :
+       le son le sait. On le décode une fois, on note, on n'y revient plus. */
+    try {
+      const memoire = await contexte().decodeAudioData(octets.slice(0));
+      noterDuree(texte, memoire.duration * 1000, dureesRef.current);
+    } catch {}
     return octets;
-  }, []);
+  }, [contexte]);
 
   /* Elle laisse passer SEUIL_MS avant d'ouvrir la bouche : si la réponse
      arrive avant, elle se tait, et rien n'aura retardé quoi que ce soit.
      Deux phrases au maximum par attente — une pour dire qu'elle a entendu,
      une seconde seulement si l'attente s'éternise. Trois seraient bavardes. */
-  const direAttente = useCallback(async (langue: "wo" | "fr", jeton: object) => {
+  /* ── MEUBLER L'ATTENTE, À LA BONNE LONGUEUR ───────────────────────────
+
+     Le cœur de l'idée de Lamine. BIA sait, par ses mesures, combien de temps
+     dure d'habitude l'attente ; elle sait aussi, à la milliseconde, combien
+     de temps dure chacune de ses phrases. Elle n'a plus qu'à servir celle
+     qui remplit — et à enchaîner tant que la réponse n'est pas là.
+
+     Deux précautions qui font toute la différence :
+
+     — LA PREMIÈRE PHRASE doit partir sans le moindre délai. On ne retient
+       donc, pour elle, que celles dont le son est déjà en mémoire : celles
+       que l'entrée du code a préchauffées.
+
+     — LA SUIVANTE se fabrique PENDANT que celle-ci se dit. Sans ça, chaque
+       phrase encore inconnue coûterait deux secondes de silence — très
+       exactement ce qu'on cherche à supprimer. Et rien n'est gâché si la
+       réponse arrive avant : le son reste en mémoire pour la fois d'après. */
+  type Meublage<T> = {
+    jeton: object;
+    /** Le temps à couvrir, en millisecondes : l'attente mesurée. */
+    budget: number;
+    /** Le silence avant la première phrase. */
+    premierDelai: number;
+    /** Le souffle entre deux phrases. */
+    entreDeux: number;
+    candidats: () => T[];
+    texteDe: (c: T) => string;
+    /** Visage et mémoire, au moment de dire la phrase. */
+    avant: (c: T) => void;
+  };
+
+  const meubler = useCallback(async <T,>(m: Meublage<T>) => {
     const depart = Date.now();
-    for (let dites = 0; ; dites++) {
-      await pause(dites === 0 ? SEUIL_MS : 1300);
+    const durees = dureesRef.current;
+    let prochain: { choix: T; son: Promise<ArrayBuffer | null> } | null = null;
+
+    const choisir = (rang: number, restant: number): T | null => {
+      let liste = m.candidats();
+      if (rang === 0) {
+        const pretes = liste.filter((c) => attenteCache.current.has(m.texteDe(c)));
+        if (pretes.length) liste = pretes;
+      }
+      return pourRemplir(liste, m.texteDe, restant, durees);
+    };
+
+    for (let rang = 0; ; rang++) {
+      if (rang === 0) { if (m.premierDelai) await pause(m.premierDelai); }
+      else await pause(m.entreDeux);
       // Filet : même si tout se casse ailleurs, elle ne parle pas sans fin.
       if (Date.now() - depart > 60000) return;
-      if (attenteRef.current !== jeton || stopAttenteRef.current) return;
+      if (attenteRef.current !== m.jeton || stopAttenteRef.current) return;
 
-      const choix = choisirAttente({
-        attenteMs: Date.now() - depart,
-        dernierId: dernierAttente.current,
-        // Si elle a des notes sur la personne, elle connaît déjà son prénom.
-        nomConnu: Boolean(resumeRef.current),
-        nomDejaDemande: nomDemande.current,
-        social: toursRef.current % 3 === 0,
-      });
+      const choix = prochain ? prochain.choix : choisir(rang, m.budget - (Date.now() - depart));
       if (!choix) return;
+      const texte = m.texteDe(choix);
 
-      const texte = texteAttente(choix, langue);
-      let octets: ArrayBuffer;
-      try { octets = await audioAttente(texte); } catch { return; }
+      let octets: ArrayBuffer | null;
+      try { octets = prochain ? await prochain.son : await audioAttente(texte); }
+      catch { return; }
+      prochain = null;
+      if (!octets) return;
       // Le son de la réponse a pu arriver pendant la synthèse : on s'arrête.
-      if (attenteRef.current !== jeton || stopAttenteRef.current) return;
+      if (attenteRef.current !== m.jeton || stopAttenteRef.current) return;
 
-      dernierAttente.current = choix.id;
-      if (choix.quand === "nom") nomDemande.current = true;
-      setFace(choix.visage as Face);
+      m.avant(choix);
       if (!texteArriveRef.current) setLegende(texte);
+
+      // La suivante se prépare maintenant, pendant que celle-ci se dit.
+      const restantApres = m.budget - (Date.now() - depart) - msDe(texte, durees);
+      const suivant = choisir(rang + 1, restantApres);
+      if (suivant) {
+        prochain = { choix: suivant, son: audioAttente(m.texteDe(suivant)).catch(() => null) };
+      }
+
       const enCours = jouerEtAnimer(octets);
       phraseEnCoursRef.current = enCours;
       await enCours;
       if (phraseEnCoursRef.current === enCours) phraseEnCoursRef.current = null;
-      if (attenteRef.current !== jeton) return;
+      if (attenteRef.current !== m.jeton) return;
       // Elle a fini sa phrase, la réponse n'est toujours pas là : elle
       // retourne réfléchir, et le visage reprend sa boucle.
       setMode("thinking");
     }
   }, [audioAttente, jouerEtAnimer]);
 
+  const direAttente = useCallback(async (langue: "wo" | "fr", jeton: object) => {
+    await meubler<Attente>({
+      jeton,
+      budget: attenteEstimee(mesuresRef.current, "ecrit"),
+      premierDelai: SEUIL_MS,
+      entreDeux: 500,
+      candidats: () => candidatsAttente({
+        attenteMs: SEUIL_MS,
+        dernierId: dernierAttente.current,
+        // Si elle a des notes sur la personne, elle connaît déjà son prénom.
+        nomConnu: Boolean(resumeRef.current),
+        nomDejaDemande: nomDemande.current,
+        social: toursRef.current % 3 === 0,
+      }),
+      texteDe: (a) => texteAttente(a, langue),
+      avant: (a) => {
+        dernierAttente.current = a.id;
+        if (a.quand === "nom") nomDemande.current = true;
+        setFace(a.visage as Face);
+      },
+    });
+  }, [meubler]);
+
   /* ── Ce qu'elle dit à l'instant où le micro se coupe ───────────────────
 
      Après la parole, l'attente est certaine : transcrire, interroger le
      modèle, fabriquer la voix. Trois attentes qui s'additionnent. On parle
-     donc tout de suite, sans le délai de 800 ms des questions écrites.
+     donc tout de suite, sans le délai des questions écrites.
 
-     Deux phrases au maximum. La première est courte — elle est préchauffée,
-     donc instantanée — et ne peut qu'affirmer avoir ENTENDU, puisque la
-     transcription n'est pas encore revenue. La seconde, plus longue, part
-     seulement si l'attente dure, et peut alors dire avoir compris : à ce
-     moment le texte est arrivé. */
+     La première phrase est forcément courte et préchauffée — et ne peut
+     qu'affirmer avoir ENTENDU, puisque la transcription n'est pas encore
+     revenue. Les suivantes, choisies sur la durée qui reste à couvrir,
+     peuvent dire avoir compris : à ce moment le texte est arrivé. */
   const direTransitions = useCallback(async (jeton: object) => {
-    const depart = Date.now();
-    for (let dites = 0; ; dites++) {
-      if (dites) await pause(600);   // le souffle entre deux phrases
-      if (Date.now() - depart > 60000) return;
-      if (attenteRef.current !== jeton || stopAttenteRef.current) return;
-
-      const choix = choisirTransition({
-        duree: dites === 0 ? "courte" : dites % 2 ? "longue" : "moyenne",
+    await meubler<Transition>({
+      jeton,
+      budget: attenteEstimee(mesuresRef.current, "parole"),
+      premierDelai: 0,
+      entreDeux: 500,
+      candidats: () => candidatsTransition({
         recentes: transitionsRecentes.current,
         contexte: dernierDitRef.current,
         transcrit: transcritRef.current,
         tonPrecedent: tonPrecedent.current,
-      });
-      if (!choix) return;
+      }),
+      texteDe: (t) => t.wo,
+      avant: (t) => {
+        transitionsRecentes.current = [t.n, ...transitionsRecentes.current].slice(0, 5);
+        tonPrecedent.current = t.ton;
+        setFace((TON_VERS_VISAGE[t.ton] || "pensive") as Face);
+      },
+    });
+  }, [meubler]);
 
-      let octets: ArrayBuffer;
-      try { octets = await audioAttente(choix.wo); } catch { return; }
-      if (attenteRef.current !== jeton || stopAttenteRef.current) return;
-
-      transitionsRecentes.current = [choix.n, ...transitionsRecentes.current].slice(0, 5);
-      tonPrecedent.current = choix.ton;
-      setFace((TON_VERS_VISAGE[choix.ton] || "pensive") as Face);
-      if (!texteArriveRef.current) setLegende(choix.wo);
-      const enCours = jouerEtAnimer(octets);
-      phraseEnCoursRef.current = enCours;
-      await enCours;
-      if (phraseEnCoursRef.current === enCours) phraseEnCoursRef.current = null;
-      if (attenteRef.current !== jeton) return;
-      setMode("thinking");
-    }
-  }, [audioAttente, jouerEtAnimer]);
 
   const askBia = useCallback(async (question: string, parole = false) => {
     const clean = question.trim();
@@ -625,6 +732,11 @@ export default function Home() {
     toursRef.current += 1;
     texteArriveRef.current = false;
     if (!parole) {
+      // Question tapée : le chronomètre part d'ici, sans transcription.
+      departAttenteRef.current = Date.now();
+      voieRef.current = "ecrit";
+      tTranscritRef.current = 0;
+      tModeleRef.current = 0;
       const jeton = {};
       attenteRef.current = jeton;
       void direAttente(estWolof(clean) ? "wo" : "fr", jeton);
@@ -637,6 +749,7 @@ export default function Home() {
         body: JSON.stringify({ message: clean, history: historyRef.current.slice(-12), resume: resumeRef.current }),
       });
       const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; source?: string };
+      tModeleRef.current = Date.now();   // le modèle a fini d'écrire
       /* ICI SE JOUAIT LE SILENCE.
          On coupait l'attente à l'arrivée du TEXTE. Mais la voix, elle, n'est
          pas encore fabriquée : quatre à huit secondes plus tard. BIA se
@@ -815,6 +928,12 @@ export default function Home() {
         attenteRef.current = jeton;
         transcritRef.current = false;
         dernierDitRef.current = "";
+        // Le chronomètre part ici : c'est l'instant que la personne ressent
+        // comme le début de l'attente.
+        departAttenteRef.current = Date.now();
+        voieRef.current = "parole";
+        tTranscritRef.current = 0;
+        tModeleRef.current = 0;
         void direTransitions(jeton);
 
         const forme = new FormData();
@@ -824,6 +943,7 @@ export default function Home() {
           const d = await r.json() as { texte?: string };
           // Le texte est là : les phrases suivantes peuvent dire « j'ai compris »,
           // et connaissent le sujet — donc éviter un ton léger s'il est grave.
+          tTranscritRef.current = Date.now();
           transcritRef.current = true;
           dernierDitRef.current = d.texte || "";
           if (d.texte) void askBia(d.texte, true);

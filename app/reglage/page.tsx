@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { lireDurees, lireMesures, mediane, msDe } from "@/lib/chrono";
+import type { Mesure } from "@/lib/chrono";
+import { TRANSITIONS } from "@/lib/transitions";
 
 /* Page d'écoute. Elle sert à choisir la voix de BIA à l'oreille plutôt qu'au
    jugé : on modifie les trois réglages de Soynade, on écoute, on compare.
@@ -28,8 +31,11 @@ export default function Reglage() {
   const [duree, setDuree] = useState<number | null>(null);
   const [moteur, setMoteur] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [mesures, setMesures] = useState<Mesure[]>([]);
+  const [durees, setDurees] = useState<Record<string, number>>({});
 
   useEffect(() => { try { setCode(localStorage.getItem("bia-code") || ""); } catch {} }, []);
+  useEffect(() => { setMesures(lireMesures()); setDurees(lireDurees()); }, []);
 
   async function ecouter() {
     if (!code) { setEtat("Il faut ton code maître."); return; }
@@ -107,6 +113,52 @@ export default function Reglage() {
 
       {etat ? <p className="etat">{etat}</p> : null}
       {duree !== null ? <p className="etat">Fabriquée en {(duree / 1000).toFixed(1)} s{moteur ? ` — ${moteur}` : ""}.</p> : null}
+
+      {/* ── Le temps d'attente, tel qu'il a été mesuré sur cet appareil ────
+          Ces chiffres servent à une chose : savoir quelles longueurs de
+          phrases il manque. Si l'attente médiane après le micro est de douze
+          secondes et que la plus longue phrase en fait huit, il en faut des
+          plus longues — ou BIA devra en enchaîner deux. */}
+      <h2 className="titre-mesures">Le temps d&apos;attente</h2>
+      {mesures.length === 0 ? (
+        <p className="intro">
+          Rien de mesuré sur cet appareil. Pose quelques questions à BIA, puis
+          reviens ici : les chiffres s&apos;écrivent tout seuls.
+        </p>
+      ) : (
+        <p className="report">
+          {(["parole", "ecrit"] as const).map((voie) => {
+            const v = mesures.filter((m) => m.voie === voie);
+            if (!v.length) return null;
+            const s = (n: number) => (n / 1000).toFixed(1);
+            return (
+              <span key={voie}>
+                <b>{voie === "parole" ? "Après le micro" : "Question tapée"}</b>
+                {" "}— {v.length} échange{v.length > 1 ? "s" : ""}, médiane{" "}
+                <b>{s(mediane(v.map((m) => m.total)))} s</b><br />
+                transcription {s(mediane(v.map((m) => m.transcription)))} s ·{" "}
+                modèle {s(mediane(v.map((m) => m.modele)))} s ·{" "}
+                voix {s(mediane(v.map((m) => m.voix)))} s<br /><br />
+              </span>
+            );
+          })}
+          {(() => {
+            const par = (d: string) => {
+              const l = TRANSITIONS.filter((x) => x.duree === d).map((x) => msDe(x.wo, durees));
+              return `${(Math.min(...l) / 1000).toFixed(1)} à ${(Math.max(...l) / 1000).toFixed(1)} s`;
+            };
+            const mesurees = TRANSITIONS.filter((x) => durees[x.wo] > 0).length;
+            return (
+              <span>
+                <b>Les phrases de transition</b> — courtes {par("courte")} ·{" "}
+                moyennes {par("moyenne")} · longues {par("longue")}<br />
+                {mesurees} des {TRANSITIONS.length} ont déjà été dites, donc mesurées ;
+                les autres sont estimées sur leur longueur.
+              </span>
+            );
+          })()}
+        </p>
+      )}
 
       <p className="report">
         L'extrait de référence : <a href="/voix-bia.wav" target="_blank" rel="noreferrer">voix-bia.wav</a><br /><br />

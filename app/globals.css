@@ -390,6 +390,9 @@ button { font: inherit; touch-action: manipulation; }
 .reglage .ecouter:active { transform: scale(.98); }
 .reglage .etat { margin: 12px 0 0; color: rgba(255,255,255,.6); font-size: 14px; text-align: center; }
 .reglage .report { margin-top: 26px; color: rgba(255,255,255,.55); font-size: 13px; line-height: 2; }
+/* Le bloc de mesures : un titre discret, du même or que le reste. */
+.reglage .titre-mesures { margin: 34px 0 0; color: #d4af37; font-size: 15px;
+  letter-spacing: .04em; font-weight: 600; }
 .reglage code {
   padding: 3px 7px;
   border-radius: 6px;

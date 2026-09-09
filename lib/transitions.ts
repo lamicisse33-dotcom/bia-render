@@ -184,7 +184,9 @@ export function sujetGrave(texte: string): boolean {
 }
 
 export type Choix = {
-  duree: Duree;
+  /** Laisser vide pour ne filtrer sur aucune longueur : c'est alors la durée
+      mesurée qui décide, phrase par phrase (voir lib/chrono.ts). */
+  duree?: Duree;
   /** Les cinq dernières phrases servies : on n'en reprend aucune. */
   recentes: number[];
   /** Le texte que la personne vient de dire, pour écarter les tons légers. */
@@ -195,30 +197,35 @@ export type Choix = {
   tonPrecedent?: string | null;
 };
 
-/** La phrase à dire, ou null s'il n'en reste aucune d'acceptable. */
-export function choisirTransition(c: Choix): Transition | null {
+/* Toutes les phrases que les règles de Lamine autorisent à cet instant.
+   C'est la liste, pas le choix : celui qui appelle peut ensuite prendre au
+   hasard (choisirTransition) ou prendre celle dont la durée remplit le mieux
+   l'attente mesurée (pourRemplir, dans lib/chrono.ts). */
+export function candidatsTransition(c: Choix): Transition[] {
   const grave = c.contexte ? sujetGrave(c.contexte) : false;
   const recentes = new Set(c.recentes || []);
-
-  let libres = TRANSITIONS.filter((t) =>
-    t.duree === c.duree &&
-    !recentes.has(t.n) &&
+  const bonneLongueur = (t: Transition) => !c.duree || t.duree === c.duree;
+  const admissible = (t: Transition) =>
+    bonneLongueur(t) &&
     (c.transcrit !== false || !t.comprend) &&
-    !(grave && TONS_LEGERS.has(t.ton)));
+    !(grave && TONS_LEGERS.has(t.ton));
+
+  let libres = TRANSITIONS.filter((t) => admissible(t) && !recentes.has(t.n));
 
   // Si la règle des cinq dernières ne laisse plus rien, on la relâche : mieux
   // vaut répéter une phrase que se taire au moment où il faut parler.
-  if (!libres.length) {
-    libres = TRANSITIONS.filter((t) =>
-      t.duree === c.duree &&
-      (c.transcrit !== false || !t.comprend) &&
-      !(grave && TONS_LEGERS.has(t.ton)));
-  }
-  if (!libres.length) return null;
+  if (!libres.length) libres = TRANSITIONS.filter(admissible);
+  if (!libres.length) return [];
 
   // « Alterner les tons » : on écarte le ton qu'on vient d'employer, tant
   // qu'il reste autre chose.
   const varies = c.tonPrecedent ? libres.filter((t) => t.ton !== c.tonPrecedent) : libres;
-  const liste = varies.length ? varies : libres;
+  return varies.length ? varies : libres;
+}
+
+/** La phrase à dire, ou null s'il n'en reste aucune d'acceptable. */
+export function choisirTransition(c: Choix): Transition | null {
+  const liste = candidatsTransition(c);
+  if (!liste.length) return null;
   return liste[Math.floor(Math.random() * liste.length)];
 }

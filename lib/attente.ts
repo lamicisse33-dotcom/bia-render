@@ -68,6 +68,23 @@ export type Contexte = {
   social?: boolean;
 };
 
+/* Toutes les phrases autorisées à cet instant, sans trancher entre elles.
+   Celui qui appelle choisit ensuite — au hasard (choisirAttente) ou sur la
+   durée qui remplit le mieux le temps qui reste (pourRemplir, lib/chrono.ts).
+
+   La question du prénom garde son privilège : tant que BIA ne sait pas à qui
+   elle parle, c'est la seule chose qui vaille la peine d'être dite. */
+export function candidatsAttente(c: Contexte): Attente[] {
+  if (!c.nomConnu && !c.nomDejaDemande) {
+    const nom = ATTENTES.filter((a) => a.quand === "nom");
+    if (nom.length) return nom;
+  }
+  const moments: Moment[] = c.social ? ["court", "moyen", "long", "social"]
+                                     : ["court", "moyen", "long"];
+  const libres = ATTENTES.filter((a) => moments.includes(a.quand) && a.id !== c.dernierId);
+  return libres.length ? libres : ATTENTES.filter((a) => moments.includes(a.quand));
+}
+
 /** La phrase à dire, ou null s'il vaut mieux se taire. */
 export function choisirAttente(c: Contexte): Attente | null {
   if (c.attenteMs < SEUIL_MS) return null;
