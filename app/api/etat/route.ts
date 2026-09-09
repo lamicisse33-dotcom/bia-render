@@ -4,6 +4,7 @@ import { ecouteConfig } from "@/lib/ecoute";
 import { lexiqueConfig, combien } from "@/lib/lexique";
 import { dernierePanne } from "@/lib/panne";
 import { resumeAttentes } from "@/lib/attentes-vues";
+import { resumeEmotions } from "@/lib/emotions-vues";
 
 /* Dit à l'interface quels moteurs sont réellement branchés, pour qu'elle
    choisisse le micro et la voix sans deviner. Ouvert : aucun moteur payant
@@ -27,6 +28,7 @@ export async function GET() {
     voix_clonee: Boolean(voixConfig.soynade.audioPrompt),
     derniere_panne: dernierePanne(),
     attentes: resumeAttentes(),
+    emotions: resumeEmotions(),
   }, {
     /* La page d'attente de bia.khalam.app lit cet état depuis un autre
        domaine : sans cet en-tête, le navigateur lui refuse la réponse et

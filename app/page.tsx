@@ -410,9 +410,24 @@ export default function Home() {
      Un rire synthétisé n'est pas un rire. Ceux-ci sont de vrais
      enregistrements : on les joue tels quels, et le visage suit la suite
      d'images prévue pour ce son plutôt que l'ouverture de la bouche. */
+  /* Comme jouerEtAnimer : il rend TOUJOURS la main. Le rire s'attendait
+     lui-même par `onended` ; si le son ne sort pas — un iPhone qui vient
+     d'enregistrer et n'a pas rendu le haut-parleur, une interruption —
+     `onended` ne vient jamais et tout ce qui suit reste bloqué. La réponse
+     entière restait alors coincée derrière un rire qu'on n'entendait pas. */
   const jouerSonAvecVisages = useCallback((octets: ArrayBuffer, visages: Array<[string, number]>) =>
     new Promise<void>((fini) => {
       const ctx = contexte();
+      let rendu = false;
+      let secours: ReturnType<typeof setTimeout> | null = null;
+      let minuteriesVisages: Array<ReturnType<typeof setTimeout>> = [];
+      const rendre = () => {
+        if (rendu) return;
+        rendu = true;
+        if (secours) clearTimeout(secours);
+        for (const m of minuteriesVisages) clearTimeout(m);
+        fini();
+      };
       ctx.decodeAudioData(octets.slice(0)).then((mémoire) => {
         const source = ctx.createBufferSource();
         source.buffer = mémoire;
@@ -428,14 +443,15 @@ export default function Home() {
           t += duree;
         }
 
+        minuteriesVisages = minuteries;
         source.onended = () => {
-          for (const m of minuteries) clearTimeout(m);
           if (sourceRef.current === source) sourceRef.current = null;
-          fini();
+          rendre();
         };
         setMode("speaking");
         source.start();
-      }).catch(() => fini());
+        secours = setTimeout(rendre, mémoire.duration * 1000 + 1000);
+      }).catch(() => rendre());
     }), [contexte]);
 
   /* Le rire part AVANT la parole, pendant que la voix se synthétise : on

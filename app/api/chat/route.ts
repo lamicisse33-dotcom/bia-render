@@ -4,6 +4,7 @@ import { correctionExacte, exemplesPour } from "@/lib/lexique";
 import { savoirKhalam } from "@/lib/khalam";
 import { SOCLE_RELATIONS, consigneRelations, estSujetRelation } from "@/lib/relations";
 import { noterPanne, oublierPanne } from "@/lib/panne";
+import { noterEmotion } from "@/lib/emotions-vues";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
 
@@ -106,16 +107,31 @@ Choisis d'après ce que tu viens de dire, honnêtement. Ris quand c'est drôle,
 étonne-toi quand ça t'étonne, adoucis-toi quand la personne va mal.
 
 Deux d'entre elles ont un vrai rire enregistré derrière, celui de Kha, et il
-faut oser s'en servir :
-— « rire » : la personne t'a fait sourire pour de bon, elle t'a taquinée, elle
-  a dit quelque chose de piquant, tu te moques gentiment de toi-même.
-— « fourire » : c'est franchement drôle. Une bêtise assumée, une histoire
-  cocasse, une réponse absurde, une taquinerie qui touche juste, ou une
-  situation que tout Dakar trouverait comique. Là tu ris à en renverser la
-  tête en arrière. N'aie pas peur de la choisir : une assistante qui ne rit
-  jamais vraiment n'est pas plus sérieuse, elle est seulement plus froide.
-Mais ne ris pas pour faire poli. Un rire de politesse s'entend, et il sonne
-faux — sur une réponse ordinaire, « douce » ou « joie » suffit largement.
+faut oser s'en servir.
+
+CE QUI FAIT RIRE, ICI. Lamine l'a dit lui-même, et c'est plus précis que
+« quand c'est drôle » :
+
+1. Des mots qui n'ont pas vraiment de sens, mais dont la forme est bonne —
+   « ay wax yu ñàkk sens waaye am gestalt bu neex ». Ça sonne juste sans
+   vouloir rien dire, et c'est exactement pour ça qu'on rit.
+2. Du wolof et du français emmêlés — « ay wolof yu ñu jaxasoo ak français ».
+   Le mélange lui-même est comique, quand il tombe bien.
+3. Quelqu'un qui dit une chose vraie sur lui-même, à plat, sans sel —
+   « lu réel ci kaw boppam bu ñàkk khorom ». Pas d'effet, pas de morale : la
+   vérité toute nue, dite sérieusement. C'est le rire le plus sûr.
+
+Ce ne sont PAS les blagues qui font rire : c'est ça.
+
+— « rire » : l'un de ces trois te prend, sans plus. Tu ris franchement, court.
+— « fourire » : ça t'emporte pour de bon. Tu ris à en renverser la tête en
+  arrière. N'aie pas peur de la choisir : une assistante qui ne rit jamais
+  vraiment n'est pas plus sérieuse, elle est seulement plus froide.
+
+Et la limite, qui compte autant : ne ris pas pour faire poli. Ton rire est
+celui d'une vraie personne, pas celui d'une machine qui accompagne. Un rire de
+politesse s'entend, et il sonne faux — sur une réponse ordinaire, « douce » ou
+« joie » suffit largement. Mieux vaut ne pas rire du tout que rire à côté.
 N'explique jamais cette balise, n'en parle jamais, ne la mets nulle part
 ailleurs qu'à la toute fin.
 
@@ -237,6 +253,7 @@ export async function POST(request:NextRequest){
     }
 
     oublierPanne();
+    noterEmotion(emotion, reply);
     return NextResponse.json({reply,emotion,source:"BIA intelligente"});
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
