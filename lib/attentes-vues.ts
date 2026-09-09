@@ -69,3 +69,49 @@ export function resumeAttentes() {
     derniere: vues[vues.length - 1],
   };
 }
+
+/* ── Les coutures de la lecture ─────────────────────────────────────────
+
+   Une réponse longue est dite en plusieurs morceaux. Depuis qu'ils sont
+   programmés sur l'horloge du son, le trou entre deux devrait être de zéro
+   milliseconde — mais « devrait » ne suffit pas : c'est précisément ce qu'on
+   croyait déjà avant. Le téléphone mesure donc le trou réel et l'envoie ici.
+
+   Un chiffre au-dessus de quelques dizaines de millisecondes veut dire que le
+   décodage n'a pas suivi et qu'on entend une couture. */
+
+export type Lecture = {
+  morceaux: number;
+  couture_max_ms: number;
+  couture_totale_ms: number;
+  duree_ms: number;
+  quand: string;
+};
+
+let lectures: Lecture[] = [];
+
+export function noterLecture(l: Partial<Lecture>) {
+  const entier = (n: unknown) => {
+    const x = Math.round(Number(n));
+    return Number.isFinite(x) && x >= 0 && x < 600000 ? x : 0;
+  };
+  lectures = [...lectures, {
+    morceaux: entier(l.morceaux),
+    couture_max_ms: entier(l.couture_max_ms),
+    couture_totale_ms: entier(l.couture_totale_ms),
+    duree_ms: entier(l.duree_ms),
+    quand: new Date().toISOString(),
+  }].slice(-GARDEES);
+}
+
+export function resumeLectures() {
+  if (!lectures.length) return null;
+  const aPlusieurs = lectures.filter((l) => l.morceaux > 1);
+  return {
+    reponses: lectures.length,
+    en_plusieurs_morceaux: aPlusieurs.length,
+    couture_max_ms: Math.max(0, ...lectures.map((l) => l.couture_max_ms)),
+    couture_mediane_ms: mediane(aPlusieurs.map((l) => l.couture_max_ms)),
+    dernieres: lectures.slice(-5),
+  };
+}

@@ -626,6 +626,12 @@ export default function Home() {
       const ctx = contexte();
       const segments: Array<{ debut: number; fin: number; valeurs: number[]; pic: number; pas: number }> = [];
       let quand = 0;
+      /* Le trou réel entre deux morceaux, en millisecondes. Il devrait être
+         nul ; on le mesure quand même, parce qu'on croyait déjà qu'il l'était.
+         Il part au serveur avec le reste — c'est le seul moyen de le voir
+         depuis ailleurs que le téléphone. */
+      const coutures: number[] = [];
+      const debutTotal = Date.now();
 
       const programmer = async (octets: ArrayBuffer) => {
         const brut = await ctx.decodeAudioData(octets.slice(0));
@@ -637,6 +643,7 @@ export default function Home() {
         // Un souffle de sécurité au premier morceau : programmer dans le passé
         // le ferait démarrer en retard et tout décaler.
         const debut = Math.max(ctx.currentTime + 0.06, quand);
+        if (quand > 0) coutures.push(Math.round((debut - quand) * 1000));
         source.start(debut);
         sourcesRef.current.add(source);
         source.onended = () => { sourcesRef.current.delete(source); };
@@ -688,6 +695,17 @@ export default function Home() {
       const reste = Math.max(0, (quand - ctx.currentTime) * 1000);
       await pause(reste + 120);
       if (tourRef.current !== jeton) return;
+      void fetch("/api/mesure", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type: "lecture",
+          morceaux: segments.length,
+          couture_max_ms: coutures.length ? Math.max(...coutures) : 0,
+          couture_totale_ms: coutures.reduce((a, b) => a + b, 0),
+          duree_ms: Date.now() - debutTotal,
+        }),
+      }).catch(() => {});
       stopMouth(answer);
     } catch {
       await prendreLaParole();

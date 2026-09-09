@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { noterVue } from "@/lib/attentes-vues";
+import { noterVue, noterLecture } from "@/lib/attentes-vues";
 
 /* Le téléphone dit combien de temps il a attendu. Rien d'autre.
 
@@ -9,7 +9,10 @@ import { noterVue } from "@/lib/attentes-vues";
 export async function POST(requete: Request) {
   try {
     const corps = await requete.json();
-    noterVue(corps);
+    // Deux mesures passent par ici : l'attente avant qu'elle parle, et les
+    // coutures pendant qu'elle parle.
+    if (corps && corps.type === "lecture") noterLecture(corps);
+    else noterVue(corps);
   } catch {}
   return NextResponse.json({ ok: true });
 }
