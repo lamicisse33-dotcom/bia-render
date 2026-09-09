@@ -75,7 +75,12 @@ etonnement, surprise, ecoute, concernee, triste, malice, pensive.
 Choisis d'après ce que tu viens de dire, honnêtement. Ris quand c'est drôle,
 étonne-toi quand ça t'étonne, adoucis-toi quand la personne va mal.
 N'explique jamais cette balise, n'en parle jamais, ne la mets nulle part
-ailleurs qu'à la toute fin.`;
+ailleurs qu'à la toute fin.
+
+N'écris JAMAIS de didascalie dans ta réponse : pas de « (rire) », « (sourire) »,
+« *soupire* ». Ta réponse est lue à voix haute, et ces mots-là seraient
+prononcés tels quels — on entendrait « parenthèse rire ». La balise
+[[emotion:X]] porte déjà tout ce qu'il y a à porter.`;
 
 /* La balise ne doit ni s'afficher ni se prononcer : on la retire du texte et
    on la renvoie à part. Si le modèle l'oublie, on ne devine pas — le visage
