@@ -45,16 +45,46 @@ export const voixConfig = {
    demander le morceau n sans que le serveur ait rien à mémoriser. */
 const LIMITE = 480;
 
+/* LE PREMIER MORCEAU EST COURT, ET C'EST TOUT L'ENJEU.
+
+   Mesuré sur le vrai serveur, depuis Dakar : fabriquer la voix coûte environ
+   deux secondes fixes plus 36 millisecondes par caractère. Un premier morceau
+   de 480 signes, c'est donc vingt secondes avant le premier mot — et pendant
+   ces vingt secondes, la personne attend.
+
+   On coupe donc la PREMIÈRE phrase à part, courte. BIA commence à parler au
+   bout de deux secondes, et le morceau suivant se fabrique pendant qu'elle
+   dit celui-là : le téléphone réclame le morceau n+1 dès qu'il joue le n.
+   Le reste de la réponse garde les gros morceaux, qui sonnent mieux — moins
+   de coutures entre les phrases.
+
+   Sur la mesure du 9 septembre 2026 : 8,0 secondes de voix avant le premier
+   mot. C'était la moitié de l'attente totale. */
+const PREMIER = 110;
+
 export function decouper(texte: string): string[] {
   const propre = String(texte || "").replace(/\s+/g, " ").trim();
   if (!propre) return [];
-  if (propre.length <= LIMITE) return [propre];
+  if (propre.length <= PREMIER) return [propre];
 
   const phrases = propre.match(/[^.!?…]+[.!?…]*\s*/g) || [propre];
   const morceaux: string[] = [];
   let courant = "";
 
-  for (const phrase of phrases) {
+  /* La première phrase part seule, si elle est assez courte pour être dite
+     vite. Sinon on la coupe à un espace : mieux vaut une respiration au
+     mauvais endroit qu'un silence de dix secondes avant le premier mot. */
+  let tete = phrases[0] || propre;
+  let suite = phrases.slice(1);
+  if (tete.length > PREMIER) {
+    let coupe = tete.lastIndexOf(" ", PREMIER);
+    if (coupe < PREMIER * 0.5) coupe = PREMIER;
+    suite = [tete.slice(coupe), ...suite];
+    tete = tete.slice(0, coupe);
+  }
+  morceaux.push(tete.trim());
+
+  for (const phrase of suite) {
     if ((courant + phrase).length <= LIMITE) { courant += phrase; continue; }
     if (courant) { morceaux.push(courant.trim()); courant = ""; }
     if (phrase.length <= LIMITE) { courant = phrase; continue; }
