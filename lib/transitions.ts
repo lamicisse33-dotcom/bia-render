@@ -17,7 +17,13 @@
    de gagner. Ces neuf-là sont donc réservées au second moment, celui où le
    texte est bien arrivé et où le modèle réfléchit. */
 
-export type Duree = "courte" | "moyenne" | "longue";
+/* Les trois premières longueurs sont celles de la fiche d’origine. Les trois
+   suivantes sont nées de la mesure : il manquait tout le haut de la gamme, et
+   le milieu, entre quatre et sept secondes. */
+export type Duree = "courte" | "moyenne" | "longue" | "ample" | "tres_longue" | "immense";
+
+/** Les longueurs, du plus court au plus long. */
+export const DUREES: Duree[] = ["courte", "moyenne", "ample", "longue", "tres_longue", "immense"];
 
 export type Transition = {
   n: number;
@@ -151,6 +157,61 @@ export const TRANSITIONS: Transition[] = [
   { n: 40, duree: "longue", ton: "rassurante", comprend: true,
     wo: "Waaw, dégg naa la te comprendre naa li ngay wax. Bayyi ma ma xool ko bu baax, ngir jox la réponse bi gën a adapté ci sa situation.",
     fr: "Oui, je t’ai entendu et j’ai compris ce que tu dis. Laisse-moi bien l’examiner afin de te donner la réponse la plus adaptée à ta situation." },
+
+  /* ── Les seize de la mesure ──────────────────────────────────────────
+     Écrites en français d’après les durées qui manquaient — l’attente
+     mesurée le 9 septembre 2026 était de seize secondes et demie, quand la
+     plus longue phrase existante en faisait huit — puis traduites par
+     Lamine en wolof urbain de Dakar. Comme les quarante premières : ne les
+     réécris pas sans lui. */
+  { n: 41, duree: "ample", ton: "attentive", comprend: false,
+    wo: "Waaw, dégg naa la bu baax. Bayyi ma tuuti ma xool ko comme il faut.",
+    fr: "Oui, je t’ai bien entendu. Laisse-moi juste le temps de regarder ça comme il faut." },
+  { n: 42, duree: "ample", ton: "rassurante", comprend: false,
+    wo: "D’accord, bul souci dara. Maa ngi ci, te dinaa la tontu dans un petit instant.",
+    fr: "D’accord, ne t’inquiète pas du tout. Je m’en occupe, et je reviens vers toi dans un instant." },
+  { n: 43, duree: "ample", ton: "reflechie", comprend: false,
+    wo: "Hmm… bëgg naa jël ñaari seconde, xalaat ko bu baax avant ma wax la dara ci lii.",
+    fr: "Hmm… je préfère prendre deux secondes pour bien y réfléchir avant de te dire quoi que ce soit." },
+  { n: 44, duree: "ample", ton: "chaleureuse", comprend: false,
+    wo: "Waaw sama xarit, maa ngi fi ak yaw. Bayyi ma ma rassembler li ma war a wax.",
+    fr: "Oui mon ami, je suis là avec toi. Laisse-moi rassembler ce qu’il faut vraiment te dire." },
+  { n: 45, duree: "ample", ton: "complice", comprend: false,
+    wo: "Yaw de, doo laaj mukk question yu yomb. May ma tuuti pour xool lii bu baax.",
+    fr: "Toi alors, tu ne poses jamais les questions faciles. Laisse-moi un petit instant pour ça." },
+  { n: 46, duree: "ample", ton: "calme", comprend: true,
+    wo: "Comprendre naa bu baax li ngay laaj. Maa ngi organiser sama réponse, ma ñëw.",
+    fr: "J’ai bien compris ce que tu demandes. Je mets de l’ordre dans ma réponse et j’arrive." },
+  { n: 47, duree: "tres_longue", ton: "rassurante", comprend: true,
+    wo: "D’accord, comprendre naa bu baax li ngay laaj. Bayyi ma ma xool ko ci bépp côté, ndax bëgg naa jox la réponse bu juste te utile, waaye du réponse bu gaaw rekk. Maa ngi ci.",
+    fr: "D’accord, j’ai bien compris ce que tu me demandes là. Laisse-moi le temps de regarder ça sous tous les angles, parce que je préfère te donner une réponse juste plutôt qu’une réponse rapide." },
+  { n: 48, duree: "tres_longue", ton: "reflechie", comprend: false,
+    wo: "Hmm… li nga wax dafa tax ma xalaat, ndax mën nañu ko gis ci plusieurs façons. Bayyi ma ma peser lépp tuuti, après dinaa la wax li ma ci gën a gis dëgg.",
+    fr: "Hmm… ce que tu dis me fait vraiment réfléchir, parce qu’il y a plusieurs façons de le voir. Laisse-moi peser tout ça un instant, et je te dirai ce qui me paraît le plus vrai." },
+  { n: 49, duree: "tres_longue", ton: "chaleureuse", comprend: true,
+    wo: "Waaw sama xarit, gis naa bu baax li nga bëgg xam. Bayyi ma tuuti ma seet li dina la gën a jariñ, ndax réponse bu incomplète du la yóbbu fenn, te loolu neexul ma.",
+    fr: "Oui mon ami, je vois très bien ce que tu veux savoir. Laisse-moi juste le temps de chercher ce qui te sera vraiment utile, parce qu’une réponse à moitié ne t’avancerait à rien." },
+  { n: 50, duree: "tres_longue", ton: "attentive", comprend: false,
+    wo: "Waaw, dégg naa la dale ci début ba ci fin, te bàyyiwuma benn détail ci li nga wax. Léegi, bayyi ma ma xool ko tranquillement ngir sama réponse mën laa jariñ.",
+    fr: "Oui, je t’ai entendu du début à la fin, et je n’ai rien perdu de ce que tu as dit. Maintenant laisse-moi regarder ça tranquillement pour que ma réponse te serve vraiment." },
+  { n: 51, duree: "tres_longue", ton: "serieuse", comprend: true,
+    wo: "Li ngay laaj dafa important, te bëgguma la tontu à la légère. May ma ma examiner lépp bu baax, après dinaa la wax li ma ci xalaat franchement te ak lu leer.",
+    fr: "Ce que tu me demandes est important, et je ne veux pas te répondre à la légère. Donne-moi le temps de bien examiner tout ça, et je te dirai ce que j’en pense honnêtement." },
+  { n: 52, duree: "tres_longue", ton: "douce", comprend: false,
+    wo: "D’accord, déglu naa la bu baax. Toogal ak man tuuti, ma dajale lépp li ma soxla, après dinaa la expliquer ko tranquillement, dale ci début ba ci fin.",
+    fr: "D’accord, j’ai bien écouté. Reste avec moi un instant, le temps que je réunisse tout ce qu’il faut, et après je t’explique ça calmement, du début jusqu’à la fin." },
+  { n: 53, duree: "immense", ton: "rassurante", comprend: true,
+    wo: "D’accord, comprendre naa sa question bi te maa ngi ko gardé ci sama xel. Bayyi ma ma xool ko ci bépp côté, ndax ci ce genre de chose, réponse bu gaaw du jariñ dara. Toogal ak man tuuti, maa ngi ñëw, te bul souci dara.",
+    fr: "D’accord, j’ai bien compris ta question et je la garde en tête. Laisse-moi le temps de la regarder sous tous ses angles, parce que sur ce genre de chose une réponse trop rapide ne sert à rien du tout. Reste avec moi, j’arrive tout de suite." },
+  { n: 54, duree: "immense", ton: "reflechie", comprend: false,
+    wo: "Hmm… li nga wax dafa mérite ñu xool ko bu baax. Mën nañu ko gis ci plusieurs façons, te bëgguma jël première réponse bi ma gis. Bayyi ma ma peser lépp tranquillement, après dinaa la wax li ma ci gën a gis juste.",
+    fr: "Hmm… ce que tu me dis là mérite qu’on s’y arrête un peu. Il y a plusieurs façons de le voir, et je n’ai pas envie de choisir la première venue. Laisse-moi peser tout ça calmement, et après je te dis ce qui me paraît le plus juste." },
+  { n: 55, duree: "immense", ton: "chaleureuse", comprend: true,
+    wo: "Waaw sama xarit, gis naa exactement fu ngay jëm, te sa question bi baax na. Bayyi ma tuuti ma seet li dina la gën a jariñ, du li neex rekk ci dégg. Bëgg naa jox la réponse bu solide te utile. Bayyi ma ma xool ko bu baax.",
+    fr: "Oui mon ami, je vois exactement où tu veux en venir, et c’est une bonne question. Laisse-moi juste le temps de chercher ce qui va vraiment t’aider, pas ce qui sonne bien. Je préfère te faire attendre un peu et te donner quelque chose de solide." },
+  { n: 56, duree: "immense", ton: "attentive", comprend: false,
+    wo: "Waaw, topp naa la dale ci début ba ci fin, te bàyyiwuma benn détail ci li nga wax. Léegi, bayyi ma ma organiser lépp ci sama xel, ngir réponse bi ma lay jox mën laa jariñ dëgg-dëgg, te nekk lu leer te utile.",
+    fr: "Oui, je t’ai suivi du début à la fin, et je n’ai rien laissé passer de ce que tu as dit. Maintenant laisse-moi le temps de mettre tout ça en ordre dans ma tête, pour que ce que je vais te répondre te serve vraiment à quelque chose." },
 ];
 
 /* Le ton de la phrase donne l'expression, comme pour les émotions du modèle. */

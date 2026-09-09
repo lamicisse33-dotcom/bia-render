@@ -118,6 +118,10 @@ button { font: inherit; touch-action: manipulation; }
 .bia-presence[data-mode="thinking"] .microphone { background: #493a1e; color: #f7d56d; }
 .bia-presence[data-mode="speaking"] .microphone { background: #75591e; color: #ffe392; }
 .bia-presence[data-mode="error"] .microphone { background: #491b24; color: #ffbac8; }
+/* Le micro fermé pendant qu'elle parle : on le voit éteint, on comprend
+   qu'il n'y a rien à appuyer, et on n'a pas envie d'insister. */
+.microphone:disabled { opacity: .5; cursor: default; }
+.microphone:disabled:active { transform: translateX(-50%) scale(1); }
 
 .sr-only {
   position: absolute;

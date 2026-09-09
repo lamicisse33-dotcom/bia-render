@@ -380,7 +380,10 @@ export default function Home() {
      pas. Elle ne sait pas dire le wolof, d'où la réécriture phonétique — et
      seulement pour le wolof, sinon le français ressort déformé. */
   const parlerAvecLeTelephone = useCallback((answer: string) => {
-    if (!("speechSynthesis" in window)) return;
+    // Pas de voix du tout sur cet appareil : on rend la main tout de suite,
+    // sinon BIA resterait « en train de répondre » pour toujours — et le
+    // micro, qui se ferme pendant qu'elle parle, ne se rouvrirait jamais.
+    if (!("speechSynthesis" in window)) { stopMouth(answer); return; }
     window.speechSynthesis.cancel();
     const voices = window.speechSynthesis.getVoices();
     const wolof = voices.find((v) => v.lang.toLowerCase().startsWith("wo"));
@@ -398,7 +401,7 @@ export default function Home() {
     utterance.onend = () => bouche(false, answer);
     utterance.onerror = () => bouche(false, answer);
     window.speechSynthesis.speak(utterance);
-  }, [bouche]);
+  }, [bouche, stopMouth]);
 
   /* ── Les sons qui ne s'écrivent pas ───────────────────────────────────
 
@@ -912,6 +915,16 @@ export default function Home() {
     };
   }, [contexte]);
 
+  /* Le verrou du micro ne doit jamais rester coincé. Si BIA reste « en train
+     de réfléchir ou de parler » au-delà de trois minutes, c'est que quelque
+     chose s'est perdu en route : on rouvre le micro plutôt que de laisser la
+     personne devant un bouton mort. */
+  useEffect(() => {
+    if (mode !== "thinking" && mode !== "speaking") return;
+    const secours = setTimeout(() => setMode("ready"), 180000);
+    return () => clearTimeout(secours);
+  }, [mode]);
+
   // Clignement des yeux au repos.
   useEffect(() => {
     /* Un clignement franc paraît mécanique. Trois images descendantes puis
@@ -1103,7 +1116,21 @@ export default function Home() {
     attenteRef.current = null;
   }, [couperSon]);
 
+  /* LE MICRO SE FERME PENDANT QU'ELLE PARLE.
+
+     Demande de Lamine, 9 septembre 2026 : « dès que le micro est coupé, et
+     pendant qu'elle parle, le micro doit rester inactif, le temps qu'elle
+     finisse, pour ne pas embrouiller ».
+
+     Elle prend la parole à la seconde où le micro se coupe et ne la lâche
+     plus jusqu'à la fin de sa réponse. Rouvrir le micro au milieu de tout ça
+     coupait sa phrase, mélangeait les deux voix, et faisait repartir un tour
+     par-dessus le précédent. Le bouton s'éteint donc, visiblement, et se
+     rallume quand elle a fini. */
+  const microFerme = mode === "thinking" || mode === "speaking";
+
   function toggleMicrophone() {
+    if (microFerme) return;
     taire();
     contexte();   // débloque le son du navigateur, sans rien prononcer
 
@@ -1128,8 +1155,8 @@ export default function Home() {
   const labels = {
     ready: "Parler à BIA",
     listening: "BIA vous écoute. Appuyer pour arrêter",
-    thinking: "BIA réfléchit",
-    speaking: "BIA répond",
+    thinking: "BIA réfléchit — le micro se rouvrira quand elle aura fini",
+    speaking: "BIA répond — le micro se rouvrira quand elle aura fini",
     error: "Micro indisponible. Appuyer pour réessayer",
   };
 
@@ -1228,7 +1255,8 @@ export default function Home() {
           </svg>
         </button>
 
-        <button className="microphone" type="button" onClick={toggleMicrophone} aria-label={labels[mode]}>
+        <button className="microphone" type="button" onClick={toggleMicrophone}
+          disabled={microFerme} aria-disabled={microFerme} aria-label={labels[mode]}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V5a3.5 3.5 0 0 0-7 0v6a3.5 3.5 0 0 0 3.5 3.5Zm-6-4a1 1 0 0 1 2 0V11a4 4 0 0 0 8 0v-.5a1 1 0 1 1 2 0V11a6 6 0 0 1-5 5.92V19h3a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3v-2.08A6 6 0 0 1 6 11v-.5Z" />
           </svg>

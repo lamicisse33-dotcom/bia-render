@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { lireDurees, lireMesures, mediane, msDe } from "@/lib/chrono";
 import type { Mesure } from "@/lib/chrono";
-import { TRANSITIONS } from "@/lib/transitions";
+import { DUREES, TRANSITIONS } from "@/lib/transitions";
 
 /* Page d'écoute. Elle sert à choisir la voix de BIA à l'oreille plutôt qu'au
    jugé : on modifie les trois réglages de Soynade, on écoute, on compare.
@@ -143,15 +143,20 @@ export default function Reglage() {
             );
           })}
           {(() => {
-            const par = (d: string) => {
-              const l = TRANSITIONS.filter((x) => x.duree === d).map((x) => msDe(x.wo, durees));
-              return `${(Math.min(...l) / 1000).toFixed(1)} à ${(Math.max(...l) / 1000).toFixed(1)} s`;
-            };
             const mesurees = TRANSITIONS.filter((x) => durees[x.wo] > 0).length;
             return (
               <span>
-                <b>Les phrases de transition</b> — courtes {par("courte")} ·{" "}
-                moyennes {par("moyenne")} · longues {par("longue")}<br />
+                <b>Les phrases de transition</b><br />
+                {DUREES.map((d) => {
+                  const l = TRANSITIONS.filter((x) => x.duree === d).map((x) => msDe(x.wo, durees));
+                  if (!l.length) return null;
+                  return (
+                    <span key={d}>
+                      {d.replace("_", " ")} ({l.length}) :{" "}
+                      {(Math.min(...l) / 1000).toFixed(1)} à {(Math.max(...l) / 1000).toFixed(1)} s<br />
+                    </span>
+                  );
+                })}
                 {mesurees} des {TRANSITIONS.length} ont déjà été dites, donc mesurées ;
                 les autres sont estimées sur leur longueur.
               </span>
