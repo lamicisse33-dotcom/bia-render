@@ -559,30 +559,46 @@ export default function Home() {
     }
   }, [speak, direAttente]);
 
-  /* Pendant qu'elle réfléchit, le visage ne doit pas se figer.
+  /* Pendant qu'elle réfléchit, le visage ne doit pas se figer — mais il ne
+     doit pas s'agiter non plus.
 
-     Une image fixe fait paraître l'attente deux fois plus longue : on ne sait
-     plus si elle cherche ou si tout est bloqué. Un regard qui glisse, une
-     paupière qui tombe, et la même attente devient supportable. La suite
-     tourne en boucle jusqu'à ce que la réponse arrive. */
+     La première version enchaînait neuf images en cinq secondes, dans le même
+     ordre à chaque tour : un changement toutes les six dixièmes de seconde,
+     toujours le même. Ça ne donnait pas une présence, ça donnait une machine.
+
+     Quelqu'un qui réfléchit tient son visage plusieurs secondes, puis fait un
+     geste, puis se repose encore. On alterne donc de longs repos — deux et
+     demie à cinq secondes — avec un seul geste à la fois, tiré au hasard. Le
+     clignement, lui, reste rapide : c'est sa nature. */
   useEffect(() => {
     if (mode !== "thinking") return;
-    const suite: Array<[Face, number]> = [
-      ["pensive", 900], ["regard_cote", 760], ["pensive", 820],
-      ["yeux_mi", 150], ["yeux_fermes", 190], ["yeux_mi", 130],
-      ["pensive", 1000], ["ecoute", 720], ["regard_cote", 640],
-    ];
     let vivant = true;
-    let i = 0;
     let minuterie: ReturnType<typeof setTimeout>;
-    const avancer = () => {
-      if (!vivant) return;
-      const [visage, duree] = suite[i % suite.length];
+
+    const entre = (a: number, b: number) => a + Math.random() * (b - a);
+
+    function poser(visage: Face, duree: number, suite: () => void) {
       setFace(visage);
-      i += 1;
-      minuterie = setTimeout(avancer, duree);
-    };
-    avancer();
+      minuterie = setTimeout(() => { if (vivant) suite(); }, duree);
+    }
+
+    function repos() {
+      poser("pensive", entre(2600, 5200), geste);
+    }
+
+    function geste() {
+      const tirage = Math.random();
+      if (tirage < 0.42) {
+        // Un regard qui glisse, et qui revient sans se presser.
+        poser("regard_cote", entre(1400, 2400), repos);
+      } else if (tirage < 0.72) {
+        poser("yeux_mi", 130, () => poser("yeux_fermes", 170, () => poser("yeux_mi", 120, repos)));
+      } else {
+        poser("ecoute", entre(1800, 3000), repos);
+      }
+    }
+
+    repos();
     return () => { vivant = false; clearTimeout(minuterie); };
   }, [mode]);
 
