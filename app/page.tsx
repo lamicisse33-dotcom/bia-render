@@ -168,7 +168,9 @@ export default function Home() {
      au milieu d'un mot — et `phraseEnCours` est cette phrase, qu'on attend
      avant d'enchaîner. */
   const stopAttenteRef = useRef(false);
-  const phraseEnCoursRef = useRef<Promise<void> | null>(null);
+  const phraseEnCoursRef = useRef<Promise<number> | null>(null);
+  /** Le moment où la phrase en cours devrait se terminer. */
+  const finPhraseRef = useRef(0);
   /* Le texte de la réponse est-il déjà à l'écran ? Si oui, les phrases
      d'attente continuent de se dire mais n'écrasent plus la légende : on lit
      la réponse pendant qu'elle achève de meubler. */
@@ -311,8 +313,25 @@ export default function Home() {
   /* Joue un morceau et fait suivre la bouche. Les seuils sont choisis pour
      que le silence ferme vraiment les lèvres : sinon elle mâche dans le vide
      entre deux phrases, et c'est ce qui se voyait le plus. */
-  const jouerEtAnimer = useCallback((octets: ArrayBuffer) => new Promise<void>((fini) => {
+  /* Il rend la durée réelle du son, en millisecondes — c'est ainsi que BIA
+     apprend combien de temps dure chacune de ses phrases.
+
+     Et surtout : il rend TOUJOURS la main. La première version ne se
+     terminait que sur `onended`. Si le navigateur suspend le son — un iPhone
+     qui passe en arrière-plan, un appel qui arrive — `onended` ne vient
+     jamais, et tout ce qui attendait la fin de cette phrase attendait pour
+     toujours. BIA s'est tue à cause de ça. Un secours calé sur la durée du
+     morceau garantit qu'on repart, même si le son n'est pas sorti. */
+  const jouerEtAnimer = useCallback((octets: ArrayBuffer) => new Promise<number>((fini) => {
     const ctx = contexte();
+    let rendu = false;
+    let secours: ReturnType<typeof setTimeout> | null = null;
+    const rendre = (ms: number) => {
+      if (rendu) return;
+      rendu = true;
+      if (secours) clearTimeout(secours);
+      fini(ms);
+    };
     ctx.decodeAudioData(octets.slice(0)).then((brut) => {
       const mémoire = sansSilence(ctx, brut);
       const { valeurs, pic, pas } = enveloppeDe(mémoire);
@@ -342,16 +361,19 @@ export default function Home() {
         animationRef.current = requestAnimationFrame(suivre);
       };
 
+      const duree = mémoire.duration * 1000;
       source.onended = () => {
         if (animationRef.current) cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
         if (sourceRef.current === source) sourceRef.current = null;
-        fini();
+        rendre(duree);
       };
       setMode("speaking");
       source.start();
+      // Le filet : la durée du morceau, plus une seconde de marge.
+      secours = setTimeout(() => rendre(duree), duree + 1000);
       animationRef.current = requestAnimationFrame(suivre);
-    }).catch(() => fini());
+    }).catch(() => rendre(0));
   }), [contexte]);
 
   /* La voix du navigateur : béquille, gardée pour le cas où Oolel ne répond
@@ -470,7 +492,11 @@ export default function Home() {
     for (let essais = 0; essais < 2; essais++) {
       const enCours = phraseEnCoursRef.current;
       if (!enCours) break;
-      try { await enCours; } catch {}
+      /* On laisse la phrase finir — mais pas au-delà du moment où elle est
+         censée finir. Attendre sans limite, c'est ce qui a rendu BIA muette :
+         un son qui ne se termine jamais bloquait tout ce qui venait après. */
+      const reste = Math.max(0, finPhraseRef.current - Date.now()) + 700;
+      try { await Promise.race([enCours, pause(Math.min(reste, 20000))]); } catch {}
       if (phraseEnCoursRef.current === enCours) break;
     }
     attenteRef.current = null;
@@ -572,14 +598,13 @@ export default function Home() {
     if (!d.audio) throw new Error("voix muette");
     const octets = octetsDeBase64(d.audio);
     attenteCache.current.set(texte, octets);
-    /* Combien de temps cette phrase dure-t-elle, dite ? On ne l'estime pas :
-       le son le sait. On le décode une fois, on note, on n'y revient plus. */
-    try {
-      const memoire = await contexte().decodeAudioData(octets.slice(0));
-      noterDuree(texte, memoire.duration * 1000, dureesRef.current);
-    } catch {}
+    /* On ne décode PAS ici pour mesurer la durée, même si ce serait commode.
+       Cette fonction tourne au préchauffage, avant que personne n'ait touché
+       l'écran — et fabriquer le contexte audio à ce moment-là le crée
+       endormi, sur iPhone, ce qui rend BIA muette. La durée se mesure au
+       premier passage de la phrase, dans jouerEtAnimer. */
     return octets;
-  }, [contexte]);
+  }, []);
 
   /* Elle laisse passer SEUIL_MS avant d'ouvrir la bouche : si la réponse
      arrive avant, elle se tait, et rien n'aura retardé quoi que ce soit.
@@ -661,7 +686,11 @@ export default function Home() {
 
       const enCours = jouerEtAnimer(octets);
       phraseEnCoursRef.current = enCours;
-      await enCours;
+      finPhraseRef.current = Date.now() + msDe(texte, durees);
+      // La durée vraie, mesurée sur le son lui-même : elle remplace
+      // l'estimation pour tous les tours suivants.
+      const dite = await enCours;
+      if (dite > 0) noterDuree(texte, dite, durees);
       if (phraseEnCoursRef.current === enCours) phraseEnCoursRef.current = null;
       if (attenteRef.current !== m.jeton) return;
       // Elle a fini sa phrase, la réponse n'est toujours pas là : elle
@@ -868,6 +897,20 @@ export default function Home() {
     })();
     return () => { vivant = false; };
   }, [code, audioAttente]);
+
+  /* iPhone n'autorise le son qu'après un geste. Le premier doigt posé sur
+     l'écran, quel qu'il soit, réveille donc le contexte audio — sans rien
+     prononcer. Sans ça, un contexte fabriqué trop tôt reste endormi et BIA
+     n'a plus de voix du tout. */
+  useEffect(() => {
+    const reveiller = () => { contexte(); };
+    window.addEventListener("pointerdown", reveiller);
+    window.addEventListener("touchstart", reveiller, { passive: true });
+    return () => {
+      window.removeEventListener("pointerdown", reveiller);
+      window.removeEventListener("touchstart", reveiller);
+    };
+  }, [contexte]);
 
   // Clignement des yeux au repos.
   useEffect(() => {
