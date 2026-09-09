@@ -441,14 +441,24 @@ export default function Home() {
     const fin = Date.now();
     const transcrit = tTranscritRef.current;
     const modele = tModeleRef.current || fin;
-    mesuresRef.current = noterMesure({
+    const mesure: Mesure = {
       voie: voieRef.current,
       transcription: transcrit ? transcrit - depart : 0,
       modele: Math.max(0, modele - (transcrit || depart)),
       voix: Math.max(0, fin - modele),
       total: fin - depart,
       quand: fin,
-    }, mesuresRef.current);
+    };
+    mesuresRef.current = noterMesure(mesure, mesuresRef.current);
+    /* Une copie au serveur. Sur le téléphone, ces chiffres servent à choisir
+       la phrase ; ici ils servent à savoir quelles phrases écrire — et ça, on
+       ne peut le lire qu'en dehors de l'appareil. Quatre nombres, rien
+       d'autre : ni la question, ni la réponse, ni qui parle. */
+    void fetch("/api/mesure", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(mesure),
+    }).catch(() => {});
   }, []);
 
   /* Reprendre la parole à l'attente, proprement : on lui demande de
