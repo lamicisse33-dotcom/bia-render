@@ -51,6 +51,32 @@ const welcome = "Salaam! Man maa di BIA. Waxal ak man ci wolof walla ci françai
 
 const pause = (ms: number) => new Promise((fini) => setTimeout(fini, ms));
 
+/* Chaque morceau de voix arrive avec du silence au début et à la fin. Mis
+   bout à bout, ces silences s'additionnent et créent, entre deux phrases, un
+   blanc assez long pour qu'on croie BIA arrivée au bout de sa réponse — et
+   qu'on lui coupe la parole. On les rogne, en gardant 25 ms de marge : couper
+   au ras rendrait l'attaque sèche. */
+function sansSilence(ctx: AudioContext, brut: AudioBuffer): AudioBuffer {
+  const donnees = brut.getChannelData(0);
+  const SEUIL = 0.006;
+  let fin = donnees.length;
+  while (fin > 1 && Math.abs(donnees[fin - 1]) < SEUIL) fin -= 1;
+  let debut = 0;
+  while (debut < fin && Math.abs(donnees[debut]) < SEUIL) debut += 1;
+
+  const marge = Math.round(brut.sampleRate * 0.025);
+  debut = Math.max(0, debut - marge);
+  fin = Math.min(donnees.length, fin + marge);
+  const garde = fin - debut;
+  if (garde < 1 || garde > donnees.length - marge) return brut;   // rien à gagner
+
+  const coupe = ctx.createBuffer(brut.numberOfChannels, garde, brut.sampleRate);
+  for (let c = 0; c < brut.numberOfChannels; c++) {
+    coupe.copyToChannel(brut.getChannelData(c).slice(debut, fin), c);
+  }
+  return coupe;
+}
+
 function octetsDeBase64(b64: string) {
   const brut = atob(b64);
   const tableau = new Uint8Array(brut.length);
@@ -238,7 +264,8 @@ export default function Home() {
      entre deux phrases, et c'est ce qui se voyait le plus. */
   const jouerEtAnimer = useCallback((octets: ArrayBuffer) => new Promise<void>((fini) => {
     const ctx = contexte();
-    ctx.decodeAudioData(octets.slice(0)).then((mémoire) => {
+    ctx.decodeAudioData(octets.slice(0)).then((brut) => {
+      const mémoire = sansSilence(ctx, brut);
       const { valeurs, pic, pas } = enveloppeDe(mémoire);
       const source = ctx.createBufferSource();
       source.buffer = mémoire;
@@ -735,10 +762,20 @@ export default function Home() {
      navigateur, qui refuse toute lecture audio avant une action de
      l'utilisateur. */
 
-  function toggleMicrophone() {
+  /* Faire taire TOUT ce qui parle ou s'apprête à parler.
+
+     Le micro coupait bien la réponse en cours, mais pas la phrase d'attente :
+     elle finissait sa phrase par-dessus l'échange suivant, et les deux voix
+     se chevauchaient. Les deux jetons doivent tomber ensemble. */
+  const taire = useCallback(() => {
     window.speechSynthesis?.cancel();
     couperSon();
     tourRef.current = null;
+    attenteRef.current = null;
+  }, [couperSon]);
+
+  function toggleMicrophone() {
+    taire();
     contexte();   // débloque le son du navigateur, sans rien prononcer
 
     const parScribe = moteurs ? moteurs.ecoute !== "navigateur" : false;
@@ -753,6 +790,7 @@ export default function Home() {
   }
 
   function ouvrirClavier() {
+    taire();
     contexte();
     setClavier(true);
     setTimeout(() => champRef.current?.focus(), 90);
@@ -885,7 +923,11 @@ export default function Home() {
           {history.length === 0 ? <p className="fil-vide">{welcome}</p> : null}
           {history.map((m, i) => (
             <div key={i} className={m.role === "bia" ? "ligne ligne-bia" : "ligne ligne-moi"}>
-              <p className={m.role === "bia" ? "bulle bulle-bia" : "bulle bulle-moi"}>{m.text}</p>
+              <p className={m.role === "bia" ? "bulle bulle-bia" : "bulle bulle-moi"}>
+                {m.text.split(/\n{2,}/).map((para, n) => (
+                  <span className="para" key={n}>{para.trim()}</span>
+                ))}
+              </p>
               {m.role === "bia" && i > 0 ? (
                 corrige === i ? (
                   <div className="corriger">

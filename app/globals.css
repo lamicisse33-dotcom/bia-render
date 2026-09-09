@@ -269,6 +269,12 @@ button { font: inherit; touch-action: manipulation; }
   line-height: 1.42;
   white-space: pre-wrap;
 }
+/* Les paragraphes d'une réponse : séparés, mais pas par une ligne vide.
+   Une ligne vide au milieu d'une bulle fait croire que la réponse s'arrête
+   là — et on lui coupe la parole. */
+.bulle .para { display: block; }
+.bulle .para + .para { margin-top: .45em; }
+
 .bulle-bia { margin-right: auto; background: rgba(255,255,255,.07); color: #f2f2f4; border-bottom-left-radius: 5px; }
 .bulle-moi { margin-left: auto; background: #7a5c1c; color: #fff6de; border-bottom-right-radius: 5px; }
 
