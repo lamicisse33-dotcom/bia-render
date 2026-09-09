@@ -15,7 +15,11 @@ export type Souffle = {
   /** Les fichiers possibles — on en tire un au hasard, pour ne pas rire
       deux fois exactement pareil. */
   fichiers: string[];
-  /** Les images à enchaîner pendant le son, et leur durée en millisecondes. */
+  /** Les images à enchaîner pendant le son, et leur durée en millisecondes.
+
+      La somme doit suivre la durée RÉELLE du fichier. Trop courte, le visage
+      se fige et elle finit de rire immobile ; trop longue, les dernières
+      images ne s'affichent jamais — les minuteries tombent avec le son. */
   visages: Array<[string, number]>;
 };
 
@@ -23,17 +27,29 @@ export const SOUFFLES: Souffle[] = [
   {
     emotion: "rire",
     fichiers: ["/sons/rire-1.mp3", "/sons/rire-2.mp3", "/sons/rire-3.mp3"],
-    visages: [["joie", 260], ["rire", 520], ["rire_tete", 620], ["rire", 460], ["joie", 400]],
+    // Les fichiers font de 1,3 à 1,9 s : l'arc tient en 1,8 s.
+    visages: [["joie", 190], ["rire", 420], ["rire_tete", 480], ["rire", 380], ["joie", 330]],
   },
   {
     emotion: "fourire",
     fichiers: ["/sons/fourire-1.mp3", "/sons/fourire-2.mp3"],
-    visages: [["rire", 320], ["rire_tete", 640], ["fourire", 900], ["rire_tete", 520], ["joie", 420]],
+    /* LE GRAND RIRE — 4,2 et 5,2 secondes. L’ancienne suite s’arrêtait au
+       bout de 2,8 s : BIA riait encore deux secondes, le visage figé sur un
+       sourire. Elle renverse maintenant la tête en arrière, longuement, et
+       redescend — c’est ce que Lamine voulait voir. */
+    visages: [["joie", 260], ["rire", 480], ["rire_tete", 900], ["fourire", 1100],
+              ["rire_tete", 800], ["rire", 620], ["joie", 700]],
   },
   {
     emotion: "malice",
-    fichiers: ["/sons/rire-retenu-1.mp3", "/sons/rire-retenu-2.mp3"],
-    visages: [["douce", 300], ["rire_retenu", 700], ["malice", 700]],
+    /* Quatre variantes : c'est l'émotion la plus fréquente après le rire
+       franc, et deux fichiers seulement s'entendaient revenir. Les deux
+       premiers viennent de la prise dédiée, les deux autres de la fin de la
+       longue prise. */
+    fichiers: ["/sons/rire-retenu-1.mp3", "/sons/rire-retenu-2.mp3",
+               "/sons/rire-retenu-3.mp3", "/sons/rire-retenu-4.mp3"],
+    // Les petits rires ne durent qu’une demi-seconde : trois images serrées.
+    visages: [["douce", 140], ["rire_retenu", 320], ["malice", 400]],
   },
   {
     emotion: "etonnement",

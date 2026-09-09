@@ -37,7 +37,9 @@ const EMOTION_VERS_FACE: Record<string, Face> = {
    que le visage bouge — c'est ce qui donne l'impression du vrai. */
 const SUITES: Partial<Record<string, Array<[Face, number]>>> = {
   rire:    [["joie",320],["rire",620],["rire_tete",720],["rire",560],["joie",480]],
-  fourire: [["rire",380],["rire_tete",700],["fourire",1100],["rire_tete",560],["joie",520]],
+  /* Le grand rire, quand aucun son n'est disponible : même arc que la suite
+     sonore de lib/sons.ts, tête renversée en arrière et retour. */
+  fourire: [["rire",380],["rire_tete",900],["fourire",1100],["rire_tete",760],["rire",520],["joie",520]],
   surprise:[["etonnement",340],["surprise",1300],["etonnement",600]],
   malice:  [["douce",380],["malice",1600]],
   pensive: [["pensive",1500],["regard_cote",700]],

@@ -24,7 +24,7 @@ demi-quart de seconde à démarrer paraît hésitant.
 ## Ce qui est déposé (9 septembre 2026)
 
 Enregistré par Kha, en une prise de seize secondes : deux grands rires
-d'abord, puis les petits rires légers. Découpé en sept extraits, tous ramenés
+d'abord, puis les petits rires légers. Découpé en extraits, tous ramenés
 à la même crête pour qu'elle ne rie pas fort puis tout bas.
 
 | Fichier | Vient de | Durée |
@@ -34,8 +34,10 @@ d'abord, puis les petits rires légers. Découpé en sept extraits, tous ramené
 | `rire-1.mp3` | la série de petits rires du milieu | 1,3 s |
 | `rire-2.mp3` | la première salve du premier grand rire | 1,4 s |
 | `rire-3.mp3` | la seconde salve du second grand rire | 1,9 s |
-| `rire-retenu-1.mp3` | le petit rire isolé, à 12 s | 0,6 s |
-| `rire-retenu-2.mp3` | le petit rire de la fin | 0,6 s |
+| `rire-retenu-1.mp3` | prise dédiée « peutit rirr », premier | 0,5 s |
+| `rire-retenu-2.mp3` | prise dédiée « peutit rirr », second | 0,6 s |
+| `rire-retenu-3.mp3` | le petit rire isolé de la longue prise, à 12 s | 0,6 s |
+| `rire-retenu-4.mp3` | le petit rire de la fin de la longue prise | 0,6 s |
 
 `rire-2` et `rire-3` sont taillés dans les grands rires : ils partagent donc
 leur matière avec les `fourire`. Ça ne s'entend pas, mais si Kha enregistre un
@@ -47,3 +49,9 @@ Une exclamation courte suffira : « oh ! », « ah bon ? ».
 
 L'enregistrement d'origine est sur le Bureau, dossier « voi didi »,
 `rirrr de bia.wav`. Ne pas le supprimer : c'est la source de toute redécoupe.
+
+Le 9 septembre au soir, Kha a enregistré en plus une prise courte de deux
+petits rires — Bureau, « voi didi/peutit rirr.wav ». Ce sont eux les
+`rire-retenu-1` et `-2` ; ceux tirés de la longue prise deviennent les
+variantes 3 et 4. Quatre variantes valent mieux que deux sur une émotion
+fréquente : on n'entend plus le même rire revenir.
