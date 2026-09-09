@@ -150,6 +150,23 @@ export default function Home() {
      d etre : des que la reponse arrive, il change, et tout ce qui etait
      en route se tait. */
   const attenteRef = useRef<object | null>(null);
+  /* Le relais entre l'attente et la réponse.
+
+     Avant, la réponse coupait l'attente à la seconde où son TEXTE arrivait —
+     alors que sa VOIX, elle, met encore quatre à huit secondes à se
+     fabriquer. BIA s'arrêtait donc net, le texte restait affiché, et le
+     silence revenait exactement là où on voulait l'éviter.
+
+     Maintenant l'attente garde la parole jusqu'à ce que le son de la réponse
+     soit en main. `stopAttente` dit « arrête-toi APRÈS ta phrase » — jamais
+     au milieu d'un mot — et `phraseEnCours` est cette phrase, qu'on attend
+     avant d'enchaîner. */
+  const stopAttenteRef = useRef(false);
+  const phraseEnCoursRef = useRef<Promise<void> | null>(null);
+  /* Le texte de la réponse est-il déjà à l'écran ? Si oui, les phrases
+     d'attente continuent de se dire mais n'écrasent plus la légende : on lit
+     la réponse pendant qu'elle achève de meubler. */
+  const texteArriveRef = useRef(false);
   const attenteCache = useRef<Map<string, ArrayBuffer>>(new Map());
   const dernierAttente = useRef<string | null>(null);
   const nomDemande = useRef(false);
@@ -391,16 +408,44 @@ export default function Home() {
     await jouerSonAvecVisages(octets, souffle.visages);
   }, [jouerSonAvecVisages]);
 
+  /* Reprendre la parole à l'attente, proprement : on lui demande de
+     s'arrêter, on laisse finir la phrase commencée, et alors seulement on
+     coupe. Couper avant, c'est un mot tranché en deux ; ne pas couper du
+     tout, c'est deux voix l'une sur l'autre. */
+  const finirAttente = useCallback(async () => {
+    stopAttenteRef.current = true;
+    for (let essais = 0; essais < 2; essais++) {
+      const enCours = phraseEnCoursRef.current;
+      if (!enCours) break;
+      try { await enCours; } catch {}
+      if (phraseEnCoursRef.current === enCours) break;
+    }
+    attenteRef.current = null;
+    phraseEnCoursRef.current = null;
+    stopAttenteRef.current = false;
+  }, []);
+
   /* La vraie voix : Oolel Voices, la même que BIBA. Le serveur découpe la
      réponse — Soynade n'accepte que 500 caractères — et on va chercher le
      morceau suivant PENDANT que le précédent est lu, sinon un silence
      s'installe entre chaque phrase. */
   const speak = useCallback(async (answer: string, emotion?: string) => {
-    window.speechSynthesis?.cancel();
-    couperSon();
-    if (!answer.trim()) return;
+    /* PRENDRE LA PAROLE N'EST PAS COUPER LA PAROLE.
+
+       Ce bloc était en tête de la fonction : le son mourait à l'instant où le
+       texte de la réponse revenait, puis on attendait la synthèse en silence.
+       Il est descendu là où il a un sens — juste avant de dire le premier
+       mot, une fois le son fabriqué. */
+    const prendreLaParole = async () => {
+      await finirAttente();
+      window.speechSynthesis?.cancel();
+      couperSon();
+    };
+
+    if (!answer.trim()) { await prendreLaParole(); return; }
 
     if (moteursRef.current && moteursRef.current.voix === "navigateur") {
+      await prendreLaParole();
       if (emotion) await jouerSouffle(emotion);
       parlerAvecLeTelephone(answer);
       return;
@@ -424,12 +469,15 @@ export default function Home() {
     };
 
     try {
-      // On lance la synthèse du premier morceau AVANT de rire : le rire
-      // occupe exactement le temps qu'elle prend.
-      const premier = demander(0);
-      if (emotion) await jouerSouffle(emotion);
-      let bloc = await premier;
+      // La synthèse part TOUT DE SUITE — et pendant ces quelques secondes,
+      // l'attente continue de parler. C'est elle qui couvre le trou, plus le
+      // silence.
+      let bloc = await demander(0);
+      await prendreLaParole();
       if (!bloc.audio) { parlerAvecLeTelephone(answer); return; }
+      // Le rire vient maintenant : entre la dernière phrase d'attente et le
+      // premier mot de la réponse, il fait la liaison.
+      if (emotion) await jouerSouffle(emotion);
 
       const jeton = {};
       tourRef.current = jeton;
@@ -448,9 +496,10 @@ export default function Home() {
       }
       stopMouth(answer);
     } catch {
+      await prendreLaParole();
       parlerAvecLeTelephone(answer);
     }
-  }, [couperSon, jouerEtAnimer, jouerSouffle, parlerAvecLeTelephone, stopMouth]);
+  }, [couperSon, finirAttente, jouerEtAnimer, jouerSouffle, parlerAvecLeTelephone, stopMouth]);
 
   /* ── Ce qu'elle dit pendant qu'elle réfléchit ─────────────────────────
 
@@ -478,9 +527,11 @@ export default function Home() {
      une seconde seulement si l'attente s'éternise. Trois seraient bavardes. */
   const direAttente = useCallback(async (langue: "wo" | "fr", jeton: object) => {
     const depart = Date.now();
-    for (let dites = 0; dites < 2; dites++) {
-      await pause(dites === 0 ? SEUIL_MS : 1800);
-      if (attenteRef.current !== jeton) return;
+    for (let dites = 0; ; dites++) {
+      await pause(dites === 0 ? SEUIL_MS : 1300);
+      // Filet : même si tout se casse ailleurs, elle ne parle pas sans fin.
+      if (Date.now() - depart > 60000) return;
+      if (attenteRef.current !== jeton || stopAttenteRef.current) return;
 
       const choix = choisirAttente({
         attenteMs: Date.now() - depart,
@@ -495,14 +546,17 @@ export default function Home() {
       const texte = texteAttente(choix, langue);
       let octets: ArrayBuffer;
       try { octets = await audioAttente(texte); } catch { return; }
-      // La réponse a pu arriver pendant la synthèse : alors on se tait.
-      if (attenteRef.current !== jeton) return;
+      // Le son de la réponse a pu arriver pendant la synthèse : on s'arrête.
+      if (attenteRef.current !== jeton || stopAttenteRef.current) return;
 
       dernierAttente.current = choix.id;
       if (choix.quand === "nom") nomDemande.current = true;
       setFace(choix.visage as Face);
-      setLegende(texte);
-      await jouerEtAnimer(octets);
+      if (!texteArriveRef.current) setLegende(texte);
+      const enCours = jouerEtAnimer(octets);
+      phraseEnCoursRef.current = enCours;
+      await enCours;
+      if (phraseEnCoursRef.current === enCours) phraseEnCoursRef.current = null;
       if (attenteRef.current !== jeton) return;
       // Elle a fini sa phrase, la réponse n'est toujours pas là : elle
       // retourne réfléchir, et le visage reprend sa boucle.
@@ -522,11 +576,14 @@ export default function Home() {
      seulement si l'attente dure, et peut alors dire avoir compris : à ce
      moment le texte est arrivé. */
   const direTransitions = useCallback(async (jeton: object) => {
-    for (let dites = 0; dites < 2; dites++) {
-      if (attenteRef.current !== jeton) return;
+    const depart = Date.now();
+    for (let dites = 0; ; dites++) {
+      if (dites) await pause(600);   // le souffle entre deux phrases
+      if (Date.now() - depart > 60000) return;
+      if (attenteRef.current !== jeton || stopAttenteRef.current) return;
 
       const choix = choisirTransition({
-        duree: dites === 0 ? "courte" : "longue",
+        duree: dites === 0 ? "courte" : dites % 2 ? "longue" : "moyenne",
         recentes: transitionsRecentes.current,
         contexte: dernierDitRef.current,
         transcrit: transcritRef.current,
@@ -536,13 +593,16 @@ export default function Home() {
 
       let octets: ArrayBuffer;
       try { octets = await audioAttente(choix.wo); } catch { return; }
-      if (attenteRef.current !== jeton) return;
+      if (attenteRef.current !== jeton || stopAttenteRef.current) return;
 
       transitionsRecentes.current = [choix.n, ...transitionsRecentes.current].slice(0, 5);
       tonPrecedent.current = choix.ton;
       setFace((TON_VERS_VISAGE[choix.ton] || "pensive") as Face);
-      setLegende(choix.wo);
-      await jouerEtAnimer(octets);
+      if (!texteArriveRef.current) setLegende(choix.wo);
+      const enCours = jouerEtAnimer(octets);
+      phraseEnCoursRef.current = enCours;
+      await enCours;
+      if (phraseEnCoursRef.current === enCours) phraseEnCoursRef.current = null;
       if (attenteRef.current !== jeton) return;
       setMode("thinking");
     }
@@ -563,6 +623,7 @@ export default function Home() {
     // Après le micro, ce sont les transitions qui tiennent déjà la parole —
     // on ne leur superpose pas une phrase d'attente.
     toursRef.current += 1;
+    texteArriveRef.current = false;
     if (!parole) {
       const jeton = {};
       attenteRef.current = jeton;
@@ -576,13 +637,19 @@ export default function Home() {
         body: JSON.stringify({ message: clean, history: historyRef.current.slice(-12), resume: resumeRef.current }),
       });
       const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; source?: string };
-      attenteRef.current = null;   // la vraie réponse a la parole
+      /* ICI SE JOUAIT LE SILENCE.
+         On coupait l'attente à l'arrivée du TEXTE. Mais la voix, elle, n'est
+         pas encore fabriquée : quatre à huit secondes plus tard. BIA se
+         taisait donc pile au moment où il fallait tenir la conversation.
+         L'attente garde la parole ; c'est speak() qui la reprendra, une fois
+         le son en main. */
       if (response.status === 401) {
         // Code refusé : on renvoie le testeur à l'écran d'entrée avec le motif.
         try { localStorage.removeItem("bia-code"); } catch {}
         setCode(null);
         setCodeErreur(data.reply);
         setMode("ready"); setFace("yeux_ouverts");
+        await finirAttente();   // personne ne parlera : on rend le silence
         return;
       }
       if (!response.ok) throw new Error("BIA unavailable");
@@ -590,6 +657,7 @@ export default function Home() {
       setPanne(data.source && data.source.startsWith("panne") ? data.source : "");
       setHistory((items) => [...items, { role: "bia", text: data.reply }]);
       setLegende(data.reply);
+      texteArriveRef.current = true;   // la légende ne bougera plus
       // Le visage prend l'émotion tout de suite, avant même la voix : c'est
       // ce qui donne l'impression qu'elle réagit à ce qu'on lui a dit.
       const suite = SUITES[emotionRef.current];
@@ -600,14 +668,17 @@ export default function Home() {
       const fallback = "Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.";
       setHistory((items) => [...items, { role: "bia", text: fallback }]);
       setLegende(fallback);
+      texteArriveRef.current = true;
       setFace("concernee");
       setMode("error");
       speak(fallback);
     } finally {
-      attenteRef.current = null;
+      // On ne touche plus à attenteRef ici : speak() est encore en train de
+      // fabriquer la voix, et c'est lui qui prendra le relais quand elle
+      // sera prête.
       busyRef.current = false;
     }
-  }, [speak, direAttente]);
+  }, [speak, direAttente, finirAttente]);
 
   /* Pendant qu'elle réfléchit, le visage ne doit pas se figer — mais il ne
      doit pas s'agiter non plus.
