@@ -60,16 +60,36 @@ export async function POST(request: NextRequest) {
 
     /* Le modèle glisse parfois le JSON dans un bloc de code, ou ajoute une
        phrase avant. On prend le premier objet complet et on ignore le reste. */
+    /* CES TROIS ÉCHECS ÉTAIENT MUETS, ET C'ÉTAIT LE VRAI DÉFAUT.
+
+       Le 10 septembre 2026, « Le papier n'a pas pu être fabriqué » s'affichait
+       sans que rien n'apparaisse dans les journaux : le modèle avait répondu,
+       donc aucune panne n'était notée, et il n'y avait aucun moyen de savoir
+       ce qu'il avait dit. On note désormais le début de sa réponse — c'est la
+       seule chose qui permette de comprendre, après coup, pourquoi le papier
+       n'est pas sorti. */
     const debut = complet.indexOf("{");
     const fin = complet.lastIndexOf("}");
-    if (debut < 0 || fin <= debut) return NextResponse.json({ erreur: "pas de document" }, { status: 502 });
+    if (debut < 0 || fin <= debut) {
+      noterPanne(`${sorte} : pas de JSON`, complet.slice(0, 400) || "(réponse vide)");
+      return NextResponse.json({ erreur: "pas de document" }, { status: 502 });
+    }
 
     let brut: unknown;
     try { brut = JSON.parse(complet.slice(debut, fin + 1)); }
-    catch { return NextResponse.json({ erreur: "document illisible" }, { status: 502 }); }
+    catch {
+      noterPanne(`${sorte} : JSON illisible`, complet.slice(debut, debut + 400));
+      return NextResponse.json({ erreur: "document illisible" }, { status: 502 });
+    }
 
     const doc = nettoyer(brut, sorte);
-    if (!doc) return NextResponse.json({ erreur: "document vide" }, { status: 502 });
+    if (!doc) {
+      /* Le JSON était bon mais vide de ce qui compte : pas une seule ligne
+         pour un devis, pas un paragraphe pour une lettre. C'est presque
+         toujours que la conversation ne disait pas encore de quoi écrire. */
+      noterPanne(`${sorte} : rien à mettre dedans`, complet.slice(debut, debut + 400));
+      return NextResponse.json({ erreur: "document vide" }, { status: 502 });
+    }
     if (doc.type === "devis" && !doc.numero) doc.numero = numeroDevis();
 
     /* SES RENSEIGNEMENTS À LUI VIENNENT DE L'APPAREIL, PAS DU MODÈLE.

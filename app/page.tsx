@@ -1809,9 +1809,17 @@ export default function Home() {
       });
       const d = await r.json() as { document?: Papier; totaux?: Totaux | null; erreur?: string };
       if (!r.ok || !d.document) {
-        setPapierErreur(d.erreur === "rien à écrire"
-          ? "Il n'y a pas encore de quoi écrire. Parle-lui du travail, du client et des prix, puis reviens."
-          : "Le papier n'a pas pu être fabriqué. Réessaie dans un instant.");
+        /* Dire LEQUEL des trois échecs, sinon on ne peut rien corriger.
+           « Réessaie dans un instant » était vrai une fois sur trois et
+           inutile les deux autres. */
+        setPapierErreur(
+          d.erreur === "rien à écrire" || d.erreur === "document vide"
+            ? "Il n'y a pas encore de quoi écrire. Dis-lui d'abord ce que le papier doit dire, et pour qui — puis reviens ici."
+            : d.erreur === "pas de document" || d.erreur === "document illisible"
+              ? "Elle a répondu à côté. Appuie encore une fois : c'est presque toujours réglé au deuxième essai."
+              : d.erreur === "code"
+                ? "Ton code n'est plus valable. Referme et rentre-le à nouveau."
+                : "Le papier n'a pas pu être fabriqué. Réessaie dans un instant.");
         return;
       }
       setPapier({ doc: d.document, totaux: d.totaux ?? null });

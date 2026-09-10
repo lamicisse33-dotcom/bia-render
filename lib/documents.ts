@@ -247,7 +247,12 @@ export function nettoyer(brut: unknown, sorte: Sorte): Document | null {
 export const CONSIGNE_DOCUMENT = `Tu fabriques un document à partir de la conversation qui précède.
 
 Réponds UNIQUEMENT par un objet JSON, sans un mot avant, sans un mot après,
-sans balise de code. Le document est rédigé EN FRANÇAIS, même si toute la
+sans balise de code. MÊME SI LA CONVERSATION EST MAIGRE : tu réponds quand
+même par le JSON, en remplissant ce que tu sais et en laissant vide ce que tu
+ignores. Ne réponds JAMAIS par une phrase pour expliquer que tu manques de
+renseignements — ce n'est pas lu, et la personne ne voit alors qu'un message
+d'échec. Pour une lettre, écris au moins un paragraphe ; pour un message, au
+moins une phrase. Le document est rédigé EN FRANÇAIS, même si toute la
 conversation s'est tenue en wolof : c'est la langue des devis, des factures et
 de l'administration au Sénégal.
 
