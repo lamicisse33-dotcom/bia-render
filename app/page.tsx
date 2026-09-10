@@ -19,6 +19,7 @@ import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } fr
 import { lireMesures, noterMesure } from "@/lib/chrono";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
+import { frapper, arreterFrappe } from "@/lib/frappe";
 
 /* Un message peut porter le RENVOI vers un papier — son identifiant, pas son
    contenu. Le papier lui-même vit dans sa propre boîte, qui ne se rogne
@@ -628,6 +629,32 @@ export default function Home() {
     }
     dernierSon.current = fichier;
     await jouerSonAvecVisages(octets, souffle.visages);
+  }, [jouerSonAvecVisages]);
+
+  /* ── UNE PHRASE DÉJÀ ENREGISTRÉE ──────────────────────────────────────
+
+     « Dès qu'elle commence à écrire, elle doit dire d'accord, je commence
+     l'écriture » — Lamine, le 10 septembre 2026.
+
+     On ne la fait PAS synthétiser : ce serait trois secondes d'attente et un
+     appel payant pour une phrase qui ne change jamais. Un fichier enregistré
+     par Kha part instantanément, et c'est la même voix.
+
+     Le fichier peut ne pas être là : dans ce cas on ne dit rien, et on ne se
+     plaint pas. Le bruit de frappe et le petit clavier suffisent déjà à
+     montrer qu'elle travaille. */
+  const direEnregistre = useCallback(async (quoi: string) => {
+    try {
+      const fichier = `/sons/${quoi}.mp3`;
+      let octets = cacheSons.current.get(fichier);
+      if (!octets) {
+        const r = await fetch(fichier);
+        if (!r.ok) return;
+        octets = await r.arrayBuffer();
+        cacheSons.current.set(fichier, octets);
+      }
+      await jouerSonAvecVisages(octets, [["parle", 900]]);
+    } catch { /* pas de fichier, pas de bruit, pas d'erreur */ }
   }, [jouerSonAvecVisages]);
 
   /* ── LA VOIX D'ATTENTE ────────────────────────────────────────────────
@@ -1842,6 +1869,17 @@ export default function Home() {
   const fabriquerPapier = useCallback(async (sorte: Sorte) => {
     const jeton = ++demandePapier.current;
     const perime = () => jeton !== demandePapier.current;
+
+    /* ── ON MONTRE ET ON FAIT ENTENDRE QU'ELLE ÉCRIT ──────────────────────
+       Demandé par Lamine le 10 septembre 2026 : entre la demande et le
+       papier, il ne se passait rien — ni son, ni mouvement. Dix secondes de
+       silence, et on croit que l'application est morte.
+
+       Trois signes partent donc ensemble : elle le DIT (une phrase
+       enregistrée, si elle est là), on l'ENTEND taper, et on la VOIT taper
+       sur le petit clavier à côté du bouton. */
+    void direEnregistre("jecris");
+    frapper();
     setPapierOccupe(true);
     setPapierErreur("");
     setPdf("");
@@ -1891,8 +1929,11 @@ export default function Home() {
       setPapierErreur("Pas de réseau. Le papier n'a pas pu être fabriqué.");
     } finally {
       if (!perime()) setPapierOccupe(false);
+      // La frappe s'arrête même si c'est une demande périmée : deux frappes
+      // en même temps feraient une mitraillette.
+      arreterFrappe();
     }
-  }, []);
+  }, [dire]);
 
   /* Ouvrir la fenêtre des services. Sans rien préciser, on voit la rangée et
      rien d'autre — sauf si BIA a déjà de quoi écrire : on va droit au but,
@@ -2554,6 +2595,31 @@ export default function Home() {
           </svg>
           {papierPret ? <i className="point" aria-hidden="true" /> : null}
         </button>
+
+        {/* ── LE PETIT CLAVIER QUI TAPE ────────────────────────────────────
+            Demandé par Lamine le 10 septembre 2026, capture à l'appui : « sur
+            le service, il doit y avoir un petit son qui montre que ta demande
+            est en train d'être exécutée. Le clavier doit sortir sur le côté,
+            allumé, avec les touches qui s'enfoncent. »
+
+            Il apparaît à droite du bouton des papiers, exactement là où il
+            l'a tracé, et seulement pendant qu'elle écrit. Les touches
+            s'allument l'une après l'autre — ce n'est pas une roue qui tourne,
+            c'est quelqu'un qui tape, et ça se comprend sans savoir lire. */}
+        <div className={papierOccupe ? "elle-tape ouvert" : "elle-tape"} aria-hidden="true">
+          <svg viewBox="0 0 44 26">
+            <rect className="boitier" x="1" y="4" width="42" height="21" rx="3.5" />
+            <g className="touches">
+              <rect x="5"  y="8"  width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "0" }} />
+              <rect x="13" y="8"  width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "1" }} />
+              <rect x="21" y="8"  width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "2" }} />
+              <rect x="29" y="8"  width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "3" }} />
+              <rect x="5"  y="15" width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "4" }} />
+              <rect x="13" y="15" width="14" height="4.6" rx="1.2" style={{ ["--r" as string]: "5" }} />
+              <rect x="29" y="15" width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "6" }} />
+            </g>
+          </svg>
+        </div>
       </div>
 
       <section className="clavier" aria-hidden={!clavier}>

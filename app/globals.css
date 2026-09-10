@@ -951,3 +951,42 @@ button { font: inherit; touch-action: manipulation; }
    quand la conversation a tourné la page. */
 .papier-liste { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .papier-liste .papier-carte { max-width: none; }
+
+/* ── LE PETIT CLAVIER QUI TAPE ──────────────────────────────────────────────
+   Il sort à droite du bouton des papiers pendant qu'elle écrit, et rentre
+   quand c'est fini. Demandé par Lamine le 10 septembre 2026 : sans ce signe,
+   dix secondes passent sans que rien ne bouge, et on croit l'application
+   morte. Une roue qui tourne dirait « ça charge » ; un clavier dit « elle
+   écrit », et ça se comprend sans savoir lire. */
+.elle-tape {
+  width: 0; opacity: 0; overflow: hidden;
+  transition: width .28s cubic-bezier(.2,.9,.3,1), opacity .22s ease, margin-left .28s;
+  margin-left: 0;
+  flex: 0 0 auto;
+}
+.elle-tape.ouvert { width: 44px; opacity: 1; margin-left: 10px; }
+.elle-tape svg { width: 44px; height: 26px; display: block; }
+.elle-tape .boitier {
+  fill: rgba(212,175,55,.10);
+  stroke: rgba(212,175,55,.45);
+  stroke-width: 1.1;
+}
+.elle-tape .touches rect {
+  fill: rgba(212,175,55,.32);
+  /* Sept touches, chacune décalée d'un cran : l'onde parcourt le clavier au
+     lieu de faire clignoter tout le monde en même temps. */
+  animation: touche-enfoncee .95s ease-in-out infinite;
+  animation-delay: calc(var(--r) * .11s);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes touche-enfoncee {
+  0%, 62%, 100% { fill: rgba(212,175,55,.28); transform: none; }
+  22%           { fill: #E8C55A; transform: translateY(.7px) scale(.9); }
+}
+/* Quelqu'un qui a demandé moins d'animations n'a pas demandé moins
+   d'information : le clavier reste visible, il cesse seulement de bouger. */
+@media (prefers-reduced-motion: reduce) {
+  .elle-tape .touches rect { animation: none; fill: rgba(212,175,55,.5); }
+  .elle-tape { transition: none; }
+}
