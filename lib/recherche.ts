@@ -82,20 +82,27 @@ export const rechercheActive = () =>
 /* L'outil, tel que l'API l'attend. La recherche est exécutée chez Anthropic
    pendant la même requête : rien à boucler ici, la réponse revient déjà
    écrite. Deux recherches au maximum — au-delà, on paie sans rien gagner sur
-   une question de tous les jours. Et le lieu est donné, sinon les résultats
-   arrivent d'ailleurs : un prix « du marché » n'a aucun sens s'il vient de
-   Paris. */
-export const OUTIL_RECHERCHE = {
-  type: "web_search_20250305",
-  name: "web_search",
-  max_uses: Number(process.env.BIA_RECHERCHE_MAX || 2),
-  user_location: {
-    type: "approximate",
-    country: "SN",
-    city: "Dakar",
-    timezone: "Africa/Dakar",
-  },
-};
+   une question de tous les jours.
+
+   PAS DE « user_location ». J'avais mis SN, pour que les résultats viennent
+   du Sénégal — et l'API a refusé la requête entière : « Country code SN is
+   not supported ». BIA a répondu « mon moteur ne répond pas » à chaque
+   question d'actualité, le 10 septembre 2026 à 6 h 09. La liste des pays
+   acceptés ne couvre pas le Sénégal ; insister n'aurait servi à rien.
+
+   On localise donc autrement, et ça marche aussi bien : la consigne lui dit
+   d'écrire « Sénégal » ou « Dakar » dans sa recherche quand la question est
+   d'ici. Si un jour le pays devient accepté, BIA_RECHERCHE_PAYS le rallume
+   sans toucher au code. */
+export const OUTIL_RECHERCHE = (() => {
+  const pays = String(process.env.BIA_RECHERCHE_PAYS || "").trim().toUpperCase();
+  return {
+    type: "web_search_20250305",
+    name: "web_search",
+    max_uses: Number(process.env.BIA_RECHERCHE_MAX || 2),
+    ...(pays ? { user_location: { type: "approximate", country: pays } } : {}),
+  };
+})();
 
 /* Ce qu'on lui dit quand elle a le droit de chercher. Court exprès : cette
    consigne ne part qu'avec les questions qui le méritent. */
@@ -106,6 +113,11 @@ Cette question porte sur quelque chose qui change — l'actualité, un prix, un
 résultat, une date récente. Tu as le droit de chercher en ligne avant de
 répondre. Sers-t'en si ta réponse serait autrement une devinette ; ne t'en
 sers pas si tu sais déjà, ou si la question n'en a pas besoin.
+
+CHERCHE D'ABORD ICI. Quand la question porte sur le Sénégal — un prix, une
+nouvelle, un résultat, une administration — écris « Sénégal » ou « Dakar »
+dans ta recherche. Sans ça, tu rapporteras le prix du riz en France, et ça ne
+sert à personne.
 
 Quand tu as cherché, DIS-LE en une poignée de mots — « gis naa ko ci internet »
 — et donne la DATE de ce que tu rapportes quand elle compte : « bi ci 8

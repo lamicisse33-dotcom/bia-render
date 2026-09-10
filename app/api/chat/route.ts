@@ -341,15 +341,31 @@ export async function POST(request:NextRequest){
 
     const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:cherche?1400:900,system:consigne,messages:[...history,{role:"user",content:question}],...(cherche?{tools:[OUTIL_RECHERCHE]}:{})})});
 
-    if(!response.ok){
-      const detail=await response.text().catch(()=>"");
-      // Sans ça, une clé refusée et un crédit épuisé donnaient le même silence.
-      console.error("BIA — le modèle a refusé :",response.status,detail);
-      noterPanne(response.status,detail);
-      return NextResponse.json({reply:PANNE_MOTEUR,emotion:"concernee",source:`panne : modèle ${response.status}`});
+    /* SI L'OUTIL EST REFUSÉ, ON RÉPOND QUAND MÊME.
+
+       Leçon du 10 septembre 2026 : un seul champ mal accepté dans l'outil de
+       recherche — le pays « SN » — et l'API refusait la requête ENTIÈRE. BIA
+       disait « mon moteur ne répond pas » à toutes les questions d'actualité,
+       alors que le moteur allait très bien. Désormais, un refus 400 quand on
+       a joint l'outil fait repartir la question SANS lui : elle répondra sans
+       Internet, ce qui vaut infiniment mieux que de se taire. */
+    let reponse = response;
+    if (!reponse.ok && cherche && reponse.status === 400) {
+      const detail = await reponse.clone().text().catch(() => "");
+      console.error("BIA — l'outil de recherche est refusé, on répond sans :", detail.slice(0, 300));
+      noterPanne("recherche refusée", detail);
+      reponse = await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:900,system:consigne,messages:[...history,{role:"user",content:question}]})});
     }
 
-    const data=await response.json() as {content?:Array<{type:string;text?:string}>};
+    if(!reponse.ok){
+      const detail=await reponse.text().catch(()=>"");
+      // Sans ça, une clé refusée et un crédit épuisé donnaient le même silence.
+      console.error("BIA — le modèle a refusé :",reponse.status,detail);
+      noterPanne(reponse.status,detail);
+      return NextResponse.json({reply:PANNE_MOTEUR,emotion:"concernee",source:`panne : modèle ${reponse.status}`});
+    }
+
+    const data=await reponse.json() as {content?:Array<{type:string;text?:string}>};
     const complet=(data.content||[]).filter(block=>block.type==="text").map(block=>block.text||"").join("\n").trim();
     const {reply:avecBalise,emotion,balise}=detacherEmotion(complet);
     const {texte:reply,papier}=detacherPapier(avecBalise);
