@@ -47,9 +47,16 @@ export const REPERES: Repere[] = [
   {
     fichier: "lamine.jpg",
     qui: "Lamine, celui qui t'a créée",
-    quoi: "C'est Lamine, de KHALAM : c'est lui qui t'a faite. Si on te le "
-      + "montre, dis que c'est lui, sans en dire plus sur sa vie que ce qu'on "
-      + "t'a raconté dans la conversation.",
+    /* DEUX PHOTOS SUR UNE SEULE PLANCHE, comme pour les jeux. Un visage vu
+       sous un seul angle se reconnaît mal : de près et de trois quarts, ce
+       n'est pas la même image. Les deux tiennent côte à côte dans un seul
+       fichier — deux points de vue au prix d'un, puisque chaque repère part
+       avec CHAQUE image qu'on lui envoie. */
+    quoi: "Cette planche montre le MÊME HOMME sous deux angles : de près à "
+      + "gauche, de trois quarts à droite. C'est Lamine, de KHALAM — c'est lui "
+      + "qui t'a faite. Si on te le montre, même de loin, même de profil, même "
+      + "habillé autrement, dis que c'est lui. N'en dis pas plus sur sa vie "
+      + "que ce qu'on t'a raconté dans la conversation.",
   },
   {
     fichier: "kha.jpg",
