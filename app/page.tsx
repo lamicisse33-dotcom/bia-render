@@ -19,7 +19,7 @@ import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } fr
 import { lireMesures, noterMesure } from "@/lib/chrono";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
-import { frapper, arreterFrappe } from "@/lib/frappe";
+import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
 
 /* Un message peut porter le RENVOI vers un papier — son identifiant, pas son
    contenu. Le papier lui-même vit dans sa propre boîte, qui ne se rogne
@@ -191,6 +191,14 @@ export default function Home() {
   /* Lequel est ouvert à l'écran : sans ça, retoucher un papier rouvert en
      créerait un deuxième au lieu de corriger le premier. */
   const papierOuvertId = useRef<string>("");
+  /* Un papier est prêt et personne ne l'a encore ouvert : le petit clavier
+     clignote en jaune jusqu'à ce qu'on le touche. Il ne s'arrête pas tout
+     seul — c'est le principe : on ne rate pas un travail terminé. */
+  const [papierFini, setPapierFini] = useState(false);
+  /* Ces deux miroirs existent parce que fabriquerPapier est gardé en mémoire :
+     à son retour, dix secondes plus tard, il ne verrait que l'état d'avant. */
+  const papierOccupeRef = useRef(false);
+  const papierOuvertRef = useRef(false);
   const [papierOccupe, setPapierOccupe] = useState(false);
   const [papierErreur, setPapierErreur] = useState("");
   const [pdf, setPdf] = useState("");
@@ -1161,8 +1169,14 @@ export default function Home() {
       /* Elle estime avoir de quoi écrire : c'est elle qui allume le bouton,
          et son avis vaut mieux qu'un mot-clé — elle a suivi toute la
          conversation. Le papier déjà ouvert est jeté : il date d'avant. */
-      if (data.papier === "devis" || data.papier === "lettre") {
-        setPapierPret(data.papier);
+      if (data.papier === "devis" || data.papier === "lettre" || data.papier === "message") {
+        setPapierPret(data.papier as Sorte);
+        /* ELLE COMMENCE TOUT DE SUITE, sans attendre qu'on ouvre l'écran.
+           Avant, elle allumait un point et ne faisait rien : il fallait
+           toucher le bouton, puis attendre encore dix secondes devant un
+           écran vide. Maintenant elle écrit pendant qu'on écoute sa réponse,
+           le clavier tape à côté du bouton, et ça sonne quand c'est prêt. */
+        if (!papierOccupeRef.current) void fabriquerPapier(data.papier as Sorte);
         /* On ne jette PLUS le papier ouvert. Il était effacé ici, au prétexte
            qu'il datait d'avant — et c'est ce que Lamine a vu : « quand elle
            écrit un message, le prochain message le supprime. » Il reste à
@@ -1880,6 +1894,7 @@ export default function Home() {
        sur le petit clavier à côté du bouton. */
     void direEnregistre("jecris");
     frapper();
+    papierOccupeRef.current = true;
     setPapierOccupe(true);
     setPapierErreur("");
     setPdf("");
@@ -1924,11 +1939,15 @@ export default function Home() {
       setPapiers(garderPapier(profilRef.current, garde));
       setHistory((items) => [...items, { role: "bia", text: garde.titre, papier: id }]);
       setPapier({ doc: d.document, totaux: d.totaux ?? null });
+      /* Fini. Si l'écran des papiers est déjà ouvert, on le voit arriver et
+         il n'y a rien à annoncer. Sinon ça sonne, et le petit clavier
+         clignote jusqu'à ce qu'on le touche. */
+      if (!papierOuvertRef.current) { sonnerFini(); setPapierFini(true); }
     } catch {
       if (perime()) return;
       setPapierErreur("Pas de réseau. Le papier n'a pas pu être fabriqué.");
     } finally {
-      if (!perime()) setPapierOccupe(false);
+      if (!perime()) { papierOccupeRef.current = false; setPapierOccupe(false); }
       // La frappe s'arrête même si c'est une demande périmée : deux frappes
       // en même temps feraient une mitraillette.
       arreterFrappe();
@@ -1983,6 +2002,13 @@ export default function Home() {
   /* Toute retouche repasse par ici : le document est recopié, modifié, et les
      totaux refaits dans la foulée. Le PDF déjà fabriqué ne vaut plus rien dès
      qu'un chiffre bouge — on l'efface, pour ne pas envoyer l'ancien. */
+  useEffect(() => { papierOccupeRef.current = papierOccupe; }, [papierOccupe]);
+  useEffect(() => {
+    papierOuvertRef.current = papierOuvert;
+    // Ouvrir l'écran, c'est avoir vu le travail : le clignotement s'arrête.
+    if (papierOuvert) setPapierFini(false);
+  }, [papierOuvert]);
+
   /* Rouvrir un papier déjà écrit : celui du fil, ou celui de la liste. On
      retrouve exactement ce qu'on avait laissé, retouches comprises. */
   function rouvrirPapier(g: PapierGarde) {
@@ -2606,7 +2632,15 @@ export default function Home() {
             l'a tracé, et seulement pendant qu'elle écrit. Les touches
             s'allument l'une après l'autre — ce n'est pas une roue qui tourne,
             c'est quelqu'un qui tape, et ça se comprend sans savoir lire. */}
-        <div className={papierOccupe ? "elle-tape ouvert" : "elle-tape"} aria-hidden="true">
+        <button type="button"
+          className={
+            papierFini ? "elle-tape ouvert fini"
+              : papierOccupe ? "elle-tape ouvert" : "elle-tape"
+          }
+          tabIndex={papierFini ? 0 : -1}
+          aria-hidden={!papierFini}
+          aria-label="Ton papier est prêt — l'ouvrir"
+          onClick={() => { if (papierFini) ouvrirPapier(); }}>
           <svg viewBox="0 0 44 26">
             <rect className="boitier" x="1" y="4" width="42" height="21" rx="3.5" />
             <g className="touches">
@@ -2619,7 +2653,7 @@ export default function Home() {
               <rect x="29" y="15" width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "6" }} />
             </g>
           </svg>
-        </div>
+        </button>
       </div>
 
       <section className="clavier" aria-hidden={!clavier}>

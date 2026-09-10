@@ -119,3 +119,42 @@ export function frapper(): Frappe {
 export function arreterFrappe() {
   encours?.arreter();
 }
+
+/* ── LA CLOCHE DE FIN ───────────────────────────────────────────────────────
+
+   « Est-ce que le travail est fini ? Ça doit sonner. » — Lamine, le 10
+   septembre 2026.
+
+   Le bruit de frappe dit qu'elle travaille ; il fallait le contraire, un son
+   qui dit que c'est prêt. Deux notes qui montent, très courtes, claires : on
+   les reconnaît d'une pièce à côté sans les confondre avec une notification
+   de téléphone.
+
+   Fabriqué ici aussi, sans fichier. Deux sinus, une quinte — do puis sol —
+   avec une enveloppe douce : c'est ce qui fait « ding » et non « bip ». */
+export function sonnerFini() {
+  const ctx = contexte();
+  if (!ctx) return;
+  const sortie = ctx.createGain();
+  sortie.gain.value = 0.22;
+  sortie.connect(ctx.destination);
+
+  const note = (hz: number, debut: number, duree: number) => {
+    const o = ctx.createOscillator();
+    o.type = "sine";
+    o.frequency.value = hz;
+    const g = ctx.createGain();
+    const t = ctx.currentTime + debut;
+    /* L'attaque n'est pas instantanée et l'extinction est longue : une note
+       coupée net claque, une note qui s'éteint sonne. */
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(1, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + duree);
+    o.connect(g); g.connect(sortie);
+    o.start(t); o.stop(t + duree + 0.05);
+  };
+
+  note(784, 0, 0.28);      // sol
+  note(1175, 0.11, 0.42);  // ré au-dessus — la quinte, qui « ouvre »
+  setTimeout(() => { try { ctx.close(); } catch {} }, 1200);
+}

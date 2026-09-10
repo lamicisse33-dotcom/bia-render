@@ -984,9 +984,34 @@ button { font: inherit; touch-action: manipulation; }
   0%, 62%, 100% { fill: rgba(212,175,55,.28); transform: none; }
   22%           { fill: #E8C55A; transform: translateY(.7px) scale(.9); }
 }
+/* ── ET QUAND C'EST FINI ────────────────────────────────────────────────────
+   « Est-ce que le travail est fini ? Ça doit sonner. Il doit clignoter en
+   jaune, continuer à clignoter, et tu pourras l'ouvrir à partir de là. »
+   — Lamine, le 10 septembre 2026.
+
+   Le clignotement NE S'ARRÊTE PAS TOUT SEUL : il s'arrête quand on ouvre.
+   C'est voulu — un signal qui s'éteint après trois secondes est un signal
+   qu'on rate quand on a posé le téléphone. Et il devient touchable : le
+   papier s'ouvre de là, là où on regarde déjà. */
+.elle-tape.fini {
+  animation: pret-respire 1.15s ease-in-out infinite;
+  cursor: pointer;
+}
+.elle-tape.fini .boitier { fill: rgba(212,175,55,.22); stroke: #E8C55A; stroke-width: 1.4; }
+/* Les touches cessent de taper : le travail est fini, elles s'allument
+   toutes. Ce n'est plus « elle écrit », c'est « c'est écrit ». */
+.elle-tape.fini .touches rect { animation: none; fill: #E8C55A; }
+@keyframes pret-respire {
+  0%, 100% { opacity: .45; filter: none; }
+  50%      { opacity: 1; filter: drop-shadow(0 0 7px rgba(232,197,90,.75)); }
+}
+
 /* Quelqu'un qui a demandé moins d'animations n'a pas demandé moins
-   d'information : le clavier reste visible, il cesse seulement de bouger. */
+   d'information : le clavier reste visible, il cesse seulement de bouger.
+   Le signal « c'est prêt » reste lisible — allumé en plein, sans battement. */
 @media (prefers-reduced-motion: reduce) {
   .elle-tape .touches rect { animation: none; fill: rgba(212,175,55,.5); }
   .elle-tape { transition: none; }
+  .elle-tape.fini { animation: none; opacity: 1; }
+  .elle-tape.fini .touches rect { fill: #E8C55A; }
 }
