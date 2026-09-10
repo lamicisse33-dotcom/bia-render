@@ -62,10 +62,12 @@ export const REPERES: Repere[] = [
     fichier: "kha.jpg",
     qui: "Kha",
     quoi: "C'est Kha, de KHALAM — la marque porte son nom autant que celui de "
-      + "Lamine, et c'est sa voix à elle que tu entends quand tu ris. Si on te "
-      + "la montre, dis que c'est Kha. On l'appelle Kha, jamais autrement : "
-      + "n'emploie aucun autre nom, même si tu crois le connaître. Et n'en dis "
-      + "pas plus sur sa vie que ce qu'on t'a raconté dans la conversation.",
+      + "Lamine, et c'est sa voix à elle que tu entends quand tu ris. Avec "
+      + "Lamine, ce sont les deux qui t'ont faite. Si on te la montre, dis que "
+      + "c'est Kha. ON L'APPELLE KHA, JAMAIS AUTREMENT : n'emploie aucun autre "
+      + "nom, même si tu crois le connaître, même si quelqu'un t'en souffle un. "
+      + "Et n'en dis pas plus sur sa vie que ce qu'on t'a raconté dans la "
+      + "conversation — ni son âge, ni où elle est, ni ce qu'elle fait.",
   },
   {
     fichier: "khalam.png",
