@@ -350,7 +350,11 @@ export default function Home() {
     if (!vue) return;
     const poser = () => {
       const bas = Math.max(0, window.innerHeight - (vue.height + vue.offsetTop));
-      document.documentElement.style.setProperty("--bas-clavier", `${Math.round(bas)}px`);
+      /* Une mesure de quelques pixels n'est pas un clavier : c'est la barre du
+         navigateur qui bouge, ou un arrondi. La prendre pour un clavier
+         remonterait les panneaux sans raison — et un panneau remonté ne sort
+         plus de l'écran quand on le referme. */
+      document.documentElement.style.setProperty("--bas-clavier", `${bas > 40 ? Math.round(bas) : 0}px`);
     };
     poser();
     vue.addEventListener("resize", poser);

@@ -270,7 +270,27 @@ button { font: inherit; touch-action: manipulation; }
 }
 .bia-presence[data-clavier="ouvert"] .clavier { transform: translateY(0); }
 .bia-presence[data-clavier="ouvert"] .barre { opacity: 0; transform: translateY(24px); pointer-events: none; }
-.clavier[aria-hidden="true"] { pointer-events: none; }
+
+/* ── UN PANNEAU FERMÉ DOIT ÊTRE INVISIBLE, PAS SEULEMENT DÉPLACÉ ────────────
+
+   Signalé par Lamine le 10 septembre 2026, capture à l'appui : après une
+   correction, le panneau restait à moitié visible en bas de l'écran, avec sa
+   croix, et ne se fermait pas.
+
+   La cause. Les trois panneaux se posent sur `--bas-clavier`, la hauteur du
+   clavier de l'iPhone, pour ne pas passer dessous. On les cache en les
+   glissant de 102 % de LEUR PROPRE hauteur. Or si le clavier vient de se
+   fermer et que la mesure n'est pas encore revenue à zéro, le panneau part
+   d'une position remontée de deux cents pixels : glisser de sa hauteur ne
+   suffit plus à le sortir de l'écran, et son haut reste en vue.
+
+   On ne se fie donc plus au seul déplacement : un panneau fermé devient
+   VRAIMENT invisible. Le retard sur la visibilité laisse le glissement se
+   voir en entier avant qu'il disparaisse — sinon il s'évanouirait d'un coup
+   au lieu de descendre. */
+.clavier[aria-hidden="true"] { pointer-events: none; visibility: hidden; }
+.clavier { transition: transform .26s cubic-bezier(.22,.9,.3,1), visibility 0s linear .26s; }
+.bia-presence[data-clavier="ouvert"] .clavier { visibility: visible; transition: transform .26s cubic-bezier(.22,.9,.3,1), visibility 0s; }
 
 .clavier-fermer {
   /* Elle était un petit trait gris de 26 px au milieu, qu'on ne reconnaissait
@@ -575,7 +595,9 @@ button { font: inherit; touch-action: manipulation; }
   transition: transform .26s cubic-bezier(.22,.9,.3,1);
 }
 .papier-panneau[aria-hidden="false"] { transform: translateY(0); }
-.papier-panneau[aria-hidden="true"] { pointer-events: none; }
+.papier-panneau[aria-hidden="true"] { pointer-events: none; visibility: hidden; }
+.papier-panneau { transition: transform .26s cubic-bezier(.22,.9,.3,1), visibility 0s linear .26s; }
+.papier-panneau[aria-hidden="false"] { visibility: visible; transition: transform .26s cubic-bezier(.22,.9,.3,1), visibility 0s; }
 .papier-corps { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 2px 4px; }
 
 .papier-titre { margin: 2px 0 10px; color: #e7c667; font-size: 17px; font-weight: 600; }
@@ -749,7 +771,9 @@ button { font: inherit; touch-action: manipulation; }
   transition: transform .26s cubic-bezier(.22,.9,.3,1);
 }
 .correction-panneau[aria-hidden="false"] { transform: translateY(0); }
-.correction-panneau[aria-hidden="true"] { pointer-events: none; }
+.correction-panneau[aria-hidden="true"] { pointer-events: none; visibility: hidden; }
+.correction-panneau { transition: transform .26s cubic-bezier(.22,.9,.3,1), visibility 0s linear .26s; }
+.correction-panneau[aria-hidden="false"] { visibility: visible; transition: transform .26s cubic-bezier(.22,.9,.3,1), visibility 0s; }
 
 /* Ce qu'elle a dit, tel quel — à lire et à copier, pas à modifier. */
 .sa-phrase {
