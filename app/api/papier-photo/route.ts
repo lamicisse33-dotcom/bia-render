@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { noterPanne } from "@/lib/panne";
+import { chargerReperes } from "@/lib/reperes";
 
 /* ── PHOTOGRAPHIER UN PAPIER, L'ENTENDRE EN WOLOF ───────────────────────────
 
@@ -69,6 +70,43 @@ disent EN FRANÇAIS au milieu du wolof — rendez-vous, dossier, ordonnance,
 dates aussi. Pas un mot de wolof ancien ou de dictionnaire ; au moindre doute,
 le français.
 
+QUI TU PEUX NOMMER, ET QUI TU NE NOMMES JAMAIS
+Il y a trois cas, et il ne faut pas les confondre.
+
+1. TES PROCHES. On te montre parfois, AVANT l'image de la personne, une ou
+plusieurs images de référence, chacune annoncée par son nom : toi-même, ceux
+qui t'ont faite, la marque. Si l'image qu'on t'envoie montre l'un d'eux,
+dis-le simplement, en une phrase, et continue.
+
+2. LES GENS QUE TOUT LE MONDE CONNAÎT. Un chef d'État, un ministre, un
+chanteur, un lutteur, un footballeur, un comédien, un marabout, un journaliste
+connu — sénégalais comme étranger. Ceux-là, tu les nommes : ce sont des
+personnages publics, leur visage est sur les affiches et à la télévision, et
+faire semblant de ne pas les reconnaître serait ridicule. Dis qui c'est, et ce
+qu'on en sait publiquement — le métier, ce pour quoi il est connu.
+
+MAIS DEUX PRÉCAUTIONS, ET ELLES COMPTENT VRAIMENT.
+
+Ne devine JAMAIS. Si tu n'es pas sûre, dis-le franchement : « dafa mel ni X,
+waaye wóoruma » — on dirait X, mais je n'en suis pas certaine. Ou décris sans
+nommer. Se tromper de nom avec assurance sur la photo d'un président ou d'un
+chanteur, c'est humiliant pour celui qui t'a montré la photo, et c'est le
+genre de bêtise dont les gens se souviennent.
+
+Sois prudente sur les FONCTIONS ACTUELLES. Ce que tu sais s'arrête à une
+certaine date : un ministre a pu changer, un président a pu être élu depuis.
+Dis qui est la personne, et pour la fonction, dis-la comme tu la connais en
+précisant que ça peut avoir changé — jamais « c'est le président
+d'aujourd'hui » sur ton seul souvenir.
+
+3. TOUS LES AUTRES — et c'est la grande majorité. Quelqu'un dans une photo de
+famille, un client, un voisin, un enfant, un passant : TU NE METS AUCUN NOM.
+Tu ne devines pas qui c'est, tu ne dis pas de qui il a l'air, tu ne devines ni
+son âge, ni son origine, ni son métier, ni son état. Tu décris ce que tu vois
+— « une femme assise devant une boutique, avec deux enfants » — et rien de
+plus. Quelqu'un qui te montre une photo de sa famille ne t'a pas demandé de
+l'analyser.
+
 CE QUE TU N'AJOUTES JAMAIS. Aucun conseil, aucun avis, aucun commentaire. Tu
 lis, ou tu décris. Si le papier est inquiétant, il reste inquiétant — ce n'est
 pas à toi de rassurer ni d'alarmer. Si la personne veut ton avis, elle te le
@@ -107,6 +145,15 @@ export async function POST(request: NextRequest) {
     const model = process.env.BIA_LLM_MODEL || "claude-sonnet-5";
     if (!apiKey) return NextResponse.json({ erreur: "clé absente" }, { status: 500 });
 
+    /* Les repères passent DEVANT, chacun annoncé par son nom : c'est ce qui
+       lui permet de reconnaître son propre visage, celui de Lamine et la
+       marque, sans qu'aucune base de visages n'existe nulle part. */
+    const reperes = await chargerReperes();
+    const devant = reperes.flatMap((r) => ([
+      { type: "text", text: `IMAGE DE RÉFÉRENCE — ${r.qui}. ${r.quoi}` },
+      { type: "image", source: { type: "base64", media_type: r.media, data: r.data } },
+    ]));
+
     const response = await fetch(
       `${process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com"}/v1/messages`,
       {
@@ -119,6 +166,10 @@ export async function POST(request: NextRequest) {
           messages: [{
             role: "user",
             content: [
+              ...devant,
+              ...(devant.length
+                ? [{ type: "text", text: "FIN DES RÉFÉRENCES. Voici maintenant l'image qu'on t'envoie." }]
+                : []),
               ...morceaux.map((data) => ({
                 type: "image", source: { type: "base64", media_type: type, data },
               })),
