@@ -1015,3 +1015,50 @@ button { font: inherit; touch-action: manipulation; }
   .elle-tape.fini { animation: none; opacity: 1; }
   .elle-tape.fini .touches rect { fill: #E8C55A; }
 }
+
+/* ── ANNULER PENDANT QU'ON PARLE ────────────────────────────────────────────
+   Le bouton rouge prend la place du clavier pendant qu'elle écoute. Rouge,
+   parce que c'est le seul geste destructeur de l'écran, et seul à cet endroit
+   pour qu'on ne le confonde avec rien. */
+.annuler-parole {
+  width: 54px; height: 54px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: 1px solid rgba(239, 68, 68, .55);
+  background: rgba(239, 68, 68, .16);
+  cursor: pointer; padding: 0;
+  animation: annuler-vient .22s ease-out;
+}
+.annuler-parole svg { width: 24px; height: 24px; fill: #ff8b8b; }
+.annuler-parole:active { background: rgba(239, 68, 68, .3); }
+@keyframes annuler-vient {
+  from { opacity: 0; transform: scale(.7); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* « Rien n'a été envoyé. Reprends quand tu veux. » — au-dessus de la rangée,
+   le temps de le lire. */
+.repris {
+  margin: 0 auto 10px; padding: 9px 15px;
+  max-width: 340px; text-align: center;
+  font-size: 13.5px; line-height: 1.45;
+  color: rgba(255, 255, 255, .82);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  background: rgba(255, 255, 255, .06);
+  animation: annuler-vient .24s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .annuler-parole, .repris { animation: none; }
+}
+
+/* « Je suis prête, parle doucement. » Le mode d'emploi tenait en un reproche
+   — « il n'y a pas de quoi écrire » — qui n'indiquait rien à faire. */
+.prete { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.prete .papier-note strong { color: #f0e2b4; font-weight: 700; }
+.parler-maintenant {
+  margin-top: 14px; align-self: stretch;
+  padding: 14px 18px; border: 0; border-radius: 14px;
+  font: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
+  background: #d4af37; color: #1a1405;
+}
+.parler-maintenant:active { background: #e8c55a; }

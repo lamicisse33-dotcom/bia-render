@@ -78,6 +78,9 @@ type Recognition = {
   continuous: boolean;
   start: () => void;
   stop: () => void;
+  /* stop() rend ce qu'il a entendu ; abort() jette tout. C'est abort qu'il
+     faut pour annuler, et il existe partout où la reconnaissance existe. */
+  abort?: () => void;
   onstart: (() => void) | null;
   onend: (() => void) | null;
   onerror: ((event: { error?: string }) => void) | null;
@@ -245,6 +248,15 @@ export default function Home() {
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const animationRef = useRef<number | null>(null);
   const enregistreurRef = useRef<MediaRecorder | null>(null);
+  /* ── ANNULER PENDANT QU'ON PARLE ────────────────────────────────────────
+     Demandé par Lamine le 10 septembre 2026 : « pendant qu'il parle, il peut
+     se tromper. Pour que ça ne soit pas transmis à BIA et qu'on ne perde pas
+     de temps, qu'il appuie sur annuler. »
+
+     Le drapeau est un ref et pas un état : il est lu dans onstop, qui a été
+     posé il y a longtemps et ne verrait jamais un état changé depuis. */
+  const annuleRef = useRef(false);
+  const [annule, setAnnule] = useState(false);
   const moteursRef = useRef<{ voix: string; ecoute: string } | null>(null);
   const tourRef = useRef<object | null>(null);
   const resumeRef = useRef("");
@@ -1542,6 +1554,20 @@ export default function Home() {
         flux.getTracks().forEach((t) => t.stop());
         contexte.close().catch(() => {});
         enregistreurRef.current = null;
+
+        /* ON JETTE AVANT DE TRANSCRIRE. C'est le tout l'intérêt du bouton :
+           rien ne part au réseau, rien n'est payé, et BIA n'a jamais entendu
+           la phrase ratée. Elle ne se retrouvera donc pas non plus dans le
+           fil ni dans ses notes. */
+        if (annuleRef.current) {
+          annuleRef.current = false;
+          setMode("ready");
+          setFace("yeux_ouverts");
+          setAnnule(true);
+          setTimeout(() => setAnnule(false), 3200);
+          return;
+        }
+
         if (!aParle || !morceaux.length) { setMode("ready"); return; }
 
         setMode("thinking");
@@ -1748,6 +1774,27 @@ export default function Home() {
     if (!recognitionRef.current) { setMode("error"); return; }
     if (mode === "listening") { recognitionRef.current.stop(); return; }
     try { recognitionRef.current.start(); } catch { setMode("error"); }
+  }
+
+  /* Annuler ce qu'on est en train de dire. On coupe l'enregistreur avec le
+     drapeau levé : c'est onstop qui jettera, et le chemin reste unique —
+     deux façons d'arrêter un micro finiraient par diverger. */
+  function annulerCeQueJeDis() {
+    if (mode !== "listening") return;
+    annuleRef.current = true;
+    taire();
+    if (enregistreurRef.current) arreterEnregistrement();
+    else if (recognitionRef.current) {
+      /* Le navigateur transcrit au fil de la parole : il n'y a pas
+         d'enregistrement à jeter, on l'arrête et on ignore ce qu'il rapporte. */
+      try { recognitionRef.current.abort?.(); } catch {}
+      try { recognitionRef.current.stop(); } catch {}
+      annuleRef.current = false;
+      setMode("ready");
+      setFace("yeux_ouverts");
+      setAnnule(true);
+      setTimeout(() => setAnnule(false), 3200);
+    }
   }
 
   function ouvrirClavier() {
@@ -2592,12 +2639,34 @@ export default function Home() {
         </a>
       ) : null}
 
+      {/* Ce qu'on lit après avoir annulé. Il ne dure que le temps de le lire :
+          c'est un accusé de réception, pas un avertissement. */}
+      {annule ? <p className="repris">Rien n&apos;a été envoyé. Reprends quand tu veux.</p> : null}
+
       <div className="barre">
+        {/* ── LE BOUTON ROUGE ──────────────────────────────────────────────
+            « Pendant qu'il parle, il peut se tromper. Pour que ça ne soit pas
+            transmis à BIA et qu'on ne perde pas de temps, qu'il appuie sur
+            annuler. » — Lamine, le 10 septembre 2026.
+
+            Il ne paraît QUE pendant qu'elle écoute, et il prend la place du
+            clavier : à ce moment-là, écrire n'a aucun sens, et un bouton
+            rouge doit être seul pour qu'on ne se trompe pas de geste. */}
+        {mode === "listening" ? (
+          <button className="annuler-parole" type="button"
+            onClick={annulerCeQueJeDis}
+            aria-label="Annuler ce que je viens de dire">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18.3 7.1 16.9 5.7 12 10.6 7.1 5.7 5.7 7.1l4.9 4.9-4.9 4.9 1.4 1.4 4.9-4.9 4.9 4.9 1.4-1.4-4.9-4.9Z" />
+            </svg>
+          </button>
+        ) : (
         <button className="clavier-ouvrir" type="button" onClick={ouvrirClavier} aria-label="Écrire à BIA">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M3 6h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Zm2 3v2h2V9H5Zm4 0v2h2V9H9Zm4 0v2h2V9h-2Zm4 0v2h2V9h-2ZM5 13v2h2v-2H5Zm4 0v2h6v-2H9Zm8 0v2h2v-2h-2Z" />
           </svg>
         </button>
+        )}
 
         <button className="microphone" type="button" onClick={toggleMicrophone}
           disabled={microFerme} aria-disabled={microFerme} aria-label={labels[mode]}>
@@ -2791,11 +2860,33 @@ export default function Home() {
           {service === "message" || service === "devis" || service === "lettre" ? (
             <>
               {papierOccupe && !papier ? <p className="papier-note">BIA écrit…</p> : null}
+              {/* ── ELLE DIT COMMENT LUI PARLER ────────────────────────────
+                  « Quand elle est prête, elle doit te dire comment parler pour
+                  que le message puisse être bien écrit. Si tu es prête pour
+                  commencer, commence et parle doucement, dis clairement tout
+                  ce que tu veux que j'écrive. » — Lamine, le 10 septembre 2026.
+
+                  Avant, l'écran disait seulement « il n'y a pas de quoi
+                  écrire » : un reproche, et aucune indication. Quelqu'un qui
+                  ne sait pas lire ne devinait pas ce qu'on attendait de lui.
+                  Elle explique maintenant, et le micro est à un geste. */}
               {!papier && !papierOccupe && !historyRef.current.length ? (
-                <p className="papier-note">
-                  Il n&apos;y a pas encore de quoi écrire. Parle-lui d&apos;abord de ce
-                  que tu veux dire, et pour qui.
-                </p>
+                <div className="prete">
+                  <p className="papier-titre">Maa ngi ci sa kanam.</p>
+                  <p className="papier-note">
+                    Je suis prête. Appuie sur le micro et <strong>parle doucement</strong> —
+                    dis clairement tout ce que tu veux que j&apos;écrive : pour qui c&apos;est,
+                    ce qu&apos;il faut dire, et les prix s&apos;il y en a.
+                  </p>
+                  <p className="papier-note">
+                    Si tu te trompes en parlant, touche le <strong>bouton rouge</strong> :
+                    rien ne m&apos;est envoyé et tu reprends depuis le début.
+                  </p>
+                  <button type="button" className="parler-maintenant"
+                    onClick={() => { setPapierOuvert(false); toggleMicrophone(); }}>
+                    Parler maintenant
+                  </button>
+                </div>
               ) : null}
               {papier && papier.doc.type === "devis" ? vueDevis(papier.doc, papier.totaux) : null}
               {papier && papier.doc.type === "lettre" ? vueLettre(papier.doc) : null}
