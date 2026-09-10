@@ -259,6 +259,47 @@ export default function Home() {
     setPartageable(typeof navigator !== "undefined" && typeof navigator.share === "function");
   }, []);
 
+  /* LE CLAVIER DU TÉLÉPHONE CACHAIT LE BOUTON DE FERMETURE.
+
+     Défaut signalé par Lamine le 10 septembre 2026 : « la fenêtre du clavier,
+     si tu l'ouvres, il n'y a pas de bouton fermer et ça ne se ferme pas, il
+     faut actualiser la page ».
+
+     Sur iPhone, le clavier ne rétrécit pas la page : il se pose PAR-DESSUS.
+     Un panneau collé en bas de l'écran passe donc dessous, et sa croix se
+     retrouve hors de vue — on appuie dans le vide. Le seul moyen de le savoir
+     est de mesurer la fenêtre VISIBLE, que le navigateur expose à part. On en
+     fait une variable de style, et les trois panneaux se posent dessus. */
+  useEffect(() => {
+    const vue = window.visualViewport;
+    if (!vue) return;
+    const poser = () => {
+      const bas = Math.max(0, window.innerHeight - (vue.height + vue.offsetTop));
+      document.documentElement.style.setProperty("--bas-clavier", `${Math.round(bas)}px`);
+    };
+    poser();
+    vue.addEventListener("resize", poser);
+    vue.addEventListener("scroll", poser);
+    return () => {
+      vue.removeEventListener("resize", poser);
+      vue.removeEventListener("scroll", poser);
+    };
+  }, []);
+
+  /* Échap referme, et sur un téléphone c'est le voile qui joue ce rôle : on
+     touche à côté, ça se referme. Deux façons de sortir valent mieux qu'une —
+     personne ne devrait avoir à recharger la page pour fermer une fenêtre. */
+  useEffect(() => {
+    const auClavier = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (corrige !== null) { setCorrige(null); setCorrection(""); setPropositions([]); return; }
+      if (papierOuvert) { setPapierOuvert(false); return; }
+      if (clavier) setClavier(false);
+    };
+    window.addEventListener("keydown", auClavier);
+    return () => window.removeEventListener("keydown", auClavier);
+  }, [corrige, papierOuvert, clavier]);
+
   useEffect(() => {
     mesuresRef.current = lireMesures();
     try { nomRef.current = localStorage.getItem("bia-nom") || ""; } catch {}
@@ -1062,6 +1103,60 @@ export default function Home() {
       busyRef.current = false;
     }
   }, [speak, attendreEnParlant, finirAttente]);
+
+  /* LE TEXTE FRANÇAIS QU'ON COLLE, DIT EN WOLOF.
+
+     Lamine, le 10 septembre 2026 : « elle doit pouvoir aussi copier un
+     message qui parle français, le coller, pour que ça soit traduit en wolof
+     à haute voix ».
+
+     C'est le pendant du message qu'elle écrit. Là, quelqu'un qui parle très
+     bien mais lit mal le français reçoit un SMS de sa banque, de l'école, de
+     l'hôpital — et il attend le soir que quelqu'un le lui lise. Ici il colle,
+     et il entend.
+
+     Ça ne passe PAS par la conversation : /api/chat lui répondrait en
+     français, puisqu'on lui écrit en français. C'est un chemin à part, où
+     elle ne répond pas et ne conseille pas — elle lit. */
+  const lireEnWolof = useCallback(async () => {
+    const texte = saisie.trim();
+    if (!texte || busyRef.current) return;
+    busyRef.current = true;
+    setSaisie("");
+    setHistory((items) => [...items, { role: "user", text: texte }]);
+    setMode("thinking");
+    setFace("pensive");
+    setPanne("");
+    langueRef.current = "wo";
+    departAttenteRef.current = Date.now();
+    voieRef.current = "ecrit";
+    tTranscritRef.current = 0;
+    tModeleRef.current = 0;
+
+    try {
+      const r = await fetch("/api/traduire", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+        body: JSON.stringify({ texte }),
+      });
+      const d = await r.json() as { wolof?: string; erreur?: string };
+      tModeleRef.current = Date.now();
+      if (!r.ok || !d.wolof) {
+        setPanne("Le texte n'a pas pu être lu. Réessaie.");
+        setMode("ready"); setFace("yeux_ouverts");
+        return;
+      }
+      emotionRef.current = "neutre";
+      setHistory((items) => [...items, { role: "bia", text: d.wolof as string }]);
+      setFace("yeux_ouverts");
+      speak(d.wolof);
+    } catch {
+      setPanne("Pas de réseau.");
+      setMode("error");
+    } finally {
+      busyRef.current = false;
+    }
+  }, [saisie, speak]);
 
   /* Pendant qu'elle réfléchit, le visage ne doit pas se figer — mais il ne
      doit pas s'agiter non plus.
@@ -1972,7 +2067,7 @@ export default function Home() {
 
       <section className="clavier" aria-hidden={!clavier}>
         <button className="clavier-fermer" type="button" onClick={() => setClavier(false)} aria-label="Replier le clavier">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.4 5.3 8.7l1.4-1.4 5.3 5.3 5.3-5.3 1.4 1.4Z" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 7.1 16.9 5.7 12 10.6 7.1 5.7 5.7 7.1l4.9 4.9-4.9 4.9 1.4 1.4 4.9-4.9 4.9 4.9 1.4-1.4-4.9-4.9Z" /></svg>
         </button>
 
         {panne ? <p className="panne">⚠ {panne}</p> : null}
@@ -2008,22 +2103,43 @@ export default function Home() {
             value={saisie}
             onChange={(e) => setSaisie(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") void askBia(saisie); }}
-            placeholder="Bindal ci wolof walla ci français…"
-            aria-label="Écrire un message à BIA"
+            placeholder="Bindal walla collal ci français…"
+            aria-label="Écrire un message à BIA, ou coller un texte français"
             enterKeyHint="send"
           />
+          {/* LIRE EN WOLOF UN TEXTE FRANÇAIS. On colle le SMS de la banque ou
+              de l'école, on appuie sur le haut-parleur, et on l'entend dans sa
+              langue. Elle ne répond pas, elle ne conseille pas : elle lit. */}
+          <button type="button" className="traduire" onClick={() => void lireEnWolof()}
+            disabled={!saisie.trim() || microFerme} aria-label="Me le lire en wolof">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 9h3.4L12 4.6v14.8L7.4 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1Zm12.5-1.6a5.6 5.6 0 0 1 0 9.2l-1.1-1.6a3.6 3.6 0 0 0 0-6l1.1-1.6Zm2.3-3.2a9.6 9.6 0 0 1 0 15.6l-1.1-1.6a7.6 7.6 0 0 0 0-12.4l1.1-1.6Z" />
+            </svg>
+          </button>
           <button type="button" onClick={() => void askBia(saisie)} disabled={!saisie.trim()} aria-label="Envoyer">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12 2-12 2Z" /></svg>
           </button>
         </div>
       </section>
 
+      {/* Toucher à côté referme. C'est le geste que tout le monde essaie
+          d'abord, et jusqu'ici il ne faisait rien. */}
+      {clavier || papierOuvert || corrige !== null ? (
+        <div className="voile" aria-hidden="true"
+          style={{ zIndex: corrige !== null ? 5 : papierOuvert ? 4 : 3 }}
+          onClick={() => {
+            if (corrige !== null) { fermerCorrection(); return; }
+            if (papierOuvert) { setPapierOuvert(false); return; }
+            setClavier(false);
+          }} />
+      ) : null}
+
       {/* LE PAPIER. Il monte par-dessus tout le reste, comme le clavier :
           un devis se lit, se corrige et se garde — on ne le récite pas. */}
       <section className="papier-panneau" aria-hidden={!papierOuvert}>
         <button className="clavier-fermer" type="button" onClick={() => setPapierOuvert(false)}
           aria-label="Refermer le papier">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.4 5.3 8.7l1.4-1.4 5.3 5.3 5.3-5.3 1.4 1.4Z" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 7.1 16.9 5.7 12 10.6 7.1 5.7 5.7 7.1l4.9 4.9-4.9 4.9 1.4 1.4 4.9-4.9 4.9 4.9 1.4-1.4-4.9-4.9Z" /></svg>
         </button>
 
         <div className="papier-corps scrollbar-thin">
@@ -2088,7 +2204,7 @@ export default function Home() {
       <section className="correction-panneau" aria-hidden={corrige === null}>
         <button className="clavier-fermer" type="button" onClick={fermerCorrection}
           aria-label="Refermer la correction">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.4 5.3 8.7l1.4-1.4 5.3 5.3 5.3-5.3 1.4 1.4Z" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 7.1 16.9 5.7 12 10.6 7.1 5.7 5.7 7.1l4.9 4.9-4.9 4.9 1.4 1.4 4.9-4.9 4.9 4.9 1.4-1.4-4.9-4.9Z" /></svg>
         </button>
 
         <div className="papier-corps scrollbar-thin">
