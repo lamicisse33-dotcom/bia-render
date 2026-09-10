@@ -1792,7 +1792,25 @@ export default function Home() {
      l'homme du métier puisse poser l'œil dessus et rectifier lui-même, sans
      refaire toute la conversation. Les totaux, eux, sont recalculés ici à
      chaque frappe — jamais retapés à la main, jamais demandés au modèle. */
+  /* ── CE QUI REVIENT TROP TARD NE DOIT PLUS PARLER ─────────────────────────
+
+     Vu par Lamine le 10 septembre 2026 : une capture où l'écran PAPIER-PHOTO
+     affichait « Il n'y a pas encore de quoi écrire. Dis-lui d'abord ce que le
+     papier doit dire » — un message qui appartient au message et au devis, pas
+     à la photo.
+
+     Il avait demandé un message, la fabrication était partie, il a changé de
+     service sans attendre. La réponse est revenue après, et a écrit son échec
+     sur un écran qui ne l'avait pas demandée.
+
+     Chaque demande porte donc un jeton. Au retour, si le jeton n'est plus le
+     dernier, on se tait : le résultat concerne une page que la personne a
+     quittée. */
+  const demandePapier = useRef(0);
+
   const fabriquerPapier = useCallback(async (sorte: Sorte) => {
+    const jeton = ++demandePapier.current;
+    const perime = () => jeton !== demandePapier.current;
     setPapierOccupe(true);
     setPapierErreur("");
     setPdf("");
@@ -1808,6 +1826,7 @@ export default function Home() {
         }),
       });
       const d = await r.json() as { document?: Papier; totaux?: Totaux | null; erreur?: string };
+      if (perime()) return;
       if (!r.ok || !d.document) {
         /* Dire LEQUEL des trois échecs, sinon on ne peut rien corriger.
            « Réessaie dans un instant » était vrai une fois sur trois et
@@ -1824,9 +1843,10 @@ export default function Home() {
       }
       setPapier({ doc: d.document, totaux: d.totaux ?? null });
     } catch {
+      if (perime()) return;
       setPapierErreur("Pas de réseau. Le papier n'a pas pu être fabriqué.");
     } finally {
-      setPapierOccupe(false);
+      if (!perime()) setPapierOccupe(false);
     }
   }, []);
 
@@ -1851,6 +1871,9 @@ export default function Home() {
      s'ouvre, et elle seule. Le papier d'un autre service est mis de côté :
      mélanger un devis et une lettre à l'écran n'aiderait personne. */
   function ouvrirService(quoi: Service) {
+    // Ce qui était en train de se fabriquer ne concerne plus cette page.
+    demandePapier.current += 1;
+    setPapierOccupe(false);
     setService(quoi);
     setPapierErreur("");
     setFiche(quoi === "fiche");
