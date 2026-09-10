@@ -24,7 +24,13 @@ import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
 /* Un message peut porter le RENVOI vers un papier — son identifiant, pas son
    contenu. Le papier lui-même vit dans sa propre boîte, qui ne se rogne
    jamais ; le fil ne garde que la trace de l'endroit où il a été écrit. */
-type Message = { role: "bia" | "user"; text: string; papier?: string };
+type Message = {
+  role: "bia" | "user";
+  text: string;
+  papier?: string;
+  /** Cette phrase a été corrigée à la main : c'est la bonne, pas la sienne. */
+  corrige?: boolean;
+};
 
 /* ── SES RENSEIGNEMENTS À LUI ───────────────────────────────────────────────
    Donnés une fois, gardés sur l'appareil, reposés sur chaque papier. Le NINEA
@@ -1720,7 +1726,11 @@ export default function Home() {
        toujours dans la boîte : on verrait une liste pleine et un fil vide. */
     try {
       const recents = history.slice(-40);
-      const anciens = history.slice(0, Math.max(0, history.length - 40)).filter((m) => m.papier);
+      /* Ce qui porte un papier OU une correction ne se rogne pas. Une
+         correction est le travail de la personne : la perdre dans le résumé,
+         c'est exactement ce dont Lamine se plaignait. */
+      const anciens = history.slice(0, Math.max(0, history.length - 40))
+        .filter((m) => m.papier || m.corrige);
       localStorage.setItem(cleFil(profilRef.current), JSON.stringify([...anciens, ...recents]));
     } catch {}
 
@@ -1739,7 +1749,7 @@ export default function Home() {
         /* Même règle qu'à la sauvegarde : ce qui porte un papier ne se rogne
            pas. Le reste est résumé, et c'est très bien. */
         setHistory((items) => [
-          ...items.slice(0, Math.max(0, items.length - 16)).filter((m) => m.papier),
+          ...items.slice(0, Math.max(0, items.length - 16)).filter((m) => m.papier || m.corrige),
           ...items.slice(-16),
         ]);
         try { localStorage.setItem(cleResume(profilRef.current), d.resume); } catch {}
@@ -1925,6 +1935,26 @@ export default function Home() {
       });
       const d = await r.json() as { ok?: boolean; erreur?: string };
       setAvis(d.ok ? "Jërëjëf. BIA le retiendra." : (d.erreur || "La correction n'a pas été gardée."));
+
+      /* ── LA CORRECTION PREND LA PLACE DE LA PHRASE FAUSSE ─────────────────
+         Signalé par Lamine le 10 septembre 2026 : « quand je corrige quelque
+         chose, si je rouvre la discussion, je ne trouve pas mes corrections,
+         je trouve juste l'ancienne discussion telle qu'elle était. Ce n'est
+         pas normal, même si c'est enregistré sur le serveur : ça doit être
+         dans la discussion, parce que ELLE s'en sert. »
+
+         Il a mis le doigt sur ce qui comptait. La correction partait bien
+         dans le lexique, mais le fil gardait la phrase fausse — et le fil est
+         exactement ce qu'on renvoie au modèle à chaque question. Elle relisait
+         donc sa propre erreur à chaque tour, et la personne rouvrait une
+         conversation où son travail avait disparu.
+
+         La bonne formulation remplace donc la mauvaise, sur place. Le fil
+         étant gardé sur l'appareil, elle y est encore demain. */
+      if (d.ok) {
+        setHistory((items) =>
+          items.map((m, i) => (i === index ? { ...m, text: bonne, corrige: true } : m)));
+      }
     } catch {
       setAvis("La correction n'a pas été gardée.");
     }
@@ -2820,14 +2850,17 @@ export default function Home() {
             }
             return (
               <div key={i} className={m.role === "bia" ? "ligne ligne-bia" : "ligne ligne-moi"}>
-                <p className={m.role === "bia" ? "bulle bulle-bia" : "bulle bulle-moi"}>
+                <p className={
+                  (m.role === "bia" ? "bulle bulle-bia" : "bulle bulle-moi")
+                  + (m.corrige ? " corrigee" : "")
+                }>
                   {m.text.split(/\n{2,}/).map((para, n) => (
                     <span className="para" key={n}>{para.trim()}</span>
                   ))}
                 </p>
                 {m.role === "bia" && i > 0 ? (
                   <button className="mal-dit" type="button" onClick={() => ouvrirCorrection(i)}>
-                    Mal dit
+                    {m.corrige ? "Corrigé par toi — retoucher" : "Mal dit"}
                   </button>
                 ) : null}
               </div>

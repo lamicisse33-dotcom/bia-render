@@ -1071,3 +1071,10 @@ button { font: inherit; touch-action: manipulation; }
   background: #2e7d4f; color: #eafff2; border: 0; font-weight: 700;
 }
 .papier-pied.valider .oui:active { background: #379a60; }
+
+/* Une phrase corrigée à la main. Un trait d'or à gauche : c'est le travail de
+   la personne, pas celui de BIA — et c'est cette version-là qu'elle relira. */
+.bulle.corrigee {
+  border-left: 2px solid rgba(212, 175, 55, .6);
+  padding-left: 12px;
+}
