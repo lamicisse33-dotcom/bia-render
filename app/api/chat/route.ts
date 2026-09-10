@@ -5,6 +5,7 @@ import { savoirKhalam } from "@/lib/khalam";
 import { SOCLE_RELATIONS, consigneRelations, estSujetRelation } from "@/lib/relations";
 import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterEmotion } from "@/lib/emotions-vues";
+import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
 
@@ -328,7 +329,17 @@ export async function POST(request:NextRequest){
       console.error("BIA — lexique injoignable :",(err as Error).message);
     }
 
-    const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:900,system:consigne,messages:[...history,{role:"user",content:question}]})});
+    /* INTERNET, SEULEMENT QUAND LA QUESTION LE DEMANDE.
+
+       L'outil de recherche coûte environ six francs à chaque usage, plus les
+       jetons de ce qu'il rapporte, et ajoute quelques secondes à une attente
+       déjà longue. On ne le joint donc qu'aux questions qui portent sur
+       quelque chose qui change — ou quand la personne l'a réclamé. Et il
+       reste éteint tant que BIA_RECHERCHE n'est pas posé dans Render. */
+    const cherche = rechercheActive() && besoinDInternet(question, filDitPar);
+    if (cherche) consigne += CONSIGNE_RECHERCHE;
+
+    const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:cherche?1400:900,system:consigne,messages:[...history,{role:"user",content:question}],...(cherche?{tools:[OUTIL_RECHERCHE]}:{})})});
 
     if(!response.ok){
       const detail=await response.text().catch(()=>"");
@@ -350,7 +361,7 @@ export async function POST(request:NextRequest){
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
-    return NextResponse.json({reply,emotion,papier,source:"BIA intelligente"});
+    return NextResponse.json({reply,emotion,papier,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message);
