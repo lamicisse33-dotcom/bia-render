@@ -883,3 +883,35 @@ button { font: inherit; touch-action: manipulation; }
   background: rgba(212,175,55,.13);
   color: #e7c667;
 }
+
+/* ── APPELER ─────────────────────────────────────────────────────────────
+   Une application web ne compose pas un numéro toute seule, et c'est très
+   bien ainsi : BIA prépare l'appel, le téléphone ouvre son clavier avec le
+   numéro déjà écrit, et c'est la personne qui appuie. Elle prépare, elle ne
+   décroche pas. */
+.appeler {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 96px);
+  display: flex; align-items: center; gap: 12px;
+  max-width: min(88vw, 420px);
+  padding: 12px 20px 12px 16px;
+  border-radius: 22px;
+  background: #1f7a3d;
+  color: #fff;
+  text-decoration: none;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.12) inset;
+  transform: translateX(-50%);
+  animation: appel-arrive .3s ease both;
+}
+.appeler:active { transform: translateX(-50%) scale(.97); }
+.appeler svg { width: 26px; height: 26px; fill: currentColor; flex: none; }
+.appeler span { display: flex; flex-direction: column; min-width: 0; }
+.appeler b { font-size: 15px; font-weight: 600; }
+.appeler i { font-style: normal; font-size: 13px; opacity: .85; letter-spacing: .04em; }
+.bia-presence[data-clavier="ouvert"] .appeler { opacity: 0; pointer-events: none; }
+@keyframes appel-arrive {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%); }
+}

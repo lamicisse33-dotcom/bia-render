@@ -193,6 +193,11 @@ export default function Home() {
   const [aRetirer, setARetirer] = useState<string | null>(null);
   /** La photo d'un papier, pendant qu'elle la lit. */
   const [photoOccupe, setPhotoOccupe] = useState(false);
+  /* L'APPEL PRÉPARÉ. Demandé par Lamine le 10 septembre 2026 : « elle doit
+     pouvoir lancer des appels ». Une application web ne compose pas un numéro
+     toute seule — et c'est heureux : ce qu'elle fait, c'est ouvrir le clavier
+     du téléphone avec le numéro déjà écrit. La personne appuie, ou pas. */
+  const [appel, setAppel] = useState<{ numero: string; nom: string } | null>(null);
   /* LES SERVICES, EN RANGÉE. Demande de Lamine, le 10 septembre 2026 : « tous
      les services vont être des boutons sur ces points ; dès que tu appuies,
      c'est seulement cette page qui s'ouvre ». Un seul service ouvert à la
@@ -1052,6 +1057,7 @@ export default function Home() {
     setMode("thinking");
     setFace("pensive");
     setPanne("");
+    setAppel(null);
 
     /* Il a prononcé le mot « devis », « fakture », « bataaxal ». Le bouton
        s'allume tout de suite, sans attendre que BIA le décide : elle peut
@@ -1091,7 +1097,7 @@ export default function Home() {
             : ""].filter(Boolean).join("\n"),
         }),
       });
-      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; source?: string };
+      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; source?: string };
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
       /* ICI SE JOUAIT LE SILENCE.
          On coupait l'attente à l'arrivée du TEXTE. Mais la voix, elle, n'est
@@ -1117,6 +1123,8 @@ export default function Home() {
         setPapierPret(data.papier);
         setPapier(null);
       }
+      // Elle a un numéro à composer : le bouton s'allume jusqu'au tour suivant.
+      if (data.appel?.numero) setAppel(data.appel);
       setPanne(data.source && data.source.startsWith("panne") ? data.source : "");
       setHistory((items) => [...items, { role: "bia", text: data.reply }]);
       // Le visage prend l'émotion tout de suite, avant même la voix : c'est
@@ -2290,6 +2298,7 @@ export default function Home() {
     // Nouvelle conversation, donc nouvelle présentation : elle redira une
     // fois « je t'ai bien entendu », puis se taira comme avant.
     presentationFaiteRef.current = false;
+    setAppel(null);
     // Le papier appartenait à la conversation d'avant.
     setPapierPret(null);
     setPapier(null);
@@ -2355,6 +2364,22 @@ export default function Home() {
       {/* Elle réfléchit. Pas un mot à l'écran : trois points d'or qui
           respirent, et le silence. */}
       <div className="lueur" aria-hidden="true"><span /><span /><span /></div>
+
+      {/* APPELER. Le numéro est déjà écrit ; il ne reste qu'à appuyer. Ce
+          bouton n'apparaît que lorsqu'elle a préparé un appel, et disparaît
+          à la question suivante. */}
+      {appel ? (
+        <a className="appeler" href={`tel:${appel.numero}`}
+          onClick={() => setTimeout(() => setAppel(null), 1500)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6.6 10.8a15.6 15.6 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.58 3.6a1 1 0 0 1-.25 1l-2.23 2.2Z" />
+          </svg>
+          <span>
+            <b>Appeler {appel.nom || ""}</b>
+            <i>{appel.numero}</i>
+          </span>
+        </a>
+      ) : null}
 
       <div className="barre">
         <button className="clavier-ouvrir" type="button" onClick={ouvrirClavier} aria-label="Écrire à BIA">

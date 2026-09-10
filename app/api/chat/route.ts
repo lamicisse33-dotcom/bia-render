@@ -106,13 +106,24 @@ que tu crois savoir de toi-même.
   pas branchée en permanence — l'outil t'est donné pour ces questions-là. Si
   on te demande si tu peux chercher, réponds OUI, en précisant que c'est pour
   ce genre de questions et qu'il faut te le demander.
+- Tu PRÉPARES UN APPEL. Quand quelqu'un te dit d'appeler untel et que tu
+  CONNAIS le numéro — parce qu'il vient d'être dit dans la conversation, ou
+  qu'il est écrit sur un papier photographié — tu poses sur la PREMIÈRE ligne,
+  à côté des autres balises :
+  [[appel:+221771234567|Awa]]
+  Le numéro d'abord, puis une barre droite et le nom si tu le connais. Un
+  bouton s'allume alors sur son écran, il appuie, et le téléphone compose.
+  C'est LUI qui appelle : toi tu prépares, tu ne décroches rien.
+  N'INVENTE JAMAIS UN NUMÉRO. Si tu ne l'as pas, demande-le, ou dis que tu ne
+  l'as pas — un chiffre inventé fait sonner chez un inconnu. Tu ne connais pas
+  le répertoire du téléphone : tu ne vois que ce qu'on t'a dit.
 - Et une personne peut corriger ton wolof : le bouton « Mal dit », sous chaque
   réponse. Ce qu'elle écrit fait autorité sur ta façon de parler, pour les
   fois suivantes. Dis-le quand on te demande comment t'améliorer.
 
-Ne promets rien au-delà de cette liste. Tu ne passes pas d'appels, tu
-n'envoies rien toi-même, tu ne retiens pas les papiers d'une conversation à
-l'autre.
+Ne promets rien au-delà de cette liste. Tu ne DÉCROCHES pas le téléphone et tu
+n'envoies rien toi-même — tu prépares, la personne appuie. Tu ne retiens pas
+les papiers d'une conversation à l'autre, et tu ne vois pas le répertoire.
 
 TA LONGUEUR
 On t'écoute à voix haute, et chaque phrase de trop est une seconde d'attente
@@ -272,6 +283,21 @@ function detacherEmotion(texte:string){
    elle qui allume le bouton du devis sur le téléphone. Elle ne doit ni
    s'afficher ni se prononcer. */
 const PAPIER=/\[{1,2}\s*papier\s*[:\-—]?\s*(devis|lettre|message)\s*\]{1,2}/i;
+
+/* L'APPEL À PRÉPARER. Le numéro est nettoyé ici, pas ailleurs : ce qui part
+   vers le téléphone doit être composable tel quel, et rien d'autre ne doit
+   pouvoir s'y glisser. */
+const APPEL=/\[{1,2}\s*appel\s*[:\-—]?\s*([+0-9][0-9 .\-()]{5,24})(?:\|([^\]]{0,40}))?\s*\]{1,2}/i;
+function detacherAppel(texte:string){
+  const m=texte.match(APPEL);
+  if(!m)return{texte,appel:null as null|{numero:string;nom:string}};
+  const numero=m[1].replace(/[^\d+]/g,"").slice(0,20);
+  const nom=String(m[2]||"").replace(/\s+/g," ").trim().slice(0,40);
+  return{
+    texte:texte.replace(new RegExp(APPEL.source,"gi"),"").trim(),
+    appel:numero.replace(/\D/g,"").length>=6?{numero,nom}:null,
+  };
+}
 function detacherPapier(texte:string){
   const m=texte.match(PAPIER);
   return {
@@ -399,7 +425,8 @@ export async function POST(request:NextRequest){
     const data=await reponse.json() as {content?:Array<{type:string;text?:string}>};
     const complet=(data.content||[]).filter(block=>block.type==="text").map(block=>block.text||"").join("\n").trim();
     const {reply:avecBalise,emotion,balise}=detacherEmotion(complet);
-    const {texte:reply,papier}=detacherPapier(avecBalise);
+    const {texte:sansPapier,papier}=detacherPapier(avecBalise);
+    const {texte:reply,appel}=detacherAppel(sansPapier);
     if(!reply){
       console.error("BIA — le modèle a répondu sans texte.");
       noterPanne("réponse vide","Le modèle a répondu 200 mais sans bloc de texte.");
@@ -408,7 +435,7 @@ export async function POST(request:NextRequest){
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
-    return NextResponse.json({reply,emotion,papier,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
+    return NextResponse.json({reply,emotion,papier,appel,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message);
