@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  A_FABRIQUER, CHAPEAU, PARTIE_1, PARTIE_1_CONNU, PARTIE_2,
+  A_FABRIQUER, CHAPEAU, PARTIE_1, PARTIE_1_CONNU,
   dire, extraireNom, fichierDe as fichierDeParole,
 } from "@/lib/attente";
 import type { Langue, Parole } from "@/lib/attente";
@@ -177,6 +177,9 @@ export default function Home() {
      au milieu d'un mot — et `phraseEnCours` est cette phrase, qu'on attend
      avant d'enchaîner. */
   const stopAttenteRef = useRef(false);
+  /* La présentation n'est dite QU'UNE FOIS par conversation, au tout premier
+     échange. Après, plus un mot d'attente : le silence et la lueur. */
+  const presentationFaiteRef = useRef(false);
   /** Le son d'attente en cours, avec son réglage de volume pour le couper net. */
   const attenteSonRef = useRef<{ source: AudioBufferSourceNode; volume: GainNode } | null>(null);
   /** Le prénom de la personne, gardé sur l'appareil. */
@@ -198,7 +201,7 @@ export default function Home() {
   const tTranscritRef = useRef(0);
   const tModeleRef = useRef(0);
   const voieRef = useRef<Voie>("ecrit");
-  const attenteCache = useRef<Map<string, ArrayBuffer>>(new Map());
+  const attenteCache = useRef<Map<string, ArrayBuffer[]>>(new Map());
   const toursRef = useRef(0);
   const cacheSons = useRef<Map<string, ArrayBuffer>>(new Map());
   const dernierSon = useRef<string | null>(null);
@@ -499,40 +502,57 @@ export default function Home() {
     const garde = attenteCache.current.get(texte);
     if (garde) return garde;
 
+    // Le fichier tout prêt, s'il existe : gratuit, instantané, d'un seul bloc.
     if (!p.wo.includes("{nom}")) {
       try {
         const f = await fetch(fichierDeParole(p, langue), { cache: "force-cache" });
         if (f.ok) {
           const octets = await f.arrayBuffer();
           if (octets.byteLength > 512) {
-            attenteCache.current.set(texte, octets);
-            return octets;
+            const morceaux = [octets];
+            attenteCache.current.set(texte, morceaux);
+            return morceaux;
           }
         }
       } catch {}
     }
 
-    const r = await fetch("/api/voix", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-      body: JSON.stringify({ texte, partie: 0 }),
-    });
-    if (!r.ok) throw new Error("voix indisponible");
-    const d = await r.json() as { audio: string | null };
-    if (!d.audio) throw new Error("voix muette");
-    const octets = octetsDeBase64(d.audio);
-    attenteCache.current.set(texte, octets);
-    return octets;
+    /* TOUS LES MORCEAUX, PAS SEULEMENT LE PREMIER.
+       Le serveur découpe en escalier : le premier morceau ne fait que 110
+       signes, pour que la RÉPONSE démarre vite. Une parole d'attente de six
+       cents signes réclamée avec `partie: 0` revenait donc tronquée à sa
+       première phrase — sept secondes au lieu de quarante-deux — et BIA
+       repartait au début, encore et encore. C'est ce que Lamine a entendu. */
+    const demander = async (partie: number) => {
+      const r = await fetch("/api/voix", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+        body: JSON.stringify({ texte, partie }),
+      });
+      if (!r.ok) throw new Error("voix indisponible");
+      return await r.json() as { parties: number; audio: string | null };
+    };
+
+    const premier = await demander(0);
+    if (!premier.audio) throw new Error("voix muette");
+    const morceaux = [octetsDeBase64(premier.audio)];
+    for (let i = 1; i < (premier.parties || 1); i++) {
+      const suite = await demander(i);
+      if (!suite.audio) break;
+      morceaux.push(octetsDeBase64(suite.audio));
+    }
+    attenteCache.current.set(texte, morceaux);
+    return morceaux;
   }, []);
 
   /* Jouer une parole d'attente, et pouvoir la couper au milieu d'un mot sans
      que ça claque. D'où le réglage de volume : on ne stoppe pas la source, on
      la descend à zéro en quarante millisecondes, puis on la stoppe. */
-  const direParole = useCallback((octets: ArrayBuffer, jeton: object) =>
-    new Promise<void>((fini) => {
+  const direUnMorceau = useCallback((octets: ArrayBuffer, jeton: object, quand = 0) =>
+    new Promise<number>((fini) => {
       const ctx = contexte();
       let rendu = false;
-      const rendre = () => { if (!rendu) { rendu = true; fini(); } };
+      const rendre = (fin = 0) => { if (!rendu) { rendu = true; fini(fin); } };
       ctx.decodeAudioData(octets.slice(0)).then((brut) => {
         if (attenteRef.current !== jeton) return rendre();
         const mémoire = sansSilence(ctx, brut);
@@ -543,7 +563,7 @@ export default function Home() {
         source.connect(volume);
         volume.connect(ctx.destination);
 
-        const depart = ctx.currentTime + 0.03;
+        const depart = Math.max(ctx.currentTime + 0.03, quand);
         let precedente: Face | null = null;
         let dernierChangement = -1e9;
         const suivre = () => {
@@ -558,18 +578,30 @@ export default function Home() {
           animationRef.current = requestAnimationFrame(suivre);
         };
 
+        const fin = depart + mémoire.duration;
         source.onended = () => {
           if (attenteSonRef.current?.source === source) attenteSonRef.current = null;
-          rendre();
+          rendre(fin);
         };
         attenteSonRef.current = { source, volume };
         setMode("speaking");
         source.start(depart);
         animationRef.current = requestAnimationFrame(suivre);
         // Filet : si le son ne sort pas, on ne reste pas bloqué.
-        setTimeout(rendre, mémoire.duration * 1000 + 1200);
+        setTimeout(() => rendre(fin), (fin - ctx.currentTime) * 1000 + 1200);
       }).catch(() => rendre());
     }), [contexte]);
+
+  /* Une parole entière : ses morceaux programmés bout à bout sur l'horloge du
+     son, sans couture — la même technique que pour la réponse. */
+  const direParole = useCallback(async (morceaux: ArrayBuffer[], jeton: object) => {
+    let quand = 0;
+    for (const octets of morceaux) {
+      if (attenteRef.current !== jeton || stopAttenteRef.current) return;
+      quand = await direUnMorceau(octets, jeton, quand);
+      if (!quand) return;
+    }
+  }, [direUnMorceau]);
 
   /** Couper l'attente immédiatement, proprement, sans claquement. */
   const couperAttente = useCallback(() => {
@@ -583,18 +615,29 @@ export default function Home() {
     } catch { try { en.source.stop(); } catch {} }
   }, [contexte]);
 
-  /* ── LES TROIS TEMPS ──────────────────────────────────────────────────
-     Elle parle du moment où le micro se coupe jusqu'à ce que la réponse
-     soit prête. La partie 2 dure quarante-deux secondes en wolof pour une
-     attente mesurée de onze à seize : elle est rejouée si jamais elle
-     s'épuise, mais ça n'arrive qu'au réveil du serveur. */
+  /* ── L'ATTENTE, TELLE QUE LAMINE L'A REDESSINÉE ────────────────────────
+
+     Avant : elle meublait tout le temps mort en parlant, et une phrase de
+     quarante secondes revenait à chaque tour. Entendue une fois, c'est
+     accueillant ; entendue à chaque question, c'est une machine qui récite.
+     C'est ce qui a gâché la démonstration.
+
+     Maintenant : la présentation — « je t'ai bien entendu, comment tu
+     t'appelles ? » — est dite UNE SEULE FOIS, au tout premier échange de la
+     conversation. Ensuite, plus rien : le silence, et une lueur dorée qui
+     respire près de son visage. Comme Siri, comme ChatGPT. Quand la réponse
+     est prête, la lueur s'éteint et elle parle. */
   const attendreEnParlant = useCallback(async (jeton: object, langue: Langue) => {
+    // Après le premier échange, elle se tait : c'est toute la règle.
+    if (presentationFaiteRef.current) return;
+    presentationFaiteRef.current = true;
+
     const jouer = async (p: Parole, nom = "") => {
       if (attenteRef.current !== jeton || stopAttenteRef.current) return false;
-      let octets: ArrayBuffer;
-      try { octets = await audioParole(p, langue, nom); } catch { return false; }
+      let morceaux: ArrayBuffer[];
+      try { morceaux = await audioParole(p, langue, nom); } catch { return false; }
       if (attenteRef.current !== jeton || stopAttenteRef.current) return false;
-      await direParole(octets, jeton);
+      await direParole(morceaux, jeton);
       return attenteRef.current === jeton && !stopAttenteRef.current;
     };
 
@@ -621,10 +664,12 @@ export default function Home() {
       if (tout_neuf) nouveauNomRef.current = tout_neuf;
     }
 
-    // 2. La longue, jusqu'à ce que la réponse arrive.
-    for (let tour = 0; tour < 4; tour++) {
-      if (!await jouer(PARTIE_2)) return;
+    /* 2. ET C'EST TOUT. Elle se tait, le visage reprend l'air pensif, et la
+       lueur dorée respire jusqu'à ce que la réponse arrive. Rien n'est
+       répété, rien ne se superpose, rien ne se coupe au milieu d'un mot. */
+    if (attenteRef.current === jeton && !stopAttenteRef.current) {
       setMode("thinking");
+      setFace("pensive");
     }
   }, [audioParole, direParole]);
 
@@ -673,15 +718,20 @@ export default function Home() {
     const parlait = Boolean(attenteSonRef.current);
     stopAttenteRef.current = true;
     attenteRef.current = null;
-    attendLeNomRef.current = false;
+    /* Un cas fin : la réponse arrive pendant qu'elle attend le prénom, micro
+       ouvert. Si on remet le drapeau à faux ici, ce que le micro a déjà pris
+       repartira comme une NOUVELLE question par-dessus la réponse. Tant que
+       l'enregistreur tourne, on laisse le drapeau : ce qu'il rapportera sera
+       traité comme un prénom, puis oublié. */
+    if (!enregistreurRef.current) attendLeNomRef.current = false;
     couperAttente();
     if (parlait) {
       try {
-        const octets = await audioParole(CHAPEAU, langue);
+        const morceaux = await audioParole(CHAPEAU, langue);
         const jeton = {};
         attenteRef.current = jeton;
         stopAttenteRef.current = false;
-        await direParole(octets, jeton);
+        await direParole(morceaux, jeton);
         attenteRef.current = null;
       } catch {}
     }
@@ -1332,6 +1382,9 @@ export default function Home() {
     couperSon();
     window.speechSynthesis?.cancel();
     setHistory([]);
+    // Nouvelle conversation, donc nouvelle présentation : elle redira une
+    // fois « je t'ai bien entendu », puis se taira comme avant.
+    presentationFaiteRef.current = false;
     try { localStorage.removeItem("bia-fil"); } catch {}
     // Les notes ne sont PAS effacées : c'est justement ce qui fait qu'elle se
     // souvient de la personne d'une conversation à l'autre.
@@ -1387,6 +1440,10 @@ export default function Home() {
         <div className="avatar" data-face={face} />
       </div>
 
+
+      {/* Elle réfléchit. Pas un mot à l'écran : trois points d'or qui
+          respirent, et le silence. */}
+      <div className="lueur" aria-hidden="true"><span /><span /><span /></div>
 
       <div className="barre">
         <button className="clavier-ouvrir" type="button" onClick={ouvrirClavier} aria-label="Écrire à BIA">

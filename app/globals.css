@@ -147,6 +147,47 @@ button { font: inherit; touch-action: manipulation; }
   50% { box-shadow: 0 0 0 18px rgba(222, 40, 83, .06), 0 0 52px rgba(222, 40, 83, .7); }
 }
 
+/* ── LA LUEUR QUI RESPIRE ────────────────────────────────────────────────
+   Ce qui remplace la voix d'attente. Depuis le 10 septembre, BIA ne meuble
+   plus le silence en parlant : elle se présente une fois au début de la
+   conversation, puis se tait. Il fallait donc autre chose pour dire « je
+   suis là, je réfléchis » — sans un mot à l'écran, la règle de Lamine.
+
+   Trois points d'or qui respirent l'un après l'autre. De l'or sur du noir,
+   rien d'autre : c'est la couleur de BIA. Ni texte, ni roue qui tourne —
+   une roue dit « ça charge », une respiration dit « quelqu'un réfléchit ». */
+.lueur {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 92px);
+  display: flex;
+  gap: 11px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .45s ease;
+}
+.bia-presence[data-mode="thinking"] .lueur { opacity: 1; }
+/* Repliée avec la barre : quand le clavier est ouvert, l'écran appartient
+   au texte, et la lueur n'a plus rien à dire. */
+.bia-presence[data-clavier="ouvert"] .lueur { opacity: 0; }
+
+.lueur span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d4af37;
+  animation: lueur 1.85s ease-in-out infinite;
+}
+.lueur span:nth-child(2) { animation-delay: .28s; }
+.lueur span:nth-child(3) { animation-delay: .56s; }
+
+@keyframes lueur {
+  0%, 100% { transform: scale(.72); opacity: .34; box-shadow: 0 0 0 rgba(212, 175, 55, 0); }
+  42%      { transform: scale(1);   opacity: 1;   box-shadow: 0 0 18px rgba(212, 175, 55, .55); }
+}
+
 @media (max-width: 600px) and (orientation: portrait) {
   .portrait { inset: 0 0 52px; }
   .avatar {
@@ -167,6 +208,9 @@ button { font: inherit; touch-action: manipulation; }
 
 @media (prefers-reduced-motion: reduce) {
   .avatar, .microphone { animation: none !important; }
+  /* On ne supprime pas la lueur : sans elle, plus aucun signe qu'elle
+     travaille. On lui enlève seulement le mouvement. */
+  .lueur span { animation: none !important; opacity: .8; }
 }
 
 /* ── Barre du bas : clavier à gauche, micro au centre ───────────────────── */

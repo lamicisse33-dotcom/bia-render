@@ -11,22 +11,23 @@
    Sa solution, et elle est meilleure : UNE SEULE VOIX, qui pense tout haut
    d'un bout à l'autre, coupée net quand la réponse est prête.
 
-   TROIS TEMPS.
+   ET UNE DEUXIÈME FOIS, LE MÊME SOIR : la longue phrase qui remplaçait les
+   cinquante-six a tenu deux heures. Répétée à chaque question, elle agaçait
+   autant, et faisait paraître l'attente plus longue qu'elle n'est.
 
-   1. À la seconde où le micro se coupe — elle dit qu'elle a entendu, elle se
-      nomme, et elle demande le prénom. Elle ne le demande QU'UNE FOIS : le
-      redemander à chaque question est précisément ce qui fait passer une
-      assistante pour une machine. Ensuite elle salue par le prénom.
+   CE QUI RESTE, ET C'EST TOUT.
 
-   2. Dès que la personne a fini de dire son nom — la longue. Quarante-deux
-      secondes en wolof, cinquante en français, alors que l'attente mesurée
-      est de onze à seize. Elle ne peut donc pas se tarir.
+   1. AU PREMIER ÉCHANGE D'UNE CONVERSATION SEULEMENT — à la seconde où le
+      micro se coupe, elle dit qu'elle a entendu, elle se nomme, et elle
+      demande le prénom. Si elle le connaît déjà, elle salue par le prénom et
+      s'arrête là. Une fois. Jamais plus dans la même conversation.
 
-   3. Le son de la réponse arrive — la longue est coupée immédiatement, avec
-      un fondu de quelques centièmes pour éviter le claquement, et le CHAPEAU
-      recouvre la couture : « bon, je réponds à ta question ». Sans lui, la
-      coupure s'entend comme une panne ; avec lui, elle s'entend comme
-      quelqu'un qui a fini de réfléchir.
+   2. ENSUITE, LE SILENCE. Une lueur dorée qui respire près de son visage, et
+      rien d'autre — comme Siri, comme ChatGPT. Aucune phrase répétée.
+
+   3. Le son de la réponse arrive — s'il reste une parole en cours, elle est
+      coupée avec un fondu de quelques centièmes, et le CHAPEAU recouvre la
+      couture : « bon, je réponds à ta question ».
 
    Les textes sont de Lamine, en wolof urbain de Dakar. Le français est la
    même chose dite dans l'autre langue, pas une traduction mot à mot.
@@ -58,7 +59,17 @@ export const PARTIE_1_CONNU: Parole = {
   fr: "Oui {nom}, je t'ai bien entendu.",
 };
 
-/** 2. La longue. Elle tourne jusqu'à ce que la réponse arrive. */
+/* 2. LA LONGUE — EN RÉSERVE, PLUS JOUÉE.
+
+   Elle a servi une soirée, le 9 septembre 2026, et Lamine a tranché : même
+   bien écrite, une phrase que BIA répète à chaque question devient agaçante,
+   et elle donne l'impression que l'application est plus lente qu'elle ne
+   l'est. Après la présentation du début, l'attente est désormais SILENCIEUSE
+   — une lueur dorée qui respire, et rien d'autre.
+
+   Le texte reste ici parce qu'il est de lui, et parce que si le silence
+   s'avère trop long à l'usage, le remède sera une phrase COURTE vers la
+   septième seconde — pas ce monologue. Aucun code ne l'appelle plus. */
 export const PARTIE_2: Parole = {
   fichier: "partie2",
   wo: "May ma rekk quelques secondes, ma dellu xool tranquillement li nga wax "
@@ -92,8 +103,8 @@ export const CHAPEAU: Parole = {
   fr: "Bon, je réponds à ta question.",
 };
 
-/** Toutes celles qui peuvent devenir un fichier tout prêt. */
-export const A_FABRIQUER: Parole[] = [PARTIE_1, PARTIE_2, CHAPEAU];
+/** Celles qui sont vraiment dites, et qui peuvent devenir des fichiers. */
+export const A_FABRIQUER: Parole[] = [PARTIE_1, CHAPEAU];
 
 /** Le texte à dire, dans la langue de la conversation. */
 export function dire(p: Parole, langue: Langue, nom = ""): string {
