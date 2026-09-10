@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      noterPanne(response.status, detail);
+      noterPanne(response.status, detail, "document");
       return NextResponse.json({ erreur: `modèle ${response.status}` }, { status: 502 });
     }
 
@@ -71,14 +71,14 @@ export async function POST(request: NextRequest) {
     const debut = complet.indexOf("{");
     const fin = complet.lastIndexOf("}");
     if (debut < 0 || fin <= debut) {
-      noterPanne(`${sorte} : pas de JSON`, complet.slice(0, 400) || "(réponse vide)");
+      noterPanne(`${sorte} : pas de JSON`, complet.slice(0, 400) || "(réponse vide)", "document");
       return NextResponse.json({ erreur: "pas de document" }, { status: 502 });
     }
 
     let brut: unknown;
     try { brut = JSON.parse(complet.slice(debut, fin + 1)); }
     catch {
-      noterPanne(`${sorte} : JSON illisible`, complet.slice(debut, debut + 400));
+      noterPanne(`${sorte} : JSON illisible`, complet.slice(debut, debut + 400), "document");
       return NextResponse.json({ erreur: "document illisible" }, { status: 502 });
     }
 
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
       /* Le JSON était bon mais vide de ce qui compte : pas une seule ligne
          pour un devis, pas un paragraphe pour une lettre. C'est presque
          toujours que la conversation ne disait pas encore de quoi écrire. */
-      noterPanne(`${sorte} : rien à mettre dedans`, complet.slice(debut, debut + 400));
+      noterPanne(`${sorte} : rien à mettre dedans`, complet.slice(debut, debut + 400), "document");
       return NextResponse.json({ erreur: "document vide" }, { status: 502 });
     }
     if (doc.type === "devis" && !doc.numero) doc.numero = numeroDevis();

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { voixConfig } from "@/lib/voix";
 import { ecouteConfig } from "@/lib/ecoute";
 import { lexiqueConfig, combien, combienParApplication } from "@/lib/lexique";
-import { dernierePanne } from "@/lib/panne";
+import { dernierePanne, pannes } from "@/lib/panne";
 import { resumeAttentes, resumeLectures } from "@/lib/attentes-vues";
 import { resumeEmotions } from "@/lib/emotions-vues";
 
@@ -33,6 +33,9 @@ export async function GET() {
     lexique_origines: origines,
     voix_clonee: Boolean(voixConfig.soynade.audioPrompt),
     derniere_panne: dernierePanne(),
+    // L'histoire, elle, ne s'efface pas : une panne passée reste lisible même
+    // si tout va bien depuis. C'est la seule façon de comprendre après coup.
+    pannes: pannes(),
     attentes: resumeAttentes(),
     lecture: resumeLectures(),
     emotions: resumeEmotions(),

@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      noterPanne(response.status, detail);
+      noterPanne(response.status, detail, "reformuler");
       return NextResponse.json({ erreur: `modèle ${response.status}` }, { status: 502 });
     }
 

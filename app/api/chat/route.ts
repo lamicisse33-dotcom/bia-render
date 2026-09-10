@@ -343,7 +343,7 @@ export async function POST(request:NextRequest){
     const apiKey=process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY;
     const model=process.env.BIA_LLM_MODEL||"claude-sonnet-5";
     if(!apiKey){
-      noterPanne("clé absente","Ni BIA_LLM_API_KEY ni ANTHROPIC_API_KEY ne sont définies.");
+      noterPanne("clé absente","Ni BIA_LLM_API_KEY ni ANTHROPIC_API_KEY ne sont définies.", "chat");
       console.error("BIA — aucune clé de modèle n'est définie.");
       return NextResponse.json({reply:PAS_DE_CLE,emotion:"concernee",source:"panne : clé absente"});
     }
@@ -420,7 +420,7 @@ export async function POST(request:NextRequest){
     if (!reponse.ok && cherche && reponse.status === 400) {
       const detail = await reponse.clone().text().catch(() => "");
       console.error("BIA — l'outil de recherche est refusé, on répond sans :", detail.slice(0, 300));
-      noterPanne("recherche refusée", detail);
+      noterPanne("recherche refusée", detail, "chat");
       reponse = await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:900,system:consigne,messages:[...history,{role:"user",content:question}]})});
     }
 
@@ -428,7 +428,7 @@ export async function POST(request:NextRequest){
       const detail=await reponse.text().catch(()=>"");
       // Sans ça, une clé refusée et un crédit épuisé donnaient le même silence.
       console.error("BIA — le modèle a refusé :",reponse.status,detail);
-      noterPanne(reponse.status,detail);
+      noterPanne(reponse.status,detail, "chat");
       return NextResponse.json({reply:PANNE_MOTEUR,emotion:"concernee",source:`panne : modèle ${reponse.status}`});
     }
 
@@ -460,7 +460,7 @@ export async function POST(request:NextRequest){
 
     if(!reply){
       console.error("BIA — le modèle a répondu sans texte.");
-      noterPanne("réponse vide","Le modèle a répondu 200 mais sans bloc de texte.");
+      noterPanne("réponse vide","Le modèle a répondu 200 mais sans bloc de texte.", "chat");
       return NextResponse.json({reply:PANNE_MOTEUR,emotion:"concernee",source:"panne : réponse vide"});
     }
 
@@ -469,7 +469,7 @@ export async function POST(request:NextRequest){
     return NextResponse.json({reply,emotion,papier,appel,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
-    noterPanne("exception",(err as Error).message);
+    noterPanne("exception",(err as Error).message, "chat");
     return NextResponse.json({reply:"Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.",source:"Erreur sûre"},{status:400});
   }
 }
