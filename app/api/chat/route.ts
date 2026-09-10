@@ -427,6 +427,27 @@ export async function POST(request:NextRequest){
     const {reply:avecBalise,emotion,balise}=detacherEmotion(complet);
     const {texte:sansPapier,papier}=detacherPapier(avecBalise);
     const {texte:reply,appel}=detacherAppel(sansPapier);
+    /* ── UN PAPIER SANS UN MOT N'EST PAS UNE PANNE ──────────────────────────
+
+       Signalé par Lamine le 10 septembre 2026 : « quand on demande à BIA
+       d'écrire un message, si le message est long, elle dit que son moteur ne
+       répond pas. »
+
+       Le moteur répondait très bien. Quand la demande est claire — et un long
+       message dicté ne laisse rien à demander — le modèle se contente
+       d'ouvrir le papier : sa réponse ne contient QUE la balise
+       [[papier:message]]. On la détache, comme il se doit, et il ne reste
+       rien. Le code prenait ce vide pour une panne et sortait la phrase
+       d'excuse, alors que le papier était prêt derrière.
+
+       Ce n'est une panne que si elle n'a NI phrase NI geste. Sinon, on lui
+       prête une phrase courte et le papier s'ouvre. */
+    if(!reply&&(papier||appel)){
+      oublierPanne();
+      const parDefaut=papier?"Waaw, maa ngi koy defar.":"Waaw.";
+      return NextResponse.json({reply:parDefaut,emotion,papier,appel,source:"geste sans phrase"});
+    }
+
     if(!reply){
       console.error("BIA — le modèle a répondu sans texte.");
       noterPanne("réponse vide","Le modèle a répondu 200 mais sans bloc de texte.");
