@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { voixConfig } from "@/lib/voix";
 import { ecouteConfig } from "@/lib/ecoute";
-import { lexiqueConfig, combien } from "@/lib/lexique";
+import { lexiqueConfig, combien, combienParApplication } from "@/lib/lexique";
 import { dernierePanne } from "@/lib/panne";
 import { resumeAttentes, resumeLectures } from "@/lib/attentes-vues";
 import { resumeEmotions } from "@/lib/emotions-vues";
@@ -18,6 +18,11 @@ export async function GET() {
   let entrees: number | null = null;
   try { entrees = await combien(); } catch { entrees = null; }
 
+  // D'où viennent ces corrections. La table est commune aux trois
+  // applications : sans ce détail, on ne sait pas si BIA en reçoit.
+  let origines: Record<string, number> | null = null;
+  try { origines = await combienParApplication(); } catch { origines = null; }
+
   return NextResponse.json({
     voix: voixConfig.fournisseur,
     ecoute: ecouteConfig.fournisseur,
@@ -25,6 +30,7 @@ export async function GET() {
     cle_modele: Boolean(process.env.BIA_LLM_API_KEY || process.env.ANTHROPIC_API_KEY),
     lexique: lexiqueConfig.actif ? "supabase" : "mémoire vive (perdu au réveil)",
     lexique_entrees: entrees,
+    lexique_origines: origines,
     voix_clonee: Boolean(voixConfig.soynade.audioPrompt),
     derniere_panne: dernierePanne(),
     attentes: resumeAttentes(),

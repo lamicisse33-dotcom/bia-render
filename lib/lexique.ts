@@ -149,3 +149,19 @@ export async function exemplesPour(texte: string, max = 5): Promise<Entree[]> {
 export async function combien(): Promise<number> {
   return (await toutes()).length;
 }
+
+/* Combien de corrections viennent de CHAQUE application.
+
+   Le total seul ne prouvait rien : la table est partagée entre BIA, BIBA et
+   l'Interprète, et trente corrections pouvaient très bien venir toutes de
+   l'Interprète pendant que celles de BIA se perdaient en silence. Demandé
+   par Lamine le 10 septembre 2026 : « vérifie si les corrections de BIA sont
+   bien enregistrées. » Maintenant ça se lit dans /api/etat. */
+export async function combienParApplication(): Promise<Record<string, number>> {
+  const compte: Record<string, number> = {};
+  for (const e of await toutes()) {
+    const qui = String(e.application || "sans origine");
+    compte[qui] = (compte[qui] || 0) + 1;
+  }
+  return compte;
+}
