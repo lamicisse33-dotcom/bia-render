@@ -80,16 +80,22 @@ export const REPERES: Repere[] = [
        elle-même. Pour en ajouter un, il suffit de refaire la planche. */
     fichier: "jeux.jpg",
     qui: "les jeux et applications de KHALAM",
-    quoi: "Cette planche montre les logos des jeux et applications de la "
-      + "maison, chacun dans sa case avec son nom écrit dessous : ÉQUILIBRE, "
-      + "GALGAL, LES QUATRE DAMES, LES QUATRE CASES, L'HÉRITAGE DES KHALAM, "
-      + "GEWEL, L'INTERPRÈTE et BIA. Si on te montre l'un de ces "
-      + "logos — sur un téléphone, une affiche, une icône d'application — dis "
-      + "de quel jeu ou de quelle application il s'agit, et que c'est un "
-      + "KHALAM. ATTENTION : GEWEL et L'INTERPRÈTE se ressemblent beaucoup, "
-      + "tous deux une balance dorée ; celle de L'INTERPRÈTE porte deux points "
-      + "de couleur sur ses plateaux, celle de GEWEL n'en a pas. Si tu "
-      + "hésites entre les deux, dis-le plutôt que de choisir au hasard.",
+    quoi: "Cette planche montre les ICÔNES D'APPLICATION de la maison — celles "
+      + "qu'on voit sur l'écran d'accueil d'un téléphone une fois le jeu "
+      + "installé. Chacune est dans sa case, avec son nom écrit dessous : "
+      + "ÉQUILIBRE 2, TON ÉQUILIBRE, KHALAM, 4 CASES, L'HÉRITAGE, ÉQUILIBRE, "
+      + "QUATRE DAMES, GÉWEL, CODES DE TESTEUR, ÉQUILIBRE DES CHOIX, BIA, "
+      + "INTERPRÈTE, GALGAL. Si on te montre l'une d'elles — sur un écran "
+      + "d'accueil, une affiche, une capture — dis de quelle application il "
+      + "s'agit, et que c'est une KHALAM. "
+      + "ATTENTION, PLUSIEURS SE RESSEMBLENT : cinq portent une balance dorée. "
+      + "ÉQUILIBRE 2 est une balance simple sur fond violet foncé ; TON "
+      + "ÉQUILIBRE a des points de couleur sur ses deux plateaux, sur violet ; "
+      + "GÉWEL est une balance haute et fine, sans point, sur presque noir ; "
+      + "L'INTERPRÈTE a un point bleu et un point vert sur ses plateaux ; "
+      + "GALGAL est enfermée dans un cercle doré. Regarde les points et le "
+      + "cercle avant de répondre, et si tu hésites entre deux, DIS-LE — se "
+      + "tromper d'application envoie quelqu'un vers le mauvais lien.",
   },
 ];
 
