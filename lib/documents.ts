@@ -16,9 +16,6 @@
    unitaires ; les multiplications, la remise, l'acompte et le total sont
    calculés ici, en francs entiers, et ne dépendent d'aucun modèle. */
 
-import { compter, lectureSupport } from "./supports";
-import type { Support } from "./supports";
-
 export type LigneDevis = {
   designation: string;
   quantite: number;
@@ -93,8 +90,13 @@ export type Mot = {
   texte: string;
 };
 
-export type Document = Devis | Lettre | Mot | Support;
-export type Sorte = "devis" | "lettre" | "message" | "support";
+export type Document = Devis | Lettre | Mot;
+export type Sorte = "devis" | "lettre" | "message";
+
+/* ── L'argent ───────────────────────────────────────────────────────────────
+   Le franc CFA n'a pas de centimes : tout est arrondi à l'entier, et on
+   sépare les milliers par une espace insécable pour que « 1 250 000 » ne se
+   coupe jamais en fin de ligne. */
 
 /* ── CE QU'ELLE LIT À VOIX HAUTE AVANT D'ÉCRIRE ─────────────────────────────
 
@@ -113,11 +115,6 @@ export type Sorte = "devis" | "lettre" | "message" | "support";
    formule de politesse — parce que ça n'est jamais faux et que ça allongerait
    la lecture au point qu'on ne l'écoute plus jusqu'au bout. */
 export function lecture(doc: Document, totaux?: Totaux | null): string {
-  /* Un support de boutique se lit autrement : on ne récite pas quinze lignes
-     d'inventaire, on dit les chiffres qui comptent et les alertes. Tout est
-     dans lib/supports.ts, avec les calculs. */
-  if (doc.type === "support") return lectureSupport(doc, compter(doc));
-
   if (doc.type === "message") {
     const pour = doc.destinataire?.trim();
     return [
@@ -155,11 +152,8 @@ export function lecture(doc: Document, totaux?: Totaux | null): string {
   ].filter(Boolean).join(" ");
 }
 
-/* Le formatage des montants a déménagé dans lib/argent.ts, parce que les
-   supports de la boutique s'en servent aussi, et qu'un même total ne doit
-   pas s'écrire de deux façons selon la page où on le lit. On le re-exporte
-   ici : rien de ce qui l'importait déjà n'a eu à changer. */
-export { franc } from "./argent";
+export const franc = (n: number) =>
+  `${Math.round(n).toLocaleString("fr-FR").replace(/ | | /g, " ")} FCFA`;
 
 export type Totaux = {
   lignes: Array<LigneDevis & { total: number }>;
@@ -235,11 +229,6 @@ export function numeroDevis(): string {
 
 export function nettoyer(brut: unknown, sorte: Sorte): Document | null {
   const o = (brut ?? {}) as Record<string, unknown>;
-
-  /* Un support de boutique ne passe pas par ici : il a ses colonnes, ses
-     calculs et sa propre route. Ce garde-fou évite qu'une sorte mal
-     transmise se retrouve nettoyée comme une lettre, et sorte vide. */
-  if (sorte === "support") return null;
 
   if (sorte === "devis") {
     const lignes = (Array.isArray(o.lignes) ? o.lignes : [])
@@ -376,7 +365,7 @@ suffisent presque toujours. Pas de tournure ampoulée, pas de remplissage.`;
    BIA pose elle-même la balise quand elle a tout ce qu'il faut ; cette liste
    ne sert qu'à lui rappeler d'y penser, et à ne pas manquer une demande dite
    autrement. */
-const MOTS: Record<"devis" | "lettre" | "message", string[]> = {
+const MOTS: Record<Sorte, string[]> = {
   message: ["message", "whatsapp", "wattsap", "watsap", "sms", "texto", "mail",
             "email", "courriel", "mesaas", "meesaas"],
   devis: ["devis", "facture", "proforma", "prix", "estimation", "chiffrage",
@@ -392,7 +381,7 @@ const sansAccent = (t: string) =>
 /** La sorte de document évoquée, s'il y en a une. */
 export function sorteEvoquee(texteDit: string): Sorte | null {
   const mots = new Set(sansAccent(texteDit).split(" ").filter(Boolean));
-  for (const sorte of ["devis", "lettre", "message"] as Array<"devis" | "lettre" | "message">) {
+  for (const sorte of ["devis", "lettre", "message"] as Sorte[]) {
     if (MOTS[sorte].some((m) => mots.has(m))) return sorte;
   }
   return null;

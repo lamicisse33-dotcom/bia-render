@@ -1,5 +1,4 @@
 import type { Document, Totaux } from "./documents";
-import { titreSupport } from "./supports";
 
 /* ── LA BOÎTE À PAPIERS ─────────────────────────────────────────────────────
 
@@ -78,9 +77,6 @@ export function oublierPapiers(profil: string) {
    — le client d'un devis, l'objet d'une lettre, le début d'un message — parce
    que « Devis n° 4 » ne dit rien à quelqu'un qui en a écrit dix. */
 export function titreDe(doc: Document): string {
-  /* Un tableau de boutique se reconnaît à ce qu'il est ET à sa période :
-     « Fiche de stock » tout court ne suffit plus dès qu'on en a trois. */
-  if (doc.type === "support") return titreSupport(doc);
   if (doc.type === "devis") {
     const qui = doc.client?.nom?.trim();
     return qui ? `Devis — ${qui}` : "Devis";
