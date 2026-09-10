@@ -1102,3 +1102,52 @@ button { font: inherit; touch-action: manipulation; }
   border-left: 2px solid rgba(212, 175, 55, .6);
   padding-left: 12px;
 }
+
+/* ── L'INVITATION À POSER BIA SUR L'ÉCRAN D'ACCUEIL ─────────────────────────
+
+   Demandé par Lamine le 10 septembre 2026 : les applications de KHALAM ne
+   passent pas par les magasins, elles s'installent depuis le site. Encore
+   faut-il le dire — et le geste n'est pas le même selon le téléphone.
+
+   Elle est DISCRÈTE, exprès : elle propose, elle n'annonce rien d'urgent. Et
+   elle se pose au-dessus de la barre du bas sans jamais couvrir le micro,
+   qui est le seul geste dont on a vraiment besoin. */
+.poser {
+  position: fixed; left: 12px; right: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  z-index: 240;
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 13px;
+  border: 1px solid rgba(212,175,55,.28); border-radius: 14px;
+  background: rgba(16,16,22,.96);
+  box-shadow: 0 12px 34px rgba(0,0,0,.6);
+  animation: poser-arrive .32s cubic-bezier(.22,.9,.3,1);
+}
+@keyframes poser-arrive {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+.poser span {
+  flex: 1; min-width: 0;
+  font-size: 12.5px; line-height: 1.45; color: rgba(255,247,220,.8);
+}
+.poser strong { color: #e7c667; font-weight: 600; }
+.poser button {
+  flex: none;
+  padding: 8px 13px;
+  border: 0; border-radius: 10px;
+  background: linear-gradient(135deg, #e7c667, #c9a227);
+  color: #1a1405; font: inherit; font-size: 12.5px; font-weight: 600;
+  cursor: pointer;
+}
+.poser button.non {
+  background: transparent; color: rgba(255,247,220,.5);
+  border: 1px solid rgba(255,247,220,.15); font-weight: 400;
+}
+/* Sur un écran étroit, la phrase du geste iPhone est longue : les boutons
+   passent dessous plutôt que d'écraser le texte en une colonne illisible. */
+@media (max-width: 400px) {
+  .poser { flex-wrap: wrap; }
+  .poser span { flex: 1 0 100%; }
+  .poser button { flex: 1; }
+}

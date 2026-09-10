@@ -20,6 +20,7 @@ import { lireMesures, noterMesure } from "@/lib/chrono";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
+import Installer from "./installer";
 
 /* Un message peut porter le RENVOI vers un papier — son identifiant, pas son
    contenu. Le papier lui-même vit dans sa propre boîte, qui ne se rogne
@@ -2708,6 +2709,14 @@ export default function Home() {
           </div>
           {codeErreur ? <p className="porte-erreur">{codeErreur}</p> : null}
         </section>
+
+        {/* ── ELLE S'INSTALLE AUSSI DEPUIS LA PORTE ──────────────────────────
+            L'épreuve au navigateur a trouvé ça : l'invitation était posée dans
+            l'écran d'après, et cet écran-ci s'arrête avant. Or c'est LE
+            premier écran que voit quelqu'un qui vient d'acheter un code — et
+            c'est le bon moment pour poser BIA sur son téléphone, avant même
+            de taper le code, pour qu'il n'ait plus jamais à le retaper. */}
+        <Installer />
       </main>
     );
   }
@@ -3183,6 +3192,10 @@ export default function Home() {
           <button type="button" className="pale" onClick={fermerCorrection}>Annuler</button>
         </div>
       </section>
+
+      {/* L'invitation à la poser sur l'écran d'accueil. Elle décide seule
+          quand se montrer, et ne se montre pas si BIA y est déjà. */}
+      <Installer />
 
       <p className="sr-only" aria-live="polite">{labels[mode]}</p>
     </main>
