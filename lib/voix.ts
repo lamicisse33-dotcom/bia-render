@@ -15,9 +15,19 @@ export const voixConfig = {
        doit être nette. BIA, elle, doit accueillir. Exagération basse = moins
        d'emphase ; poids CFG bas = débit plus lent. Réglable par variable
        d'environnement, et la page /reglage sert à les choisir à l'oreille. */
-    exaggeration: Number(env.SOYNADE_EXAGGERATION || 0.12),
+    exaggeration: Number(env.SOYNADE_EXAGGERATION || 0.10),
     temperature: Number(env.SOYNADE_TEMPERATURE || 0.35),
-    cfgWeight: Number(env.SOYNADE_CFG_WEIGHT || 0.28),
+    /* Abaissé de 0,28 à 0,22 le 10 septembre 2026 : « elle parle trop vite,
+       elle doit être très reposée, lentement et doucement » (Lamine). Plus
+       ce poids est bas, plus le débit est posé. */
+    cfgWeight: Number(env.SOYNADE_CFG_WEIGHT || 0.22),
+    /* LA VITESSE. Je n'ai pas la documentation de l'API hébergée : je ne sais
+       donc pas avec certitude si elle accepte un débit, ni comment le champ
+       s'appelle. Deux précautions : le champ n'est envoyé QUE s'il diffère de
+       1, et si Soynade refuse la requête à cause de lui, on la refait sans —
+       BIA parle un peu vite plutôt que de rester muette. */
+    vitesse: Number(env.SOYNADE_SPEED || 1),
+    vitesseField: env.SOYNADE_SPEED_FIELD || "speed",
     /* Le clonage de voix. Oolel-Voices accepte un extrait de référence et
        imite la voix qu'il y entend. L'extrait doit être joignable par une
        adresse publique : le nôtre est servi par BIA elle-même, depuis
@@ -106,7 +116,7 @@ export function decouper(texte: string): string[] {
   return morceaux.filter(Boolean);
 }
 
-export type Reglages = { exaggeration?: number; temperature?: number; cfgWeight?: number; audioPrompt?: string | null };
+export type Reglages = { exaggeration?: number; temperature?: number; cfgWeight?: number; vitesse?: number; audioPrompt?: string | null };
 export type Parole = { audio: Buffer; typeMime: string; moteur: string };
 
 const borne = (v: number | undefined, defaut: number) =>
@@ -120,25 +130,41 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages): Pro
   // pouvoir comparer les deux dans la page de réglage.
   const prompt = r?.audioPrompt === "" ? "" : (r?.audioPrompt || c.audioPrompt);
 
-  const reponse = await fetch(`${c.baseUrl.replace(/\/$/, "")}/v1/text-to-speech`, {
+  const vitesse = typeof r?.vitesse === "number" && Number.isFinite(r.vitesse)
+    ? Math.min(Math.max(r.vitesse, 0.5), 1.5)
+    : c.vitesse;
+
+  const corps = (avecVitesse: boolean) => JSON.stringify({
+    text: texte,
+    language: langue === "fr" ? "fr" : "wo",
+    output_format: "wav",
+    model: c.model,
+    exaggeration: borne(r?.exaggeration, c.exaggeration),
+    temperature: borne(r?.temperature, c.temperature),
+    cfg_weight: borne(r?.cfgWeight, c.cfgWeight),
+    seed: 0,
+    ...(avecVitesse && vitesse !== 1 ? { [c.vitesseField]: vitesse } : {}),
+    ...(prompt ? { [c.audioPromptField]: prompt } : {}),
+  });
+
+  const appeler = (avecVitesse: boolean) => fetch(`${c.baseUrl.replace(/\/$/, "")}/v1/text-to-speech`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${c.apiKey}`,
       "content-type": "application/json",
       accept: "audio/wav",
     },
-    body: JSON.stringify({
-      text: texte,
-      language: langue === "fr" ? "fr" : "wo",
-      output_format: "wav",
-      model: c.model,
-      exaggeration: borne(r?.exaggeration, c.exaggeration),
-      temperature: borne(r?.temperature, c.temperature),
-      cfg_weight: borne(r?.cfgWeight, c.cfgWeight),
-      seed: 0,
-      ...(prompt ? { [c.audioPromptField]: prompt } : {}),
-    }),
+    body: corps(avecVitesse),
   });
+
+  let reponse = await appeler(true);
+  /* Le champ de vitesse n'est peut-être pas celui-là, ou n'existe peut-être
+     pas. Un refus 400 ou 422 ne doit pas rendre BIA muette : on refait
+     l'appel sans, et on le note pour qu'on le voie dans les journaux. */
+  if (!reponse.ok && vitesse !== 1 && (reponse.status === 400 || reponse.status === 422)) {
+    console.error(`BIA — Soynade refuse le champ « ${c.vitesseField} » : on lit sans régler la vitesse.`);
+    reponse = await appeler(false);
+  }
 
   if (!reponse.ok) {
     const detail = (await reponse.text().catch(() => "")).slice(0, 400);

@@ -13,10 +13,10 @@ const PHRASE_WO = "Salaam! Man maa di BIA. Naka nga def tey? Waxal ak man, dinaa
 const PHRASE_FR = "Bonjour, je suis BIA. Comment puis-je vous aider aujourd'hui ?";
 
 const PRESETS = [
-  { nom: "Très douce", exaggeration: 0.08, temperature: 0.30, cfgWeight: 0.22 },
-  { nom: "Douce", exaggeration: 0.12, temperature: 0.35, cfgWeight: 0.28 },
-  { nom: "Posée", exaggeration: 0.18, temperature: 0.40, cfgWeight: 0.35 },
-  { nom: "Actuelle (Interprète)", exaggeration: 0.20, temperature: 0.10, cfgWeight: 0.50 },
+  { nom: "Très reposée", exaggeration: 0.08, temperature: 0.30, cfgWeight: 0.18, vitesse: 0.88 },
+  { nom: "Reposée", exaggeration: 0.10, temperature: 0.35, cfgWeight: 0.22, vitesse: 0.94 },
+  { nom: "Douce", exaggeration: 0.12, temperature: 0.35, cfgWeight: 0.28, vitesse: 1 },
+  { nom: "Actuelle (Interprète)", exaggeration: 0.20, temperature: 0.10, cfgWeight: 0.50, vitesse: 1 },
 ];
 
 export default function Reglage() {
@@ -24,7 +24,8 @@ export default function Reglage() {
   const [texte, setTexte] = useState(PHRASE_WO);
   const [exag, setExag] = useState(0.12);
   const [temp, setTemp] = useState(0.35);
-  const [cfg, setCfg] = useState(0.28);
+  const [cfg, setCfg] = useState(0.22);
+  const [vitesse, setVitesse] = useState(1);
   const [clonage, setClonage] = useState(true);
   const [etat, setEtat] = useState("");
   const [duree, setDuree] = useState<number | null>(null);
@@ -46,7 +47,7 @@ export default function Reglage() {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": code },
         body: JSON.stringify({
-          texte, partie: 0, exaggeration: exag, temperature: temp, cfgWeight: cfg,
+          texte, partie: 0, exaggeration: exag, temperature: temp, cfgWeight: cfg, vitesse,
           // Chaîne vide = on demande explicitement la voix d'origine, pour
           // pouvoir comparer les deux dans la même minute.
           audioPrompt: clonage ? undefined : "",
@@ -65,10 +66,11 @@ export default function Reglage() {
     }
   }
 
-  const curseur = (nom: string, valeur: number, poser: (v: number) => void, aide: string) => (
+  const curseur = (nom: string, valeur: number, poser: (v: number) => void, aide: string,
+                   bornes: [number, number] = [0, 1]) => (
     <label className="curseur">
       <span className="curseur-titre">{nom}<b>{valeur.toFixed(2)}</b></span>
-      <input type="range" min={0} max={1} step={0.01} value={valeur}
+      <input type="range" min={bornes[0]} max={bornes[1]} step={0.01} value={valeur}
         onChange={(e) => poser(Number(e.target.value))} />
       <span className="curseur-aide">{aide}</span>
     </label>
@@ -97,7 +99,7 @@ export default function Reglage() {
       <div className="rangee">
         {PRESETS.map((p) => (
           <button key={p.nom} className="secondaire" type="button"
-            onClick={() => { setExag(p.exaggeration); setTemp(p.temperature); setCfg(p.cfgWeight); }}>
+            onClick={() => { setExag(p.exaggeration); setTemp(p.temperature); setCfg(p.cfgWeight); setVitesse(p.vitesse); }}>
             {p.nom}
           </button>
         ))}
@@ -106,6 +108,9 @@ export default function Reglage() {
       {curseur("Exagération", exag, setExag, "Bas = calme et retenue. Haut = emphase, insistance.")}
       {curseur("Poids CFG", cfg, setCfg, "Bas = débit lent et posé. Haut = débit rapide et net.")}
       {curseur("Température", temp, setTemp, "Bas = régulière, presque mécanique. Haut = vivante, variable.")}
+      {curseur("Vitesse", vitesse, setVitesse,
+        "1 = son débit normal. 0,90 = un dixième plus lent. Si Soynade n'accepte pas ce réglage, la voix revient à 1 toute seule et c'est écrit dans les journaux.",
+        [0.7, 1.2])}
 
       <button className="ecouter" type="button" onClick={() => void ecouter()}>Écouter</button>
 
@@ -150,7 +155,8 @@ export default function Reglage() {
         Quand ça te plaît, dans Render → Environment :<br />
         <code>SOYNADE_EXAGGERATION = {exag.toFixed(2)}</code><br />
         <code>SOYNADE_CFG_WEIGHT = {cfg.toFixed(2)}</code><br />
-        <code>SOYNADE_TEMPERATURE = {temp.toFixed(2)}</code>
+        <code>SOYNADE_TEMPERATURE = {temp.toFixed(2)}</code><br />
+        <code>SOYNADE_SPEED = {vitesse.toFixed(2)}</code>
       </p>
     </main>
   );
