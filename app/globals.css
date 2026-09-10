@@ -717,3 +717,62 @@ button { font: inherit; touch-action: manipulation; }
 .choix button.grand b { font-size: 18px; }
 .choix button span { color: rgba(255,255,255,.55); font-size: 13px; line-height: 1.4; }
 .choix button:disabled { opacity: .45; cursor: default; }
+
+/* ── LA FENÊTRE DE CORRECTION ────────────────────────────────────────────
+   Corriger le wolof de BIA demandait de retaper une phrase entière sur un
+   clavier de téléphone. Autant dire que personne ne le faisait — et que la
+   seule mécanique capable de faire progresser sa langue restait à l'arrêt.
+   Maintenant : sa phrase est déjà dans le champ, on change le mot qui
+   cloche, et elle sait proposer d'autres façons de le dire. */
+.correction-panneau {
+  position: absolute;
+  z-index: 6;
+  left: 0; right: 0; bottom: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 92svh;
+  padding: 10px 14px calc(14px + env(safe-area-inset-bottom));
+  border-radius: 22px 22px 0 0;
+  border-top: 1px solid rgba(212,175,55,.22);
+  background: rgba(8,8,12,.97);
+  backdrop-filter: blur(22px);
+  box-shadow: 0 -18px 48px rgba(0,0,0,.7);
+  transform: translateY(102%);
+  transition: transform .26s cubic-bezier(.22,.9,.3,1);
+}
+.correction-panneau[aria-hidden="false"] { transform: translateY(0); }
+.correction-panneau[aria-hidden="true"] { pointer-events: none; }
+
+/* Ce qu'elle a dit, tel quel — à lire et à copier, pas à modifier. */
+.sa-phrase {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin: 0 0 12px; padding: 11px 13px;
+  border-left: 2px solid rgba(212,175,55,.5); border-radius: 0 12px 12px 0;
+  background: rgba(255,255,255,.04);
+}
+.sa-phrase p {
+  flex: 1; margin: 0;
+  color: rgba(255,255,255,.72); font-size: 14.5px; line-height: 1.5;
+}
+.sa-phrase button {
+  flex: none;
+  padding: 5px 12px;
+  border: 0; border-radius: 12px;
+  background: rgba(255,255,255,.09); color: rgba(255,255,255,.75);
+  font: inherit; font-size: 12.5px; cursor: pointer;
+}
+
+/* Les autres façons de le dire. On en touche une, elle prend la place. */
+.propositions { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 10px; }
+.propositions button {
+  padding: 11px 14px;
+  border: 1px solid rgba(212,175,55,.32); border-radius: 14px;
+  background: rgba(212,175,55,.07);
+  color: #fff; font: inherit; font-size: 14.5px; line-height: 1.45;
+  text-align: left; cursor: pointer;
+  transition: background .16s ease, transform .16s ease;
+}
+.propositions button:active { transform: scale(.99); background: rgba(212,175,55,.14); }
+/* Dans la correction, le champ ne doit pas manger l'écran : les propositions
+   qui suivent sont l'essentiel. */
+.correction-panneau .paragraphe.grand { min-height: 16svh; }

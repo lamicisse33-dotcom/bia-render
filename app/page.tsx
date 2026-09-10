@@ -154,6 +154,12 @@ export default function Home() {
   const [resume, setResume] = useState("");
   const [corrige, setCorrige] = useState<number | null>(null);
   const [correction, setCorrection] = useState("");
+  /* Les autres façons de le dire, qu'elle propose elle-même. Reconnaître une
+     bonne phrase est immédiat ; en écrire une sur un clavier de téléphone est
+     un travail — c'est pour ça que personne ne corrigeait. */
+  const [propositions, setPropositions] = useState<string[]>([]);
+  const [reformule, setReformule] = useState(false);
+  const [copieFaite, setCopieFaite] = useState(false);
   const [avis, setAvis] = useState("");
 
   /* ── LE PAPIER ────────────────────────────────────────────────────────────
@@ -1407,6 +1413,67 @@ export default function Home() {
     error: "Micro indisponible. Appuyer pour réessayer",
   };
 
+  /* LA CORRECTION, EN GRAND.
+
+     Lamine, le 10 septembre 2026 : « les textes sont très difficiles à
+     copier ; autant appuyer sur un bouton qui ouvre une fenêtre plus large où
+     on peut copier — ou bien qu'elle nous propose une autre façon de le dire
+     en wolof ».
+
+     Les deux, donc. La fenêtre s'ouvre avec SA PHRASE DÉJÀ ÉCRITE dedans : on
+     ne retape rien, on change le mot qui cloche. Et un bouton lui demande de
+     la redire autrement — trois propositions, on en touche une, elle prend la
+     place dans le champ. Rien n'est gardé tant qu'un humain n'a pas tranché. */
+  function ouvrirCorrection(index: number) {
+    taire();
+    setCorrige(index);
+    setCorrection(history[index]?.text || "");
+    setPropositions([]);
+    setAvis("");
+    setCopieFaite(false);
+  }
+
+  function fermerCorrection() {
+    setCorrige(null);
+    setCorrection("");
+    setPropositions([]);
+  }
+
+  async function copierSaPhrase() {
+    if (corrige === null) return;
+    try {
+      await navigator.clipboard.writeText(history[corrige]?.text || "");
+      setCopieFaite(true);
+      setTimeout(() => setCopieFaite(false), 2200);
+    } catch {
+      setAvis("La copie n'a pas marché. Sélectionne le texte à la main.");
+    }
+  }
+
+  async function direAutrement() {
+    if (corrige === null) return;
+    setReformule(true);
+    setAvis("");
+    try {
+      const question = [...history].slice(0, corrige).reverse().find((m) => m.role === "user");
+      const r = await fetch("/api/reformuler", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+        body: JSON.stringify({ texte: history[corrige]?.text || "", question: question?.text || "" }),
+      });
+      const d = await r.json() as { propositions?: string[]; erreur?: string };
+      if (!r.ok || !d.propositions?.length) {
+        setAvis("Elle n'a rien trouvé d'autre pour l'instant. Réessaie.");
+        return;
+      }
+      setPropositions(d.propositions);
+    } catch {
+      setAvis("Pas de réseau.");
+    } finally {
+      setReformule(false);
+    }
+  }
+
   async function envoyerCorrection(index: number) {
     const bonne = correction.trim();
     if (!bonne) return;
@@ -1430,6 +1497,7 @@ export default function Home() {
     }
     setCorrection("");
     setCorrige(null);
+    setPropositions([]);
   }
 
   /* ── LE PAPIER, CÔTÉ TÉLÉPHONE ────────────────────────────────────────────
@@ -1925,25 +1993,9 @@ export default function Home() {
                 ))}
               </p>
               {m.role === "bia" && i > 0 ? (
-                corrige === i ? (
-                  <div className="corriger">
-                    <input
-                      value={correction}
-                      onChange={(e) => setCorrection(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") void envoyerCorrection(i); }}
-                      placeholder="Naka la war a wax ? Écris la bonne formulation…"
-                      aria-label="La bonne formulation"
-                      autoFocus
-                    />
-                    <button type="button" onClick={() => void envoyerCorrection(i)}>Garder</button>
-                    <button type="button" className="annuler" onClick={() => { setCorrige(null); setCorrection(""); }}>Annuler</button>
-                  </div>
-                ) : (
-                  <button className="mal-dit" type="button"
-                    onClick={() => { setCorrige(i); setCorrection(""); setAvis(""); }}>
-                    Mal dit
-                  </button>
-                )
+                <button className="mal-dit" type="button" onClick={() => ouvrirCorrection(i)}>
+                  Mal dit
+                </button>
               ) : null}
             </div>
           ))}
@@ -2029,6 +2081,60 @@ export default function Home() {
             )}
           </div>
         ) : null}
+      </section>
+
+      {/* LA FENÊTRE DE CORRECTION. Sa phrase est déjà dans le champ : on
+          corrige le mot qui cloche au lieu de tout retaper en wolof. */}
+      <section className="correction-panneau" aria-hidden={corrige === null}>
+        <button className="clavier-fermer" type="button" onClick={fermerCorrection}
+          aria-label="Refermer la correction">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.4 5.3 8.7l1.4-1.4 5.3 5.3 5.3-5.3 1.4 1.4Z" /></svg>
+        </button>
+
+        <div className="papier-corps scrollbar-thin">
+          {corrige !== null ? (
+            <>
+              <p className="papier-titre">Naka la war a wax ?</p>
+              <p className="papier-note">
+                Ce qu&apos;elle a dit est déjà écrit en dessous : change seulement ce qui cloche.
+                Ta correction fait autorité sur son wolof, pour toutes les fois suivantes.
+              </p>
+
+              <div className="sa-phrase">
+                <p>{history[corrige]?.text}</p>
+                <button type="button" onClick={() => void copierSaPhrase()}>
+                  {copieFaite ? "Copié" : "Copier"}
+                </button>
+              </div>
+
+              <textarea className="paragraphe grand" rows={7} value={correction}
+                aria-label="La bonne formulation"
+                onChange={(e) => setCorrection(e.target.value)} />
+
+              {propositions.length ? (
+                <div className="propositions">
+                  <p className="papier-note">Touche celle qui sonne juste — tu pourras encore la retoucher.</p>
+                  {propositions.map((p, n) => (
+                    <button key={n} type="button" onClick={() => { setCorrection(p); setPropositions([]); }}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {avis ? <p className="avis">{avis}</p> : null}
+            </>
+          ) : null}
+        </div>
+
+        <div className="papier-pied">
+          <button type="button" disabled={!correction.trim()}
+            onClick={() => corrige !== null && void envoyerCorrection(corrige)}>Garder</button>
+          <button type="button" className="pale" disabled={reformule} onClick={() => void direAutrement()}>
+            {reformule ? "Elle cherche…" : "Dis-le autrement"}
+          </button>
+          <button type="button" className="pale" onClick={fermerCorrection}>Annuler</button>
+        </div>
       </section>
 
       <p className="sr-only" aria-live="polite">{labels[mode]}</p>
