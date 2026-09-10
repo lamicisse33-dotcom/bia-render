@@ -6,11 +6,25 @@ import {
   dire, extraireNom, fichierDe as fichierDeParole,
 } from "@/lib/attente";
 import type { Langue, Parole } from "@/lib/attente";
+import { franc, sorteEvoquee, totauxDe } from "@/lib/documents";
+import type { Devis, Document as Papier, Lettre, Partie, Sorte, Totaux } from "@/lib/documents";
 import { lireMesures, noterMesure } from "@/lib/chrono";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 
 type Message = { role: "bia" | "user"; text: string };
+
+/* ── SES RENSEIGNEMENTS À LUI ───────────────────────────────────────────────
+   Donnés une fois, gardés sur l'appareil, reposés sur chaque papier. Le NINEA
+   et le registre de commerce ne sont pas un détail : sans eux, un devis est
+   refusé par une administration ou par une société — c'est le premier motif
+   de rejet. La TVA est un réglage, jamais une décision du modèle : la plupart
+   des artisans n'y sont pas assujettis, et l'afficher quand on ne l'est pas
+   est une faute. */
+type Emetteur = Partie & { tva: boolean };
+const EMETTEUR_VIDE: Emetteur = {
+  nom: "", metier: "", telephone: "", adresse: "", ninea: "", rc: "", tva: false,
+};
 /* Les 24 cases de la planche, dans l'ordre du fichier.
    01-07 les bouches, 08-11 le repos, 12-20 les émotions, 21-24 les rires. */
 const CASES = {
@@ -142,6 +156,20 @@ export default function Home() {
   const [correction, setCorrection] = useState("");
   const [avis, setAvis] = useState("");
 
+  /* ── LE PAPIER ────────────────────────────────────────────────────────────
+     Demandé par Lamine : qu'on puisse parler wolof à BIA et repartir avec un
+     devis propre, en français, prêt à envoyer. Le serveur savait déjà le
+     fabriquer ; voici ce qui manquait — le bouton, le papier à l'écran, la
+     correction d'un chiffre mal entendu, et le PDF. */
+  const [papierPret, setPapierPret] = useState<Sorte | null>(null);
+  const [papierOuvert, setPapierOuvert] = useState(false);
+  const [papier, setPapier] = useState<{ doc: Papier; totaux: Totaux | null } | null>(null);
+  const [papierOccupe, setPapierOccupe] = useState(false);
+  const [papierErreur, setPapierErreur] = useState("");
+  const [pdf, setPdf] = useState("");
+  const [fiche, setFiche] = useState(false);
+  const [emetteur, setEmetteur] = useState<Emetteur>(EMETTEUR_VIDE);
+
   const recognitionRef = useRef<Recognition | null>(null);
   const mouthTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -208,9 +236,12 @@ export default function Home() {
   const transcritRef = useRef(false);
   const dernierDitRef = useRef("");
 
+  const emetteurRef = useRef<Emetteur>(EMETTEUR_VIDE);
+
   historyRef.current = history;
   resumeRef.current = resume;
   codeRef.current = code || "";
+  emetteurRef.current = emetteur;
 
   /* Ce que BIA a mesuré les fois précédentes : combien de temps elle fait
      attendre, et combien de temps durent ses phrases. Sur l'appareil, jamais
@@ -230,6 +261,9 @@ export default function Home() {
       if (fil) setHistory(JSON.parse(fil) as Message[]);
       const notes = localStorage.getItem("bia-resume");
       if (notes) { setResume(notes); resumeRef.current = notes; }
+      // Ses renseignements : donnés une fois, ils restent sur l'appareil.
+      const sien = localStorage.getItem("bia-emetteur");
+      if (sien) setEmetteur({ ...EMETTEUR_VIDE, ...(JSON.parse(sien) as Partial<Emetteur>) });
     } catch {}
     fetch("/api/etat")
       .then((r) => r.json())
@@ -930,6 +964,12 @@ export default function Home() {
     setFace("pensive");
     setPanne("");
 
+    /* Il a prononcé le mot « devis », « fakture », « bataaxal ». Le bouton
+       s'allume tout de suite, sans attendre que BIA le décide : elle peut
+       oublier sa balise, lui n'oubliera pas ce qu'il est venu chercher. */
+    const evoquee = sorteEvoquee(clean);
+    if (evoquee) setPapierPret((deja) => deja || evoquee);
+
     // Le temps où l'humain écoute est du temps gagné : elle meuble en parlant.
     // Après le micro, ce sont les transitions qui tiennent déjà la parole —
     // on ne leur superpose pas une phrase d'attente.
@@ -962,7 +1002,7 @@ export default function Home() {
             : ""].filter(Boolean).join("\n"),
         }),
       });
-      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; source?: string };
+      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; source?: string };
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
       /* ICI SE JOUAIT LE SILENCE.
          On coupait l'attente à l'arrivée du TEXTE. Mais la voix, elle, n'est
@@ -981,6 +1021,13 @@ export default function Home() {
       }
       if (!response.ok) throw new Error("BIA unavailable");
       emotionRef.current = data.emotion || "neutre";
+      /* Elle estime avoir de quoi écrire : c'est elle qui allume le bouton,
+         et son avis vaut mieux qu'un mot-clé — elle a suivi toute la
+         conversation. Le papier déjà ouvert est jeté : il date d'avant. */
+      if (data.papier === "devis" || data.papier === "lettre") {
+        setPapierPret(data.papier);
+        setPapier(null);
+      }
       setPanne(data.source && data.source.startsWith("panne") ? data.source : "");
       setHistory((items) => [...items, { role: "bia", text: data.reply }]);
       // Le visage prend l'émotion tout de suite, avant même la voix : c'est
@@ -1378,6 +1425,254 @@ export default function Home() {
     setCorrige(null);
   }
 
+  /* ── LE PAPIER, CÔTÉ TÉLÉPHONE ────────────────────────────────────────────
+
+     Trois gestes, et c'est tout : elle le fabrique à partir de la
+     conversation, il s'affiche, on corrige un chiffre s'il a été mal entendu,
+     on en fait un PDF qu'on envoie sur WhatsApp.
+
+     POURQUOI ON PEUT CORRIGER. La transcription confond « quinze mille » et
+     « cinquante mille » plus souvent qu'on ne voudrait. Un devis faux part
+     chez un client et coûte de l'argent à quelqu'un : il faut donc que
+     l'homme du métier puisse poser l'œil dessus et rectifier lui-même, sans
+     refaire toute la conversation. Les totaux, eux, sont recalculés ici à
+     chaque frappe — jamais retapés à la main, jamais demandés au modèle. */
+  const fabriquerPapier = useCallback(async (sorte: Sorte) => {
+    setPapierOccupe(true);
+    setPapierErreur("");
+    setPdf("");
+    try {
+      const r = await fetch("/api/document", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+        body: JSON.stringify({
+          sorte,
+          history: historyRef.current.slice(-24),
+          emetteur: emetteurRef.current,
+          tva: emetteurRef.current.tva,
+        }),
+      });
+      const d = await r.json() as { document?: Papier; totaux?: Totaux | null; erreur?: string };
+      if (!r.ok || !d.document) {
+        setPapierErreur(d.erreur === "rien à écrire"
+          ? "Il n'y a pas encore de quoi écrire. Parle-lui du travail, du client et des prix, puis reviens."
+          : "Le papier n'a pas pu être fabriqué. Réessaie dans un instant.");
+        return;
+      }
+      setPapier({ doc: d.document, totaux: d.totaux ?? null });
+    } catch {
+      setPapierErreur("Pas de réseau. Le papier n'a pas pu être fabriqué.");
+    } finally {
+      setPapierOccupe(false);
+    }
+  }, []);
+
+  function ouvrirPapier(sorte: Sorte) {
+    taire();
+    setClavier(false);
+    setPapierOuvert(true);
+    if (!papier && !papierOccupe) void fabriquerPapier(sorte);
+  }
+
+  /* Toute retouche repasse par ici : le document est recopié, modifié, et les
+     totaux refaits dans la foulée. Le PDF déjà fabriqué ne vaut plus rien dès
+     qu'un chiffre bouge — on l'efface, pour ne pas envoyer l'ancien. */
+  function retoucherDevis(change: (d: Devis) => void) {
+    setPapier((p) => {
+      if (!p || p.doc.type !== "devis") return p;
+      const doc = JSON.parse(JSON.stringify(p.doc)) as Devis;
+      change(doc);
+      return { doc, totaux: totauxDe(doc) };
+    });
+    setPdf("");
+  }
+
+  function retoucherLettre(change: (l: Lettre) => void) {
+    setPapier((p) => {
+      if (!p || p.doc.type !== "lettre") return p;
+      const doc = JSON.parse(JSON.stringify(p.doc)) as Lettre;
+      change(doc);
+      return { doc, totaux: null };
+    });
+    setPdf("");
+  }
+
+  /* Le PDF est fabriqué par le serveur et revient fini. On ne l'ouvre pas
+     nous-mêmes : sur iPhone, une fenêtre ouverte par du code après un aller
+     au réseau est bloquée sans un mot. On pose donc un lien, et c'est la
+     personne qui l'ouvre — un geste de plus, mais qui marche partout. */
+  async function fabriquerPdf() {
+    if (!papier) return;
+    setPapierOccupe(true);
+    setPapierErreur("");
+    try {
+      const r = await fetch("/api/document/pdf", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+        body: JSON.stringify({ document: papier.doc }),
+      });
+      if (!r.ok) { setPapierErreur("Le PDF n'a pas pu être fabriqué."); return; }
+      const blob = await r.blob();
+      if (pdf) URL.revokeObjectURL(pdf);
+      setPdf(URL.createObjectURL(blob));
+    } catch {
+      setPapierErreur("Pas de réseau. Le PDF n'a pas pu être fabriqué.");
+    } finally {
+      setPapierOccupe(false);
+    }
+  }
+
+  function garderRenseignements() {
+    try { localStorage.setItem("bia-emetteur", JSON.stringify(emetteurRef.current)); } catch {}
+    setFiche(false);
+    /* Ses renseignements viennent de changer : le papier ouvert porte encore
+       les anciens. On le refait — c'est la seule façon que le NINEA et le
+       nom soient justes sur le PDF. */
+    if (papier) void fabriquerPapier(papier.doc.type);
+  }
+
+  /* Le devis à l'écran. Chaque champ est modifiable, parce que la
+     transcription confond « quinze mille » et « cinquante mille », et parce
+     que celui qui fait le travail est le seul à savoir lequel des deux est le
+     bon. Les totaux, eux, ne sont pas modifiables : ils se recalculent. */
+  function vueDevis(d: Devis, t: Totaux | null) {
+    return (
+      <>
+        <p className="papier-titre">Devis n° {d.numero}</p>
+        {!emetteur.nom ? (
+          <p className="papier-manque">
+            Tes renseignements manquent : le devis partira sans ton nom, ni ton NINEA.
+            <button type="button" onClick={() => setFiche(true)}>Les donner</button>
+          </p>
+        ) : null}
+
+        <label className="papier-champ">Objet
+          <input value={d.objet} onChange={(e) => retoucherDevis((x) => { x.objet = e.target.value; })} />
+        </label>
+        <label className="papier-champ">Client
+          <input value={d.client.nom} onChange={(e) => retoucherDevis((x) => { x.client.nom = e.target.value; })} />
+        </label>
+
+        <div className="lignes">
+          {d.lignes.map((l, i) => (
+            <div className="ligne-devis" key={i}>
+              <input className="designation" value={l.designation} aria-label="Désignation"
+                onChange={(e) => retoucherDevis((x) => { x.lignes[i].designation = e.target.value; })} />
+              {/* Les deux chiffres portent leur nom : sans étiquette, on voit
+                  « 10 » et « 25000 » sans savoir lequel est le prix. */}
+              <label className="mini">Qté
+                <input type="number" inputMode="numeric" value={l.quantite}
+                  onChange={(e) => retoucherDevis((x) => { x.lignes[i].quantite = Number(e.target.value) || 0; })} />
+              </label>
+              <label className="mini">Prix unit.
+                <input type="number" inputMode="numeric" value={l.prix_unitaire}
+                  onChange={(e) => retoucherDevis((x) => { x.lignes[i].prix_unitaire = Number(e.target.value) || 0; })} />
+              </label>
+              <span className="total-ligne">{franc(l.quantite * l.prix_unitaire)}</span>
+              <button className="oter" type="button" aria-label="Ôter cette ligne"
+                onClick={() => retoucherDevis((x) => { x.lignes.splice(i, 1); })}>×</button>
+            </div>
+          ))}
+          <button className="ajouter" type="button"
+            onClick={() => retoucherDevis((x) => { x.lignes.push({ designation: "", quantite: 1, prix_unitaire: 0 }); })}>
+            + une ligne
+          </button>
+        </div>
+
+        <div className="deux">
+          <label className="papier-champ">Remise (FCFA)
+            <input type="number" inputMode="numeric" value={d.remise || 0}
+              onChange={(e) => retoucherDevis((x) => { x.remise = Number(e.target.value) || 0; })} />
+          </label>
+          <label className="papier-champ">Avance (FCFA)
+            <input type="number" inputMode="numeric" value={d.acompte || 0}
+              onChange={(e) => retoucherDevis((x) => { x.acompte = Number(e.target.value) || 0; })} />
+          </label>
+        </div>
+
+        {t ? (
+          <dl className="totaux">
+            <div><dt>Sous-total</dt><dd>{franc(t.sous_total)}</dd></div>
+            {t.remise ? <div><dt>Remise</dt><dd>- {franc(t.remise)}</dd></div> : null}
+            {t.tva ? <div><dt>Montant HT</dt><dd>{franc(t.ht)}</dd></div> : null}
+            {t.tva ? <div><dt>TVA 18 %</dt><dd>{franc(t.tva)}</dd></div> : null}
+            <div className="gros"><dt>{t.tva ? "Total TTC" : "Total"}</dt><dd>{franc(t.total)}</dd></div>
+            {t.acompte ? <div><dt>Avance versée</dt><dd>- {franc(t.acompte)}</dd></div> : null}
+            {t.acompte ? <div><dt>Reste à payer</dt><dd>{franc(t.reste)}</dd></div> : null}
+          </dl>
+        ) : null}
+      </>
+    );
+  }
+
+  function vueLettre(l: Lettre) {
+    return (
+      <>
+        <p className="papier-titre">{l.titre}</p>
+        {!emetteur.nom ? (
+          <p className="papier-manque">
+            Tes renseignements manquent : la lettre partira sans tes coordonnées.
+            <button type="button" onClick={() => setFiche(true)}>Les donner</button>
+          </p>
+        ) : null}
+        <label className="papier-champ">Destinataire
+          <input value={l.destinataire.nom} onChange={(e) => retoucherLettre((x) => { x.destinataire.nom = e.target.value; })} />
+        </label>
+        <label className="papier-champ">Objet
+          <input value={l.objet || ""} onChange={(e) => retoucherLettre((x) => { x.objet = e.target.value; })} />
+        </label>
+        {l.corps.map((para, i) => (
+          <textarea className="paragraphe" key={i} rows={4} value={para} aria-label={`Paragraphe ${i + 1}`}
+            onChange={(e) => retoucherLettre((x) => { x.corps[i] = e.target.value; })} />
+        ))}
+        <label className="papier-champ">Formule de politesse
+          <input value={l.formule || ""} onChange={(e) => retoucherLettre((x) => { x.formule = e.target.value; })} />
+        </label>
+        <label className="papier-champ">Signature
+          <input value={l.signature || ""} onChange={(e) => retoucherLettre((x) => { x.signature = e.target.value; })} />
+        </label>
+      </>
+    );
+  }
+
+  function vueFiche() {
+    const champ = (cle: keyof Emetteur, etiquette: string, mode?: string) => (
+      <label className="papier-champ">{etiquette}
+        <input value={String(emetteur[cle] ?? "")} inputMode={mode as "text" | "tel" | undefined}
+          onChange={(e) => setEmetteur((v) => ({ ...v, [cle]: e.target.value }))} />
+      </label>
+    );
+    return (
+      <>
+        <p className="papier-titre">Mes renseignements</p>
+        <p className="papier-note">
+          Donnés une fois, ils reviennent sur chacun de tes papiers. Le NINEA et le
+          registre de commerce sont ce qui rend un devis recevable par une
+          administration ou par une société.
+        </p>
+        {champ("nom", "Nom ou raison sociale")}
+        {champ("metier", "Métier")}
+        {champ("telephone", "Téléphone", "tel")}
+        {champ("adresse", "Adresse")}
+        {champ("ninea", "NINEA")}
+        {champ("rc", "Registre de commerce")}
+        <label className="papier-case">
+          <input type="checkbox" checked={emetteur.tva}
+            onChange={(e) => setEmetteur((v) => ({ ...v, tva: e.target.checked }))} />
+          Je suis assujetti à la TVA (18 %)
+        </label>
+        <p className="papier-note">
+          Si tu ne l'es pas, laisse décoché : faire apparaître une TVA quand on n'y
+          est pas assujetti est une faute.
+        </p>
+        <div className="papier-boutons">
+          <button type="button" onClick={garderRenseignements}>Garder</button>
+          <button type="button" className="pale" onClick={() => setFiche(false)}>Annuler</button>
+        </div>
+      </>
+    );
+  }
+
   function nouvelleConversation() {
     couperSon();
     window.speechSynthesis?.cancel();
@@ -1385,6 +1680,12 @@ export default function Home() {
     // Nouvelle conversation, donc nouvelle présentation : elle redira une
     // fois « je t'ai bien entendu », puis se taira comme avant.
     presentationFaiteRef.current = false;
+    // Le papier appartenait à la conversation d'avant.
+    setPapierPret(null);
+    setPapier(null);
+    setPapierOuvert(false);
+    setPapierErreur("");
+    if (pdf) { URL.revokeObjectURL(pdf); setPdf(""); }
     try { localStorage.removeItem("bia-fil"); } catch {}
     // Les notes ne sont PAS effacées : c'est justement ce qui fait qu'elle se
     // souvient de la personne d'une conversation à l'autre.
@@ -1459,7 +1760,16 @@ export default function Home() {
           </svg>
         </button>
 
-        <span className="cale" aria-hidden="true" />
+        {/* Le papier. Le bouton n'existe que lorsqu'il y a un papier à faire —
+            une feuille dorée, sans un mot : l'écran noir reste sans texte. */}
+        {papierPret ? (
+          <button className="papier-ouvrir" type="button" onClick={() => ouvrirPapier(papierPret)}
+            aria-label={papierPret === "devis" ? "Ouvrir le devis" : "Ouvrir la lettre"}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 2h7.2L20 8.8V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.8V9h5.2L13 3.8ZM8 12h8v1.8H8V12Zm0 3.4h8v1.8H8v-1.8Zm0-6.8h3v1.8H8V8.6Z" />
+            </svg>
+          </button>
+        ) : <span className="cale" aria-hidden="true" />}
       </div>
 
       <section className="clavier" aria-hidden={!clavier}>
@@ -1524,6 +1834,48 @@ export default function Home() {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12 2-12 2Z" /></svg>
           </button>
         </div>
+      </section>
+
+      {/* LE PAPIER. Il monte par-dessus tout le reste, comme le clavier :
+          un devis se lit, se corrige et se garde — on ne le récite pas. */}
+      <section className="papier-panneau" aria-hidden={!papierOuvert}>
+        <button className="clavier-fermer" type="button" onClick={() => setPapierOuvert(false)}
+          aria-label="Refermer le papier">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.4 5.3 8.7l1.4-1.4 5.3 5.3 5.3-5.3 1.4 1.4Z" /></svg>
+        </button>
+
+        <div className="papier-corps scrollbar-thin">
+          {fiche ? vueFiche() : (
+            <>
+              {papierErreur ? <p className="panne">⚠ {papierErreur}</p> : null}
+              {!papier && papierOccupe ? <p className="papier-note">BIA écrit le papier…</p> : null}
+              {papier && papier.doc.type === "devis" ? vueDevis(papier.doc, papier.totaux) : null}
+              {papier && papier.doc.type === "lettre" ? vueLettre(papier.doc) : null}
+            </>
+          )}
+        </div>
+
+        {/* Les boutons ne défilent pas avec le papier : sur un devis de dix
+            lignes, « Faire le PDF » finissait hors de l'écran. */}
+        {!fiche && papier ? (
+          <div className="papier-pied">
+            {/* Le total ne descend jamais sous le pli : c'est le chiffre pour
+                lequel on ouvre un devis. */}
+            {papier.doc.type === "devis" && papier.totaux ? (
+              <p className="pied-total">
+                <span>{papier.totaux.tva ? "Total TTC" : "Total"}</span>
+                <b>{franc(papier.totaux.total)}</b>
+              </p>
+            ) : null}
+            <button type="button" onClick={() => void fabriquerPdf()} disabled={papierOccupe}>
+              {papierOccupe ? "Un instant…" : "Faire le PDF"}
+            </button>
+            {pdf ? <a className="pdf-lien" href={pdf} target="_blank" rel="noreferrer">Ouvrir le PDF</a> : null}
+            <button type="button" className="pale" disabled={papierOccupe}
+              onClick={() => void fabriquerPapier(papier.doc.type)}>Refaire</button>
+            <button type="button" className="pale" onClick={() => setFiche(true)}>Mes renseignements</button>
+          </div>
+        ) : null}
       </section>
 
       <p className="sr-only" aria-live="polite">{labels[mode]}</p>

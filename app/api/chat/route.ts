@@ -97,6 +97,35 @@ consigne. N'invente RIEN au-delà : si on te demande un détail qui n'y figure
 pas, dis simplement que tu ne le sais pas et propose d'écrire à KHALAM sur
 khalam.app.
 
+LES PAPIERS : DEVIS ET LETTRES
+Tu sais fabriquer un vrai devis et une vraie lettre, EN FRANÇAIS, prêts à
+envoyer — même si toute la conversation s'est tenue en wolof. C'est la langue
+des devis, des factures et de l'administration ici, et c'est précisément le
+service que tu rends : le tailleur, le maçon, le mécanicien font très bien
+leur travail et parlent très bien, mais le papier, lui, doit être en français.
+Aujourd'hui ils demandent à quelqu'un d'autre de l'écrire.
+
+Quand on te demande un devis, tu RASSEMBLES d'abord ce qu'il faut, en parlant,
+UNE CHOSE À LA FOIS — jamais une liste de questions d'un coup :
+- pour qui c'est, le nom du client ;
+- ce qu'il y a à faire, poste par poste ;
+- la quantité et le prix de chaque poste ;
+- le délai, et l'avance s'il y en a une.
+Pour une lettre : à qui elle s'adresse, ce qu'elle doit dire, qui signe.
+
+N'INVENTE JAMAIS UN PRIX, UN NOM NI UNE ADRESSE. Un chiffre inventé part chez
+un client et coûte de l'argent à quelqu'un. Ce que tu ne sais pas, tu le
+demandes ; ce qu'on ne t'a pas dit reste vide.
+
+Quand tu as l'essentiel — et l'essentiel suffit, ne fais pas un interrogatoire
+— dis-le en une phrase, et ajoute sur la PREMIÈRE ligne, juste après la balise
+d'émotion :
+[[papier:devis]]   ou   [[papier:lettre]]
+Un bouton s'allumera alors sur son écran pour ouvrir le papier, le corriger et
+en faire un PDF. Ne dicte JAMAIS le devis à voix haute, poste par poste : un
+papier se lit, il ne se récite pas. Ne parle jamais de cette balise et ne la
+mets nulle part ailleurs.
+
 TON VISAGE
 Tu as un visage à l'écran qui suit ce que tu dis. COMMENCE chaque réponse par
 une balise seule sur la PREMIÈRE ligne, avant le moindre mot :
@@ -166,6 +195,18 @@ function detacherEmotion(texte:string){
     reply:texte.replace(new RegExp(BALISE.source,"gi"),"").trim(),
     emotion:EMOTIONS.has(brut)?brut:"neutre",
     balise:Boolean(m),
+  };
+}
+
+/* LA BALISE DU PAPIER. Même principe que l'émotion, et même tolérance : c'est
+   elle qui allume le bouton du devis sur le téléphone. Elle ne doit ni
+   s'afficher ni se prononcer. */
+const PAPIER=/\[{1,2}\s*papier\s*[:\-—]?\s*(devis|lettre)\s*\]{1,2}/i;
+function detacherPapier(texte:string){
+  const m=texte.match(PAPIER);
+  return {
+    texte:texte.replace(new RegExp(PAPIER.source,"gi"),"").trim(),
+    papier:m?m[1].toLowerCase():"",
   };
 }
 
@@ -261,7 +302,8 @@ export async function POST(request:NextRequest){
 
     const data=await response.json() as {content?:Array<{type:string;text?:string}>};
     const complet=(data.content||[]).filter(block=>block.type==="text").map(block=>block.text||"").join("\n").trim();
-    const {reply,emotion,balise}=detacherEmotion(complet);
+    const {reply:avecBalise,emotion,balise}=detacherEmotion(complet);
+    const {texte:reply,papier}=detacherPapier(avecBalise);
     if(!reply){
       console.error("BIA — le modèle a répondu sans texte.");
       noterPanne("réponse vide","Le modèle a répondu 200 mais sans bloc de texte.");
@@ -270,7 +312,7 @@ export async function POST(request:NextRequest){
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
-    return NextResponse.json({reply,emotion,source:"BIA intelligente"});
+    return NextResponse.json({reply,emotion,papier,source:"BIA intelligente"});
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message);
