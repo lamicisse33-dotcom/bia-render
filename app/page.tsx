@@ -25,6 +25,9 @@ type Message = { role: "bia" | "user"; text: string };
    de rejet. La TVA est un réglage, jamais une décision du modèle : la plupart
    des artisans n'y sont pas assujettis, et l'afficher quand on ne l'est pas
    est une faute. */
+/* Les services que BIA rend, chacun derrière son bouton. */
+type Service = "" | "message" | "devis" | "lettre" | "photo" | "lire" | "fiche";
+
 type Emetteur = Partie & { tva: boolean };
 const EMETTEUR_VIDE: Emetteur = {
   nom: "", metier: "", telephone: "", adresse: "", ninea: "", rc: "", tva: false,
@@ -188,6 +191,14 @@ export default function Home() {
   /* Retirer quelqu'un efface ses notes, ses papiers et sa conversation. Ça ne
      se fait pas d'un seul doigt posé par erreur : il faut confirmer. */
   const [aRetirer, setARetirer] = useState<string | null>(null);
+  /** La photo d'un papier, pendant qu'elle la lit. */
+  const [photoOccupe, setPhotoOccupe] = useState(false);
+  /* LES SERVICES, EN RANGÉE. Demande de Lamine, le 10 septembre 2026 : « tous
+     les services vont être des boutons sur ces points ; dès que tu appuies,
+     c'est seulement cette page qui s'ouvre ». Un seul service ouvert à la
+     fois, et la rangée reste en haut pour passer de l'un à l'autre. */
+  const [service, setService] = useState<Service>("");
+  const [aColler, setAColler] = useState("");
   /** Le téléphone sait-il partager ? Sur mobile, oui — et c'est ce qui ouvre WhatsApp. */
   const [partageable, setPartageable] = useState(false);
   const [copie, setCopie] = useState(false);
@@ -199,6 +210,7 @@ export default function Home() {
   const historyRef = useRef<Message[]>([]);
   const filRef = useRef<HTMLDivElement | null>(null);
   const champRef = useRef<HTMLInputElement | null>(null);
+  const photoRef = useRef<HTMLInputElement | null>(null);
   const codeRef = useRef<string>("");
   const contexteRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -1141,8 +1153,8 @@ export default function Home() {
      Ça ne passe PAS par la conversation : /api/chat lui répondrait en
      français, puisqu'on lui écrit en français. C'est un chemin à part, où
      elle ne répond pas et ne conseille pas — elle lit. */
-  const lireEnWolof = useCallback(async () => {
-    const texte = saisie.trim();
+  const lireTexteColle = useCallback(async (brut: string) => {
+    const texte = brut.trim();
     if (!texte || busyRef.current) return;
     busyRef.current = true;
     setSaisie("");
@@ -1179,7 +1191,99 @@ export default function Home() {
     } finally {
       busyRef.current = false;
     }
-  }, [saisie, speak]);
+  }, [speak]);
+
+  /* ── PHOTOGRAPHIER UN PAPIER ────────────────────────────────────────────
+
+     Lamine, le 10 septembre 2026 : « BIA doit être capable de photographier
+     un document, pour le traduire à haute voix en wolof, ou pour le scanner
+     et le garder. »
+
+     C'est le même service que le texte collé, mais pour ce qui arrive sur du
+     papier — et ici presque tout arrive sur du papier. Une convocation, une
+     ordonnance, un bulletin, une facture, une lettre d'huissier. Aujourd'hui
+     la personne attend le soir que quelqu'un le lui lise, et parfois elle
+     n'ose pas demander.
+
+     LA PHOTO EST RÉDUITE AVANT DE PARTIR. Un téléphone récent sort des images
+     de quatre à huit méga-octets ; envoyées telles quelles depuis Dakar, elles
+     mettent une minute et coûtent cher en données. Réduites à 1600 pixels,
+     elles pèsent quelques centaines de kilo-octets et le texte reste
+     parfaitement lisible — c'est la résolution que le modèle regarde de toute
+     façon. */
+  const reduirePhoto = (fichier: File): Promise<{ base64: string; type: string }> =>
+    new Promise((resolve, reject) => {
+      const lecteur = new FileReader();
+      lecteur.onerror = () => reject(new Error("lecture"));
+      lecteur.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("image"));
+        img.onload = () => {
+          const cote = 1600;
+          const echelle = Math.min(1, cote / Math.max(img.width, img.height));
+          const l = Math.max(1, Math.round(img.width * echelle));
+          const h = Math.max(1, Math.round(img.height * echelle));
+          const toile = document.createElement("canvas");
+          toile.width = l; toile.height = h;
+          const ctx = toile.getContext("2d");
+          if (!ctx) { reject(new Error("toile")); return; }
+          ctx.drawImage(img, 0, 0, l, h);
+          const url = toile.toDataURL("image/jpeg", 0.82);
+          resolve({ base64: url.slice(url.indexOf(",") + 1), type: "image/jpeg" });
+        };
+        img.src = String(lecteur.result || "");
+      };
+      lecteur.readAsDataURL(fichier);
+    });
+
+  const lirePapierPhoto = useCallback(async (fichier: File) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setPhotoOccupe(true);
+    setPanne("");
+    setMode("thinking");
+    setFace("pensive");
+    langueRef.current = "wo";
+    departAttenteRef.current = Date.now();
+    voieRef.current = "ecrit";
+    tTranscritRef.current = 0;
+    tModeleRef.current = 0;
+
+    try {
+      const { base64, type } = await reduirePhoto(fichier);
+      const r = await fetch("/api/papier-photo", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+        body: JSON.stringify({ image: base64, type }),
+      });
+      const d = await r.json() as { titre?: string; francais?: string; wolof?: string; erreur?: string };
+      tModeleRef.current = Date.now();
+      if (!r.ok || !d.wolof) {
+        setPanne(d.erreur === "photo trop lourde"
+          ? "La photo est trop lourde. Reprends-la d'un peu plus loin."
+          : "Le papier n'a pas pu être lu. Reprends la photo, bien à plat et en pleine lumière.");
+        setMode("ready"); setFace("yeux_ouverts");
+        return;
+      }
+
+      /* LE FRANÇAIS EST GARDÉ, PAS SEULEMENT DIT. C'est la trace du papier :
+         elle reste dans le fil, sur l'appareil, sous le nom de la personne —
+         relisible, corrigeable, et prête à devenir un message ou une lettre.
+         Ne garder que le wolof reviendrait à perdre le document. */
+      const trace = [d.titre ? `📄 ${d.titre}` : "📄 Papier photographié", d.francais]
+        .filter(Boolean).join("\n\n");
+      setHistory((items) => [...items, { role: "user", text: trace }, { role: "bia", text: d.wolof as string }]);
+      emotionRef.current = "neutre";
+      setFace("yeux_ouverts");
+      speak(d.wolof);
+    } catch {
+      setPanne("La photo n'a pas pu être envoyée.");
+      setMode("error");
+    } finally {
+      setPhotoOccupe(false);
+      busyRef.current = false;
+    }
+  }, [speak]);
 
   /* Pendant qu'elle réfléchit, le visage ne doit pas se figer — mais il ne
      doit pas s'agiter non plus.
@@ -1666,16 +1770,39 @@ export default function Home() {
     }
   }, []);
 
-  /* Ouvrir l'écran des papiers. Sans rien préciser, il montre le choix — un
-     message, un devis, une lettre — sauf si BIA a déjà de quoi écrire : dans
-     ce cas on va droit au but, c'est ce qu'elle vient d'annoncer. */
+  /* Ouvrir la fenêtre des services. Sans rien préciser, on voit la rangée et
+     rien d'autre — sauf si BIA a déjà de quoi écrire : on va droit au but,
+     c'est ce qu'elle vient d'annoncer. */
   function ouvrirPapier(sorte?: Sorte) {
     taire();
     setClavier(false);
     setFiche(false);
     setPapierOuvert(true);
     const quoi = sorte || (papier ? null : papierPret);
-    if (quoi && !papier && !papierOccupe) void fabriquerPapier(quoi);
+    if (quoi) {
+      setService(quoi);
+      if (!papier && !papierOccupe) void fabriquerPapier(quoi);
+    } else if (papier) {
+      setService(papier.doc.type);
+    }
+  }
+
+  /* UN SEUL SERVICE À LA FOIS. On touche un bouton de la rangée, cette page
+     s'ouvre, et elle seule. Le papier d'un autre service est mis de côté :
+     mélanger un devis et une lettre à l'écran n'aiderait personne. */
+  function ouvrirService(quoi: Service) {
+    setService(quoi);
+    setPapierErreur("");
+    setFiche(quoi === "fiche");
+
+    if (quoi === "photo") { photoRef.current?.click(); return; }
+    if (quoi === "lire" || quoi === "fiche" || quoi === "") return;
+
+    // message, devis, lettre
+    if (papier && papier.doc.type !== quoi) setPapier(null);
+    if ((!papier || papier.doc.type !== quoi) && !papierOccupe && historyRef.current.length) {
+      void fabriquerPapier(quoi as Sorte);
+    }
   }
 
   /* Toute retouche repasse par ici : le document est recopié, modifié, et les
@@ -1903,51 +2030,93 @@ export default function Home() {
     );
   }
 
-  /* L'ÉCRAN DE CHOIX. Ce qui s'affiche quand on ouvre les papiers sans que
-     BIA ait rien annoncé : on décide soi-même de ce qu'on veut écrire, et
-     elle le fabrique à partir de la conversation.
+  /* LA RANGÉE DES SERVICES.
 
-     Le message est en premier, et en grand : c'est celui dont on se servira
-     le plus. Tout le monde a un message à envoyer ; peu de gens ont une
-     lettre à écrire. */
-  function vueChoix() {
+     Lamine, le 10 septembre 2026, en désignant cinq carrés dessinés en haut
+     d'une capture : « tous les services vont être des boutons sur ces
+     points ; dès que tu appuies, c'est seulement cette page qui s'ouvre ».
+
+     Elle reste en haut, toujours visible : on passe d'un service à l'autre
+     sans revenir en arrière. Le message est le premier, c'est celui dont on
+     se servira le plus. */
+  const SERVICES: Array<{ cle: Service; nom: string; dessin: string }> = [
+    { cle: "message", nom: "Message",
+      dessin: "M12 3c5 0 9 3.2 9 7.2s-4 7.2-9 7.2c-.9 0-1.8-.1-2.6-.3L4.6 20a.6.6 0 0 1-.9-.7l1-3.1C3 14.9 3 12.9 3 10.2 3 6.2 7 3 12 3Z" },
+    { cle: "devis", nom: "Devis",
+      dessin: "M6 2h7.2L20 8.8V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.8V9h5.2L13 3.8ZM8 12h8v1.8H8V12Zm0 3.4h8v1.8H8v-1.8Zm0-6.8h3v1.8H8V8.6Z" },
+    { cle: "lettre", nom: "Lettre",
+      dessin: "M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1.6 2L12 12.4 19.4 7H4.6Z" },
+    { cle: "photo", nom: "Papier",
+      dessin: "M9.4 4h5.2l1.2 2H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4.2l1.2-2Zm2.6 4.8a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2Zm0 1.9a2.7 2.7 0 1 1 0 5.4 2.7 2.7 0 0 1 0-5.4Z" },
+    { cle: "lire", nom: "Lire",
+      dessin: "M4 9h3.4L12 4.6v14.8L7.4 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1Zm12.5-1.6a5.6 5.6 0 0 1 0 9.2l-1.1-1.6a3.6 3.6 0 0 0 0-6l1.1-1.6Zm2.3-3.2a9.6 9.6 0 0 1 0 15.6l-1.1-1.6a7.6 7.6 0 0 0 0-12.4l1.1-1.6Z" },
+    { cle: "fiche", nom: "Moi",
+      dessin: "M12 12.4a4.2 4.2 0 1 0 0-8.4 4.2 4.2 0 0 0 0 8.4ZM4 20.4c0-3.6 3.6-6 8-6s8 2.4 8 6v.6H4v-.6Z" },
+  ];
+
+  function vueServices() {
+    return (
+      <div className="services" role="tablist" aria-label="Les services de BIA">
+        {SERVICES.map((x) => (
+          <button key={x.cle} type="button" role="tab" aria-selected={service === x.cle}
+            className={service === x.cle ? "service actif" : "service"}
+            onClick={() => ouvrirService(x.cle)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d={x.dessin} /></svg>
+            <span>{x.nom}</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  /* La page d'accueil de la fenêtre : rien n'est encore choisi. */
+  function vueAccueil() {
     const vide = historyRef.current.length === 0;
     return (
       <>
-        <p className="papier-titre">Qu'est-ce qu'on écrit ?</p>
-        {vide ? (
-          <p className="papier-note">
-            Parle d'abord à BIA — dis-lui en wolof ce que tu veux écrire, et pour qui.
-            Elle te posera ce qui manque, puis reviens ici.
-          </p>
-        ) : (
-          <p className="papier-note">
-            Elle l'écrit à partir de ce que tu viens de lui dire. En français, prêt à envoyer.
-          </p>
-        )}
-        <div className="choix">
-          <button type="button" className="grand" disabled={vide} onClick={() => void fabriquerPapier("message")}>
-            <b>Un message</b>
-            <span>À copier et à envoyer sur WhatsApp ou par SMS.</span>
-          </button>
-          <button type="button" disabled={vide} onClick={() => void fabriquerPapier("devis")}>
-            <b>Un devis</b>
-            <span>Avec les prix, les totaux et ton NINEA. En PDF.</span>
-          </button>
-          <button type="button" disabled={vide} onClick={() => void fabriquerPapier("lettre")}>
-            <b>Une lettre</b>
-            <span>Demande d'emploi, courrier administratif. En PDF.</span>
-          </button>
-        </div>
-        {vide ? (
-          <div className="papier-boutons">
-            <button type="button" onClick={() => { setPapierOuvert(false); ouvrirClavier(); }}>Écrire à BIA</button>
-          </div>
-        ) : (
-          <div className="papier-boutons">
-            <button type="button" className="pale" onClick={() => setFiche(true)}>Mes renseignements</button>
-          </div>
-        )}
+        <p className="papier-titre">Loo bëgg ?</p>
+        <p className="papier-note">
+          {vide
+            ? "Parle d'abord à BIA — dis-lui en wolof ce que tu veux, et pour qui. Sauf pour les deux derniers : photographier un papier et lire un texte français marchent tout de suite."
+            : "Touche un bouton là-haut. Elle écrit à partir de ce que tu viens de lui dire, en français, prêt à envoyer."}
+        </p>
+      </>
+    );
+  }
+
+  /* Coller un texte français et l'entendre en wolof, depuis la fenêtre plutôt
+     que depuis le clavier : c'est un service, il a sa place dans la rangée. */
+  function vueLire() {
+    return (
+      <>
+        <p className="papier-titre">Un texte français, dit en wolof</p>
+        <p className="papier-note">
+          Colle ici le SMS, le courriel ou le message que tu as reçu. Elle te le dit
+          en wolof, à voix haute. Elle lit, elle ne conseille pas.
+        </p>
+        <textarea className="paragraphe grand" rows={8} value={aColler}
+          aria-label="Le texte français à lire en wolof"
+          placeholder="Collal texte bi fii…"
+          onChange={(e) => setAColler(e.target.value)} />
+      </>
+    );
+  }
+
+  function vuePhoto() {
+    return (
+      <>
+        <p className="papier-titre">Photographier un papier</p>
+        <p className="papier-note">
+          Une convocation, une ordonnance, un bulletin, une facture. Elle te le lit
+          en wolof, et le texte français reste dans la conversation.
+        </p>
+        <p className="papier-note">
+          Pose le papier à plat, en pleine lumière, et cadre-le en entier — c&apos;est
+          ce qui fait la différence entre un papier lu et un papier deviné. Elle
+          n&apos;invente jamais un chiffre : ce qu&apos;elle ne voit pas, elle l&apos;écrit
+          [illisible].
+        </p>
+        {photoOccupe ? <p className="papier-note">Elle lit le papier…</p> : null}
       </>
     );
   }
@@ -2226,12 +2395,16 @@ export default function Home() {
           {/* LIRE EN WOLOF UN TEXTE FRANÇAIS. On colle le SMS de la banque ou
               de l'école, on appuie sur le haut-parleur, et on l'entend dans sa
               langue. Elle ne répond pas, elle ne conseille pas : elle lit. */}
-          <button type="button" className="traduire" onClick={() => void lireEnWolof()}
-            disabled={!saisie.trim() || microFerme} aria-label="Me le lire en wolof">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 9h3.4L12 4.6v14.8L7.4 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1Zm12.5-1.6a5.6 5.6 0 0 1 0 9.2l-1.1-1.6a3.6 3.6 0 0 0 0-6l1.1-1.6Zm2.3-3.2a9.6 9.6 0 0 1 0 15.6l-1.1-1.6a7.6 7.6 0 0 0 0-12.4l1.1-1.6Z" />
-            </svg>
-          </button>
+          {/* L'appareil photo vit ici sans se voir : c'est le bouton « Papier »
+              de la fenêtre des services qui le déclenche. Un seul champ de
+              fichier pour toute l'application. */}
+          <input ref={photoRef} type="file" accept="image/*" capture="environment"
+            className="sr-only" aria-label="Photographier un papier"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) { setPapierOuvert(false); void lirePapierPhoto(f); }
+            }} />
           <button type="button" onClick={() => void askBia(saisie)} disabled={!saisie.trim()} aria-label="Envoyer">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12 2-12 2Z" /></svg>
           </button>
@@ -2251,33 +2424,67 @@ export default function Home() {
           }} />
       ) : null}
 
-      {/* LE PAPIER. Il monte par-dessus tout le reste, comme le clavier :
-          un devis se lit, se corrige et se garde — on ne le récite pas. */}
+      {/* LA FENÊTRE DES SERVICES.
+
+          Demande de Lamine, le 10 septembre 2026 : une rangée de boutons en
+          haut, un par service, et « dès que tu appuies, c'est seulement cette
+          page qui s'ouvre ». La rangée ne bouge plus : elle reste visible
+          au-dessus de la page ouverte, pour passer de l'une à l'autre sans
+          revenir en arrière. */}
       <section className="papier-panneau" aria-hidden={!papierOuvert}>
         <button className="clavier-fermer" type="button" onClick={() => setPapierOuvert(false)}
-          aria-label="Refermer le papier">
+          aria-label="Refermer">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 7.1 16.9 5.7 12 10.6 7.1 5.7 5.7 7.1l4.9 4.9-4.9 4.9 1.4 1.4 4.9-4.9 4.9 4.9 1.4-1.4-4.9-4.9Z" /></svg>
         </button>
 
+        {vueServices()}
+
         <div className="papier-corps scrollbar-thin">
-          {fiche ? vueFiche() : (
+          {papierErreur ? <p className="panne">⚠ {papierErreur}</p> : null}
+
+          {service === "fiche" ? vueFiche() : null}
+          {service === "lire" ? vueLire() : null}
+          {service === "photo" ? vuePhoto() : null}
+          {service === "" ? vueAccueil() : null}
+
+          {service === "message" || service === "devis" || service === "lettre" ? (
             <>
-              {papierErreur ? <p className="panne">⚠ {papierErreur}</p> : null}
-              {!papier && papierOccupe ? <p className="papier-note">BIA écrit le papier…</p> : null}
-              {!papier && !papierOccupe ? vueChoix() : null}
+              {papierOccupe && !papier ? <p className="papier-note">BIA écrit…</p> : null}
+              {!papier && !papierOccupe && !historyRef.current.length ? (
+                <p className="papier-note">
+                  Il n&apos;y a pas encore de quoi écrire. Parle-lui d&apos;abord de ce
+                  que tu veux dire, et pour qui.
+                </p>
+              ) : null}
               {papier && papier.doc.type === "devis" ? vueDevis(papier.doc, papier.totaux) : null}
               {papier && papier.doc.type === "lettre" ? vueLettre(papier.doc) : null}
               {papier && papier.doc.type === "message" ? vueMot(papier.doc) : null}
             </>
-          )}
+          ) : null}
         </div>
 
-        {/* Les boutons ne défilent pas avec le papier : sur un devis de dix
-            lignes, « Faire le PDF » finissait hors de l'écran. */}
-        {!fiche && papier ? (
+        {/* Le pied change avec le service ouvert : ce sont les gestes de CETTE
+            page, et rien d'autre. */}
+        {service === "lire" ? (
           <div className="papier-pied">
-            {/* Le total ne descend jamais sous le pli : c'est le chiffre pour
-                lequel on ouvre un devis. */}
+            <button type="button" disabled={!aColler.trim() || photoOccupe}
+              onClick={() => { const t = aColler; setAColler(""); setPapierOuvert(false); void lireTexteColle(t); }}>
+              Lis-le-moi en wolof
+            </button>
+            <button type="button" className="pale" onClick={() => setAColler("")}>Effacer</button>
+          </div>
+        ) : null}
+
+        {service === "photo" ? (
+          <div className="papier-pied">
+            <button type="button" disabled={photoOccupe} onClick={() => photoRef.current?.click()}>
+              {photoOccupe ? "Elle lit…" : "Prendre la photo"}
+            </button>
+          </div>
+        ) : null}
+
+        {(service === "message" || service === "devis" || service === "lettre") && papier ? (
+          <div className="papier-pied">
             {papier.doc.type === "devis" && papier.totaux ? (
               <p className="pied-total">
                 <span>{papier.totaux.tva ? "Total TTC" : "Total"}</span>
@@ -2306,12 +2513,6 @@ export default function Home() {
             )}
             <button type="button" className="pale" disabled={papierOccupe}
               onClick={() => void fabriquerPapier(papier.doc.type)}>Refaire</button>
-            <button type="button" className="pale" onClick={() => { setPapier(null); setPapierErreur(""); }}>
-              Autre
-            </button>
-            {papier.doc.type === "message" ? null : (
-              <button type="button" className="pale" onClick={() => setFiche(true)}>Mes renseignements</button>
-            )}
           </div>
         ) : null}
       </section>

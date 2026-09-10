@@ -840,3 +840,46 @@ button { font: inherit; touch-action: manipulation; }
   background: rgba(150,40,40,.55); color: #ffd9d9;
   font-size: 13px;
 }
+
+/* Photographier un papier. Le même rang que le haut-parleur : ce sont les
+   deux façons de faire entrer quelque chose d'écrit dans son oreille. */
+.saisie .photo { background: rgba(255,255,255,.09); color: rgba(255,255,255,.85); }
+.saisie .photo:disabled { opacity: .4; }
+
+/* ── LA RANGÉE DES SERVICES ──────────────────────────────────────────────
+   Lamine, le 10 septembre 2026, en dessinant cinq carrés en haut d'une
+   capture : « tous les services vont être des boutons sur ces points ; dès
+   que tu appuies, c'est seulement cette page qui s'ouvre ».
+
+   Elle ne défile pas avec la page : elle reste en haut, et c'est ce qui
+   permet de passer d'un service à l'autre sans revenir en arrière. */
+.services {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  margin: 0 -14px 10px;
+  padding: 0 14px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.services::-webkit-scrollbar { display: none; }
+.service {
+  flex: none;
+  width: 62px;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 9px 4px;
+  border: 1px solid rgba(255,255,255,.12); border-radius: 14px;
+  background: rgba(255,255,255,.04);
+  color: rgba(255,255,255,.62);
+  font: inherit; cursor: pointer;
+  transition: border-color .16s ease, background .16s ease, color .16s ease, transform .16s ease;
+}
+.service:active { transform: scale(.94); }
+.service svg { width: 22px; height: 22px; fill: currentColor; }
+.service span { font-size: 11px; letter-spacing: .01em; }
+.service.actif {
+  border-color: rgba(212,175,55,.6);
+  background: rgba(212,175,55,.13);
+  color: #e7c667;
+}
