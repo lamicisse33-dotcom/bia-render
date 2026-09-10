@@ -57,7 +57,24 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="wo">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        {/* ── LA PAGE DE SECOURS, ET RIEN D'AUTRE ─────────────────────────
+            Ce service worker ne garde PAS l'application : il ne sert qu'à
+            montrer « amul jokkoo » au lieu d'un écran blanc quand le
+            téléphone n'a pas de réseau. BIA continue donc de se mettre à
+            jour toute seule à chaque ouverture — voir public/sw.js.
+
+            Inscrit après le chargement, pour ne pas prendre une seconde à
+            quelqu'un qui attend déjà que BIA s'ouvre. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "if('serviceWorker' in navigator&&location.protocol==='https:'){" +
+              "addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){})})}",
+          }}
+        />
+      </body>
     </html>
   );
 }

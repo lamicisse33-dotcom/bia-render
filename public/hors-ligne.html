@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="wo">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BIA — amul jokkoo</title>
+<meta name="theme-color" content="#050507">
+
+<!-- ── LA PAGE QUAND IL N'Y A PAS DE RÉSEAU ───────────────────────────────
+     Demandée par Lamine le 10 septembre 2026. Sans elle, BIA installée sur
+     l'écran d'accueil s'ouvrait sur un écran BLANC dès que le téléphone
+     n'avait pas de connexion : rien à lire, rien à comprendre, et l'impression
+     que l'application est cassée.
+
+     Elle ne sert qu'à ça. Elle ne contient pas l'application, ne garde aucune
+     conversation, et ne peut donc jamais servir une vieille version — c'est
+     tout l'intérêt de la garder séparée. -->
+<style>
+  :root { --or:#C9A227; --nuit:#050507; --creme:#FFF7DC; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; }
+  body {
+    margin:0; background:var(--nuit); color:var(--creme);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center;
+    padding:calc(env(safe-area-inset-top,0px) + 24px) 22px calc(env(safe-area-inset-bottom,0px) + 28px);
+  }
+  .marque { font-size:12px; letter-spacing:4px; opacity:.45; }
+  h1 { color:var(--or); font-size:26px; letter-spacing:2px; margin:6px 0 22px; }
+  .rond {
+    width:96px; height:96px; border-radius:50%; margin-bottom:20px;
+    border:1px solid rgba(201,162,39,.35);
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(201,162,39,.06);
+  }
+  .rond svg { width:46px; height:46px; }
+  .wolof { font-size:20px; line-height:1.45; margin:0 0 10px; max-width:22ch; }
+  .francais { font-size:15px; color:rgba(255,247,220,.6); margin:0 0 26px; max-width:26ch; }
+  button {
+    font:inherit; font-weight:700; font-size:16px; cursor:pointer;
+    padding:14px 26px; border-radius:14px; border:0;
+    background:var(--or); color:#1a1405; min-width:190px;
+  }
+  .ecouter {
+    margin-top:14px; background:transparent; color:rgba(255,247,220,.55);
+    border:1px solid rgba(255,247,220,.18); font-weight:500; font-size:14px;
+    padding:10px 18px; min-width:0;
+  }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+  <div class="marque">K H A L A M</div>
+  <h1>BIA</h1>
+
+  <div class="rond" aria-hidden="true">
+    <!-- Une antenne barrée : on comprend sans savoir lire. -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="#C9A227" stroke-width="1.6"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 12.5a9 9 0 0 1 3-6.6M19 12.5a9 9 0 0 0-3-6.6"/>
+      <path d="M8.5 14.5a5 5 0 0 1 1.8-3.8M15.5 14.5a5 5 0 0 0-1.8-3.8"/>
+      <circle cx="12" cy="17" r="1.6"/>
+      <path d="M3 3 L21 21"/>
+    </svg>
+  </div>
+
+  <!-- LA PHRASE EN WOLOF EST À REMPLACER PAR CELLE DE LAMINE.
+       Je ne l'invente pas : deux fois aujourd'hui mon wolof était faux, et
+       une phrase fausse affichée à quelqu'un qui ne lit que le wolof est pire
+       que pas de phrase du tout. Un seul endroit à changer, ici et dans le
+       fichier son. -->
+  <p class="wolof" id="wolof">Amul jokkoo.</p>
+  <p class="francais">BIA a besoin d'une connexion pour t'écouter et te répondre. Vérifie ton réseau, puis réessaie.</p>
+
+  <button id="reessayer" type="button">Réessayer</button>
+  <button id="ecouter" class="ecouter" type="button" hidden>Écouter</button>
+
+  <audio id="voix" src="/sons/hors-ligne.mp3" preload="auto"></audio>
+
+<script>
+  /* SA VOIX, SI ELLE EST LÀ. Le fichier peut ne pas exister encore : dans ce
+     cas on ne montre rien et on ne se plaint pas. Une page de secours qui
+     affiche une erreur de son serait une page de secours ratée. */
+  var voix = document.getElementById('voix');
+  var ecouter = document.getElementById('ecouter');
+
+  function jouer() {
+    var essai = voix.play();
+    if (essai && essai.catch) {
+      /* Les navigateurs refusent le son tant que personne n'a touché l'écran.
+         On propose donc un bouton plutôt que de rester muet sans raison. */
+      essai.catch(function () { ecouter.hidden = false; });
+    }
+  }
+  voix.addEventListener('error', function () { ecouter.hidden = true; });
+  voix.addEventListener('canplaythrough', jouer, { once: true });
+  ecouter.onclick = function () { ecouter.hidden = true; voix.play().catch(function () {}); };
+
+  /* Réessayer, c'est retourner à BIA. Si le réseau est revenu, elle s'ouvre ;
+     sinon on revient ici, et c'est très bien ainsi. */
+  document.getElementById('reessayer').onclick = function () {
+    location.replace('/');
+  };
+
+  /* Et si le réseau revient tout seul pendant qu'on regarde l'écran, on n'a
+     rien à demander à personne : on repart. */
+  window.addEventListener('online', function () { location.replace('/'); });
+</script>
+</body>
+</html>
