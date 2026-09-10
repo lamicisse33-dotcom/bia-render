@@ -450,13 +450,28 @@ export default function Home() {
     }
   }, [stopMouth]);
 
+  /* ── LE CONTEXTE AUDIO : UN SEUL, ET JAMAIS MORT ──────────────────────────
+
+     TOUT ce qui s'entend dans BIA passe par ici — sa voix, les phrases
+     d'attente, les rires, le bruit de frappe. C'est donc le point où un seul
+     défaut rend l'application entièrement muette pendant que le texte, lui,
+     continue de s'afficher : exactement ce que Lamine a vu le 10 septembre
+     2026.
+
+     UN CONTEXTE FERMÉ NE SE ROUVRE PAS. Il était fabriqué une fois puis gardé
+     tel quel ; s'il finissait « closed » — la page démontée et remontée, un
+     autre bout de code qui le ferme, iOS qui coupe la session audio — on
+     continuait de le réutiliser, et plus rien ne sortait jamais. On le
+     refabrique donc dès qu'il est mort. */
   const contexte = useCallback(() => {
-    if (!contexteRef.current) {
+    const mort = !contexteRef.current || contexteRef.current.state === "closed";
+    if (mort) {
       const C = window.AudioContext || (window as any).webkitAudioContext;
       contexteRef.current = new C();
     }
-    if (contexteRef.current.state === "suspended") void contexteRef.current.resume();
-    return contexteRef.current;
+    // Suspendu : iOS le fait dès qu'on repose le téléphone. On le réveille.
+    if (contexteRef.current!.state === "suspended") void contexteRef.current!.resume();
+    return contexteRef.current!;
   }, []);
 
   const couperSon = useCallback(() => {
@@ -2008,7 +2023,9 @@ export default function Home() {
        enregistrée, si elle est là), on l'ENTEND taper, et on la VOIT taper
        sur le petit clavier à côté du bouton. */
     void direEnregistre("jecris");
-    frapper();
+    // Le contexte de la page, jamais un deuxième : sur iPhone, en ouvrir un
+    // second pendant qu'elle parle interrompt le son en cours.
+    frapper(contexte());
     papierOccupeRef.current = true;
     setPapierOccupe(true);
     setPapierErreur("");
@@ -2057,7 +2074,7 @@ export default function Home() {
       /* Fini. Si l'écran des papiers est déjà ouvert, on le voit arriver et
          il n'y a rien à annoncer. Sinon ça sonne, et le petit clavier
          clignote jusqu'à ce qu'on le touche. */
-      if (!papierOuvertRef.current) { sonnerFini(); setPapierFini(true); }
+      if (!papierOuvertRef.current) { sonnerFini(contexte()); setPapierFini(true); }
 
       /* ── ELLE LE LIT AVANT QUE ÇA DEVIENNE UN PAPIER ────────────────────
          « Elle doit le lire clairement en français avant de l'écrire, voir si
@@ -2079,7 +2096,7 @@ export default function Home() {
       // en même temps feraient une mitraillette.
       arreterFrappe();
     }
-  }, [direEnregistre, speak]);
+  }, [contexte, direEnregistre, speak]);
 
   /* Ouvrir la fenêtre des services. Sans rien préciser, on voit la rangée et
      rien d'autre — sauf si BIA a déjà de quoi écrire : on va droit au but,

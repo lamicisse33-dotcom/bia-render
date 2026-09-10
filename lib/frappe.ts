@@ -20,32 +20,39 @@
    c'est le bruit de quelqu'un qui travaille dans la pièce d'à côté. Il doit
    se remarquer sans couvrir la voix de BIA. */
 
+/* ── UN SEUL CONTEXTE AUDIO POUR TOUTE LA PAGE ──────────────────────────────
+
+   CE FICHIER FABRIQUAIT LE SIEN, ET C'ÉTAIT UNE FAUTE.
+
+   Cherché le 10 septembre 2026, après « BIA ne parle plus » : le texte
+   s'affichait, et plus aucun son ne sortait — ni la voix, ni les phrases
+   d'attente, ni les rires. Or tout ce qui s'entend dans BIA passe par UN
+   contexte audio, celui de la page. Tout, sauf ce fichier-ci, qui s'en
+   fabriquait un deuxième à chaque papier, puis le fermait.
+
+   Sur iPhone, c'est exactement ce qu'il ne faut pas faire. Safari limite le
+   nombre de contextes audio d'un onglet, et surtout, en ouvrir un pendant
+   qu'un autre joue interrompt la session audio en cours. Comme la frappe
+   part maintenant TOUTE SEULE dès qu'elle décide d'écrire — donc pendant
+   qu'elle parle — le deuxième contexte arrivait précisément au mauvais
+   moment.
+
+   La frappe et la cloche empruntent donc désormais le contexte de la page,
+   et ne le ferment JAMAIS : il ne leur appartient pas. */
+
 type Frappe = { arreter: () => void };
 
 let encours: Frappe | null = null;
-
-/** Le contexte audio, fabriqué au dernier moment : en créer un au chargement
-    de la page est refusé par les navigateurs tant que personne n'a touché
-    l'écran. Ici, on arrive toujours après un geste. */
-function contexte(): AudioContext | null {
-  try {
-    type Fenetre = Window & { webkitAudioContext?: typeof AudioContext };
-    const C = window.AudioContext || (window as Fenetre).webkitAudioContext;
-    if (!C) return null;
-    return new C();
-  } catch { return null; }
-}
 
 /**
  * Commence le bruit de frappe. Rappeler ne l'empile pas : il n'y a jamais
  * qu'une frappe à la fois, sinon deux services lancés coup sur coup
  * donneraient une mitraillette.
  */
-export function frapper(): Frappe {
+export function frapper(ctx: AudioContext | null): Frappe {
   if (encours) return encours;
 
-  const ctx = contexte();
-  if (!ctx) {
+  if (!ctx || ctx.state === "closed") {
     const rien = { arreter: () => { encours = null; } };
     encours = rien;
     return rien;
@@ -103,11 +110,13 @@ export function frapper(): Frappe {
       if (!vivant) return;
       vivant = false;
       if (minuteur) clearTimeout(minuteur);
-      // On baisse au lieu de couper net : une coupure franche s'entend.
+      /* On baisse au lieu de couper net : une coupure franche s'entend. On
+         ne ferme SURTOUT pas le contexte — il est celui de la page, et le
+         fermer rendrait BIA muette pour de bon. On débranche seulement. */
       try {
         sortie.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
-        setTimeout(() => { try { ctx.close(); } catch {} }, 400);
-      } catch { try { ctx.close(); } catch {} }
+        setTimeout(() => { try { sortie.disconnect(); } catch {} }, 400);
+      } catch { try { sortie.disconnect(); } catch {} }
       encours = null;
     },
   };
@@ -132,9 +141,8 @@ export function arreterFrappe() {
 
    Fabriqué ici aussi, sans fichier. Deux sinus, une quinte — do puis sol —
    avec une enveloppe douce : c'est ce qui fait « ding » et non « bip ». */
-export function sonnerFini() {
-  const ctx = contexte();
-  if (!ctx) return;
+export function sonnerFini(ctx: AudioContext | null) {
+  if (!ctx || ctx.state === "closed") return;
   const sortie = ctx.createGain();
   sortie.gain.value = 0.22;
   sortie.connect(ctx.destination);
@@ -156,5 +164,6 @@ export function sonnerFini() {
 
   note(784, 0, 0.28);      // sol
   note(1175, 0.11, 0.42);  // ré au-dessus — la quinte, qui « ouvre »
-  setTimeout(() => { try { ctx.close(); } catch {} }, 1200);
+  // Le contexte est celui de la page : on ne le ferme pas, on se débranche.
+  setTimeout(() => { try { sortie.disconnect(); } catch {} }, 1200);
 }
