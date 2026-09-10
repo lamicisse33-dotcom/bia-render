@@ -98,6 +98,60 @@ export type Sorte = "devis" | "lettre" | "message";
    sépare les milliers par une espace insécable pour que « 1 250 000 » ne se
    coupe jamais en fin de ligne. */
 
+/* ── CE QU'ELLE LIT À VOIX HAUTE AVANT D'ÉCRIRE ─────────────────────────────
+
+   Demandé par Lamine le 10 septembre 2026 : « dès que c'est fini, elle doit
+   le lire clairement en français avant de l'écrire, voir si c'est exactement
+   ça, jusqu'à ce que la personne soit d'accord. C'est mieux comme ça. »
+
+   Il a raison, et c'est la seule vérification qui marche pour quelqu'un qui ne
+   lit pas. La transcription confond « quinze mille » et « cinquante mille » ;
+   un devis faux part chez un client et coûte de l'argent à quelqu'un. Lui
+   montrer le papier à l'écran ne sert à rien s'il ne peut pas le lire — le lui
+   DIRE, si.
+
+   On lit donc tout ce qui engage : chaque ligne avec son prix, le total, le
+   destinataire. On ne lit PAS ce qui est de la forme — l'en-tête, le NINEA, la
+   formule de politesse — parce que ça n'est jamais faux et que ça allongerait
+   la lecture au point qu'on ne l'écoute plus jusqu'au bout. */
+export function lecture(doc: Document, totaux?: Totaux | null): string {
+  if (doc.type === "message") {
+    const pour = doc.destinataire?.trim();
+    return [
+      pour ? `Voici le message pour ${pour}.` : "Voici le message.",
+      doc.texte,
+      "Est-ce que c'est bien ça ?",
+    ].join(" ");
+  }
+
+  if (doc.type === "lettre") {
+    const pour = doc.destinataire?.nom?.trim();
+    return [
+      pour ? `Voici la lettre pour ${pour}.` : "Voici la lettre.",
+      doc.objet ? `Objet : ${doc.objet}.` : "",
+      ...(doc.corps || []),
+      "Est-ce que c'est bien ça ?",
+    ].filter(Boolean).join(" ");
+  }
+
+  const pour = doc.client?.nom?.trim();
+  const lignes = (totaux?.lignes || []).map((l) => {
+    const q = Number(l.quantite) || 1;
+    const combien = q > 1 ? `${q} ${l.unite || "fois"}, ` : "";
+    return `${l.designation} : ${combien}${Math.round(l.total)} francs CFA.`;
+  });
+  return [
+    pour ? `Voici le devis pour ${pour}.` : "Voici le devis.",
+    doc.objet ? `${doc.objet}.` : "",
+    ...lignes,
+    totaux ? `Total : ${Math.round(totaux.total)} francs CFA.` : "",
+    /* L'acompte et le reste sont ce qui se discute le plus au moment de la
+       remise du devis : on les dit, quand il y en a. */
+    totaux && totaux.acompte ? `Acompte : ${Math.round(totaux.acompte)} francs CFA, reste ${Math.round(totaux.reste)} francs CFA.` : "",
+    "Est-ce que c'est bien ça ?",
+  ].filter(Boolean).join(" ");
+}
+
 export const franc = (n: number) =>
   `${Math.round(n).toLocaleString("fr-FR").replace(/ | | /g, " ")} FCFA`;
 

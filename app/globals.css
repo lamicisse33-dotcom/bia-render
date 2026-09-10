@@ -1062,3 +1062,12 @@ button { font: inherit; touch-action: manipulation; }
   background: #d4af37; color: #1a1405;
 }
 .parler-maintenant:active { background: #e8c55a; }
+
+/* ── ELLE ATTEND UN OUI ─────────────────────────────────────────────────────
+   Tant que la personne n'a pas dit que c'était bien ça, on ne montre ni le
+   PDF ni la copie : ce sont les gestes qui envoient le document dehors, et
+   un devis faux qui part coûte de l'argent à quelqu'un. */
+.papier-pied.valider .oui {
+  background: #2e7d4f; color: #eafff2; border: 0; font-weight: 700;
+}
+.papier-pied.valider .oui:active { background: #379a60; }

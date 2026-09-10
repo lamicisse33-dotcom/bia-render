@@ -14,7 +14,7 @@ import {
   chargerPapiers, garderPapier, oublierPapiers, nouvelIdPapier, titreDe,
 } from "@/lib/papiers";
 import type { PapierGarde } from "@/lib/papiers";
-import { franc, sorteEvoquee, totauxDe } from "@/lib/documents";
+import { franc, lecture, sorteEvoquee, totauxDe } from "@/lib/documents";
 import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
 import { lireMesures, noterMesure } from "@/lib/chrono";
 import type { Mesure, Voie } from "@/lib/chrono";
@@ -198,6 +198,9 @@ export default function Home() {
      clignote en jaune jusqu'à ce qu'on le touche. Il ne s'arrête pas tout
      seul — c'est le principe : on ne rate pas un travail terminé. */
   const [papierFini, setPapierFini] = useState(false);
+  /* Elle vient de le lire à voix haute et attend un « oui ». Tant que ce
+     n'est pas donné, le papier n'est pas un papier : c'est une proposition. */
+  const [aValider, setAValider] = useState(false);
   /* Ces deux miroirs existent parce que fabriquerPapier est gardé en mémoire :
      à son retour, dix secondes plus tard, il ne verrait que l'état d'avant. */
   const papierOccupeRef = useRef(false);
@@ -1990,6 +1993,18 @@ export default function Home() {
          il n'y a rien à annoncer. Sinon ça sonne, et le petit clavier
          clignote jusqu'à ce qu'on le touche. */
       if (!papierOuvertRef.current) { sonnerFini(); setPapierFini(true); }
+
+      /* ── ELLE LE LIT AVANT QUE ÇA DEVIENNE UN PAPIER ────────────────────
+         « Elle doit le lire clairement en français avant de l'écrire, voir si
+         c'est exactement ça, jusqu'à ce que la personne soit d'accord. »
+         — Lamine, le 10 septembre 2026.
+
+         C'est la seule vérification qui marche pour quelqu'un qui ne lit pas.
+         La transcription confond « quinze mille » et « cinquante mille » ;
+         montrer le papier à l'écran ne sert à rien s'il ne peut pas le lire.
+         Le lui dire, si. */
+      setAValider(true);
+      void speak(lecture(d.document, d.totaux ?? null));
     } catch {
       if (perime()) return;
       setPapierErreur("Pas de réseau. Le papier n'a pas pu être fabriqué.");
@@ -1999,7 +2014,7 @@ export default function Home() {
       // en même temps feraient une mitraillette.
       arreterFrappe();
     }
-  }, [dire]);
+  }, [direEnregistre, speak]);
 
   /* Ouvrir la fenêtre des services. Sans rien préciser, on voit la rangée et
      rien d'autre — sauf si BIA a déjà de quoi écrire : on va droit au but,
@@ -2060,6 +2075,9 @@ export default function Home() {
      retrouve exactement ce qu'on avait laissé, retouches comprises. */
   function rouvrirPapier(g: PapierGarde) {
     taire();
+    // Il a déjà été accepté une fois : on ne refait pas relire un document
+    // qu'on rouvre pour l'envoyer.
+    setAValider(false);
     papierOuvertId.current = g.id;
     setPapier({ doc: g.doc, totaux: g.totaux });
     setService(g.doc.type as Service);
@@ -2915,7 +2933,30 @@ export default function Home() {
           </div>
         ) : null}
 
-        {(service === "message" || service === "devis" || service === "lettre") && papier ? (
+        {/* ── L'ACCORD, AVANT TOUT LE RESTE ──────────────────────────────────
+            Tant qu'elle n'a pas eu de « oui », le papier n'est pas un papier :
+            c'est une proposition qu'elle vient de lire à voix haute. On ne
+            montre donc NI le PDF NI la copie — les gestes qui envoient le
+            document dehors — mais seulement les deux réponses possibles.
+
+            « Corrige » rouvre le micro : on dit ce qui cloche en wolof, et
+            elle refait. C'est ce que Lamine demande — jusqu'à ce que la
+            personne soit d'accord. */}
+        {(service === "message" || service === "devis" || service === "lettre")
+          && papier && aValider ? (
+          <div className="papier-pied valider">
+            <button type="button" className="oui" onClick={() => { taire(); setAValider(false); }}>
+              Waaw, baax na
+            </button>
+            <button type="button" className="pale"
+              onClick={() => { taire(); setAValider(false); setPapierOuvert(false); toggleMicrophone(); }}>
+              Non, corrige
+            </button>
+          </div>
+        ) : null}
+
+        {(service === "message" || service === "devis" || service === "lettre")
+          && papier && !aValider ? (
           <div className="papier-pied">
             {papier.doc.type === "devis" && papier.totaux ? (
               <p className="pied-total">
