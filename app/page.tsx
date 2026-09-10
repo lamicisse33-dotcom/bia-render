@@ -7,7 +7,7 @@ import {
 } from "@/lib/attente";
 import type { Langue, Parole } from "@/lib/attente";
 import { franc, sorteEvoquee, totauxDe } from "@/lib/documents";
-import type { Devis, Document as Papier, Lettre, Partie, Sorte, Totaux } from "@/lib/documents";
+import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
 import { lireMesures, noterMesure } from "@/lib/chrono";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
@@ -169,6 +169,9 @@ export default function Home() {
   const [pdf, setPdf] = useState("");
   const [fiche, setFiche] = useState(false);
   const [emetteur, setEmetteur] = useState<Emetteur>(EMETTEUR_VIDE);
+  /** Le téléphone sait-il partager ? Sur mobile, oui — et c'est ce qui ouvre WhatsApp. */
+  const [partageable, setPartageable] = useState(false);
+  const [copie, setCopie] = useState(false);
 
   const recognitionRef = useRef<Recognition | null>(null);
   const mouthTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -246,6 +249,10 @@ export default function Home() {
   /* Ce que BIA a mesuré les fois précédentes : combien de temps elle fait
      attendre, et combien de temps durent ses phrases. Sur l'appareil, jamais
      au serveur — ces chiffres dépendent du téléphone et du réseau. */
+  useEffect(() => {
+    setPartageable(typeof navigator !== "undefined" && typeof navigator.share === "function");
+  }, []);
+
   useEffect(() => {
     mesuresRef.current = lireMesures();
     try { nomRef.current = localStorage.getItem("bia-nom") || ""; } catch {}
@@ -1522,6 +1529,70 @@ export default function Home() {
     }
   }
 
+  /* LE MESSAGE — celui qu'on copie et qu'on envoie.
+
+     Lamine, le 10 septembre 2026 : « parler en wolof et que ça t'écrive un
+     message en français, très propre. Un message que tu pourras copier,
+     coller et envoyer, par WhatsApp ou par SMS. Pour quelqu'un qui ne sait
+     pas parler français. »
+
+     C'est probablement le service dont on se servira le plus. Beaucoup de
+     gens ici parlent très bien et écrivent peu le français : ils font écrire
+     leurs messages par un voisin, un fils, un ami — et ils attendent. Là, ils
+     parlent, et le message est prêt.
+
+     « Envoyer » ouvre le partage du téléphone : WhatsApp, SMS, courriel, ce
+     qu'il veut, sans rien retaper. Là où le partage n'existe pas — un
+     ordinateur — « Copier » fait le même travail. */
+  async function envoyerLeMot(texte: string) {
+    try {
+      if (navigator.share) { await navigator.share({ text: texte }); return; }
+    } catch { /* partage refusé ou annulé : on retombe sur la copie */ }
+    void copierLeMot(texte);
+  }
+
+  async function copierLeMot(texte: string) {
+    try {
+      await navigator.clipboard.writeText(texte);
+      setCopie(true);
+      setTimeout(() => setCopie(false), 2200);
+    } catch {
+      setPapierErreur("La copie n'a pas marché. Sélectionne le texte et copie-le à la main.");
+    }
+  }
+
+  function vueMot(m: Mot) {
+    return (
+      <>
+        <p className="papier-titre">Le message</p>
+        <p className="papier-note">
+          En français, prêt à envoyer. Relis-le, corrige un mot si tu veux, puis envoie-le.
+        </p>
+        {m.destinataire ? (
+          <label className="papier-champ">Pour
+            <input value={m.destinataire} onChange={(e) => retoucherMot((x) => { x.destinataire = e.target.value; })} />
+          </label>
+        ) : null}
+        {m.objet ? (
+          <label className="papier-champ">Objet
+            <input value={m.objet} onChange={(e) => retoucherMot((x) => { x.objet = e.target.value; })} />
+          </label>
+        ) : null}
+        <textarea className="paragraphe grand" rows={10} value={m.texte} aria-label="Le message"
+          onChange={(e) => retoucherMot((x) => { x.texte = e.target.value; })} />
+      </>
+    );
+  }
+
+  function retoucherMot(change: (m: Mot) => void) {
+    setPapier((p) => {
+      if (!p || p.doc.type !== "message") return p;
+      const doc = JSON.parse(JSON.stringify(p.doc)) as Mot;
+      change(doc);
+      return { doc, totaux: null };
+    });
+  }
+
   function garderRenseignements() {
     try { localStorage.setItem("bia-emetteur", JSON.stringify(emetteurRef.current)); } catch {}
     setFiche(false);
@@ -1764,10 +1835,18 @@ export default function Home() {
             une feuille dorée, sans un mot : l'écran noir reste sans texte. */}
         {papierPret ? (
           <button className="papier-ouvrir" type="button" onClick={() => ouvrirPapier(papierPret)}
-            aria-label={papierPret === "devis" ? "Ouvrir le devis" : "Ouvrir la lettre"}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 2h7.2L20 8.8V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.8V9h5.2L13 3.8ZM8 12h8v1.8H8V12Zm0 3.4h8v1.8H8v-1.8Zm0-6.8h3v1.8H8V8.6Z" />
-            </svg>
+            aria-label={papierPret === "devis" ? "Ouvrir le devis"
+              : papierPret === "lettre" ? "Ouvrir la lettre" : "Ouvrir le message"}>
+            {papierPret === "message" ? (
+              /* Une bulle, pas une feuille : ce n'est pas le même geste. */
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3c5 0 9 3.2 9 7.2s-4 7.2-9 7.2c-.9 0-1.8-.1-2.6-.3L4.6 20a.6.6 0 0 1-.9-.7l1-3.1C3 14.9 3 12.9 3 10.2 3 6.2 7 3 12 3Z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 2h7.2L20 8.8V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.8V9h5.2L13 3.8ZM8 12h8v1.8H8V12Zm0 3.4h8v1.8H8v-1.8Zm0-6.8h3v1.8H8V8.6Z" />
+              </svg>
+            )}
           </button>
         ) : <span className="cale" aria-hidden="true" />}
       </div>
@@ -1851,6 +1930,7 @@ export default function Home() {
               {!papier && papierOccupe ? <p className="papier-note">BIA écrit le papier…</p> : null}
               {papier && papier.doc.type === "devis" ? vueDevis(papier.doc, papier.totaux) : null}
               {papier && papier.doc.type === "lettre" ? vueLettre(papier.doc) : null}
+              {papier && papier.doc.type === "message" ? vueMot(papier.doc) : null}
             </>
           )}
         </div>
@@ -1867,13 +1947,31 @@ export default function Home() {
                 <b>{franc(papier.totaux.total)}</b>
               </p>
             ) : null}
-            <button type="button" onClick={() => void fabriquerPdf()} disabled={papierOccupe}>
-              {papierOccupe ? "Un instant…" : "Faire le PDF"}
-            </button>
-            {pdf ? <a className="pdf-lien" href={pdf} target="_blank" rel="noreferrer">Ouvrir le PDF</a> : null}
+            {papier.doc.type === "message" ? (
+              <>
+                {partageable ? (
+                  <button type="button" onClick={() => void envoyerLeMot((papier.doc as Mot).texte)}>
+                    Envoyer
+                  </button>
+                ) : null}
+                <button type="button" className={partageable ? "pale" : undefined}
+                  onClick={() => void copierLeMot((papier.doc as Mot).texte)}>
+                  {copie ? "Copié" : "Copier"}
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => void fabriquerPdf()} disabled={papierOccupe}>
+                  {papierOccupe ? "Un instant…" : "Faire le PDF"}
+                </button>
+                {pdf ? <a className="pdf-lien" href={pdf} target="_blank" rel="noreferrer">Ouvrir le PDF</a> : null}
+              </>
+            )}
             <button type="button" className="pale" disabled={papierOccupe}
               onClick={() => void fabriquerPapier(papier.doc.type)}>Refaire</button>
-            <button type="button" className="pale" onClick={() => setFiche(true)}>Mes renseignements</button>
+            {papier.doc.type === "message" ? null : (
+              <button type="button" className="pale" onClick={() => setFiche(true)}>Mes renseignements</button>
+            )}
           </div>
         ) : null}
       </section>

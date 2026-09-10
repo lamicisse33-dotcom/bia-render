@@ -680,3 +680,6 @@ button { font: inherit; touch-action: manipulation; }
 }
 .papier-boutons button.pale { background: rgba(255,255,255,.08); color: rgba(255,255,255,.72); }
 .papier-boutons button:disabled { opacity: .5; cursor: default; }
+
+/* Le message : c'est LE texte, il occupe la place. On lit avant d'envoyer. */
+.paragraphe.grand { font-size: 15.5px; line-height: 1.55; min-height: 40svh; }
