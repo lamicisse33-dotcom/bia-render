@@ -41,8 +41,9 @@ const MAINTENANT = [
   "bourse", "dollar", "euro", "fcfa aujourd",
   // la demande explicite
   "cherche sur internet", "va voir sur internet", "regarde sur internet",
-  "recherche sur internet", "sur google", "gestul", "seetal ci internet",
-  "verifie sur internet", "cherche en ligne",
+  "recherche sur internet", "recherches sur internet", "chercher sur internet",
+  "sur google", "gestul", "seetal ci internet", "seet ci internet",
+  "verifie sur internet", "cherche en ligne", "va sur internet",
 ];
 
 /* Ce qui n'a PAS besoin d'internet même si un mot ressemble : une question de
