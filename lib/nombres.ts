@@ -12,85 +12,34 @@
    voix : la conversation continue d'afficher « 300 000 », parce qu'un montant
    se vérifie à l'œil, en chiffres. C'est la même règle que sur le devis.
 
+   ── LE WOLOF N'EST PAS À MOI ───────────────────────────────────────────────
+
+   J'avais d'abord écrit les nombres wolof moi-même. Deux fois de suite, ils
+   étaient faux : d'abord sur les milliers composés, puis — bien plus grave —
+   sur l'argent. Lamine :
+
+       « Le wolof ne compte pas l'argent en francs. Il commence à cinq francs,
+         il considère le cinq francs comme un frein. »
+
+   C'est le DËRËM : 1 dërëm = 5 francs CFA. 25 000 F CFA ne se disent donc pas
+   « vingt-cinq mille » mais « juróomi junni dërëm » — cinq mille dërëm. Une
+   assistante qui lit un devis à voix haute en multipliant les prix par cinq
+   fait perdre de l'argent à quelqu'un.
+
+   Lamine a donc écrit lui-même le module wolof, avec ses tests :
+   bia-wolof-numbers.mjs. C'est SA base, elle ne se réécrit pas ici. Ce
+   fichier-ci ne fait plus que deux choses : le français, et décider quel
+   nombre est un montant.
+
+   POUR LA METTRE À JOUR : remplacer bia-wolof-numbers.mjs par sa nouvelle
+   version et relancer `node lib/bia-wolof-numbers.test.mjs`.
+
    CE QU'ON N'ÉPELLE PAS EN MOTS :
    - les numéros de téléphone : chiffre par chiffre, c'est justement la bonne
      façon de les dire, et « soixante-dix-sept millions… » serait absurde ;
    - les heures écrites 14h30, qui ont leur propre tournure.                */
 
-const unitesWo = ["", "benn", "ñaar", "ñett", "ñeent", "juróom",
-  "juróom-benn", "juróom-ñaar", "juróom-ñett", "juróom-ñeent"];
-
-/* En wolof, un nombre qui en MULTIPLIE un autre prend un -i final :
-   ñaar → ñaari téeméer, fukk → fukki junni, téeméer → ñetti téeméeri junni.
-   La marque se pose sur le DERNIER mot du groupe, jamais au milieu. */
-const avecI = (groupe: string) => {
-  const mots = groupe.split(" ");
-  mots[mots.length - 1] += "i";
-  return mots.join(" ");
-};
-
-/** 0 à 99. */
-function sousCentWo(n: number): string {
-  if (n < 10) return unitesWo[n];
-  const d = Math.floor(n / 10), u = n % 10;
-  const dizaine = d === 1 ? "fukk" : `${unitesWo[d]}-fukk`;
-  return u ? `${dizaine} ak ${unitesWo[u]}` : dizaine;
-}
-
-/** 0 à 999. */
-function groupeWo(n: number): string {
-  if (n < 100) return sousCentWo(n);
-  const c = Math.floor(n / 100), r = n % 100;
-  const cent = c === 1 ? "téeméer" : `${avecI(unitesWo[c])} téeméer`;
-  return r ? `${cent} ak ${sousCentWo(r)}` : cent;
-}
-
-/* ── LES MILLIERS COMPOSÉS : CHAQUE PART GARDE SON « JUNNI » ────────────────
-
-   Règle donnée par Lamine le 10 septembre 2026, dans son document « BIA
-   nombres en wolof pour intégration » — wolof urbain de Dakar :
-
-       « Milliers composés. Chaque partie conserve junni. »
-
-   C'est là que je m'étais trompé. J'écrivais 15 000 « fukk ak juróomi junni »,
-   comme si le junni portait sur l'ensemble. Il porte sur CHAQUE part :
-
-       15 000  →  fukki junni ak juróomi junni
-       25 000  →  ñaar-fukki junni ak juróomi junni
-      250 000  →  ñaari téeméeri junni ak juróom-fukki junni
-
-   On découpe donc le multiplicateur en ses morceaux — centaines, dizaines,
-   unités — et chacun repart avec son -i et son junni. 300 000 ne fait qu'un
-   seul morceau : « ñetti téeméeri junni ». */
-function parMorceaux(n: number): string[] {
-  const c = Math.floor(n / 100), r = n % 100, d = Math.floor(r / 10), u = r % 10;
-  const morceaux: string[] = [];
-  if (c) morceaux.push(c === 1 ? "téeméer" : `${avecI(unitesWo[c])} téeméer`);
-  if (d) morceaux.push(d === 1 ? "fukk" : `${unitesWo[d]}-fukk`);
-  if (u) morceaux.push(unitesWo[u]);
-  return morceaux;
-}
-
-const avecUnite = (n: number, unite: string) =>
-  parMorceaux(n).map((m) => `${avecI(m)} ${unite}`).join(" ak ");
-
-export function nombreEnWolof(n: number): string {
-  if (!Number.isFinite(n)) return String(n);
-  if (n < 0) return `moins ${nombreEnWolof(-n)}`;
-  if (n === 0) return "tus";
-
-  const parts: string[] = [];
-  const millions = Math.floor(n / 1_000_000);
-  const milliers = Math.floor((n % 1_000_000) / 1000);
-  const reste = n % 1000;
-
-  // « million » reste en français, comme dans le wolof de Dakar. Et un
-  // million se dit « benn million », jamais « million » tout seul.
-  if (millions) parts.push(millions === 1 ? "benn million" : avecUnite(millions, "million"));
-  if (milliers) parts.push(milliers === 1 ? "junni" : avecUnite(milliers, "junni"));
-  if (reste) parts.push(groupeWo(reste));
-  return parts.join(" ak ");
-}
+import { numberToWolof, moneyToWolof } from "./bia-wolof-numbers.mjs";
 
 const unitesFr = ["zéro", "un", "deux", "trois", "quatre", "cinq", "six", "sept",
   "huit", "neuf", "dix", "onze", "douze", "treize", "quatorze", "quinze", "seize"];
@@ -134,8 +83,22 @@ export function nombreEnFrancais(n: number): string {
   return parts.join(" ");
 }
 
-export const enLettres = (n: number, langue: "wo" | "fr") =>
-  langue === "wo" ? nombreEnWolof(n) : nombreEnFrancais(n);
+/** Un nombre ordinaire — une quantité, une date, un rang. Jamais un montant. */
+export function enLettres(n: number, langue: "wo" | "fr"): string {
+  if (langue === "fr") return nombreEnFrancais(n);
+  try { return String(numberToWolof(n)); } catch { return String(n); }
+}
+
+/** Un MONTANT. En wolof il passe en dërëm ; en français il reste en francs.
+ *  `sigle` dit si la monnaie était écrite « CFA » dans le texte : on ne
+ *  l'ajoute pas si la personne ne l'a pas dit. */
+export function montantEnLettres(n: number, langue: "wo" | "fr", sigle = true): string {
+  if (langue === "fr") {
+    const francs = nombreEnFrancais(n);
+    return `${francs} franc${Math.abs(n) >= 2 ? "s" : ""}${sigle ? " CFA" : ""}`;
+  }
+  try { return String(moneyToWolof(n)); } catch { return `${enLettres(n, "wo")} franc CFA`; }
+}
 
 /* Un numéro de téléphone sénégalais : 77 123 45 67, +221 77 123 45 67,
    77-123-45-67. On le laisse en chiffres — c'est ainsi qu'on le dit. */
@@ -143,19 +106,39 @@ const TELEPHONE = /(?:\+?221[\s.-]?)?(?:7[0678]|3[03])[\s.-]?\d{3}[\s.-]?\d{2}[\
 /* 14h30, 9 h, 07h05 : l'heure a sa propre tournure, on n'y touche pas. */
 const HEURE = /\b\d{1,2}\s?[hH]\s?\d{0,2}\b/g;
 
-/** Les nombres, avec ou sans séparateur de milliers : 300 000, 12.500, 1 250 000. */
-const NOMBRE = /\d{1,3}(?:[   .,]\d{3})+|\d+(?:[.,]\d+)?/g;
+/* ── CE QUI FAIT QU'UN NOMBRE EST DE L'ARGENT ──────────────────────────────
+
+   La question la plus dangereuse de ce fichier. Diviser par cinq un nombre
+   qui n'est pas un montant, c'est dire « ñett » pour quinze articles. Ne pas
+   diviser un vrai montant, c'est multiplier un prix par cinq à l'oreille de
+   quelqu'un.
+
+   La règle est donc la plus stricte possible : un nombre n'est un montant que
+   si une marque de monnaie le SUIT immédiatement. Rien d'autre ne compte —
+   ni le contexte, ni la phrase, ni ce qu'on devine. Dans le doute, c'est un
+   nombre ordinaire. */
+const MONNAIE = String.raw`\s*(F\s?CFA|FCFA|XOF|CFA|francs?|F)\b`;
+const NOMBRE = String.raw`\d{1,3}(?:[   .,]\d{3})+|\d+(?:[.,]\d+)?`;
+const MONTANT = new RegExp(`(${NOMBRE})${MONNAIE}`, "gi");
+const SIMPLE = new RegExp(NOMBRE, "g");
 
 /* La marque qui met un morceau de côté le temps de la conversion. ELLE NE
    DOIT CONTENIR AUCUN CHIFFRE : au premier essai elle en contenait, la
-   conversion l'a dévorée, et « 77 123 45 67 » ressortait en « tus ci benn ».
-   Des lettres, donc, et un encadrement qu'aucun texte écrit ne produit. */
+   conversion l'a dévorée, et « 77 123 45 67 » ressortait en « tus ci benn ». */
 const lettresDe = (i: number) => {
   let s = "", n = i + 1;
   while (n > 0) { s = String.fromCharCode(97 + ((n - 1) % 26)) + s; n = Math.floor((n - 1) / 26); }
   return s;
 };
 const MARQUE = /@@([a-z]+)@@/g;
+
+/** Le nombre écrit dans le texte, séparateurs de milliers enlevés. */
+function lire(brut: string): number | null {
+  const groupe = /^\d{1,3}(?:[   .,]\d{3})+$/.test(brut);
+  const nettoye = groupe ? brut.replace(/[   .,]/g, "") : brut.replace(",", ".");
+  const n = Number(nettoye);
+  return Number.isFinite(n) ? n : null;
+}
 
 /**
  * Le texte tel qu'il doit être ENTENDU. À n'appliquer qu'avant la voix :
@@ -172,25 +155,21 @@ export function pourLaVoix(texte: string, langue: "wo" | "fr"): string {
   // « 12 % » se lit « douze pour cent » : le signe seul n'est pas prononçable.
   t = t.replace(/\s*%/g, " pour cent");
 
-  /* « F CFA » épelé donne « èf-cé-èf-a » : illisible à l'oreille. Règle de
-     Lamine : on dit « francs CFA ». Le sigle CFA, lui, se dit bien lettre par
-     lettre — c'est ainsi qu'on le prononce partout. */
-  t = t.replace(/\b(?:F\s?CFA|FCFA|XOF)\b/gi, "francs CFA");
-  t = t.replace(/(\d)\s*F\b(?!\s?CFA)/g, "$1 francs");
+  /* Les MONTANTS d'abord, avec leur marque de monnaie : elle est mangée au
+     passage, puisque « dërëm » ou « francs CFA » la remplace. */
+  t = t.replace(MONTANT, (tout, brut: string, monnaie: string) => {
+    const n = lire(brut);
+    if (n === null || !Number.isInteger(n) || Math.abs(n) >= 1_000_000_000_000) return tout;
+    return montantEnLettres(n, langue, /cfa|xof/i.test(monnaie));
+  });
 
-  t = t.replace(NOMBRE, (brut) => {
-    // Séparateurs de milliers : espace, espace fine, point ou virgule suivis
-    // de trois chiffres. Ce qui reste après nettoyage est le nombre.
-    const groupe = /^\d{1,3}(?:[   .,]\d{3})+$/.test(brut);
-    const nettoye = groupe ? brut.replace(/[   .,]/g, "") : brut.replace(",", ".");
-    const n = Number(nettoye);
-    if (!Number.isFinite(n)) return brut;
-    // Au-delà de ce que le mot « million » couvre proprement, on laisse tel
-    // quel : mieux vaut épeler qu'inventer une tournure fausse.
-    if (Math.abs(n) >= 1_000_000_000) return brut;
-
+  // Puis tout le reste : des nombres ordinaires, qu'on ne divise jamais.
+  t = t.replace(SIMPLE, (brut) => {
+    const n = lire(brut);
+    if (n === null || Math.abs(n) >= 1_000_000_000_000) return brut;
     if (Number.isInteger(n)) return enLettres(n, langue);
-    const [ent, dec] = nettoye.split(".");
+    // Un décimal : la partie entière, puis les chiffres un à un.
+    const [ent, dec] = String(n).split(".");
     const chiffres = dec.split("").map((c) => enLettres(Number(c), langue)).join(" ");
     return `${enLettres(Number(ent), langue)} virgule ${chiffres}`;
   });
