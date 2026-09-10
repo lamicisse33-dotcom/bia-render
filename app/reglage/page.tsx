@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { lireDurees, lireMesures, mediane, msDe } from "@/lib/chrono";
+import { lireMesures, mediane } from "@/lib/chrono";
 import type { Mesure } from "@/lib/chrono";
-import { DUREES, TRANSITIONS } from "@/lib/transitions";
 
 /* Page d'écoute. Elle sert à choisir la voix de BIA à l'oreille plutôt qu'au
    jugé : on modifie les trois réglages de Soynade, on écoute, on compare.
@@ -32,10 +31,9 @@ export default function Reglage() {
   const [moteur, setMoteur] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [mesures, setMesures] = useState<Mesure[]>([]);
-  const [durees, setDurees] = useState<Record<string, number>>({});
 
   useEffect(() => { try { setCode(localStorage.getItem("bia-code") || ""); } catch {} }, []);
-  useEffect(() => { setMesures(lireMesures()); setDurees(lireDurees()); }, []);
+  useEffect(() => { setMesures(lireMesures()); }, []);
 
   async function ecouter() {
     if (!code) { setEtat("Il faut ton code maître."); return; }
@@ -142,26 +140,8 @@ export default function Reglage() {
               </span>
             );
           })}
-          {(() => {
-            const mesurees = TRANSITIONS.filter((x) => durees[x.wo] > 0).length;
-            return (
-              <span>
-                <b>Les phrases de transition</b><br />
-                {DUREES.map((d) => {
-                  const l = TRANSITIONS.filter((x) => x.duree === d).map((x) => msDe(x.wo, durees));
-                  if (!l.length) return null;
-                  return (
-                    <span key={d}>
-                      {d.replace("_", " ")} ({l.length}) :{" "}
-                      {(Math.min(...l) / 1000).toFixed(1)} à {(Math.max(...l) / 1000).toFixed(1)} s<br />
-                    </span>
-                  );
-                })}
-                {mesurees} des {TRANSITIONS.length} ont déjà été dites, donc mesurées ;
-                les autres sont estimées sur leur longueur.
-              </span>
-            );
-          })()}
+          {/* Le tableau des cinquante-six phrases a disparu avec elles : BIA
+              n'a plus qu'une seule voix d'attente, dans lib/attente.ts. */}
         </p>
       )}
 

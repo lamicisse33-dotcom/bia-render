@@ -1,15 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ATTENTES, SEUIL_MS, candidatsAttente, texteAttente } from "@/lib/attente";
-import type { Attente } from "@/lib/attente";
 import {
-  attenteEstimee, lireDurees, lireMesures, msDe, noterDuree, noterMesure, pourRemplir,
-} from "@/lib/chrono";
+  A_FABRIQUER, CHAPEAU, PARTIE_1, PARTIE_1_CONNU, PARTIE_2,
+  dire, extraireNom, fichierDe as fichierDeParole,
+} from "@/lib/attente";
+import type { Langue, Parole } from "@/lib/attente";
+import { lireMesures, noterMesure } from "@/lib/chrono";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
-import { TON_VERS_VISAGE, TRANSITIONS, candidatsTransition } from "@/lib/transitions";
-import type { Transition } from "@/lib/transitions";
 
 type Message = { role: "bia" | "user"; text: string };
 /* Les 24 cases de la planche, dans l'ordre du fichier.
@@ -178,30 +177,31 @@ export default function Home() {
      au milieu d'un mot — et `phraseEnCours` est cette phrase, qu'on attend
      avant d'enchaîner. */
   const stopAttenteRef = useRef(false);
-  const phraseEnCoursRef = useRef<Promise<number> | null>(null);
-  /** Le moment où la phrase en cours devrait se terminer. */
-  const finPhraseRef = useRef(0);
+  /** Le son d'attente en cours, avec son réglage de volume pour le couper net. */
+  const attenteSonRef = useRef<{ source: AudioBufferSourceNode; volume: GainNode } | null>(null);
+  /** Le prénom de la personne, gardé sur l'appareil. */
+  const nomRef = useRef("");
+  /** La langue de l'échange en cours : le chapeau doit être dit dedans. */
+  const langueRef = useRef<Langue>("wo");
+  /** Vrai entre la question « comment tu t'appelles ? » et la réponse. */
+  const attendLeNomRef = useRef(false);
+  /** Le prénom qu'elle vient d'apprendre : elle le dira dans sa réponse. */
+  const nouveauNomRef = useRef("");
+  /** Pour rouvrir le micro depuis l'attente sans dépendre de l'ordre du fichier. */
+  const ecouterRef = useRef<(() => Promise<void>) | null>(null);
   /* LE CHRONOMÈTRE. Idée de Lamine : plutôt que de meubler à l'aveugle, BIA
      mesure combien de temps elle fait attendre, et sert la phrase dont la
      durée remplit ce temps-là. Quatre repères suffisent — le départ, la fin
      de la transcription, la fin du modèle, et l'arrivée du son. */
   const mesuresRef = useRef<Mesure[]>([]);
-  const dureesRef = useRef<Record<string, number>>({});
   const departAttenteRef = useRef(0);
   const tTranscritRef = useRef(0);
   const tModeleRef = useRef(0);
   const voieRef = useRef<Voie>("ecrit");
   const attenteCache = useRef<Map<string, ArrayBuffer>>(new Map());
-  const dernierAttente = useRef<string | null>(null);
-  const nomDemande = useRef(false);
   const toursRef = useRef(0);
   const cacheSons = useRef<Map<string, ArrayBuffer>>(new Map());
   const dernierSon = useRef<string | null>(null);
-  /* Les transitions après le micro : les cinq dernières servies, le ton
-     précédent, et l'état de la transcription — une phrase ne peut annoncer
-     avoir COMPRIS que si le texte est effectivement revenu. */
-  const transitionsRecentes = useRef<number[]>([]);
-  const tonPrecedent = useRef<string | null>(null);
   const transcritRef = useRef(false);
   const dernierDitRef = useRef("");
 
@@ -214,7 +214,7 @@ export default function Home() {
      au serveur — ces chiffres dépendent du téléphone et du réseau. */
   useEffect(() => {
     mesuresRef.current = lireMesures();
-    dureesRef.current = lireDurees();
+    try { nomRef.current = localStorage.getItem("bia-nom") || ""; } catch {}
   }, []);
 
   // Le code est gardé sur l'appareil : le testeur ne le retape pas à chaque fois.
@@ -484,6 +484,150 @@ export default function Home() {
     await jouerSonAvecVisages(octets, souffle.visages);
   }, [jouerSonAvecVisages]);
 
+  /* ── LA VOIX D'ATTENTE ────────────────────────────────────────────────
+
+     Une seule voix continue, en trois temps, expliqués dans lib/attente.ts.
+     Ce qui suit ne fait que les jouer, et surtout : couper NET quand la
+     réponse est prête. */
+
+  /* Le son d'une parole d'attente. On essaie d'abord le fichier tout prêt de
+     public/sons/attente/ — gratuit, instantané, et c'est là qu'il doit finir.
+     S'il n'est pas encore fabriqué, on le synthétise et on le garde en
+     mémoire pour la durée de la session. */
+  const audioParole = useCallback(async (p: Parole, langue: Langue, nom = "") => {
+    const texte = dire(p, langue, nom);
+    const garde = attenteCache.current.get(texte);
+    if (garde) return garde;
+
+    if (!p.wo.includes("{nom}")) {
+      try {
+        const f = await fetch(fichierDeParole(p, langue), { cache: "force-cache" });
+        if (f.ok) {
+          const octets = await f.arrayBuffer();
+          if (octets.byteLength > 512) {
+            attenteCache.current.set(texte, octets);
+            return octets;
+          }
+        }
+      } catch {}
+    }
+
+    const r = await fetch("/api/voix", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+      body: JSON.stringify({ texte, partie: 0 }),
+    });
+    if (!r.ok) throw new Error("voix indisponible");
+    const d = await r.json() as { audio: string | null };
+    if (!d.audio) throw new Error("voix muette");
+    const octets = octetsDeBase64(d.audio);
+    attenteCache.current.set(texte, octets);
+    return octets;
+  }, []);
+
+  /* Jouer une parole d'attente, et pouvoir la couper au milieu d'un mot sans
+     que ça claque. D'où le réglage de volume : on ne stoppe pas la source, on
+     la descend à zéro en quarante millisecondes, puis on la stoppe. */
+  const direParole = useCallback((octets: ArrayBuffer, jeton: object) =>
+    new Promise<void>((fini) => {
+      const ctx = contexte();
+      let rendu = false;
+      const rendre = () => { if (!rendu) { rendu = true; fini(); } };
+      ctx.decodeAudioData(octets.slice(0)).then((brut) => {
+        if (attenteRef.current !== jeton) return rendre();
+        const mémoire = sansSilence(ctx, brut);
+        const { valeurs, pic, pas } = enveloppeDe(mémoire);
+        const source = ctx.createBufferSource();
+        const volume = ctx.createGain();
+        source.buffer = mémoire;
+        source.connect(volume);
+        volume.connect(ctx.destination);
+
+        const depart = ctx.currentTime + 0.03;
+        let precedente: Face | null = null;
+        let dernierChangement = -1e9;
+        const suivre = () => {
+          if (attenteSonRef.current?.source !== source) return;
+          const ecoule = ctx.currentTime - depart;
+          const i = Math.floor(ecoule / pas);
+          const part = i >= 0 && i < valeurs.length ? valeurs[i] / pic : 0;
+          const forme = formeBouche(part, i);
+          if (forme !== precedente && ecoule - dernierChangement >= 0.13) {
+            precedente = forme; dernierChangement = ecoule; setFace(forme);
+          }
+          animationRef.current = requestAnimationFrame(suivre);
+        };
+
+        source.onended = () => {
+          if (attenteSonRef.current?.source === source) attenteSonRef.current = null;
+          rendre();
+        };
+        attenteSonRef.current = { source, volume };
+        setMode("speaking");
+        source.start(depart);
+        animationRef.current = requestAnimationFrame(suivre);
+        // Filet : si le son ne sort pas, on ne reste pas bloqué.
+        setTimeout(rendre, mémoire.duration * 1000 + 1200);
+      }).catch(() => rendre());
+    }), [contexte]);
+
+  /** Couper l'attente immédiatement, proprement, sans claquement. */
+  const couperAttente = useCallback(() => {
+    const en = attenteSonRef.current;
+    attenteSonRef.current = null;
+    if (!en) return;
+    try {
+      const ctx = contexte();
+      en.volume.gain.setTargetAtTime(0, ctx.currentTime, 0.012);
+      en.source.stop(ctx.currentTime + 0.06);
+    } catch { try { en.source.stop(); } catch {} }
+  }, [contexte]);
+
+  /* ── LES TROIS TEMPS ──────────────────────────────────────────────────
+     Elle parle du moment où le micro se coupe jusqu'à ce que la réponse
+     soit prête. La partie 2 dure quarante-deux secondes en wolof pour une
+     attente mesurée de onze à seize : elle est rejouée si jamais elle
+     s'épuise, mais ça n'arrive qu'au réveil du serveur. */
+  const attendreEnParlant = useCallback(async (jeton: object, langue: Langue) => {
+    const jouer = async (p: Parole, nom = "") => {
+      if (attenteRef.current !== jeton || stopAttenteRef.current) return false;
+      let octets: ArrayBuffer;
+      try { octets = await audioParole(p, langue, nom); } catch { return false; }
+      if (attenteRef.current !== jeton || stopAttenteRef.current) return false;
+      await direParole(octets, jeton);
+      return attenteRef.current === jeton && !stopAttenteRef.current;
+    };
+
+    // 1. Elle a entendu. Et si elle ne connaît pas encore la personne, elle
+    //    demande son prénom — une seule fois dans la vie de l'appareil.
+    const connu = nomRef.current.trim();
+    if (connu) {
+      if (!await jouer(PARTIE_1_CONNU, connu)) return;
+    } else {
+      if (!await jouer(PARTIE_1)) return;
+      /* Le micro se rouvre pour recevoir le prénom, et ce qu'il entend est
+         traité comme un prénom, jamais comme une nouvelle question. S'il ne
+         dit rien, la partie 2 part quand même : on ne laisse pas un silence
+         s'installer parce que quelqu'un n'a pas voulu se nommer. */
+      attendLeNomRef.current = true;
+      void ecouterRef.current?.();
+      const limite = Date.now() + 9000;
+      while (attendLeNomRef.current && Date.now() < limite) {
+        if (attenteRef.current !== jeton || stopAttenteRef.current) return;
+        await pause(200);
+      }
+      attendLeNomRef.current = false;
+      const tout_neuf = nomRef.current.trim();
+      if (tout_neuf) nouveauNomRef.current = tout_neuf;
+    }
+
+    // 2. La longue, jusqu'à ce que la réponse arrive.
+    for (let tour = 0; tour < 4; tour++) {
+      if (!await jouer(PARTIE_2)) return;
+      setMode("thinking");
+    }
+  }, [audioParole, direParole]);
+
   /* Le trait tiré à la fin de l'attente : du micro coupé jusqu'au son de la
      réponse. C'est ce total-là qu'il faudra meubler la prochaine fois. */
   const noterAttente = useCallback(() => {
@@ -517,22 +661,32 @@ export default function Home() {
      s'arrêter, on laisse finir la phrase commencée, et alors seulement on
      coupe. Couper avant, c'est un mot tranché en deux ; ne pas couper du
      tout, c'est deux voix l'une sur l'autre. */
-  const finirAttente = useCallback(async () => {
+  /* LA COUPURE, ET LE CHAPEAU QUI LA RECOUVRE.
+
+     On ne laisse plus la phrase finir : elle dure quarante secondes, attendre
+     serait absurde. On la coupe où elle en est — mais jamais brutalement.
+     Le volume descend en quelques centièmes, puis le CHAPEAU est dit :
+     « bon, je réponds à ta question ». Sans lui, la coupure s'entend comme
+     une panne ; avec lui, elle s'entend comme quelqu'un qui a fini de
+     réfléchir. C'est l'idée de Lamine, et c'est ce qui fait la différence. */
+  const finirAttente = useCallback(async (langue: Langue = "wo") => {
+    const parlait = Boolean(attenteSonRef.current);
     stopAttenteRef.current = true;
-    for (let essais = 0; essais < 2; essais++) {
-      const enCours = phraseEnCoursRef.current;
-      if (!enCours) break;
-      /* On laisse la phrase finir — mais pas au-delà du moment où elle est
-         censée finir. Attendre sans limite, c'est ce qui a rendu BIA muette :
-         un son qui ne se termine jamais bloquait tout ce qui venait après. */
-      const reste = Math.max(0, finPhraseRef.current - Date.now()) + 700;
-      try { await Promise.race([enCours, pause(Math.min(reste, 20000))]); } catch {}
-      if (phraseEnCoursRef.current === enCours) break;
-    }
     attenteRef.current = null;
-    phraseEnCoursRef.current = null;
+    attendLeNomRef.current = false;
+    couperAttente();
+    if (parlait) {
+      try {
+        const octets = await audioParole(CHAPEAU, langue);
+        const jeton = {};
+        attenteRef.current = jeton;
+        stopAttenteRef.current = false;
+        await direParole(octets, jeton);
+        attenteRef.current = null;
+      } catch {}
+    }
     stopAttenteRef.current = false;
-  }, []);
+  }, [audioParole, couperAttente, direParole]);
 
   /* La vraie voix : Oolel Voices, la même que BIBA. Le serveur découpe la
      réponse — Soynade n'accepte que 500 caractères — et on va chercher le
@@ -546,7 +700,7 @@ export default function Home() {
        Il est descendu là où il a un sens — juste avant de dire le premier
        mot, une fois le son fabriqué. */
     const prendreLaParole = async () => {
-      await finirAttente();
+      await finirAttente(langueRef.current);
       window.speechSynthesis?.cancel();
       couperSon();
     };
@@ -713,176 +867,7 @@ export default function Home() {
     }
   }, [contexte, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth]);
 
-  /* ── Ce qu'elle dit pendant qu'elle réfléchit ─────────────────────────
 
-     Le premier passage synthétise la phrase ; on la garde ensuite en
-     mémoire, si bien que les fois suivantes elle part instantanément. */
-  const audioAttente = useCallback(async (texte: string) => {
-    const garde = attenteCache.current.get(texte);
-    if (garde) return garde;
-    const r = await fetch("/api/voix", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-      body: JSON.stringify({ texte, partie: 0 }),
-    });
-    if (!r.ok) throw new Error("voix indisponible");
-    const d = await r.json() as { audio: string | null };
-    if (!d.audio) throw new Error("voix muette");
-    const octets = octetsDeBase64(d.audio);
-    attenteCache.current.set(texte, octets);
-    /* On ne décode PAS ici pour mesurer la durée, même si ce serait commode.
-       Cette fonction tourne au préchauffage, avant que personne n'ait touché
-       l'écran — et fabriquer le contexte audio à ce moment-là le crée
-       endormi, sur iPhone, ce qui rend BIA muette. La durée se mesure au
-       premier passage de la phrase, dans jouerEtAnimer. */
-    return octets;
-  }, []);
-
-  /* Elle laisse passer SEUIL_MS avant d'ouvrir la bouche : si la réponse
-     arrive avant, elle se tait, et rien n'aura retardé quoi que ce soit.
-     Deux phrases au maximum par attente — une pour dire qu'elle a entendu,
-     une seconde seulement si l'attente s'éternise. Trois seraient bavardes. */
-  /* ── MEUBLER L'ATTENTE, À LA BONNE LONGUEUR ───────────────────────────
-
-     Le cœur de l'idée de Lamine. BIA sait, par ses mesures, combien de temps
-     dure d'habitude l'attente ; elle sait aussi, à la milliseconde, combien
-     de temps dure chacune de ses phrases. Elle n'a plus qu'à servir celle
-     qui remplit — et à enchaîner tant que la réponse n'est pas là.
-
-     Deux précautions qui font toute la différence :
-
-     — LA PREMIÈRE PHRASE doit partir sans le moindre délai. On ne retient
-       donc, pour elle, que celles dont le son est déjà en mémoire : celles
-       que l'entrée du code a préchauffées.
-
-     — LA SUIVANTE se fabrique PENDANT que celle-ci se dit. Sans ça, chaque
-       phrase encore inconnue coûterait deux secondes de silence — très
-       exactement ce qu'on cherche à supprimer. Et rien n'est gâché si la
-       réponse arrive avant : le son reste en mémoire pour la fois d'après. */
-  type Meublage<T> = {
-    jeton: object;
-    /** Le temps à couvrir, en millisecondes : l'attente mesurée. */
-    budget: number;
-    /** Le silence avant la première phrase. */
-    premierDelai: number;
-    /** Le souffle entre deux phrases. */
-    entreDeux: number;
-    candidats: () => T[];
-    texteDe: (c: T) => string;
-    /** Visage et mémoire, au moment de dire la phrase. */
-    avant: (c: T) => void;
-  };
-
-  const meubler = useCallback(async <T,>(m: Meublage<T>) => {
-    const depart = Date.now();
-    const durees = dureesRef.current;
-    let prochain: { choix: T; son: Promise<ArrayBuffer | null> } | null = null;
-
-    const choisir = (rang: number, restant: number): T | null => {
-      let liste = m.candidats();
-      if (rang === 0) {
-        const pretes = liste.filter((c) => attenteCache.current.has(m.texteDe(c)));
-        if (pretes.length) liste = pretes;
-      }
-      return pourRemplir(liste, m.texteDe, restant, durees);
-    };
-
-    for (let rang = 0; ; rang++) {
-      if (rang === 0) { if (m.premierDelai) await pause(m.premierDelai); }
-      else await pause(m.entreDeux);
-      // Filet : même si tout se casse ailleurs, elle ne parle pas sans fin.
-      if (Date.now() - depart > 60000) return;
-      if (attenteRef.current !== m.jeton || stopAttenteRef.current) return;
-
-      const choix = prochain ? prochain.choix : choisir(rang, m.budget - (Date.now() - depart));
-      if (!choix) return;
-      const texte = m.texteDe(choix);
-
-      let octets: ArrayBuffer | null;
-      try { octets = prochain ? await prochain.son : await audioAttente(texte); }
-      catch { return; }
-      prochain = null;
-      if (!octets) return;
-      // Le son de la réponse a pu arriver pendant la synthèse : on s'arrête.
-      if (attenteRef.current !== m.jeton || stopAttenteRef.current) return;
-
-      m.avant(choix);
-
-      // La suivante se prépare maintenant, pendant que celle-ci se dit.
-      const restantApres = m.budget - (Date.now() - depart) - msDe(texte, durees);
-      const suivant = choisir(rang + 1, restantApres);
-      if (suivant) {
-        prochain = { choix: suivant, son: audioAttente(m.texteDe(suivant)).catch(() => null) };
-      }
-
-      const enCours = jouerEtAnimer(octets);
-      phraseEnCoursRef.current = enCours;
-      finPhraseRef.current = Date.now() + msDe(texte, durees);
-      // La durée vraie, mesurée sur le son lui-même : elle remplace
-      // l'estimation pour tous les tours suivants.
-      const dite = await enCours;
-      if (dite > 0) noterDuree(texte, dite, durees);
-      if (phraseEnCoursRef.current === enCours) phraseEnCoursRef.current = null;
-      if (attenteRef.current !== m.jeton) return;
-      // Elle a fini sa phrase, la réponse n'est toujours pas là : elle
-      // retourne réfléchir, et le visage reprend sa boucle.
-      setMode("thinking");
-    }
-  }, [audioAttente, jouerEtAnimer]);
-
-  const direAttente = useCallback(async (langue: "wo" | "fr", jeton: object) => {
-    await meubler<Attente>({
-      jeton,
-      budget: attenteEstimee(mesuresRef.current, "ecrit"),
-      premierDelai: SEUIL_MS,
-      entreDeux: 500,
-      candidats: () => candidatsAttente({
-        attenteMs: SEUIL_MS,
-        dernierId: dernierAttente.current,
-        // Si elle a des notes sur la personne, elle connaît déjà son prénom.
-        nomConnu: Boolean(resumeRef.current),
-        nomDejaDemande: nomDemande.current,
-        social: toursRef.current % 3 === 0,
-      }),
-      texteDe: (a) => texteAttente(a, langue),
-      avant: (a) => {
-        dernierAttente.current = a.id;
-        if (a.quand === "nom") nomDemande.current = true;
-        setFace(a.visage as Face);
-      },
-    });
-  }, [meubler]);
-
-  /* ── Ce qu'elle dit à l'instant où le micro se coupe ───────────────────
-
-     Après la parole, l'attente est certaine : transcrire, interroger le
-     modèle, fabriquer la voix. Trois attentes qui s'additionnent. On parle
-     donc tout de suite, sans le délai des questions écrites.
-
-     La première phrase est forcément courte et préchauffée — et ne peut
-     qu'affirmer avoir ENTENDU, puisque la transcription n'est pas encore
-     revenue. Les suivantes, choisies sur la durée qui reste à couvrir,
-     peuvent dire avoir compris : à ce moment le texte est arrivé. */
-  const direTransitions = useCallback(async (jeton: object) => {
-    await meubler<Transition>({
-      jeton,
-      budget: attenteEstimee(mesuresRef.current, "parole"),
-      premierDelai: 0,
-      entreDeux: 500,
-      candidats: () => candidatsTransition({
-        recentes: transitionsRecentes.current,
-        contexte: dernierDitRef.current,
-        transcrit: transcritRef.current,
-        tonPrecedent: tonPrecedent.current,
-      }),
-      texteDe: (t) => t.wo,
-      avant: (t) => {
-        transitionsRecentes.current = [t.n, ...transitionsRecentes.current].slice(0, 5);
-        tonPrecedent.current = t.ton;
-        setFace((TON_VERS_VISAGE[t.ton] || "pensive") as Face);
-      },
-    });
-  }, [meubler]);
 
 
   const askBia = useCallback(async (question: string, parole = false) => {
@@ -905,16 +890,27 @@ export default function Home() {
       voieRef.current = "ecrit";
       tTranscritRef.current = 0;
       tModeleRef.current = 0;
+      langueRef.current = estWolof(clean) ? "wo" : "fr";
       const jeton = {};
       attenteRef.current = jeton;
-      void direAttente(estWolof(clean) ? "wo" : "fr", jeton);
+      stopAttenteRef.current = false;
+      void attendreEnParlant(jeton, langueRef.current);
     }
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-        body: JSON.stringify({ message: clean, history: historyRef.current.slice(-12), resume: resumeRef.current }),
+        body: JSON.stringify({
+          message: clean,
+          history: historyRef.current.slice(-12),
+          /* Le prénom qu'elle vient d'apprendre part avec la question : elle
+             le dit dans sa réponse, et c'est ce qui attache quelqu'un à une
+             application. Une seule fois — après, il est dans ses notes. */
+          resume: [resumeRef.current, nouveauNomRef.current
+            ? `La personne vient de te dire son prénom : ${nouveauNomRef.current}. Emploie-le une fois dans ta réponse, naturellement, sans en faire trop.`
+            : ""].filter(Boolean).join("\n"),
+        }),
       });
       const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; source?: string };
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
@@ -930,7 +926,7 @@ export default function Home() {
         setCode(null);
         setCodeErreur(data.reply);
         setMode("ready"); setFace("yeux_ouverts");
-        await finirAttente();   // personne ne parlera : on rend le silence
+        await finirAttente(langueRef.current);   // personne ne parlera : on rend le silence
         return;
       }
       if (!response.ok) throw new Error("BIA unavailable");
@@ -955,7 +951,7 @@ export default function Home() {
       // sera prête.
       busyRef.current = false;
     }
-  }, [speak, direAttente, finirAttente]);
+  }, [speak, attendreEnParlant, finirAttente]);
 
   /* Pendant qu'elle réfléchit, le visage ne doit pas se figer — mais il ne
      doit pas s'agiter non plus.
@@ -1000,28 +996,26 @@ export default function Home() {
     return () => { vivant = false; clearTimeout(minuterie); };
   }, [mode]);
 
-  /* On synthétise les phrases les plus courtes dès l'entrée du code, pendant
-     que personne ne demande rien. La toute première attente est alors déjà
-     instantanée ; les autres phrases se mettront en mémoire à leur premier
-     usage. Une seule à la fois, pour ne pas encombrer la voix si BIA doit
-     répondre pendant ce temps. */
+  /* Les quatre paroles d'attente sont mises en mémoire dès l'entrée du code,
+     pendant que personne ne demande rien. La partie 1 part à l'instant où le
+     micro se coupe : elle doit être là, pas en train de se fabriquer.
+
+     Si les fichiers de public/sons/attente/ existent, ça ne coûte rien du
+     tout — c'est un simple téléchargement. Sinon on les synthétise une fois
+     pour la session, et on garde la voix en mémoire. */
   useEffect(() => {
     if (!code) return;
     let vivant = true;
     void (async () => {
-      for (const a of ATTENTES.filter((x) => x.quand === "court")) {
-        if (!vivant) return;
-        try { await audioAttente(a.wo); } catch { return; }
-      }
-      // Puis les dix transitions courtes : ce sont elles qui partent à
-      // l'instant où le micro se coupe, elles doivent être prêtes.
-      for (const t of TRANSITIONS.filter((x) => x.duree === "courte")) {
-        if (!vivant) return;
-        try { await audioAttente(t.wo); } catch { return; }
+      for (const langue of ["wo", "fr"] as const) {
+        for (const parole of A_FABRIQUER) {
+          if (!vivant) return;
+          try { await audioParole(parole, langue); } catch { return; }
+        }
       }
     })();
     return () => { vivant = false; };
-  }, [code, audioAttente]);
+  }, [code, audioParole]);
 
   /* iPhone n'autorise le son qu'après un geste. Le premier doigt posé sur
      l'écran, quel qu'il soit, réveille donc le contexte audio — sans rien
@@ -1112,30 +1106,52 @@ export default function Home() {
 
         /* Elle répond MAINTENANT, sans attendre la transcription : c'est tout
            l'intérêt: le silence après qu'on a parlé est le plus inquiétant. */
+        const forme = new FormData();
+        forme.append("audio", new Blob(morceaux, { type: "audio/webm" }), "parole.webm");
+
+        /* CE QU'ELLE VIENT D'ENTENDRE EST-IL UN PRÉNOM ?
+           Entre « comment tu t'appelles ? » et la réponse, oui — et alors ce
+           n'est PAS une nouvelle question : on ne relance rien, on retient le
+           prénom et l'attente reprend là où elle en était. */
+        if (attendLeNomRef.current) {
+          try {
+            const r = await fetch("/api/ecouter", { method: "POST", headers: { "x-bia-code": codeRef.current }, body: forme });
+            const d = await r.json() as { texte?: string };
+            const nom = extraireNom(d.texte || "");
+            if (nom) {
+              nomRef.current = nom;
+              try { localStorage.setItem("bia-nom", nom); } catch {}
+            }
+          } catch {}
+          attendLeNomRef.current = false;
+          return;
+        }
+
         const jeton = {};
         attenteRef.current = jeton;
+        stopAttenteRef.current = false;
         transcritRef.current = false;
         dernierDitRef.current = "";
+        nouveauNomRef.current = "";
         // Le chronomètre part ici : c'est l'instant que la personne ressent
         // comme le début de l'attente.
         departAttenteRef.current = Date.now();
         voieRef.current = "parole";
         tTranscritRef.current = 0;
         tModeleRef.current = 0;
-        void direTransitions(jeton);
+        langueRef.current = "wo";
+        void attendreEnParlant(jeton, langueRef.current);
 
-        const forme = new FormData();
-        forme.append("audio", new Blob(morceaux, { type: "audio/webm" }), "parole.webm");
         try {
           const r = await fetch("/api/ecouter", { method: "POST", headers: { "x-bia-code": codeRef.current }, body: forme });
           const d = await r.json() as { texte?: string };
-          // Le texte est là : les phrases suivantes peuvent dire « j'ai compris »,
-          // et connaissent le sujet — donc éviter un ton léger s'il est grave.
           tTranscritRef.current = Date.now();
           transcritRef.current = true;
           dernierDitRef.current = d.texte || "";
-          if (d.texte) void askBia(d.texte, true);
-          else { setMode("ready"); setFace("yeux_ouverts"); }
+          if (d.texte) {
+            langueRef.current = estWolof(d.texte) ? "wo" : "fr";
+            void askBia(d.texte, true);
+          } else { setMode("ready"); setFace("yeux_ouverts"); }
         } catch { setMode("error"); }
       };
 
@@ -1145,7 +1161,12 @@ export default function Home() {
     } catch {
       setMode("error");
     }
-  }, [arreterEnregistrement, askBia, direTransitions]);
+  }, [arreterEnregistrement, askBia, attendreEnParlant]);
+
+  /* L'attente a besoin de rouvrir le micro pour recevoir le prénom, mais elle
+     est définie avant `ecouter`. Ce renvoi évite d'avoir à réordonner tout le
+     fichier pour une seule flèche. */
+  ecouterRef.current = ecouter;
 
   /* Repli quand aucun moteur d'écoute n'est branché : la reconnaissance du
      navigateur. Elle ne connaît pas le wolof — « wo-SN » n'existe nulle part

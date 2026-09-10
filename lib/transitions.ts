@@ -1,3 +1,20 @@
+/* ── ARCHIVE — LES 56 PHRASES DE TRANSITION ────────────────────────────────
+
+   PLUS UTILISÉ PAR L'APPLICATION depuis le 9 septembre 2026.
+
+   Ces cinquante-six phrases ont été écrites et traduites par Lamine, en wolof
+   urbain de Dakar. Le code s'en servait pour meubler l'attente : il en tirait
+   une, puis une autre, selon des règles de rotation. Ça ne marchait pas —
+   chacune se tient seule, mais mises bout à bout elles se contredisaient, et
+   BIA changeait de personnage au milieu de sa propre attente.
+
+   Elles sont remplacées par une seule voix continue, dans lib/attente.ts.
+
+   Ce fichier est gardé parce que ces phrases sont de la matière : du wolof de
+   Dakar validé par un locuteur natif, avec son ton et son registre. Il servira
+   pour d'autres textes. Aucun import ne pointe plus dessus.
+   Ne pas le supprimer sans demander à Lamine. */
+
 /* Ce que BIA dit à l'instant où le micro se coupe.
 
    Après la parole, l'attente est certaine : il faut transcrire, interroger le

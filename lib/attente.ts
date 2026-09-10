@@ -1,116 +1,127 @@
-/* Ce que BIA dit pendant qu'elle réfléchit.
+/* ── CE QUE BIA DIT PENDANT QU'ELLE RÉFLÉCHIT ──────────────────────────────
 
-   Le silence est ce qui trahit la machine : un visage figé pendant quatre
-   secondes fait douter qu'il se passe quoi que ce soit. Une phrase brève,
-   dans sa vraie voix, transforme l'attente en tour de conversation.
+   Deuxième version, et elle vient d'un échec. La première enchaînait des
+   phrases courtes tirées au hasard dans une réserve de cinquante-six. Chacune
+   se tenait seule ; mises bout à bout elles se contredisaient — elle disait
+   « j'ai entendu, laisse-moi réfléchir », puis demandait comment allait la
+   journée, puis revenait avec un autre personnage. Lamine l'a montrée à
+   quelqu'un dans cet état, le 9 septembre 2026. Coller douze morceaux ne fait
+   pas une pensée continue.
 
-   Les formulations wolof viennent de Lamine — locuteur natif. Ne les
-   réécris pas sans lui : c'est exactement le genre de correction que le
-   lexique existe pour recueillir.
+   Sa solution, et elle est meilleure : UNE SEULE VOIX, qui pense tout haut
+   d'un bout à l'autre, coupée net quand la réponse est prête.
 
-   Trois règles tiennent tout le reste :
-   — une seule phrase par attente, jamais un enchaînement ;
-   — jamais la même que la fois précédente ;
-   — dès que la vraie réponse est prête, la phrase d'attente est coupée. */
+   TROIS TEMPS.
 
-export type Moment = "court" | "moyen" | "social" | "nom" | "long";
+   1. À la seconde où le micro se coupe — elle dit qu'elle a entendu, elle se
+      nomme, et elle demande le prénom. Elle ne le demande QU'UNE FOIS : le
+      redemander à chaque question est précisément ce qui fait passer une
+      assistante pour une machine. Ensuite elle salue par le prénom.
 
-export type Attente = {
-  id: string;
-  /** Le nom de case du visage, tel que la planche des 24 expressions les nomme. */
-  visage: string;
+   2. Dès que la personne a fini de dire son nom — la longue. Quarante-deux
+      secondes en wolof, cinquante en français, alors que l'attente mesurée
+      est de onze à seize. Elle ne peut donc pas se tarir.
+
+   3. Le son de la réponse arrive — la longue est coupée immédiatement, avec
+      un fondu de quelques centièmes pour éviter le claquement, et le CHAPEAU
+      recouvre la couture : « bon, je réponds à ta question ». Sans lui, la
+      coupure s'entend comme une panne ; avec lui, elle s'entend comme
+      quelqu'un qui a fini de réfléchir.
+
+   Les textes sont de Lamine, en wolof urbain de Dakar. Le français est la
+   même chose dite dans l'autre langue, pas une traduction mot à mot.
+   NE LES RÉÉCRIS PAS SANS LUI. */
+
+export type Langue = "wo" | "fr";
+
+export type Parole = {
+  /** Le nom du fichier dans public/sons/attente/, sans l'extension. */
+  fichier: string;
   wo: string;
   fr: string;
-  quand: Moment;
 };
 
-export const ATTENTES: Attente[] = [
-  // Retard très court — elle signale seulement qu'elle a entendu.
-  { id: "ecoute",    quand: "court", visage: "ecoute",      wo: "Waaw, dégg naa la.", fr: "Oui, je t'écoute." },
-  { id: "hee",       quand: "court", visage: "douce",       wo: "Héé…", fr: "Hé hé…" },
-  { id: "xaaral",    quand: "court", visage: "pensive",     wo: "Xaaral tuuti…", fr: "Attends un instant…" },
+/** 1. Première conversation : elle se nomme et demande le prénom. */
+export const PARTIE_1: Parole = {
+  fichier: "partie1",
+  wo: "Waaw, dégg naa la bu baax, man. BIA la tudd. Yaw nak, naka nga tudd ?",
+  fr: "Oui, je t'ai bien entendu. Moi, c'est BIA. Et toi, comment tu t'appelles ?",
+};
 
-  // Elle réfléchit pour de bon, et le dit.
-  { id: "solo",      quand: "moyen", visage: "etonnement",  wo: "Sa laaj bi dafa am solo dé.", fr: "Ta question est importante." },
-  { id: "xalaat",    quand: "moyen", visage: "regard_cote", wo: "Maangi xalaat ci sa laaj bi…", fr: "Je réfléchis à ta question…" },
-  { id: "bayyil",    quand: "moyen", visage: "malice",      wo: "Bàyyil ma tuuti, dinaa la wax…", fr: "Laisse-moi un instant, je vais te répondre…" },
+/* 1 bis. Elle connaît déjà la personne : elle la salue par son prénom et
+   passe directement à la longue. {nom} est remplacé au moment de le dire —
+   c'est la seule phrase qui ne peut pas être un fichier tout prêt, et elle
+   est courte exprès. */
+export const PARTIE_1_CONNU: Parole = {
+  fichier: "partie1-connu",
+  wo: "Waaw {nom}, dégg naa la bu baax.",
+  fr: "Oui {nom}, je t'ai bien entendu.",
+};
 
-  // De temps en temps seulement : elle prend des nouvelles.
-  { id: "journee",   quand: "social", visage: "joie",       wo: "Naka journée bi ?", fr: "Comment se passe ta journée ?" },
-  { id: "fatigue",   quand: "social", visage: "douce",      wo: "Mbaa sonnóo trop tey ?", fr: "J'espère que tu n'es pas trop fatigué aujourd'hui ?" },
-  { id: "tangaay",   quand: "social", visage: "etonnement", wo: "Naka tàngaay bi ci sa wet ? Tàng na walla sedd ?", fr: "Quel temps fait-il chez toi ? Il fait chaud ou froid ?" },
-  { id: "famille",   quand: "social", visage: "joie",       wo: "Mbaa famille bi ñépp ngi ci jàmm ?", fr: "J'espère que toute la famille va bien ?" },
+/** 2. La longue. Elle tourne jusqu'à ce que la réponse arrive. */
+export const PARTIE_2: Parole = {
+  fichier: "partie2",
+  wo: "May ma rekk quelques secondes, ma dellu xool tranquillement li nga wax "
+    + "te réfléchir ci manière bi gëna leer pour tontu la. Bëgguma gaawantu, "
+    + "ba jox la réponse bu baaxul, bu incomplète walla bu adaptéwul ak sa "
+    + "question. Préféré naa jël sama temps, xool détails yi bu baax, "
+    + "organiser sama idées yi te choisir mots yi dina la gëna jariñ. Maa ngi "
+    + "fi ak yaw, te maa ngi xool lépp tranquillement. Parfois, réponse bu "
+    + "baax dafay laaj tuuti réflexion, surtout su ñu bëggee mu nekk ay tontu "
+    + "yu précis, honnête te facile à comprendre. Kon may ma encore tuuti "
+    + "rekk, maa ngi xalaat, te sama xarit dinaa la jox réponse bu leer te "
+    + "correct.",
+  fr: "Oui, je t'ai bien entendu, du début jusqu'à la fin. Donne-moi "
+    + "simplement quelques secondes pour reprendre calmement ce que tu viens "
+    + "de dire et réfléchir à la manière la plus claire de te répondre. Je ne "
+    + "veux pas me précipiter et te donner une réponse trop rapide, "
+    + "incomplète ou mal adaptée à ta question. Je préfère prendre le temps "
+    + "de bien examiner chaque détail, de mettre mes idées dans le bon ordre "
+    + "et de choisir les mots qui pourront réellement t'être utiles. Je suis "
+    + "toujours avec toi et je regarde tout cela tranquillement. Parfois, une "
+    + "bonne réponse demande un petit moment de réflexion, surtout lorsqu'on "
+    + "veut être précis, honnête et facile à comprendre. Laisse-moi donc "
+    + "encore un court instant, je termine et je vais te répondre "
+    + "correctement.",
+};
 
-  // Une seule fois, et seulement si elle ne le connaît pas.
-  { id: "tur",       quand: "nom",   visage: "malice",      wo: "Waaw, sa tur lan la déjà ?", fr: "Au fait, comment tu t'appelles déjà ?" },
+/** 3. Le chapeau : il recouvre la coupure. */
+export const CHAPEAU: Parole = {
+  fichier: "chapeau",
+  wo: "Bon, noppi naa. Léegi ma la tontu.",
+  fr: "Bon, je réponds à ta question.",
+};
 
-  // Attente inhabituelle : elle rassure, franchement.
-  { id: "systeme",   quand: "long",  visage: "rire",        wo: "Bul ragal, duma la fàtte, système bi rekk moo di daw tuuti !", fr: "Ne t'inquiète pas, je ne t'oublie pas, c'est seulement le système qui ralentit un peu !" },
+/** Toutes celles qui peuvent devenir un fichier tout prêt. */
+export const A_FABRIQUER: Parole[] = [PARTIE_1, PARTIE_2, CHAPEAU];
+
+/** Le texte à dire, dans la langue de la conversation. */
+export function dire(p: Parole, langue: Langue, nom = ""): string {
+  return (langue === "fr" ? p.fr : p.wo).replace("{nom}", nom).replace(/\s+/g, " ").trim();
+}
+
+/** L'adresse du fichier tout prêt, quand il en existe un. */
+export function fichierDe(p: Parole, langue: Langue): string {
+  return `/sons/attente/${p.fichier}-${langue}.mp3`;
+}
+
+/* ── Reconnaître un prénom ──────────────────────────────────────────────────
+   La personne répond rarement « Modou » tout court : elle dit « man Modou
+   laa tudd », « je m'appelle Modou », « moi c'est Modou ». On enlève les
+   amorces et on garde les trois premiers mots. */
+const AMORCES = [
+  /^\s*(je m'?appelle|moi c'?est|mon nom est|c'?est|je suis)\s+/i,
+  /^\s*(man|maa)\s+/i,
+  /\s+(laa tudd|la tudd|laa tuddu|la tuddu)\s*$/i,
+  /^\s*(maa ngi tudd|maa ngui tudd|tudd naa|sama tur mooy|sama tur)\s+/i,
 ];
 
-/* En dessous de ce seuil, on ne dit rien : elle a répondu vite, une phrase
-   d'attente ne ferait que retarder la vraie réponse. */
-export const SEUIL_MS = 800;
-
-const au_hasard = <T,>(liste: T[]): T | null =>
-  liste.length ? liste[Math.floor(Math.random() * liste.length)] : null;
-
-export type Contexte = {
-  /** Depuis combien de temps on attend, en millisecondes. */
-  attenteMs: number;
-  /** L'identifiant de la phrase servie la fois d'avant — on ne la répète pas. */
-  dernierId?: string | null;
-  /** BIA connaît-elle déjà le prénom de la personne ? */
-  nomConnu?: boolean;
-  /** L'a-t-elle déjà demandé dans cette session ? */
-  nomDejaDemande?: boolean;
-  /** Autorise-t-on une question sociale à ce tour ? (une fois sur trois) */
-  social?: boolean;
-};
-
-/* Toutes les phrases autorisées à cet instant, sans trancher entre elles.
-   Celui qui appelle choisit ensuite — au hasard (choisirAttente) ou sur la
-   durée qui remplit le mieux le temps qui reste (pourRemplir, lib/chrono.ts).
-
-   La question du prénom garde son privilège : tant que BIA ne sait pas à qui
-   elle parle, c'est la seule chose qui vaille la peine d'être dite. */
-export function candidatsAttente(c: Contexte): Attente[] {
-  if (!c.nomConnu && !c.nomDejaDemande) {
-    const nom = ATTENTES.filter((a) => a.quand === "nom");
-    if (nom.length) return nom;
-  }
-  const moments: Moment[] = c.social ? ["court", "moyen", "long", "social"]
-                                     : ["court", "moyen", "long"];
-  const libres = ATTENTES.filter((a) => moments.includes(a.quand) && a.id !== c.dernierId);
-  return libres.length ? libres : ATTENTES.filter((a) => moments.includes(a.quand));
-}
-
-/** La phrase à dire, ou null s'il vaut mieux se taire. */
-export function choisirAttente(c: Contexte): Attente | null {
-  if (c.attenteMs < SEUIL_MS) return null;
-
-  const libres = (moments: Moment[]) =>
-    ATTENTES.filter((a) => moments.includes(a.quand) && a.id !== c.dernierId);
-
-  // Attente inhabituelle : elle explique, c'est ce qui se supporte le mieux.
-  if (c.attenteMs >= 6000) return au_hasard(libres(["long"])) || au_hasard(libres(["moyen"]));
-
-  // Court : elle fait seulement savoir qu'elle a entendu.
-  if (c.attenteMs < 2500) return au_hasard(libres(["court"]));
-
-  // Entre les deux, il y a de la place pour un vrai tour de parole.
-  if (!c.nomConnu && !c.nomDejaDemande) {
-    const nom = libres(["nom"])[0];
-    if (nom) return nom;
-  }
-  if (c.social) {
-    const social = au_hasard(libres(["social"]));
-    if (social) return social;
-  }
-  return au_hasard(libres(["moyen"]));
-}
-
-/** Le texte à prononcer, dans la langue où l'on écrit à BIA. */
-export function texteAttente(a: Attente, langue: "wo" | "fr"): string {
-  return langue === "fr" ? a.fr : a.wo;
+export function extraireNom(dit: string): string {
+  let t = String(dit || "").trim().replace(/[.!?,]+$/, "");
+  for (const a of AMORCES) t = t.replace(a, "").trim();
+  const mots = t.split(/\s+/).filter(Boolean).slice(0, 3);
+  if (!mots.length) return "";
+  const nom = mots.map((m) => m.charAt(0).toUpperCase() + m.slice(1)).join(" ");
+  // Une phrase entière n'est pas un prénom : on préfère ne rien retenir.
+  return nom.length <= 40 ? nom : "";
 }
