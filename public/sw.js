@@ -55,7 +55,7 @@ self.addEventListener("fetch", (e) => {
         (r) =>
           r ||
           new Response(
-            "<meta charset=utf-8><body style='background:#050507;color:#FFF7DC;font:16px sans-serif;text-align:center;padding:40px'>Amul jokkoo — pas de connexion.",
+            "<meta charset=utf-8><body style='background:#050507;color:#FFF7DC;font:16px sans-serif;text-align:center;padding:40px'>Amul connexion.",
             { headers: { "content-type": "text/html; charset=utf-8" } },
           ),
       ),
