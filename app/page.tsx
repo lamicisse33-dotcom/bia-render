@@ -16,6 +16,10 @@ import {
 import type { PapierGarde } from "@/lib/papiers";
 import { franc, lecture, sorteEvoquee, totauxDe } from "@/lib/documents";
 import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
+import {
+  CHAMPS, MODELES, QUOI, compter, estModele, ligneVide, titreSupport,
+} from "@/lib/supports";
+import type { Champ, LigneSupport, ModeleSupport, Support } from "@/lib/supports";
 import { lireMesures, noterMesure } from "@/lib/chrono";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
@@ -40,7 +44,10 @@ type Message = {
    des artisans n'y sont pas assujettis, et l'afficher quand on ne l'est pas
    est une faute. */
 /* Les services que BIA rend, chacun derrière son bouton. */
-type Service = "" | "message" | "devis" | "lettre" | "photo" | "lire" | "fiche";
+/* « boutique » est BIA Business : un onglet pour six tableaux, et pas six
+   onglets de plus — la rangée est déjà pleine, et un commerçant qui cherche
+   son stock cherche « la boutique », pas « la fiche de stock ». */
+type Service = "" | "message" | "devis" | "lettre" | "photo" | "lire" | "fiche" | "boutique";
 
 type Emetteur = Partie & { tva: boolean };
 const EMETTEUR_VIDE: Emetteur = {
@@ -214,6 +221,10 @@ export default function Home() {
   const [papierOccupe, setPapierOccupe] = useState(false);
   const [papierErreur, setPapierErreur] = useState("");
   const [pdf, setPdf] = useState("");
+  /* BIA BUSINESS. Lequel des six tableaux est ouvert. Il vit à côté du
+     service, et pas dedans, parce que l'onglet reste « boutique » du choix du
+     modèle jusqu'à la correction du dernier chiffre. */
+  const [modele, setModele] = useState<ModeleSupport | null>(null);
   const [fiche, setFiche] = useState(false);
   const [emetteur, setEmetteur] = useState<Emetteur>(EMETTEUR_VIDE);
   /* QUI PARLE. Un téléphone se prête, ici : au frère, au client, au voisin.
@@ -1229,6 +1240,16 @@ export default function Home() {
            écrit un message, le prochain message le supprime. » Il reste à
            l'écran et dans sa boîte ; le nouveau viendra à côté, pas dessus. */
       }
+      /* ── ET SI C'EST UN TABLEAU DE BOUTIQUE ─────────────────────────────
+         Les six modèles de BIA Business arrivent par la même balise, chacun
+         sous son propre nom : [[papier:stock]], [[papier:ventes]]… On ouvre
+         l'onglet Boutique sur le bon modèle, et la fabrication part tout de
+         suite, exactement comme pour un devis. */
+      if (estModele(data.papier)) {
+        setModele(data.papier);
+        setPapierPret("support");
+        if (!papierOccupeRef.current) void fabriquerPapier("support", data.papier);
+      }
       // Elle a un numéro à composer : le bouton s'allume jusqu'au tour suivant.
       if (data.appel?.numero) setAppel(data.appel);
       setPanne(data.source && data.source.startsWith("panne") ? data.source : "");
@@ -1995,7 +2016,7 @@ export default function Home() {
      quittée. */
   const demandePapier = useRef(0);
 
-  const fabriquerPapier = useCallback(async (sorte: Sorte) => {
+  const fabriquerPapier = useCallback(async (sorte: Sorte, quel?: ModeleSupport) => {
     const jeton = ++demandePapier.current;
     const perime = () => jeton !== demandePapier.current;
 
@@ -2014,15 +2035,27 @@ export default function Home() {
     setPapierErreur("");
     setPdf("");
     try {
-      const r = await fetch("/api/document", {
+      /* Un support de boutique part sur sa propre route : ses colonnes, sa
+         consigne et ses calculs n'ont rien à voir avec ceux d'un devis. Tout
+         le reste — le jeton, le bruit de frappe, la lecture à voix haute, le
+         rangement dans la boîte — est identique, et c'est voulu : un tableau
+         de stock est un papier comme un autre pour celui qui s'en sert. */
+      const versBoutique = sorte === "support";
+      const r = await fetch(versBoutique ? "/api/support" : "/api/document", {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-        body: JSON.stringify({
-          sorte,
-          history: historyRef.current.slice(-24),
-          emetteur: emetteurRef.current,
-          tva: emetteurRef.current.tva,
-        }),
+        body: JSON.stringify(versBoutique
+          ? {
+              modele: quel,
+              history: historyRef.current.slice(-30),
+              boutique: emetteurRef.current.nom,
+            }
+          : {
+              sorte,
+              history: historyRef.current.slice(-24),
+              emetteur: emetteurRef.current,
+              tva: emetteurRef.current.tva,
+            }),
       });
       const d = await r.json() as { document?: Papier; totaux?: Totaux | null; erreur?: string };
       if (perime()) return;
@@ -2032,7 +2065,13 @@ export default function Home() {
            inutile les deux autres. */
         setPapierErreur(
           d.erreur === "rien à écrire" || d.erreur === "document vide"
-            ? "Il n'y a pas encore de quoi écrire. Dis-lui d'abord ce que le papier doit dire, et pour qui — puis reviens ici."
+            ? (versBoutique
+                /* Un tableau vide n'est presque jamais une panne : c'est
+                   qu'on ne lui a pas encore dit un seul produit. Le dire
+                   ainsi, plutôt que « papier », parce que ce n'est pas le
+                   même geste qu'un devis. */
+                ? "Elle n'a pas encore de quoi remplir le tableau. Dis-lui d'abord tes produits, avec les quantités ou les prix — puis reviens ici."
+                : "Il n'y a pas encore de quoi écrire. Dis-lui d'abord ce que le papier doit dire, et pour qui — puis reviens ici.")
             : d.erreur === "pas de document" || d.erreur === "document illisible"
               ? "Elle a répondu à côté. Appuie encore une fois : c'est presque toujours réglé au deuxième essai."
               : d.erreur === "code"
@@ -2051,6 +2090,9 @@ export default function Home() {
         id, sorte, titre: titreDe(d.document), quand: new Date().toISOString(),
         doc: d.document, totaux: d.totaux ?? null,
       };
+      /* Le tableau qui vient d'arriver devient celui de l'onglet : sans ça,
+         rouvrir la boutique remontrait la rangée des six choix. */
+      if (d.document.type === "support") setModele(d.document.modele);
       setPapiers(garderPapier(profilRef.current, garde));
       setHistory((items) => [...items, { role: "bia", text: garde.titre, papier: id }]);
       setPapier({ doc: d.document, totaux: d.totaux ?? null });
@@ -2091,10 +2133,15 @@ export default function Home() {
     setPapierOuvert(true);
     const quoi = sorte || (papier ? null : papierPret);
     if (quoi) {
-      setService(quoi);
-      if (!papier && !papierOccupe) void fabriquerPapier(quoi);
+      /* Un support n'a pas d'onglet à son nom : il ouvre la boutique, et le
+         modèle déjà retenu dit lequel des six tableaux on demande. */
+      setService(quoi === "support" ? "boutique" : quoi);
+      if (!papier && !papierOccupe) {
+        if (quoi === "support") { if (modele) void fabriquerPapier("support", modele); }
+        else void fabriquerPapier(quoi);
+      }
     } else if (papier) {
-      setService(papier.doc.type);
+      setService(papier.doc.type === "support" ? "boutique" : papier.doc.type);
     }
   }
 
@@ -2110,6 +2157,17 @@ export default function Home() {
     setFiche(quoi === "fiche");
 
     if (quoi === "photo") { photoRef.current?.click(); return; }
+
+    /* LA BOUTIQUE ne fabrique rien en entrant. On voit d'abord les six
+       tableaux, et c'est la personne qui dit lequel : deviner à sa place
+       ferait payer un appel au modèle pour un tableau dont elle ne veut pas.
+       Sauf si un tableau est déjà là — on le lui remontre. */
+    if (quoi === "boutique") {
+      if (papier?.doc.type === "support") { setModele(papier.doc.modele); return; }
+      setModele(null);
+      return;
+    }
+
     if (quoi === "lire" || quoi === "fiche" || quoi === "") return;
 
     // message, devis, lettre
@@ -2145,7 +2203,10 @@ export default function Home() {
     setAValider(false);
     papierOuvertId.current = g.id;
     setPapier({ doc: g.doc, totaux: g.totaux });
-    setService(g.doc.type as Service);
+    /* Un support n'a pas d'onglet à son nom : il ouvre la boutique, et c'est
+       le modèle qui dit lequel des six on regarde. */
+    if (g.doc.type === "support") { setService("boutique"); setModele(g.doc.modele); }
+    else setService(g.doc.type as Service);
     setPapierErreur("");
     setPdf("");
     setPapierOuvert(true);
@@ -2186,6 +2247,180 @@ export default function Home() {
       return { doc, totaux };
     });
     setPdf("");
+  }
+
+  /* ── BIA BUSINESS : LES TABLEAUX DE LA BOUTIQUE ───────────────────────────
+
+     Une retouche ici est exactement une retouche de devis : on recopie, on
+     modifie, et TOUS LES CALCULS SE REFONT — le reste de stock, la marge, ce
+     qui est encaissé. Rien n'est retapé à la main, rien n'est redemandé au
+     modèle. C'est ce qui permet de corriger un prix mal entendu et de voir le
+     total bouger dans la seconde. */
+  function retoucherSupport(change: (x: Support) => void) {
+    setPapier((p) => {
+      if (!p || p.doc.type !== "support") return p;
+      const doc = JSON.parse(JSON.stringify(p.doc)) as Support;
+      change(doc);
+      rangerRetouche(doc, null);
+      return { doc, totaux: null };
+    });
+    setPdf("");
+  }
+
+  /* L'entrée de la boutique : les six tableaux, chacun avec son nom en wolof
+     et une ligne qui dit à quoi il sert. Pas de sous-menu, pas de réglage —
+     on touche, elle fabrique. */
+  function vueBoutique() {
+    return (
+      <>
+        <p className="papier-titre">Sa butik.</p>
+        <p className="papier-note">
+          Dis-lui ce que tu vends, ce qui est entré, ce qui est sorti — puis choisis
+          le tableau. Les totaux sont calculés ici, jamais devinés.
+        </p>
+        <div className="modeles">
+          {MODELES.map((m) => (
+            <button key={m} type="button" className="modele"
+              disabled={papierOccupe}
+              onClick={() => { setModele(m); setPapier(null); papierOuvertId.current = ""; void fabriquerPapier("support", m); }}>
+              <b>{QUOI[m].nom}</b>
+              <span className="wolof">{QUOI[m].wolof}</span>
+              <span className="a-quoi">{QUOI[m].a_quoi}</span>
+            </button>
+          ))}
+        </div>
+        {papiers.some((x) => x.doc.type === "support") ? (
+          <>
+            <p className="papier-note">Ceux que tu as déjà :</p>
+            <div className="papier-liste">
+              {papiers.filter((x) => x.doc.type === "support").map((g) => (
+                <button key={g.id} type="button" className="papier-carte"
+                  onClick={() => rouvrirPapier(g)}>
+                  <span className="papier-carte-sorte">Boutique</span>
+                  <span className="papier-carte-titre">{g.titre}</span>
+                  <span className="papier-carte-ouvrir">
+                    {new Date(g.quand).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
+      </>
+    );
+  }
+
+  /* Un champ de tableau. Le genre décide de la commande : un choix devient
+     une liste déroulante, un texte long une zone de saisie. Chaque champ
+     porte SON NOM à côté de lui — sur un devis, « 10 » et « 25000 » sans
+     étiquette se confondent, et ici il y en a jusqu'à sept par ligne. */
+  function champSupport(c: Champ, l: LigneSupport, i: number) {
+    const valeur = l[c.cle];
+    const poser = (v: string | number | undefined) =>
+      retoucherSupport((x) => {
+        (x.lignes[i] as Record<string, unknown>)[c.cle] = v;
+      });
+
+    if (c.genre === "choix") {
+      return (
+        <label className="mini" key={String(c.cle)}>{c.nom}
+          <select value={String(valeur ?? "")} onChange={(e) => poser(e.target.value)}>
+            {(c.choix || []).map((x) => <option key={x} value={x}>{x}</option>)}
+          </select>
+        </label>
+      );
+    }
+    if (c.genre === "long") {
+      return (
+        <label className="large" key={String(c.cle)}>{c.nom}
+          <textarea rows={3} value={String(valeur ?? "")} onChange={(e) => poser(e.target.value)} />
+        </label>
+      );
+    }
+    if (c.genre === "texte") {
+      return (
+        <label className={c.cle === "quoi" ? "large" : "mini"} key={String(c.cle)}>{c.nom}
+          <input value={String(valeur ?? "")} onChange={(e) => poser(e.target.value)} />
+        </label>
+      );
+    }
+    return (
+      <label className="mini" key={String(c.cle)}>{c.nom}
+        <input type="number" inputMode="numeric" value={Number(valeur ?? 0)}
+          onChange={(e) => poser(Number(e.target.value) || 0)} />
+      </label>
+    );
+  }
+
+  /* Le tableau à l'écran.
+
+     UNE LIGNE EST UNE CARTE, pas une rangée. Un vrai tableau de sept colonnes
+     déborde d'un téléphone, et ce qui déborde d'un téléphone n'existe pas :
+     on ne le voit jamais, on ne le corrige jamais. Chaque ligne est donc un
+     bloc, avec ses champs nommés et son calcul en bas à droite.
+
+     LES CALCULS NE SE TAPENT PAS. Ils sont refaits ici à chaque frappe, à
+     partir de ce qui est écrit dans les cases — jamais gardés, jamais
+     demandés au modèle. */
+  function vueSupport(s: Support) {
+    const c = compter(s);
+    const champs = CHAMPS[s.modele];
+    return (
+      <>
+        <p className="papier-titre">{s.titre || QUOI[s.modele].nom}</p>
+        {s.periode ? <p className="papier-note">{s.periode}</p> : null}
+
+        {c.resume.length ? (
+          <dl className="totaux">
+            {c.resume.map((r, i) => (
+              <div key={i} className={[r.gros ? "gros" : "", r.alerte ? "danger" : ""].filter(Boolean).join(" ") || undefined}>
+                <dt>{r.nom}</dt><dd>{r.valeur}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+
+        {c.alertes.length ? (
+          <ul className="alertes">
+            {c.alertes.map((a, i) => <li key={i}>{a}</li>)}
+          </ul>
+        ) : null}
+
+        <div className="lignes">
+          {s.lignes.map((l, i) => (
+            <div className="ligne-support" key={i}>
+              <div className="champs">{champs.map((ch) => champSupport(ch, l, i))}</div>
+              <div className="pied-ligne">
+                {(c.lignes[i]?.calculs || []).map((k, j) => (
+                  <span key={j} className={k.alerte ? "calcul danger" : "calcul"}>
+                    {k.nom} <b>{k.texte}</b>
+                  </span>
+                ))}
+                <button className="oter" type="button" aria-label="Ôter cette ligne"
+                  onClick={() => retoucherSupport((x) => { x.lignes.splice(i, 1); })}>×</button>
+              </div>
+            </div>
+          ))}
+          <button className="ajouter" type="button"
+            onClick={() => retoucherSupport((x) => { x.lignes.push(ligneVide(s.modele)); })}>
+            + une ligne
+          </button>
+        </div>
+
+        {/* Ce que le tableau ne dit PAS. Écrit sous le tableau, en toutes
+            lettres, plutôt que de laisser croire à un bénéfice qui n'en est
+            pas un. */}
+        {c.avertissement ? <p className="papier-note avertit">{c.avertissement}</p> : null}
+
+        {/* Les explications en wolof — la seule partie du support qui l'est.
+            Le tableau se montre à un fournisseur ; ces lignes-là sont pour
+            celui qui tient la boutique. */}
+        {(s.notes || []).map((note, i) => (
+          <textarea className="paragraphe" key={i} rows={3} value={note} aria-label={`Note ${i + 1}`}
+            onChange={(e) => retoucherSupport((x) => { if (x.notes) x.notes[i] = e.target.value; })} />
+        ))}
+      </>
+    );
   }
 
   /* Le PDF est fabriqué par le serveur et revient fini. On ne l'ouvre pas
@@ -2412,6 +2647,10 @@ export default function Home() {
       dessin: "M9.4 4h5.2l1.2 2H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4.2l1.2-2Zm2.6 4.8a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2Zm0 1.9a2.7 2.7 0 1 1 0 5.4 2.7 2.7 0 0 1 0-5.4Z" },
     { cle: "lire", nom: "Lire",
       dessin: "M4 9h3.4L12 4.6v14.8L7.4 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1Zm12.5-1.6a5.6 5.6 0 0 1 0 9.2l-1.1-1.6a3.6 3.6 0 0 0 0-6l1.1-1.6Zm2.3-3.2a9.6 9.6 0 0 1 0 15.6l-1.1-1.6a7.6 7.6 0 0 0 0-12.4l1.1-1.6Z" },
+    /* BIA Business. Le sac de commerçant : c'est l'image qu'on reconnaît sans
+       savoir lire, et « Boutique » est le mot qu'emploie celui qui la tient. */
+    { cle: "boutique", nom: "Boutique",
+      dessin: "M5.2 8h13.6l1.1 11.2a2 2 0 0 1-2 2.2H6.1a2 2 0 0 1-2-2.2L5.2 8Zm3.3 0V6.6a3.5 3.5 0 0 1 7 0V8h-2V6.6a1.5 1.5 0 0 0-3 0V8h-2Z" },
     { cle: "fiche", nom: "Moi",
       dessin: "M12 12.4a4.2 4.2 0 1 0 0-8.4 4.2 4.2 0 0 0 0 8.4ZM4 20.4c0-3.6 3.6-6 8-6s8 2.4 8 6v.6H4v-.6Z" },
   ];
@@ -2454,7 +2693,8 @@ export default function Home() {
                   onClick={() => rouvrirPapier(g)}>
                   <span className="papier-carte-sorte">
                     {g.doc.type === "devis" ? "Devis"
-                      : g.doc.type === "lettre" ? "Lettre" : "Message"}
+                      : g.doc.type === "lettre" ? "Lettre"
+                        : g.doc.type === "support" ? "Boutique" : "Message"}
                   </span>
                   <span className="papier-carte-titre">{g.titre}</span>
                   <span className="papier-carte-ouvrir">
@@ -2939,6 +3179,16 @@ export default function Home() {
           {papierErreur ? <p className="panne">⚠ {papierErreur}</p> : null}
 
           {service === "fiche" ? vueFiche() : null}
+          {service === "boutique" ? (
+            <>
+              {papierOccupe && !papier ? <p className="papier-note">BIA remplit le tableau…</p> : null}
+              {/* Sans modèle choisi, on voit les six. Avec un tableau à
+                  l'écran, on voit le tableau — et rien d'autre. */}
+              {papier && papier.doc.type === "support"
+                ? vueSupport(papier.doc)
+                : (!papierOccupe ? vueBoutique() : null)}
+            </>
+          ) : null}
           {service === "lire" ? vueLire() : null}
           {service === "photo" ? vuePhoto() : null}
           {service === "" ? vueAccueil() : null}
@@ -3010,7 +3260,7 @@ export default function Home() {
             « Corrige » rouvre le micro : on dit ce qui cloche en wolof, et
             elle refait. C'est ce que Lamine demande — jusqu'à ce que la
             personne soit d'accord. */}
-        {(service === "message" || service === "devis" || service === "lettre")
+        {(service === "message" || service === "devis" || service === "lettre" || service === "boutique")
           && papier && aValider ? (
           <div className="papier-pied valider">
             <button type="button" className="oui" onClick={() => { taire(); setAValider(false); }}>
@@ -3023,7 +3273,7 @@ export default function Home() {
           </div>
         ) : null}
 
-        {(service === "message" || service === "devis" || service === "lettre")
+        {(service === "message" || service === "devis" || service === "lettre" || service === "boutique")
           && papier && !aValider ? (
           <div className="papier-pied">
             {papier.doc.type === "devis" && papier.totaux ? (
@@ -3053,7 +3303,10 @@ export default function Home() {
               </>
             )}
             <button type="button" className="pale" disabled={papierOccupe}
-              onClick={() => void fabriquerPapier(papier.doc.type)}>Refaire</button>
+              onClick={() => void fabriquerPapier(
+                papier.doc.type,
+                papier.doc.type === "support" ? papier.doc.modele : undefined,
+              )}>Refaire</button>
           </div>
         ) : null}
       </section>
