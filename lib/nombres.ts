@@ -45,6 +45,35 @@ function groupeWo(n: number): string {
   return r ? `${cent} ak ${sousCentWo(r)}` : cent;
 }
 
+/* ── LES MILLIERS COMPOSÉS : CHAQUE PART GARDE SON « JUNNI » ────────────────
+
+   Règle donnée par Lamine le 10 septembre 2026, dans son document « BIA
+   nombres en wolof pour intégration » — wolof urbain de Dakar :
+
+       « Milliers composés. Chaque partie conserve junni. »
+
+   C'est là que je m'étais trompé. J'écrivais 15 000 « fukk ak juróomi junni »,
+   comme si le junni portait sur l'ensemble. Il porte sur CHAQUE part :
+
+       15 000  →  fukki junni ak juróomi junni
+       25 000  →  ñaar-fukki junni ak juróomi junni
+      250 000  →  ñaari téeméeri junni ak juróom-fukki junni
+
+   On découpe donc le multiplicateur en ses morceaux — centaines, dizaines,
+   unités — et chacun repart avec son -i et son junni. 300 000 ne fait qu'un
+   seul morceau : « ñetti téeméeri junni ». */
+function parMorceaux(n: number): string[] {
+  const c = Math.floor(n / 100), r = n % 100, d = Math.floor(r / 10), u = r % 10;
+  const morceaux: string[] = [];
+  if (c) morceaux.push(c === 1 ? "téeméer" : `${avecI(unitesWo[c])} téeméer`);
+  if (d) morceaux.push(d === 1 ? "fukk" : `${unitesWo[d]}-fukk`);
+  if (u) morceaux.push(unitesWo[u]);
+  return morceaux;
+}
+
+const avecUnite = (n: number, unite: string) =>
+  parMorceaux(n).map((m) => `${avecI(m)} ${unite}`).join(" ak ");
+
 export function nombreEnWolof(n: number): string {
   if (!Number.isFinite(n)) return String(n);
   if (n < 0) return `moins ${nombreEnWolof(-n)}`;
@@ -55,9 +84,10 @@ export function nombreEnWolof(n: number): string {
   const milliers = Math.floor((n % 1_000_000) / 1000);
   const reste = n % 1000;
 
-  // « million » est le mot employé partout au Sénégal, y compris en wolof.
-  if (millions) parts.push(millions === 1 ? "benn million" : `${avecI(groupeWo(millions))} million`);
-  if (milliers) parts.push(milliers === 1 ? "junni" : `${avecI(groupeWo(milliers))} junni`);
+  // « million » reste en français, comme dans le wolof de Dakar. Et un
+  // million se dit « benn million », jamais « million » tout seul.
+  if (millions) parts.push(millions === 1 ? "benn million" : avecUnite(millions, "million"));
+  if (milliers) parts.push(milliers === 1 ? "junni" : avecUnite(milliers, "junni"));
   if (reste) parts.push(groupeWo(reste));
   return parts.join(" ak ");
 }
@@ -141,6 +171,12 @@ export function pourLaVoix(texte: string, langue: "wo" | "fr"): string {
 
   // « 12 % » se lit « douze pour cent » : le signe seul n'est pas prononçable.
   t = t.replace(/\s*%/g, " pour cent");
+
+  /* « F CFA » épelé donne « èf-cé-èf-a » : illisible à l'oreille. Règle de
+     Lamine : on dit « francs CFA ». Le sigle CFA, lui, se dit bien lettre par
+     lettre — c'est ainsi qu'on le prononce partout. */
+  t = t.replace(/\b(?:F\s?CFA|FCFA|XOF)\b/gi, "francs CFA");
+  t = t.replace(/(\d)\s*F\b(?!\s?CFA)/g, "$1 francs");
 
   t = t.replace(NOMBRE, (brut) => {
     // Séparateurs de milliers : espace, espace fine, point ou virgule suivis
