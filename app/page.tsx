@@ -996,6 +996,28 @@ export default function Home() {
       const jeton = {};
       tourRef.current = jeton;
 
+      /* ── POURQUOI ELLE SE PLANTAIT ────────────────────────────────────────
+         Signalé par Lamine le 10 septembre 2026, capture à l'appui : après
+         une correction, en refermant l'écran, l'application se figeait — le
+         micro restait doré et ne répondait plus.
+
+         Elle n'était pas plantée, elle était VERROUILLÉE. Chaque fois qu'on
+         lui coupe la parole (« Mal dit », ouvrir le clavier, ouvrir les
+         papiers, valider), taire() met tourRef à null. Cette boucle sortait
+         alors par un `return` silencieux — et stopMouth(), qui est la SEULE
+         chose qui rend la main en repassant le mode à « ready », n'était
+         jamais appelée. Le mode restait « speaking » ou « thinking », et dans
+         ces deux états le micro est désactivé. Pour toujours.
+
+         On distingue donc les deux raisons de sortir : quelqu'un a pris la
+         main — c'est lui qui gérera l'état — ou on l'a fait taire, et alors
+         il faut rendre la main ici. */
+      const perdu = () => {
+        if (tourRef.current === jeton) return false;
+        if (tourRef.current === null) { setMode("ready"); setFace("yeux_ouverts"); }
+        return true;
+      };
+
       /* DEUX MORCEAUX D'AVANCE, pas un.
          Avec un seul, le moindre à-coup du réseau se transformait en silence.
          Ils se fabriquent tous en parallèle côté serveur ; garder deux longueurs
@@ -1077,7 +1099,7 @@ export default function Home() {
         lancer(i + 1);
         lancer(i + 2);
         const morceau = i === 0 ? bloc : await enVol.get(i)!;
-        if (tourRef.current !== jeton) return;         // une nouvelle réponse a pris la main
+        if (perdu()) return;         // une nouvelle réponse a pris la main, ou on l'a fait taire
         if (!morceau.audio) break;
         try { await programmer(enOctets(morceau.audio)); } catch { break; }
         /* On ne dort pas jusqu'à la fin du morceau : on se réveille deux
@@ -1085,13 +1107,13 @@ export default function Home() {
            sans jamais laisser l'horloge nous rattraper. */
         const avance = Math.max(0, (quand - ctx.currentTime - 2) * 1000);
         if (i + 1 < total) await pause(avance);
-        if (tourRef.current !== jeton) return;
+        if (perdu()) return;
       }
 
       // Elle a fini de parler quand le dernier morceau s'est tu, pas avant.
       const reste = Math.max(0, (quand - ctx.currentTime) * 1000);
       await pause(reste + 120);
-      if (tourRef.current !== jeton) return;
+      if (perdu()) return;
       void fetch("/api/mesure", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1748,6 +1770,15 @@ export default function Home() {
     couperSon();
     tourRef.current = null;
     attenteRef.current = null;
+    /* ON LUI COUPE LA PAROLE : L'INTERFACE DOIT REDEVENIR UTILISABLE TOUT DE
+       SUITE. La boucle de lecture s'en apercevra à son tour, mais elle peut
+       dormir encore deux secondes — et pendant ces deux secondes, le micro
+       resterait éteint sans raison. On ne touche à rien si elle n'était ni en
+       train de parler ni en train de réfléchir. */
+    setMode((m) => (m === "speaking" || m === "thinking" ? "ready" : m));
+    // Le visage revient au repos s'il était figé sur la réflexion. Les
+    // images de bouche, elles, sont remises par l'animation qui s'arrête.
+    setFace((f) => (f === "pensive" ? "yeux_ouverts" : f));
   }, [couperSon]);
 
   /* LE MICRO SE FERME PENDANT QU'ELLE PARLE.
