@@ -915,3 +915,39 @@ button { font: inherit; touch-action: manipulation; }
   from { opacity: 0; transform: translateX(-50%) translateY(10px); }
   to   { opacity: 1; transform: translateX(-50%); }
 }
+
+/* ── UN PAPIER SUR LE FIL ───────────────────────────────────────────────────
+   Demandé par Lamine le 10 septembre 2026 : les devis et les messages doivent
+   rester dans la conversation, comme le reste. Ce n'est pas une bulle : on ne
+   le lit pas ici, on le rouvre. Il fallait donc que ça se voie du premier coup
+   d'œil — un cadre doré, pas un texte de plus. */
+.papier-carte {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; max-width: 300px; text-align: left;
+  padding: 11px 13px; margin: 2px 0;
+  font: inherit; cursor: pointer;
+  border-radius: 14px;
+  border: 1px solid rgba(212, 175, 55, .34);
+  background: rgba(212, 175, 55, .07);
+  color: rgba(255, 255, 255, .92);
+}
+.papier-carte:active { background: rgba(212, 175, 55, .14); }
+.papier-carte-sorte {
+  flex: 0 0 auto;
+  font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: #d4af37;
+}
+.papier-carte-titre {
+  flex: 1; min-width: 0;
+  font-size: 14px; line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.papier-carte-ouvrir {
+  flex: 0 0 auto;
+  font-size: 11.5px; color: rgba(255, 255, 255, .5);
+}
+
+/* La liste, dans l'accueil des services : les papiers qu'on retrouve même
+   quand la conversation a tourné la page. */
+.papier-liste { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.papier-liste .papier-carte { max-width: none; }

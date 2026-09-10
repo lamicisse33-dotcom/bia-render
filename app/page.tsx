@@ -10,13 +10,20 @@ import {
   ajouterProfil, chargerProfils, cleEmetteur, cleFil, cleResume, garderProfils, oublierProfil,
 } from "@/lib/profils";
 import type { Profil } from "@/lib/profils";
+import {
+  chargerPapiers, garderPapier, oublierPapiers, nouvelIdPapier, titreDe,
+} from "@/lib/papiers";
+import type { PapierGarde } from "@/lib/papiers";
 import { franc, sorteEvoquee, totauxDe } from "@/lib/documents";
 import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
 import { lireMesures, noterMesure } from "@/lib/chrono";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 
-type Message = { role: "bia" | "user"; text: string };
+/* Un message peut porter le RENVOI vers un papier — son identifiant, pas son
+   contenu. Le papier lui-même vit dans sa propre boîte, qui ne se rogne
+   jamais ; le fil ne garde que la trace de l'endroit où il a été écrit. */
+type Message = { role: "bia" | "user"; text: string; papier?: string };
 
 /* ── SES RENSEIGNEMENTS À LUI ───────────────────────────────────────────────
    Donnés une fois, gardés sur l'appareil, reposés sur chaque papier. Le NINEA
@@ -177,6 +184,12 @@ export default function Home() {
   const [papierPret, setPapierPret] = useState<Sorte | null>(null);
   const [papierOuvert, setPapierOuvert] = useState(false);
   const [papier, setPapier] = useState<{ doc: Papier; totaux: Totaux | null } | null>(null);
+  /* Tous les papiers déjà écrits par cette personne. Ils survivent au
+     rechargement, au changement de service et à la question suivante. */
+  const [papiers, setPapiers] = useState<PapierGarde[]>([]);
+  /* Lequel est ouvert à l'écran : sans ça, retoucher un papier rouvert en
+     créerait un deuxième au lieu de corriger le premier. */
+  const papierOuvertId = useRef<string>("");
   const [papierOccupe, setPapierOccupe] = useState(false);
   const [papierErreur, setPapierErreur] = useState("");
   const [pdf, setPdf] = useState("");
@@ -355,6 +368,8 @@ export default function Home() {
       if (fil) setHistory(JSON.parse(fil) as Message[]);
       const notes = localStorage.getItem(cleResume(actif));
       if (notes) { setResume(notes); resumeRef.current = notes; }
+      // Ses papiers l'attendent, écrits la semaine dernière ou il y a une heure.
+      setPapiers(chargerPapiers(actif));
       // Ses renseignements : donnés une fois, ils restent sur l'appareil.
       const sien = localStorage.getItem(cleEmetteur(actif));
       if (sien) setEmetteur({ ...EMETTEUR_VIDE, ...(JSON.parse(sien) as Partial<Emetteur>) });
@@ -1121,7 +1136,10 @@ export default function Home() {
          conversation. Le papier déjà ouvert est jeté : il date d'avant. */
       if (data.papier === "devis" || data.papier === "lettre") {
         setPapierPret(data.papier);
-        setPapier(null);
+        /* On ne jette PLUS le papier ouvert. Il était effacé ici, au prétexte
+           qu'il datait d'avant — et c'est ce que Lamine a vu : « quand elle
+           écrit un message, le prochain message le supprime. » Il reste à
+           l'écran et dans sa boîte ; le nouveau viendra à côté, pas dessus. */
       }
       // Elle a un numéro à composer : le bouton s'allume jusqu'au tour suivant.
       if (data.appel?.numero) setAppel(data.appel);
@@ -1604,7 +1622,15 @@ export default function Home() {
      — le prénom, le métier, ce qui a été décidé — survit à l'oubli. */
   useEffect(() => {
     if (!history.length) return;
-    try { localStorage.setItem(cleFil(profilRef.current), JSON.stringify(history.slice(-40))); } catch {}
+    /* On garde les quarante derniers échanges — PLUS tous les renvois vers un
+       papier, où qu'ils soient. Sans cette exception, le devis de mardi
+       disparaîtrait du fil au bout d'une longue conversation, alors qu'il est
+       toujours dans la boîte : on verrait une liste pleine et un fil vide. */
+    try {
+      const recents = history.slice(-40);
+      const anciens = history.slice(0, Math.max(0, history.length - 40)).filter((m) => m.papier);
+      localStorage.setItem(cleFil(profilRef.current), JSON.stringify([...anciens, ...recents]));
+    } catch {}
 
     if (history.length <= 30 || resumeEnCours.current || !code) return;
     resumeEnCours.current = true;
@@ -1618,7 +1644,12 @@ export default function Home() {
       .then((d: { resume?: string }) => {
         if (!d.resume) return;
         setResume(d.resume);
-        setHistory((items) => items.slice(-16));
+        /* Même règle qu'à la sauvegarde : ce qui porte un papier ne se rogne
+           pas. Le reste est résumé, et c'est très bien. */
+        setHistory((items) => [
+          ...items.slice(0, Math.max(0, items.length - 16)).filter((m) => m.papier),
+          ...items.slice(-16),
+        ]);
         try { localStorage.setItem(cleResume(profilRef.current), d.resume); } catch {}
       })
       .catch(() => {})
@@ -1841,6 +1872,19 @@ export default function Home() {
                 : "Le papier n'a pas pu être fabriqué. Réessaie dans un instant.");
         return;
       }
+      /* ── ON LE RANGE AVANT DE L'AFFICHER ────────────────────────────────
+         Il vivait jusqu'ici dans la seule mémoire de la page : un
+         rechargement, un changement de service ou la question suivante le
+         faisaient disparaître. Il va maintenant dans la boîte de la personne,
+         et un renvoi se pose sur le fil, à l'endroit où il a été écrit. */
+      const id = nouvelIdPapier();
+      papierOuvertId.current = id;
+      const garde: PapierGarde = {
+        id, sorte, titre: titreDe(d.document), quand: new Date().toISOString(),
+        doc: d.document, totaux: d.totaux ?? null,
+      };
+      setPapiers(garderPapier(profilRef.current, garde));
+      setHistory((items) => [...items, { role: "bia", text: garde.titre, papier: id }]);
       setPapier({ doc: d.document, totaux: d.totaux ?? null });
     } catch {
       if (perime()) return;
@@ -1882,7 +1926,14 @@ export default function Home() {
     if (quoi === "lire" || quoi === "fiche" || quoi === "") return;
 
     // message, devis, lettre
-    if (papier && papier.doc.type !== quoi) setPapier(null);
+    /* Changer de service ne détruit rien : le papier de l'autre service est
+       rangé dans la boîte et se rouvre d'un geste. On se contente de sortir
+       celui-ci de l'écran. */
+    if (papier && papier.doc.type !== quoi) { setPapier(null); papierOuvertId.current = ""; }
+    /* Un papier de ce service existe déjà ? On rouvre le plus récent au lieu
+       d'en fabriquer un autre — et d'en payer un autre. */
+    const dejaFait = papiers.find((x) => x.doc.type === quoi);
+    if ((!papier || papier.doc.type !== quoi) && dejaFait) { rouvrirPapier(dejaFait); return; }
     if ((!papier || papier.doc.type !== quoi) && !papierOccupe && historyRef.current.length) {
       void fabriquerPapier(quoi as Sorte);
     }
@@ -1891,12 +1942,39 @@ export default function Home() {
   /* Toute retouche repasse par ici : le document est recopié, modifié, et les
      totaux refaits dans la foulée. Le PDF déjà fabriqué ne vaut plus rien dès
      qu'un chiffre bouge — on l'efface, pour ne pas envoyer l'ancien. */
+  /* Rouvrir un papier déjà écrit : celui du fil, ou celui de la liste. On
+     retrouve exactement ce qu'on avait laissé, retouches comprises. */
+  function rouvrirPapier(g: PapierGarde) {
+    taire();
+    papierOuvertId.current = g.id;
+    setPapier({ doc: g.doc, totaux: g.totaux });
+    setService(g.doc.type as Service);
+    setPapierErreur("");
+    setPdf("");
+    setPapierOuvert(true);
+    setClavier(false);
+    setFiche(false);
+  }
+
+  /* Toute retouche doit repartir dans la boîte, sinon la correction ne
+     survivrait pas au rechargement — et c'est précisément le chiffre corrigé
+     qu'il ne faut pas perdre. */
+  const rangerRetouche = useCallback((doc: Papier, totaux: Totaux | null) => {
+    const id = papierOuvertId.current;
+    if (!id) return;
+    setPapiers(garderPapier(profilRef.current, {
+      id, sorte: doc.type, titre: titreDe(doc), quand: new Date().toISOString(), doc, totaux,
+    }));
+  }, []);
+
   function retoucherDevis(change: (d: Devis) => void) {
     setPapier((p) => {
       if (!p || p.doc.type !== "devis") return p;
       const doc = JSON.parse(JSON.stringify(p.doc)) as Devis;
       change(doc);
-      return { doc, totaux: totauxDe(doc) };
+      const totaux = totauxDe(doc);
+      rangerRetouche(doc, totaux);
+      return { doc, totaux };
     });
     setPdf("");
   }
@@ -1906,7 +1984,9 @@ export default function Home() {
       if (!p || p.doc.type !== "lettre") return p;
       const doc = JSON.parse(JSON.stringify(p.doc)) as Lettre;
       change(doc);
-      return { doc, totaux: null };
+      const totaux = null;
+      rangerRetouche(doc, totaux);
+      return { doc, totaux };
     });
     setPdf("");
   }
@@ -1996,7 +2076,9 @@ export default function Home() {
       if (!p || p.doc.type !== "message") return p;
       const doc = JSON.parse(JSON.stringify(p.doc)) as Mot;
       change(doc);
-      return { doc, totaux: null };
+      const totaux = null;
+      rangerRetouche(doc, totaux);
+      return { doc, totaux };
     });
   }
 
@@ -2163,6 +2245,29 @@ export default function Home() {
             ? "Parle d'abord à BIA — dis-lui en wolof ce que tu veux, et pour qui. Sauf pour les deux derniers : photographier un papier et lire un texte français marchent tout de suite."
             : "Touche un bouton là-haut. Elle écrit à partir de ce que tu viens de lui dire, en français, prêt à envoyer."}
         </p>
+
+        {/* TOUT CE QU'ELLE A DÉJÀ ÉCRIT. Un devis d'il y a trois jours se
+            rouvre ici, même si la conversation, elle, a tourné la page. */}
+        {papiers.length ? (
+          <>
+            <p className="papier-titre" style={{ marginTop: 22 }}>Tes papiers</p>
+            <div className="papier-liste">
+              {papiers.map((g) => (
+                <button key={g.id} type="button" className="papier-carte"
+                  onClick={() => rouvrirPapier(g)}>
+                  <span className="papier-carte-sorte">
+                    {g.doc.type === "devis" ? "Devis"
+                      : g.doc.type === "lettre" ? "Lettre" : "Message"}
+                  </span>
+                  <span className="papier-carte-titre">{g.titre}</span>
+                  <span className="papier-carte-ouvrir">
+                    {new Date(g.quand).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
       </>
     );
   }
@@ -2263,15 +2368,17 @@ export default function Home() {
       const notes = localStorage.getItem(cleResume(id)) || "";
       setResume(notes);
       resumeRef.current = notes;
+      setPapiers(chargerPapiers(id));
       const sien = localStorage.getItem(cleEmetteur(id));
       setEmetteur(sien ? { ...EMETTEUR_VIDE, ...(JSON.parse(sien) as Partial<Emetteur>) } : EMETTEUR_VIDE);
     } catch {
-      setHistory([]); setResume(""); setEmetteur(EMETTEUR_VIDE);
+      setHistory([]); setResume(""); setEmetteur(EMETTEUR_VIDE); setPapiers([]);
     }
 
     // Les papiers appartenaient à la personne d'avant.
     setPapierPret(null);
     setPapier(null);
+    papierOuvertId.current = "";
     setPapierOuvert(false);
     if (pdf) { URL.revokeObjectURL(pdf); setPdf(""); }
     setQuiParle(false);
@@ -2307,6 +2414,9 @@ export default function Home() {
   }
 
   function retirerQuelquun(id: string) {
+    // Ses papiers partent avec le reste : on promet d'effacer tout ce qui le
+    // concerne, et un devis porte son nom, son client et ses prix.
+    oublierPapiers(id);
     const suite = oublierProfil(profils, id);
     if (!suite.length) {
       // On ne laisse jamais l'appareil sans personne : on repart d'une case vide.
@@ -2330,9 +2440,12 @@ export default function Home() {
     // fois « je t'ai bien entendu », puis se taira comme avant.
     presentationFaiteRef.current = false;
     setAppel(null);
-    // Le papier appartenait à la conversation d'avant.
+    /* On referme le papier ouvert, mais ON NE LE JETTE PAS : un devis n'est
+       pas un bavardage, il se retrouve dans la liste même après avoir tourné
+       la page. Recommencer une conversation ne doit pas coûter un document. */
     setPapierPret(null);
     setPapier(null);
+    papierOuvertId.current = "";
     setPapierOuvert(false);
     setPapierErreur("");
     if (pdf) { URL.revokeObjectURL(pdf); setPdf(""); }
@@ -2464,20 +2577,44 @@ export default function Home() {
 
         <div className="fil scrollbar-thin" ref={filRef}>
           {history.length === 0 ? <p className="fil-vide">{welcome}</p> : null}
-          {history.map((m, i) => (
-            <div key={i} className={m.role === "bia" ? "ligne ligne-bia" : "ligne ligne-moi"}>
-              <p className={m.role === "bia" ? "bulle bulle-bia" : "bulle bulle-moi"}>
-                {m.text.split(/\n{2,}/).map((para, n) => (
-                  <span className="para" key={n}>{para.trim()}</span>
-                ))}
-              </p>
-              {m.role === "bia" && i > 0 ? (
-                <button className="mal-dit" type="button" onClick={() => ouvrirCorrection(i)}>
-                  Mal dit
-                </button>
-              ) : null}
-            </div>
-          ))}
+          {history.map((m, i) => {
+            /* UN PAPIER SUR LE FIL. Il reste à sa place dans la conversation,
+               comme n'importe quel message — mais c'est une carte qu'on
+               rouvre, pas une bulle qu'on lit. Si le papier a été effacé de
+               la boîte, on n'affiche rien : mieux vaut un trou qu'un bouton
+               qui n'ouvre rien. */
+            if (m.papier) {
+              const garde = papiers.find((x) => x.id === m.papier);
+              if (!garde) return null;
+              return (
+                <div key={i} className="ligne ligne-bia">
+                  <button type="button" className="papier-carte"
+                    onClick={() => rouvrirPapier(garde)}>
+                    <span className="papier-carte-sorte">
+                      {garde.doc.type === "devis" ? "Devis"
+                        : garde.doc.type === "lettre" ? "Lettre" : "Message"}
+                    </span>
+                    <span className="papier-carte-titre">{garde.titre}</span>
+                    <span className="papier-carte-ouvrir">Ouvrir</span>
+                  </button>
+                </div>
+              );
+            }
+            return (
+              <div key={i} className={m.role === "bia" ? "ligne ligne-bia" : "ligne ligne-moi"}>
+                <p className={m.role === "bia" ? "bulle bulle-bia" : "bulle bulle-moi"}>
+                  {m.text.split(/\n{2,}/).map((para, n) => (
+                    <span className="para" key={n}>{para.trim()}</span>
+                  ))}
+                </p>
+                {m.role === "bia" && i > 0 ? (
+                  <button className="mal-dit" type="button" onClick={() => ouvrirCorrection(i)}>
+                    Mal dit
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
           {avis ? <p className="avis">{avis}</p> : null}
         </div>
 
