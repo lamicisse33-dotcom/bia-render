@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { decouper, synthetiser } from "@/lib/voix";
 import { detecterLangue } from "@/lib/langue";
+import { pourLaVoix } from "@/lib/nombres";
 
 /* Rend UN morceau de la réponse en audio. Le client demande le morceau 0,
    le joue, et réclame le suivant pendant qu'il parle : la voix démarre donc
@@ -16,7 +17,17 @@ export async function POST(request: NextRequest) {
       exaggeration?: number; temperature?: number; cfgWeight?: number; vitesse?: number;
       audioPrompt?: string | null;
     };
-    const morceaux = decouper(String(body.texte || ""));
+    /* LES NOMBRES PASSENT EN LETTRES AVANT TOUT LE RESTE. Le moteur de voix
+       épelle « 300 000 » chiffre par chiffre — « 3.0.0.0 » — parce qu'il ne
+       sait pas lire un nombre. On l'écrit donc en toutes lettres AVANT de
+       découper : après, les morceaux seraient déjà calibrés sur un texte plus
+       court, et « ñetti téeméeri junni » les ferait déborder de la limite de
+       Soynade. Ce qui s'affiche à l'écran, lui, garde ses chiffres. */
+    const brut = String(body.texte || "");
+    const langueDuTexte = body.langue === "fr" || body.langue === "wo"
+      ? body.langue
+      : detecterLangue(brut);
+    const morceaux = decouper(pourLaVoix(brut, langueDuTexte));
     const partie = Math.max(0, Math.floor(Number(body.partie) || 0));
     if (!morceaux.length || partie >= morceaux.length) {
       return NextResponse.json({ parties: morceaux.length, audio: null });
