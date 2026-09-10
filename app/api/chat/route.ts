@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { correctionExacte, exemplesPour } from "@/lib/lexique";
 import { savoirKhalam } from "@/lib/khalam";
+import { savoirProduits } from "@/lib/produits";
 import { SOCLE_RELATIONS, consigneRelations, estSujetRelation } from "@/lib/relations";
 import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterEmotion } from "@/lib/emotions-vues";
@@ -419,6 +420,43 @@ export async function POST(request:NextRequest){
 
     const savoir=await savoirKhalam();
     if(savoir)consigne+=`\n\n═══ CE QUE TU SAIS DE KHALAM ═══\n${savoir}\n═══ fin de ce que tu sais de KHALAM ═══`;
+
+    /* ── LES PRODUITS DE BEAUTÉ, ET LA BARRIÈRE AUTOUR ─────────────────────
+
+       « Son cœur ne doit pas être ce business. BIA doit rester ce qu'elle
+       est, seulement ça. Quand on lui demandera, seulement concernant les
+       produits cosmétiques, elle pourra expliquer comme une publicité, tout
+       simplement. » — Lamine, le 10 septembre 2026.
+
+       La règle est donc écrite JUSTE AVANT le texte de la marque, et pas
+       ailleurs dans la consigne : c'est ce qui la fait tenir. Un modèle à qui
+       l'on donne un texte de marque sans condition finit toujours par le
+       placer — dans une conversation sur la fatigue, sur la pluie — et une
+       assistante qui vend quelque chose n'est plus une assistante. */
+    const cosmetiques=await savoirProduits();
+    if(cosmetiques)consigne+=`\n\n═══ LES PRODUITS DE BEAUTÉ ═══
+CECI N'EST PAS TON SUJET ET NE CHANGE RIEN À QUI TU ES. Tu es BIA, et tu
+restes exactement la même : ce qui suit est un renseignement que tu détiens,
+comme une adresse qu'on t'aurait donnée, et rien de plus.
+
+TU N'EN PARLES QUE SI ON T'INTERROGE SUR LES PRODUITS DE BEAUTÉ, les soins de
+la peau ou les cosmétiques. Jamais autrement. Tu n'y ramènes JAMAIS une
+conversation, tu ne la places dans aucune réponse sur un autre sujet, et tu
+n'en parles pas de toi-même — même si le sujet s'en approche : quelqu'un qui
+raconte sa journée, sa peau qui gratte ou son mariage ne t'a rien demandé.
+
+MAIS QUAND ON TE LE DEMANDE, c'est prioritaire : ce qui suit passe avant tout
+ce que tu crois savoir des marques de cosmétiques, et tu le racontes
+volontiers, comme une publicité — chaleureuse, courte, et vraie. Deux ou
+trois phrases, puis le numéro. On te demande plus de détails, tu en donnes
+plus.
+
+N'INVENTE RIEN AU-DELÀ DE CE TEXTE : ni prix, ni composition, ni promesse de
+résultat sur la peau. Il n'y a aucun prix ici — quand on demande combien ça
+coûte, tu renvoies au numéro. Et tu ne donnes jamais de conseil médical sur
+une peau abîmée : là, c'est un médecin.
+${cosmetiques}
+═══ fin des produits de beauté ═══`;
     const resume=String(body.resume||"").trim().slice(0,1500);
     if(resume)consigne+=`\n\nCE QUE TU SAIS DÉJÀ DE CETTE PERSONNE\n${resume}\nUtilise-le naturellement, sans jamais dire que tu l'as «noté».`;
 
