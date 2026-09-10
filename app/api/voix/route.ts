@@ -3,6 +3,7 @@ import { verifierCode } from "@/lib/codes";
 import { decouper, synthetiser } from "@/lib/voix";
 import { detecterLangue } from "@/lib/langue";
 import { pourLaVoix } from "@/lib/nombres";
+import { noterPanne } from "@/lib/panne";
 
 /* Rend UN morceau de la réponse en audio. Le client demande le morceau 0,
    le joue, et réclame le suivant pendant qu'il parle : la voix démarre donc
@@ -46,7 +47,14 @@ export async function POST(request: NextRequest) {
       vitesse: body.vitesse,
       audioPrompt: body.audioPrompt,
     });
-    if (!parole) return NextResponse.json({ parties: morceaux.length, audio: null, moteur: "navigateur", langue });
+    if (!parole) {
+      /* Aucun fournisseur de voix n'est configuré : le téléphone lira
+         lui-même. Ce n'est pas une panne, mais il faut pouvoir le VOIR —
+         sinon on cherche pendant une heure pourquoi elle a une voix de
+         robot. */
+      noterPanne("aucune voix configurée", "Le téléphone lit avec sa propre voix.", "voix");
+      return NextResponse.json({ parties: morceaux.length, audio: null, moteur: "navigateur", langue });
+    }
 
     return NextResponse.json({
       parties: morceaux.length,
@@ -57,9 +65,19 @@ export async function POST(request: NextRequest) {
       audio: parole.audio.toString("base64"),
     });
   } catch (err) {
-    // Une voix qui échoue ne doit pas rendre BIA muette : le téléphone prend
-    // le relais avec sa propre voix, et la raison reste dans les journaux.
-    console.error("BIA — la voix a échoué :", (err as Error).message);
-    return NextResponse.json({ audio: null, moteur: "navigateur", erreur: (err as Error).message });
+    /* ── UNE VOIX QUI ÉCHOUE NE LAISSAIT AUCUNE TRACE ────────────────────
+
+       Trouvé le 10 septembre 2026, en cherchant pourquoi BIA ne parlait
+       plus : cette route était la SEULE à ne pas noter ses pannes. Soynade
+       pouvait refuser chaque phrase de la journée sans qu'il en reste rien
+       — /api/etat affichait « 0 panne », et il n'y avait rien à regarder
+       hors des journaux de Render.
+
+       Le téléphone prend toujours le relais avec sa propre voix, comme
+       avant : ce qui change, c'est qu'on sait maintenant POURQUOI. */
+    const motif = (err as Error).message;
+    console.error("BIA — la voix a échoué :", motif);
+    noterPanne("la voix a échoué", motif, "voix");
+    return NextResponse.json({ audio: null, moteur: "navigateur", erreur: motif });
   }
 }
