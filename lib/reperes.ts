@@ -68,6 +68,29 @@ export const REPERES: Repere[] = [
       + "montre, seul ou sur une affiche, une carte ou un écran de jeu, dis que "
       + "c'est KHALAM. Le signe bleu à lui seul suffit à la reconnaître.",
   },
+  {
+    /* UNE SEULE IMAGE POUR HUIT LOGOS.
+
+       Demande de Lamine, le 10 septembre 2026 : « il faut mettre aussi tous
+       les logos des jeux et applications de KHALAM ». Envoyer huit références
+       de plus aurait alourdi CHAQUE photo lue — et ça se paie à chaque fois.
+
+       Ils tiennent donc sur une seule planche, chacun dans sa case, avec son
+       nom écrit dessous. Une image au lieu de huit, et elle lit les noms
+       elle-même. Pour en ajouter un, il suffit de refaire la planche. */
+    fichier: "jeux.jpg",
+    qui: "les jeux et applications de KHALAM",
+    quoi: "Cette planche montre les logos des jeux et applications de la "
+      + "maison, chacun dans sa case avec son nom écrit dessous : ÉQUILIBRE, "
+      + "GALGAL, LES QUATRE DAMES, LES QUATRE CASES, L'HÉRITAGE DES KHALAM, "
+      + "GEWEL, L'INTERPRÈTE et BIA. Si on te montre l'un de ces "
+      + "logos — sur un téléphone, une affiche, une icône d'application — dis "
+      + "de quel jeu ou de quelle application il s'agit, et que c'est un "
+      + "KHALAM. ATTENTION : GEWEL et L'INTERPRÈTE se ressemblent beaucoup, "
+      + "tous deux une balance dorée ; celle de L'INTERPRÈTE porte deux points "
+      + "de couleur sur ses plateaux, celle de GEWEL n'en a pas. Si tu "
+      + "hésites entre les deux, dis-le plutôt que de choisir au hasard.",
+  },
 ];
 
 type Charge = { qui: string; quoi: string; media: string; data: string };
