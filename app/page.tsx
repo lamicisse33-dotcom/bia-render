@@ -1474,11 +1474,16 @@ export default function Home() {
     }
   }, []);
 
-  function ouvrirPapier(sorte: Sorte) {
+  /* Ouvrir l'écran des papiers. Sans rien préciser, il montre le choix — un
+     message, un devis, une lettre — sauf si BIA a déjà de quoi écrire : dans
+     ce cas on va droit au but, c'est ce qu'elle vient d'annoncer. */
+  function ouvrirPapier(sorte?: Sorte) {
     taire();
     setClavier(false);
+    setFiche(false);
     setPapierOuvert(true);
-    if (!papier && !papierOccupe) void fabriquerPapier(sorte);
+    const quoi = sorte || (papier ? null : papierPret);
+    if (quoi && !papier && !papierOccupe) void fabriquerPapier(quoi);
   }
 
   /* Toute retouche repasse par ici : le document est recopié, modifié, et les
@@ -1706,6 +1711,55 @@ export default function Home() {
     );
   }
 
+  /* L'ÉCRAN DE CHOIX. Ce qui s'affiche quand on ouvre les papiers sans que
+     BIA ait rien annoncé : on décide soi-même de ce qu'on veut écrire, et
+     elle le fabrique à partir de la conversation.
+
+     Le message est en premier, et en grand : c'est celui dont on se servira
+     le plus. Tout le monde a un message à envoyer ; peu de gens ont une
+     lettre à écrire. */
+  function vueChoix() {
+    const vide = historyRef.current.length === 0;
+    return (
+      <>
+        <p className="papier-titre">Qu'est-ce qu'on écrit ?</p>
+        {vide ? (
+          <p className="papier-note">
+            Parle d'abord à BIA — dis-lui en wolof ce que tu veux écrire, et pour qui.
+            Elle te posera ce qui manque, puis reviens ici.
+          </p>
+        ) : (
+          <p className="papier-note">
+            Elle l'écrit à partir de ce que tu viens de lui dire. En français, prêt à envoyer.
+          </p>
+        )}
+        <div className="choix">
+          <button type="button" className="grand" disabled={vide} onClick={() => void fabriquerPapier("message")}>
+            <b>Un message</b>
+            <span>À copier et à envoyer sur WhatsApp ou par SMS.</span>
+          </button>
+          <button type="button" disabled={vide} onClick={() => void fabriquerPapier("devis")}>
+            <b>Un devis</b>
+            <span>Avec les prix, les totaux et ton NINEA. En PDF.</span>
+          </button>
+          <button type="button" disabled={vide} onClick={() => void fabriquerPapier("lettre")}>
+            <b>Une lettre</b>
+            <span>Demande d'emploi, courrier administratif. En PDF.</span>
+          </button>
+        </div>
+        {vide ? (
+          <div className="papier-boutons">
+            <button type="button" onClick={() => { setPapierOuvert(false); ouvrirClavier(); }}>Écrire à BIA</button>
+          </div>
+        ) : (
+          <div className="papier-boutons">
+            <button type="button" className="pale" onClick={() => setFiche(true)}>Mes renseignements</button>
+          </div>
+        )}
+      </>
+    );
+  }
+
   function vueFiche() {
     const champ = (cle: keyof Emetteur, etiquette: string, mode?: string) => (
       <label className="papier-champ">{etiquette}
@@ -1831,24 +1885,21 @@ export default function Home() {
           </svg>
         </button>
 
-        {/* Le papier. Le bouton n'existe que lorsqu'il y a un papier à faire —
-            une feuille dorée, sans un mot : l'écran noir reste sans texte. */}
-        {papierPret ? (
-          <button className="papier-ouvrir" type="button" onClick={() => ouvrirPapier(papierPret)}
-            aria-label={papierPret === "devis" ? "Ouvrir le devis"
-              : papierPret === "lettre" ? "Ouvrir la lettre" : "Ouvrir le message"}>
-            {papierPret === "message" ? (
-              /* Une bulle, pas une feuille : ce n'est pas le même geste. */
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 3c5 0 9 3.2 9 7.2s-4 7.2-9 7.2c-.9 0-1.8-.1-2.6-.3L4.6 20a.6.6 0 0 1-.9-.7l1-3.1C3 14.9 3 12.9 3 10.2 3 6.2 7 3 12 3Z" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 2h7.2L20 8.8V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.8V9h5.2L13 3.8ZM8 12h8v1.8H8V12Zm0 3.4h8v1.8H8v-1.8Zm0-6.8h3v1.8H8V8.6Z" />
-              </svg>
-            )}
-          </button>
-        ) : <span className="cale" aria-hidden="true" />}
+        {/* LE BOUTON DES PAPIERS — demandé par Lamine le 10 septembre 2026 :
+            « un bouton à côté du micro à droite pour ouvrir l'écran où il y a
+            les messages, où on peut écrire un devis ou un message ».
+
+            Il est là en permanence, et pas seulement quand BIA a quelque
+            chose de prêt : on doit pouvoir décider soi-même d'écrire un
+            message, sans attendre qu'elle le propose. Quand elle, de son
+            côté, a de quoi écrire, un point d'or s'allume dessus. */}
+        <button className={papierPret ? "papier-ouvrir pret" : "papier-ouvrir"} type="button"
+          onClick={() => ouvrirPapier()} aria-label="Écrire un message, un devis ou une lettre">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 2h7.2L20 8.8V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.8V9h5.2L13 3.8ZM8 12h8v1.8H8V12Zm0 3.4h8v1.8H8v-1.8Zm0-6.8h3v1.8H8V8.6Z" />
+          </svg>
+          {papierPret ? <i className="point" aria-hidden="true" /> : null}
+        </button>
       </div>
 
       <section className="clavier" aria-hidden={!clavier}>
@@ -1928,6 +1979,7 @@ export default function Home() {
             <>
               {papierErreur ? <p className="panne">⚠ {papierErreur}</p> : null}
               {!papier && papierOccupe ? <p className="papier-note">BIA écrit le papier…</p> : null}
+              {!papier && !papierOccupe ? vueChoix() : null}
               {papier && papier.doc.type === "devis" ? vueDevis(papier.doc, papier.totaux) : null}
               {papier && papier.doc.type === "lettre" ? vueLettre(papier.doc) : null}
               {papier && papier.doc.type === "message" ? vueMot(papier.doc) : null}
@@ -1969,6 +2021,9 @@ export default function Home() {
             )}
             <button type="button" className="pale" disabled={papierOccupe}
               onClick={() => void fabriquerPapier(papier.doc.type)}>Refaire</button>
+            <button type="button" className="pale" onClick={() => { setPapier(null); setPapierErreur(""); }}>
+              Autre
+            </button>
             {papier.doc.type === "message" ? null : (
               <button type="button" className="pale" onClick={() => setFiche(true)}>Mes renseignements</button>
             )}

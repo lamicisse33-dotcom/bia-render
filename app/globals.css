@@ -517,26 +517,38 @@ button { font: inherit; touch-action: manipulation; }
    un devis se lit et se corrige, il ne s'écoute pas. La règle de l'écran noir
    sans texte tient toujours — tant qu'on n'a rien ouvert, il n'y a rien. */
 .papier-ouvrir {
+  position: relative;
   justify-self: start;
   width: 52px; height: 52px;
   display: grid; place-items: center;
   padding: 0;
-  border: 1px solid rgba(212,175,55,.5);
+  border: 1px solid rgba(255,255,255,.18);
   border-radius: 50%;
-  background: rgba(30,24,8,.8);
-  color: #e7c667;
+  background: rgba(13,13,18,.7);
+  color: rgba(255,255,255,.82);
   backdrop-filter: blur(16px);
   cursor: pointer;
-  animation: papier-arrive .4s ease both;
-  transition: transform .16s ease;
+  transition: transform .16s ease, border-color .2s ease, color .2s ease, background .2s ease;
+}
+/* Elle a de quoi écrire : le bouton passe à l'or. Rien n'est écrit nulle
+   part — c'est la couleur qui le dit. */
+.papier-ouvrir.pret {
+  border-color: rgba(212,175,55,.55);
+  background: rgba(30,24,8,.8);
+  color: #e7c667;
 }
 .papier-ouvrir:active { transform: scale(.92); }
+.papier-ouvrir .point {
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: #f0cf6e;
+  box-shadow: 0 0 10px rgba(240,207,110,.9);
+  animation: lueur 1.85s ease-in-out infinite;
+}
 .papier-ouvrir:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
 .papier-ouvrir svg { width: 24px; height: 24px; fill: currentColor; }
-@keyframes papier-arrive {
-  from { opacity: 0; transform: translateY(10px) scale(.86); }
-  to   { opacity: 1; transform: none; }
-}
 
 .papier-panneau {
   position: absolute;
@@ -683,3 +695,25 @@ button { font: inherit; touch-action: manipulation; }
 
 /* Le message : c'est LE texte, il occupe la place. On lit avant d'envoyer. */
 .paragraphe.grand { font-size: 15.5px; line-height: 1.55; min-height: 40svh; }
+
+/* Le choix : ce qu'on écrit. Le message d'abord, et en grand — c'est celui
+   dont on se servira le plus. */
+.choix { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 14px; }
+.choix button {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255,255,255,.12); border-radius: 16px;
+  background: rgba(255,255,255,.04);
+  color: #fff; font: inherit; text-align: left;
+  cursor: pointer;
+  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+.choix button:active { transform: scale(.985); }
+.choix button.grand {
+  border-color: rgba(212,175,55,.5);
+  background: rgba(212,175,55,.1);
+}
+.choix button b { color: #e7c667; font-size: 16px; font-weight: 600; }
+.choix button.grand b { font-size: 18px; }
+.choix button span { color: rgba(255,255,255,.55); font-size: 13px; line-height: 1.4; }
+.choix button:disabled { opacity: .45; cursor: default; }
