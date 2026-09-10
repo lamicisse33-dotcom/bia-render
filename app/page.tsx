@@ -1211,7 +1211,29 @@ export default function Home() {
      elles pèsent quelques centaines de kilo-octets et le texte reste
      parfaitement lisible — c'est la résolution que le modèle regarde de toute
      façon. */
-  const reduirePhoto = (fichier: File): Promise<{ base64: string; type: string }> =>
+  /* CE QUI L'EMPÊCHAIT DE LIRE UNE CAPTURE D'ÉCRAN — et c'était mon erreur.
+
+     Je réduisais l'image à 1600 pixels sur son PLUS GRAND côté. Sur une photo
+     posée à plat, ça ne fait rien. Sur une capture d'écran de téléphone, qui
+     fait deux fois et demie plus haut que large, la largeur tombait à sept
+     cents pixels : un texte écrit en douze points devenait haut de cinq
+     pixels, une bouillie. Elle recevait bien l'image, et elle avait raison de
+     dire qu'elle n'y voyait rien.
+
+     Le modèle, de son côté, ramène de toute façon toute image à 1568 pixels
+     sur son plus grand côté. Envoyer plus haut ne sert donc à rien : c'est la
+     HAUTEUR qu'il faut réduire, pas la largeur.
+
+     D'où le découpage. Une image haute est coupée en bandes qui se recouvrent,
+     chacune assez basse pour passer entière sans être rétrécie. La largeur —
+     donc la finesse du texte — est préservée. Le serveur les recolle en un
+     seul document.
+
+     Et le fond est peint en blanc avant le dessin : une capture au format PNG
+     peut avoir des zones transparentes, qui deviennent NOIRES en JPEG. C'est
+     l'autre façon dont une image « devient sombre » sans que personne n'y
+     comprenne rien. */
+  const decouperPhoto = (fichier: File): Promise<{ images: string[]; type: string }> =>
     new Promise((resolve, reject) => {
       const lecteur = new FileReader();
       lecteur.onerror = () => reject(new Error("lecture"));
@@ -1219,17 +1241,38 @@ export default function Home() {
         const img = new Image();
         img.onerror = () => reject(new Error("image"));
         img.onload = () => {
-          const cote = 1600;
-          const echelle = Math.min(1, cote / Math.max(img.width, img.height));
+          const LARGEUR = 1400;   // la finesse du texte tient à celle-ci
+          const HAUTEUR = 1500;   // sous la limite du modèle, jamais rétrécie
+          const RECOUVREMENT = 0.08;
+
+          const echelle = Math.min(1, LARGEUR / img.width);
           const l = Math.max(1, Math.round(img.width * echelle));
-          const h = Math.max(1, Math.round(img.height * echelle));
-          const toile = document.createElement("canvas");
-          toile.width = l; toile.height = h;
-          const ctx = toile.getContext("2d");
-          if (!ctx) { reject(new Error("toile")); return; }
-          ctx.drawImage(img, 0, 0, l, h);
-          const url = toile.toDataURL("image/jpeg", 0.82);
-          resolve({ base64: url.slice(url.indexOf(",") + 1), type: "image/jpeg" });
+          const hTotale = Math.max(1, Math.round(img.height * echelle));
+
+          const bandes = Math.min(4, Math.max(1, Math.ceil(hTotale / HAUTEUR)));
+          const pas = bandes === 1 ? hTotale : Math.ceil(hTotale / bandes);
+          const marge = bandes === 1 ? 0 : Math.round(pas * RECOUVREMENT);
+
+          const images: string[] = [];
+          for (let i = 0; i < bandes; i++) {
+            const haut = Math.max(0, i * pas - (i ? marge : 0));
+            const bas = Math.min(hTotale, (i + 1) * pas + (i < bandes - 1 ? marge : 0));
+            const h = bas - haut;
+            if (h <= 0) continue;
+
+            const toile = document.createElement("canvas");
+            toile.width = l; toile.height = h;
+            const ctx = toile.getContext("2d");
+            if (!ctx) { reject(new Error("toile")); return; }
+            // Le fond blanc : sans lui, une capture transparente vire au noir.
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, l, h);
+            ctx.drawImage(img, 0, haut / echelle, img.width, h / echelle, 0, 0, l, h);
+            const url = toile.toDataURL("image/jpeg", 0.9);
+            images.push(url.slice(url.indexOf(",") + 1));
+          }
+          if (!images.length) { reject(new Error("vide")); return; }
+          resolve({ images, type: "image/jpeg" });
         };
         img.src = String(lecteur.result || "");
       };
@@ -1250,18 +1293,18 @@ export default function Home() {
     tModeleRef.current = 0;
 
     try {
-      const { base64, type } = await reduirePhoto(fichier);
+      const { images, type } = await decouperPhoto(fichier);
       const r = await fetch("/api/papier-photo", {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-        body: JSON.stringify({ image: base64, type }),
+        body: JSON.stringify({ images, type }),
       });
-      const d = await r.json() as { titre?: string; francais?: string; wolof?: string; erreur?: string };
+      const d = await r.json() as { sorte?: string; titre?: string; francais?: string; wolof?: string; erreur?: string };
       tModeleRef.current = Date.now();
       if (!r.ok || !d.wolof) {
         setPanne(d.erreur === "photo trop lourde"
-          ? "La photo est trop lourde. Reprends-la d'un peu plus loin."
-          : "Le papier n'a pas pu être lu. Reprends la photo, bien à plat et en pleine lumière.");
+          ? "L'image est trop lourde. Reprends-la d'un peu plus loin."
+          : "L'image n'a pas pu être lue. Réessaie.");
         setMode("ready"); setFace("yeux_ouverts");
         return;
       }
@@ -1270,7 +1313,8 @@ export default function Home() {
          elle reste dans le fil, sur l'appareil, sous le nom de la personne —
          relisible, corrigeable, et prête à devenir un message ou une lettre.
          Ne garder que le wolof reviendrait à perdre le document. */
-      const trace = [d.titre ? `📄 ${d.titre}` : "📄 Papier photographié", d.francais]
+      const marque = d.sorte === "image" ? "🖼" : "📄";
+      const trace = [d.titre ? `${marque} ${d.titre}` : `${marque} Image`, d.francais]
         .filter(Boolean).join("\n\n");
       setHistory((items) => [...items, { role: "user", text: trace }, { role: "bia", text: d.wolof as string }]);
       emotionRef.current = "neutre";
@@ -2105,16 +2149,15 @@ export default function Home() {
   function vuePhoto() {
     return (
       <>
-        <p className="papier-titre">Photographier un papier</p>
+        <p className="papier-titre">Une image, un papier, un écran</p>
         <p className="papier-note">
-          Une convocation, une ordonnance, un bulletin, une facture. Elle te le lit
-          en wolof, et le texte français reste dans la conversation.
+          Photographie un papier, ou choisis une image de ton téléphone. Elle regarde,
+          elle dit ce que c&apos;est, et elle te le raconte en wolof : si c&apos;est du
+          texte elle le lit, si c&apos;est une photo elle la décrit.
         </p>
         <p className="papier-note">
-          Pose le papier à plat, en pleine lumière, et cadre-le en entier — c&apos;est
-          ce qui fait la différence entre un papier lu et un papier deviné. Elle
-          n&apos;invente jamais un chiffre : ce qu&apos;elle ne voit pas, elle l&apos;écrit
-          [illisible].
+          Pour un papier, pose-le à plat et cadre-le en entier. Elle n&apos;invente
+          jamais un chiffre : ce qu&apos;elle ne voit pas, elle l&apos;écrit [illisible].
         </p>
         {photoOccupe ? <p className="papier-note">Elle lit le papier…</p> : null}
       </>
@@ -2398,7 +2441,12 @@ export default function Home() {
           {/* L'appareil photo vit ici sans se voir : c'est le bouton « Papier »
               de la fenêtre des services qui le déclenche. Un seul champ de
               fichier pour toute l'application. */}
-          <input ref={photoRef} type="file" accept="image/*" capture="environment"
+          {/* PAS DE « capture » : avec cet attribut, le téléphone ouvre
+              directement l'appareil photo et interdit de choisir une image
+              déjà prise. Or Lamine voulait justement envoyer une capture
+              d'écran. Sans lui, iOS et Android proposent les deux — la
+              photothèque ou l'appareil photo. */}
+          <input ref={photoRef} type="file" accept="image/*"
             className="sr-only" aria-label="Photographier un papier"
             onChange={(e) => {
               const f = e.target.files?.[0];

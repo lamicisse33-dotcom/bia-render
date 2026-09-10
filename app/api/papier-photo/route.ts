@@ -20,25 +20,46 @@ import { noterPanne } from "@/lib/panne";
    wolof, qui sera dit à voix haute. Ne renvoyer que le wolof reviendrait à
    perdre le document lui-même. */
 
-const CONSIGNE = `Tu lis un papier photographié et tu le dis en wolof de Dakar.
+const CONSIGNE = `Tu regardes une image et tu dis en wolof de Dakar ce qu'elle contient.
 
-Quelqu'un a reçu ce papier — une convocation, une ordonnance, un bulletin, un
-contrat, une facture, une lettre — et il ne le lit pas bien. Tu le lui lis.
+L'image peut être n'importe quoi : la photo d'un papier officiel, une capture
+d'écran de téléphone, une photo de famille, un plan, une ordonnance, une
+affiche, un objet, un lieu. TU COMMENCES TOUJOURS PAR RECONNAÎTRE CE QUE C'EST.
 
 CE QUE TU RENDS
 Un objet JSON, rien d'autre, sans un mot avant ni après, sans balise de code :
 {
-  "titre": "de quel papier il s'agit, en trois mots",
-  "francais": "ce que le papier dit, en français",
+  "sorte": "texte" ou "image" ou "melange",
+  "titre": "ce que c'est, en trois ou quatre mots",
+  "francais": "le texte recopié, ou la description",
   "wolof": "la même chose, dite en wolof de Dakar"
 }
 
-LE FRANÇAIS. Tu RECOPIES ce qui est écrit, tu ne résumes pas et tu
-n'interprètes pas. Garde tous les montants, dates, heures, noms, numéros de
-dossier, adresses et échéances, exactement comme ils sont écrits. Garde les
-paragraphes. Si un mot est illisible sur la photo, écris [illisible] à sa
-place — n'invente jamais un chiffre ni un nom : sur un papier
-d'administration, un chiffre inventé peut coûter très cher à quelqu'un.
+SI C'EST DU TEXTE — un papier, une capture d'écran, un message, un écran de
+téléphone : "sorte" vaut "texte". Tu RECOPIES ce qui est écrit dans
+"francais", tu ne résumes pas et tu n'interprètes pas. Garde tous les
+montants, dates, heures, noms, numéros de dossier, adresses et échéances,
+exactement comme ils sont écrits. Garde les paragraphes. Si un mot est
+vraiment illisible, écris [illisible] à sa place — n'invente JAMAIS un chiffre
+ni un nom : sur un papier d'administration, un chiffre inventé peut coûter
+très cher à quelqu'un.
+
+SI CE N'EST PAS DU TEXTE — une photo de personnes, de nourriture, d'un lieu,
+d'un objet, d'un animal : "sorte" vaut "image". Tu décris ce que tu vois,
+simplement et concrètement, comme on décrirait une photo à quelqu'un qui ne la
+voit pas : ce qu'il y a, où, combien, de quelle couleur, ce qui s'y passe.
+Trois ou quatre phrases suffisent. Ne devine pas l'identité de quelqu'un que
+tu ne connais pas, ne juge pas, ne commente pas.
+
+SI L'IMAGE PORTE LES DEUX — une photo avec une pancarte, une capture avec une
+image dedans : "sorte" vaut "melange". Tu recopies le texte ET tu décris
+brièvement ce qui l'entoure.
+
+PLUSIEURS IMAGES. Si on t'en donne plusieurs, ce sont les MORCEAUX D'UNE SEULE
+image haute, découpée pour rester lisible, dans l'ordre, du haut vers le bas,
+et les morceaux se recouvrent un peu. Tu les traites comme un seul document
+continu : tu ne répètes pas les lignes qui apparaissent deux fois, et tu ne
+dis jamais qu'il y a plusieurs images.
 
 LE WOLOF. Le même contenu, dit comme on parle à Dakar aujourd'hui : phrases
 courtes, virgules là où l'on respire, car ce sera lu à voix haute. Les mots de
@@ -48,29 +69,37 @@ disent EN FRANÇAIS au milieu du wolof — rendez-vous, dossier, ordonnance,
 dates aussi. Pas un mot de wolof ancien ou de dictionnaire ; au moindre doute,
 le français.
 
-CE QUE TU N'AJOUTES JAMAIS. Aucun conseil, aucun avis, aucun commentaire, ni
-en français ni en wolof. Tu n'es pas en train de discuter : tu lis. Si le
-papier est inquiétant, il reste inquiétant — ce n'est pas à toi de rassurer ni
-d'alarmer. Si la personne veut ton avis, elle te le demandera après.
+CE QUE TU N'AJOUTES JAMAIS. Aucun conseil, aucun avis, aucun commentaire. Tu
+lis, ou tu décris. Si le papier est inquiétant, il reste inquiétant — ce n'est
+pas à toi de rassurer ni d'alarmer. Si la personne veut ton avis, elle te le
+demandera après.
 
-SI CE N'EST PAS UN PAPIER. Si la photo ne montre aucun texte lisible, réponds
-{"titre":"", "francais":"", "wolof":"Xool naa nataal bi, waaye gisuma benn
-mbind bu leer. Jéemal jël ko bu baax, ci leer gu neex."}`;
+SI TU NE VOIS VRAIMENT RIEN. Seulement si l'image est noire, floue au point
+d'être indéchiffrable, ou vide : réponds
+{"sorte":"image", "titre":"", "francais":"",
+ "wolof":"Xool naa nataal bi waaye gisuma dara bu leer. Jéemal jël ko bu baax, ci leer gu neex."}
+N'emploie cette réponse qu'en dernier recours. Une image sombre n'est pas une
+image vide : un écran de téléphone en mode sombre, une photo prise le soir,
+un papier mal éclairé se lisent très bien — regarde mieux avant d'abandonner.`
 
 export async function POST(request: NextRequest) {
   try {
     const verdict = verifierCode(request.headers.get("x-bia-code"));
     if (!verdict.ok) return NextResponse.json({ erreur: "code" }, { status: 401 });
 
-    const body = await request.json() as { image?: string; type?: string };
-    const image = String(body.image || "");
-    /* Le téléphone envoie du JPEG réduit : on n'accepte que ce que le modèle
-       sait lire, et on refuse ce qui est manifestement trop lourd avant même
-       de payer l'appel. */
+    const body = await request.json() as { image?: string; images?: string[]; type?: string };
+    /* UNE IMAGE HAUTE ARRIVE EN MORCEAUX. Une capture d'écran de téléphone
+       fait deux fois et demie plus haut que large ; réduite d'un bloc, son
+       texte devient illisible. Le téléphone la découpe donc en bandes qui se
+       recouvrent, et elles arrivent ici dans l'ordre. */
+    const morceaux = (Array.isArray(body.images) && body.images.length
+      ? body.images
+      : [String(body.image || "")]).filter(Boolean).slice(0, 4);
     const type = ["image/jpeg", "image/png", "image/webp"].includes(String(body.type))
       ? String(body.type) : "image/jpeg";
-    if (!image) return NextResponse.json({ erreur: "pas d'image" }, { status: 400 });
-    if (image.length > 7_000_000) {
+    if (!morceaux.length) return NextResponse.json({ erreur: "pas d'image" }, { status: 400 });
+    const poids = morceaux.reduce((t, m) => t + m.length, 0);
+    if (poids > 14_000_000) {
       return NextResponse.json({ erreur: "photo trop lourde" }, { status: 413 });
     }
 
@@ -90,8 +119,15 @@ export async function POST(request: NextRequest) {
           messages: [{
             role: "user",
             content: [
-              { type: "image", source: { type: "base64", media_type: type, data: image } },
-              { type: "text", text: "Lis ce papier." },
+              ...morceaux.map((data) => ({
+                type: "image", source: { type: "base64", media_type: type, data },
+              })),
+              {
+                type: "text",
+                text: morceaux.length > 1
+                  ? "Voici une seule image, découpée du haut vers le bas. Dis ce que c'est, puis lis-la ou décris-la."
+                  : "Dis ce que c'est, puis lis-la ou décris-la.",
+              },
             ],
           }],
         }),
@@ -121,7 +157,9 @@ export async function POST(request: NextRequest) {
     const wolof = propre(o.wolof, 6000);
     if (!wolof) return NextResponse.json({ erreur: "rien de lisible" }, { status: 502 });
 
+    const sorte = ["texte", "image", "melange"].includes(String(o.sorte)) ? String(o.sorte) : "texte";
     return NextResponse.json({
+      sorte,
       titre: propre(o.titre, 120),
       francais: propre(o.francais, 8000),
       wolof,
