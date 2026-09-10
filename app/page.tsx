@@ -6,6 +6,10 @@ import {
   dire, extraireNom, fichierDe as fichierDeParole,
 } from "@/lib/attente";
 import type { Langue, Parole } from "@/lib/attente";
+import {
+  ajouterProfil, chargerProfils, cleEmetteur, cleFil, cleResume, garderProfils, oublierProfil,
+} from "@/lib/profils";
+import type { Profil } from "@/lib/profils";
 import { franc, sorteEvoquee, totauxDe } from "@/lib/documents";
 import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
 import { lireMesures, noterMesure } from "@/lib/chrono";
@@ -175,6 +179,15 @@ export default function Home() {
   const [pdf, setPdf] = useState("");
   const [fiche, setFiche] = useState(false);
   const [emetteur, setEmetteur] = useState<Emetteur>(EMETTEUR_VIDE);
+  /* QUI PARLE. Un téléphone se prête, ici : au frère, au client, au voisin.
+     Chacun a sa case — son prénom, ses notes, ses papiers, sa conversation. */
+  const [profils, setProfils] = useState<Profil[]>([]);
+  const [profil, setProfil] = useState("");
+  const [quiParle, setQuiParle] = useState(false);
+  const [nouveauNom, setNouveauNom] = useState("");
+  /* Retirer quelqu'un efface ses notes, ses papiers et sa conversation. Ça ne
+     se fait pas d'un seul doigt posé par erreur : il faut confirmer. */
+  const [aRetirer, setARetirer] = useState<string | null>(null);
   /** Le téléphone sait-il partager ? Sur mobile, oui — et c'est ce qui ouvre WhatsApp. */
   const [partageable, setPartageable] = useState(false);
   const [copie, setCopie] = useState(false);
@@ -246,11 +259,13 @@ export default function Home() {
   const dernierDitRef = useRef("");
 
   const emetteurRef = useRef<Emetteur>(EMETTEUR_VIDE);
+  const profilRef = useRef("");
 
   historyRef.current = history;
   resumeRef.current = resume;
   codeRef.current = code || "";
   emetteurRef.current = emetteur;
+  profilRef.current = profil;
 
   /* Ce que BIA a mesuré les fois précédentes : combien de temps elle fait
      attendre, et combien de temps durent ses phrases. Sur l'appareil, jamais
@@ -293,30 +308,38 @@ export default function Home() {
     const auClavier = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (corrige !== null) { setCorrige(null); setCorrection(""); setPropositions([]); return; }
+      if (quiParle) { setQuiParle(false); return; }
       if (papierOuvert) { setPapierOuvert(false); return; }
       if (clavier) setClavier(false);
     };
     window.addEventListener("keydown", auClavier);
     return () => window.removeEventListener("keydown", auClavier);
-  }, [corrige, papierOuvert, clavier]);
+  }, [corrige, papierOuvert, quiParle, clavier]);
 
   useEffect(() => {
     mesuresRef.current = lireMesures();
-    try { nomRef.current = localStorage.getItem("bia-nom") || ""; } catch {}
   }, []);
 
   // Le code est gardé sur l'appareil : le testeur ne le retape pas à chaque fois.
   useEffect(() => {
     try {
       const g = localStorage.getItem("bia-code"); if (g) setCode(g);
+      /* Qui est sur cet appareil, et qui parlait la dernière fois. Sur un
+         téléphone qui servait déjà, tout ce qui s'y trouve devient la case du
+         premier utilisateur : on ne perd les notes de personne. */
+      const { profils: liste, actif } = chargerProfils();
+      setProfils(liste);
+      setProfil(actif);
+      profilRef.current = actif;
+      nomRef.current = liste.find((x) => x.id === actif)?.nom || "";
       // BIA retrouve la conversation là où on l'a laissée, même après avoir
       // fermé l'onglet. Tout reste sur l'appareil : rien n'est envoyé ailleurs.
-      const fil = localStorage.getItem("bia-fil");
+      const fil = localStorage.getItem(cleFil(actif));
       if (fil) setHistory(JSON.parse(fil) as Message[]);
-      const notes = localStorage.getItem("bia-resume");
+      const notes = localStorage.getItem(cleResume(actif));
       if (notes) { setResume(notes); resumeRef.current = notes; }
       // Ses renseignements : donnés une fois, ils restent sur l'appareil.
-      const sien = localStorage.getItem("bia-emetteur");
+      const sien = localStorage.getItem(cleEmetteur(actif));
       if (sien) setEmetteur({ ...EMETTEUR_VIDE, ...(JSON.parse(sien) as Partial<Emetteur>) });
     } catch {}
     fetch("/api/etat")
@@ -1325,7 +1348,13 @@ export default function Home() {
             const nom = extraireNom(d.texte || "");
             if (nom) {
               nomRef.current = nom;
-              try { localStorage.setItem("bia-nom", nom); } catch {}
+              /* Le prénom appartient à la personne, pas au téléphone : c'est
+                 exactement la confusion qu'on vient de corriger. */
+              setProfils((liste) => {
+                const suite = liste.map((x) => (x.id === profilRef.current ? { ...x, nom } : x));
+                garderProfils(suite, profilRef.current);
+                return suite;
+              });
             }
           } catch {}
           attendLeNomRef.current = false;
@@ -1419,7 +1448,7 @@ export default function Home() {
      — le prénom, le métier, ce qui a été décidé — survit à l'oubli. */
   useEffect(() => {
     if (!history.length) return;
-    try { localStorage.setItem("bia-fil", JSON.stringify(history.slice(-40))); } catch {}
+    try { localStorage.setItem(cleFil(profilRef.current), JSON.stringify(history.slice(-40))); } catch {}
 
     if (history.length <= 30 || resumeEnCours.current || !code) return;
     resumeEnCours.current = true;
@@ -1434,7 +1463,7 @@ export default function Home() {
         if (!d.resume) return;
         setResume(d.resume);
         setHistory((items) => items.slice(-16));
-        try { localStorage.setItem("bia-resume", d.resume); } catch {}
+        try { localStorage.setItem(cleResume(profilRef.current), d.resume); } catch {}
       })
       .catch(() => {})
       .finally(() => { resumeEnCours.current = false; });
@@ -1762,7 +1791,7 @@ export default function Home() {
   }
 
   function garderRenseignements() {
-    try { localStorage.setItem("bia-emetteur", JSON.stringify(emetteurRef.current)); } catch {}
+    try { localStorage.setItem(cleEmetteur(profilRef.current), JSON.stringify(emetteurRef.current)); } catch {}
     setFiche(false);
     /* Ses renseignements viennent de changer : le papier ouvert porte encore
        les anciens. On le refait — c'est la seule façon que le NINEA et le
@@ -1961,6 +1990,87 @@ export default function Home() {
     );
   }
 
+  /* PASSER LA MAIN À QUELQU'UN D'AUTRE.
+
+     On charge sa case : son prénom, ses notes, ses renseignements, sa
+     conversation. Et la présentation repart à zéro — elle doit dire bonjour à
+     celui qui arrive, pas continuer avec celui qui vient de partir. */
+  function changerProfil(id: string) {
+    if (id === profil) { setQuiParle(false); return; }
+    taire();
+    couperSon();
+    setProfil(id);
+    profilRef.current = id;
+    garderProfils(profils, id);
+    nomRef.current = profils.find((x) => x.id === id)?.nom || "";
+    presentationFaiteRef.current = false;
+    nouveauNomRef.current = "";
+
+    try {
+      const fil = localStorage.getItem(cleFil(id));
+      setHistory(fil ? (JSON.parse(fil) as Message[]) : []);
+      const notes = localStorage.getItem(cleResume(id)) || "";
+      setResume(notes);
+      resumeRef.current = notes;
+      const sien = localStorage.getItem(cleEmetteur(id));
+      setEmetteur(sien ? { ...EMETTEUR_VIDE, ...(JSON.parse(sien) as Partial<Emetteur>) } : EMETTEUR_VIDE);
+    } catch {
+      setHistory([]); setResume(""); setEmetteur(EMETTEUR_VIDE);
+    }
+
+    // Les papiers appartenaient à la personne d'avant.
+    setPapierPret(null);
+    setPapier(null);
+    setPapierOuvert(false);
+    if (pdf) { URL.revokeObjectURL(pdf); setPdf(""); }
+    setQuiParle(false);
+  }
+
+  function ajouterQuelquun() {
+    const { profils: suite, id } = ajouterProfil(profils, nouveauNom);
+    setProfils(suite);
+    garderProfils(suite, id);
+    setNouveauNom("");
+    changerProfilVers(suite, id);
+  }
+
+  /* Même chose que changerProfil, mais avec la liste toute fraîche : après un
+     ajout, l'état React n'est pas encore à jour et la personne serait
+     introuvable. */
+  function changerProfilVers(liste: Profil[], id: string) {
+    taire();
+    couperSon();
+    setProfil(id);
+    profilRef.current = id;
+    nomRef.current = liste.find((x) => x.id === id)?.nom || "";
+    presentationFaiteRef.current = false;
+    nouveauNomRef.current = "";
+    setHistory([]);
+    setResume("");
+    resumeRef.current = "";
+    setEmetteur(EMETTEUR_VIDE);
+    setPapierPret(null);
+    setPapier(null);
+    setPapierOuvert(false);
+    setQuiParle(false);
+  }
+
+  function retirerQuelquun(id: string) {
+    const suite = oublierProfil(profils, id);
+    if (!suite.length) {
+      // On ne laisse jamais l'appareil sans personne : on repart d'une case vide.
+      const { profils: neuf, id: neufId } = ajouterProfil([], "");
+      setProfils(neuf);
+      garderProfils(neuf, neufId);
+      changerProfilVers(neuf, neufId);
+      return;
+    }
+    setProfils(suite);
+    const bon = suite.some((x) => x.id === profil) ? profil : suite[0].id;
+    garderProfils(suite, bon);
+    if (bon !== profil) changerProfilVers(suite, bon);
+  }
+
   function nouvelleConversation() {
     couperSon();
     window.speechSynthesis?.cancel();
@@ -1974,7 +2084,7 @@ export default function Home() {
     setPapierOuvert(false);
     setPapierErreur("");
     if (pdf) { URL.revokeObjectURL(pdf); setPdf(""); }
-    try { localStorage.removeItem("bia-fil"); } catch {}
+    try { localStorage.removeItem(cleFil(profilRef.current)); } catch {}
     // Les notes ne sont PAS effacées : c'est justement ce qui fait qu'elle se
     // souvient de la personne d'une conversation à l'autre.
   }
@@ -1983,7 +2093,7 @@ export default function Home() {
     nouvelleConversation();
     setResume("");
     resumeRef.current = "";
-    try { localStorage.removeItem("bia-resume"); } catch {}
+    try { localStorage.removeItem(cleResume(profilRef.current)); } catch {}
   }
 
   async function entrer() {
@@ -2073,6 +2183,12 @@ export default function Home() {
         {panne ? <p className="panne">⚠ {panne}</p> : null}
 
         <div className="outils">
+          {/* Qui parle. Sur un téléphone qui se prête, c'est le bouton le plus
+              important de tous : sans lui, elle appelle le suivant par le
+              prénom du précédent. */}
+          <button type="button" className="qui" onClick={() => setQuiParle(true)}>
+            {profils.find((x) => x.id === profil)?.nom || "Qui parle ?"}
+          </button>
           <button type="button" onClick={nouvelleConversation}>Nouvelle conversation</button>
           {resume ? <button type="button" onClick={toutOublier}>Tout oublier</button> : null}
           {resume ? <span className="jauge" title="BIA garde des notes sur toi, sur cet appareil">se souvient de toi</span> : null}
@@ -2124,11 +2240,12 @@ export default function Home() {
 
       {/* Toucher à côté referme. C'est le geste que tout le monde essaie
           d'abord, et jusqu'ici il ne faisait rien. */}
-      {clavier || papierOuvert || corrige !== null ? (
+      {clavier || papierOuvert || quiParle || corrige !== null ? (
         <div className="voile" aria-hidden="true"
-          style={{ zIndex: corrige !== null ? 5 : papierOuvert ? 4 : 3 }}
+          style={{ zIndex: corrige !== null ? 5 : quiParle ? 5 : papierOuvert ? 4 : 3 }}
           onClick={() => {
             if (corrige !== null) { fermerCorrection(); return; }
+            if (quiParle) { setQuiParle(false); return; }
             if (papierOuvert) { setPapierOuvert(false); return; }
             setClavier(false);
           }} />
@@ -2197,6 +2314,61 @@ export default function Home() {
             )}
           </div>
         ) : null}
+      </section>
+
+      {/* QUI PARLE À BIA. Chacun sa case sur l'appareil : son prénom, ses
+          notes, ses papiers, sa conversation. */}
+      <section className="papier-panneau qui-panneau" aria-hidden={!quiParle}>
+        <button className="clavier-fermer" type="button"
+          onClick={() => { setQuiParle(false); setARetirer(null); }} aria-label="Refermer">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 7.1 16.9 5.7 12 10.6 7.1 5.7 5.7 7.1l4.9 4.9-4.9 4.9 1.4 1.4 4.9-4.9 4.9 4.9 1.4-1.4-4.9-4.9Z" /></svg>
+        </button>
+
+        <div className="papier-corps scrollbar-thin">
+          <p className="papier-titre">Kan mooy wax ?</p>
+          {aRetirer ? (
+            <p className="papier-manque">
+              Retirer quelqu&apos;un efface ses notes, ses papiers et sa conversation. C&apos;est définitif.
+              <button type="button" onClick={() => setARetirer(null)}>Annuler</button>
+            </p>
+          ) : null}
+          <p className="papier-note">
+            Qui parle à BIA en ce moment. Chacun a ses notes, ses papiers et sa
+            conversation — elle ne les mélange plus. Tout reste sur ce téléphone.
+          </p>
+
+          <div className="gens">
+            {profils.map((x) => (
+              <div className={x.id === profil ? "gens-ligne actif" : "gens-ligne"} key={x.id}>
+                <button type="button" className="gens-nom" onClick={() => changerProfil(x.id)}>
+                  <b>{x.nom || "Sans prénom"}</b>
+                  <span>{x.id === profil ? "c'est toi" : "c'est moi"}</span>
+                </button>
+                {profils.length > 1 ? (
+                  aRetirer === x.id ? (
+                    <button type="button" className="oter sur"
+                      aria-label={`Confirmer le retrait de ${x.nom || "cette personne"}`}
+                      onClick={() => { retirerQuelquun(x.id); setARetirer(null); }}>Sûr ?</button>
+                  ) : (
+                    <button type="button" className="oter" aria-label={`Retirer ${x.nom || "cette personne"}`}
+                      onClick={() => setARetirer(x.id)}>×</button>
+                  )
+                ) : null}
+              </div>
+            ))}
+          </div>
+
+          <label className="papier-champ">Quelqu&apos;un d&apos;autre
+            <input value={nouveauNom} placeholder="Son prénom"
+              onChange={(e) => setNouveauNom(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") ajouterQuelquun(); }} />
+          </label>
+        </div>
+
+        <div className="papier-pied">
+          <button type="button" onClick={ajouterQuelquun}>Ajouter</button>
+          <button type="button" className="pale" onClick={() => setQuiParle(false)}>Fermer</button>
+        </div>
       </section>
 
       {/* LA FENÊTRE DE CORRECTION. Sa phrase est déjà dans le champ : on

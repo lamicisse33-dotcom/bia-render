@@ -798,3 +798,45 @@ button { font: inherit; touch-action: manipulation; }
 /* Le haut-parleur : coller un texte français, l'entendre en wolof. */
 .saisie .traduire { background: rgba(212,175,55,.16); color: #e7c667; }
 .saisie .traduire:disabled { opacity: .4; }
+
+/* ── QUI PARLE ───────────────────────────────────────────────────────────
+   Un téléphone se prête ici : au frère, au client, au voisin. Chacun sa
+   case — son prénom, ses notes, ses papiers, sa conversation. */
+.qui-panneau { z-index: 6; }
+.outils .qui {
+  border-color: rgba(212,175,55,.45) !important;
+  background: rgba(212,175,55,.12) !important;
+  color: #e7c667 !important;
+}
+.gens { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 16px; }
+.gens-ligne { display: flex; align-items: stretch; gap: 8px; }
+.gens-nom {
+  flex: 1;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 13px 16px;
+  border: 1px solid rgba(255,255,255,.12); border-radius: 16px;
+  background: rgba(255,255,255,.04);
+  color: #fff; font: inherit; text-align: left; cursor: pointer;
+  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+.gens-nom:active { transform: scale(.99); }
+.gens-nom b { font-size: 16px; font-weight: 600; }
+.gens-nom span { color: rgba(255,255,255,.45); font-size: 12.5px; }
+.gens-ligne.actif .gens-nom {
+  border-color: rgba(212,175,55,.55);
+  background: rgba(212,175,55,.11);
+}
+.gens-ligne.actif .gens-nom b { color: #e7c667; }
+.gens-ligne.actif .gens-nom span { color: rgba(231,198,103,.75); }
+.gens-ligne .oter {
+  flex: none;
+  width: 44px;
+  border: 0; border-radius: 16px;
+  background: rgba(255,255,255,.06); color: rgba(255,255,255,.5);
+  font-size: 20px; line-height: 1; cursor: pointer;
+}
+.gens-ligne .oter.sur {
+  width: auto; padding: 0 14px;
+  background: rgba(150,40,40,.55); color: #ffd9d9;
+  font-size: 13px;
+}
