@@ -102,10 +102,29 @@ const OUTILS = new Set([
   "ou","où","quel","quelle","ce","cette","ces","mon","ma","mes","ton","votre","vos","leur","au","aux",
   "en","se","me","te","lui","nos","notre","son","sa","ses","par","si","bien","comme","tout","tous",
   "cela","etre","être","avoir","fait","faire","peux","peut","veux","veut","dire","dis",
+  /* Ajoutés le 11 septembre 2026, trouvés par l'épreuve : « Et toi ? » passait
+     pour une question qui se suffit à elle-même, parce que « toi » manquait à
+     cette liste — et on aurait resservi la réponse d'une autre conversation. */
+  "toi","moi","soi","eux","oui","non","ouais","hein","voila","voilà","ok","dac",
 ]);
 
 const motsUtiles = (t: string) =>
   new Set(normaliser(t).split(" ").filter((m) => m.length > 2 && !OUTILS.has(m)));
+
+/* ── UNE QUESTION SE SUFFIT-ELLE À ELLE-MÊME ? ──────────────────────────────
+
+   « Comment se passe ta journée ? » veut dire la même chose pour tout le
+   monde, à n'importe quel moment. « Et ça ? », « Pourquoi ? », « Combien ? »
+   ne veulent rien dire sans ce qui précède.
+
+   La différence tient en un mot : les secondes n'ont que des mots-outils —
+   des pronoms, des interrogatifs, des liaisons. Dès qu'il reste un mot PLEIN,
+   la question porte son propre sujet.
+
+   C'est ce qui décide si l'on peut resservir une réponse corrigée telle
+   quelle : sur « comment se passe ta journée » oui, sur « pourquoi ? » jamais,
+   parce que la réponse d'hier parlait d'autre chose. */
+export const seSuffitAElleMeme = (texte: string) => motsUtiles(texte).size > 0;
 
 /** Correction exacte de la même phrase : elle fait autorité, on la sert telle quelle. */
 export async function correctionExacte(texte: string): Promise<Entree | null> {

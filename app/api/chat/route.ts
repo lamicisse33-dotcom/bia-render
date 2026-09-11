@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
-import { correctionExacte, exemplesPour, motsCorriges } from "@/lib/lexique";
+import { correctionExacte, exemplesPour, motsCorriges, seSuffitAElleMeme } from "@/lib/lexique";
 import { savoirKhalam } from "@/lib/khalam";
 import { savoirProduits } from "@/lib/produits";
 import { catalogue } from "@/lib/vitrine";
@@ -161,6 +161,47 @@ qui plaisante, qui a du chagrin — là, tu es une présence, pas un guichet : t
 réponds à sa mesure, tu tiens la conversation, et la règle d'une phrase ne
 s'applique plus. La différence est simple : on te pose une QUESTION, tu
 réponds court ; on t'ADRESSE LA PAROLE, tu converses.
+
+RÉPONDS À LA QUESTION QU'ON TE POSE, ET DE LA FORME QU'ELLE APPELLE
+Lamine, le 11 septembre 2026 : « BIA doit être beaucoup plus intelligente pour
+donner des réponses courtes ET ADAPTÉES à la question ».
+
+Être courte ne suffit pas : une phrase courte qui tourne autour du sujet est
+pire qu'une longue qui répond. Chaque sorte de question appelle une forme, et
+c'est cette forme-là qu'on attend de toi. LA RÉPONSE VIENT EN PREMIER, la
+raison après — et seulement si elle tient en quelques mots.
+
+— ON TE DEMANDE OUI OU NON (« ndax… ? ») : tu dis waaw ou déedéet EN PREMIER
+  MOT. Jamais « ça dépend » tout seul ; si ça dépend vraiment, dis de quoi,
+  en une fois.
+    « Ndax mën naa bind ab devis ? » → « Waaw, mën naa ko. Waxal ma liggéey bi. »
+    et PAS : « Bind ab devis ab liggéey la bu am solo, am na ay… »
+
+— ON TE DEMANDE COMBIEN, QUAND, OÙ, QUI : tu donnes le chiffre, l'heure, le
+  lieu, le nom. Rien autour.
+    « Ñaata la 15 % ci 40 000 ? » → « 6 000 francs CFA. »
+    et PAS : « Pour calculer un pourcentage, on multiplie… »
+
+— ON TE DEMANDE COMMENT FAIRE : les étapes, dans l'ordre, sans introduction.
+  Trois ou quatre au plus ; s'il en faut plus, donne les premières et dis
+  qu'il y a une suite.
+
+— ON TE DEMANDE TON AVIS : tu choisis. « Ban moo gën ? » appelle UNE réponse,
+  pas une liste des deux côtés. Tu peux te tromper ; rester neutre, non.
+
+— ON TE DEMANDE UN MOT : tu donnes le mot. Pas la leçon autour.
+
+— TU NE SAIS PAS : dis-le en une phrase, et arrête-toi là. Une réponse
+  inventée avec assurance fait plus de mal qu'un « xawma ko ».
+
+NE RÉPONDS JAMAIS À UNE QUESTION PAR UNE QUESTION, sauf s'il manque vraiment
+un renseignement sans lequel ta réponse serait FAUSSE — un prix qu'on ne t'a
+pas dit, un nom que tu n'as pas. Alors une seule question, courte, et rien
+d'autre dans la phrase. Poser deux questions d'affilée fait fuir.
+
+ET C'EST DU WOLOF DE DAKAR, comme toujours : la règle du chauffeur de taxi
+s'applique d'abord ici. Une réponse courte dans un wolof que personne n'emploie
+n'est pas une réponse courte, c'est du silence.
 
 TU NE DÉVELOPPES QUE SI ON TE LE DEMANDE — « explique-moi », « raconte »,
 « donne-moi les étapes ». Alors seulement, tu prends la place qu'il faut, et
@@ -594,7 +635,37 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
       const exacte=await correctionExacte(question);
       if(exacte){
-        variable+=`\n\nFORMULATION VALIDÉE POUR CETTE QUESTION EXACTE\nUn locuteur natif a corrigé la réponse à cette question précise. Sa formulation fait autorité sur la tienne :\n« ${exacte.corrigee} »\nReprends-la, en l'ajustant si le fil de la conversation le demande.`;
+        /* ── UNE CORRECTION SE RESSERT TELLE QUELLE ─────────────────────────
+
+           Lamine, le 11 septembre 2026 : « si je corrige cette réponse-là,
+           quiconque dira "comment se passe ta journée", c'est cette même
+           réponse corrigée qu'elle doit servir. » Et il a éprouvé le
+           contraire : « tu répètes la même chose, elle t'amène un autre mot
+           que tu dois corriger, à n'en pas finir. »
+
+           LE DÉFAUT ÉTAIT ÉCRIT ICI, EN TOUTES LETTRES. On donnait sa
+           formulation au modèle en lui disant « reprends-la, EN L'AJUSTANT si
+           le fil de la conversation le demande » — alors il l'ajustait. Chaque
+           ajustement redemandait une correction. C'est un travail sans fin
+           qu'on lui a fait faire pendant deux jours.
+
+           Désormais la correction ne passe plus par le modèle : elle EST la
+           réponse. Mot pour mot, à tout le monde, aussi longtemps qu'elle
+           reste dans le lexique. Et ça ne coûte rien — ni jeton, ni attente.
+
+           SAUF si la question ne se suffit pas à elle-même (« pourquoi ? »,
+           « et ça ? ») : là, la réponse d'hier parlait d'autre chose, et la
+           resservir serait pire que de la refaire. */
+        if(seSuffitAElleMeme(question)){
+          oublierPanne();
+          return NextResponse.json({
+            reply:exacte.corrigee,
+            emotion:"neutre",
+            corrige:true,
+            source:"correction validée (gratuit)",
+          });
+        }
+        variable+=`\n\nFORMULATION VALIDÉE POUR CETTE QUESTION EXACTE\nUn locuteur natif a corrigé la réponse à cette question précise. Sa formulation fait autorité sur la tienne :\n« ${exacte.corrigee} »\nReprends-la : c'est la bonne. Tu n'y touches que si le fil rend sa phrase impossible à dire ici.`;
       }else{
         const exemples=await exemplesPour(question);
         if(exemples.length){

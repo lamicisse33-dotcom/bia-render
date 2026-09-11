@@ -1313,7 +1313,7 @@ export default function Home() {
             : ""].filter(Boolean).join("\n"),
         }),
       });
-      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; trouve?: Resultat | null; son?: string; source?: string };
+      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; trouve?: Resultat | null; son?: string; corrige?: boolean; source?: string };
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
       /* ICI SE JOUAIT LE SILENCE.
          On coupait l'attente à l'arrivée du TEXTE. Mais la voix, elle, n'est
@@ -1358,6 +1358,10 @@ export default function Home() {
         role: "bia", text: data.reply,
         ...(data.voir ? { voir: data.voir } : {}),
         ...(data.trouve?.pieces?.length ? { trouve: data.trouve } : {}),
+        /* Une phrase resservie telle qu'il l'a corrigée porte la même marque
+           que s'il venait de la corriger : il doit VOIR que son travail sert,
+           et pouvoir la retoucher encore. */
+        ...(data.corrige ? { corrige: true } : {}),
       }]);
 
       /* PAF. L'écran s'ouvre de lui-même : c'est tout l'intérêt — elle parle,

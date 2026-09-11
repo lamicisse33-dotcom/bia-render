@@ -1474,3 +1474,99 @@ button { font: inherit; touch-action: manipulation; }
   font-size: 11.5px;
   color: rgba(255,255,255,.38);
 }
+
+/* ── LA PAGE POUR ÉCOUTER AVANT D'ENREGISTRER ────────────────────────────
+   Lamine, le 11 septembre 2026 : « une page où je peux coller mes corrections
+   pour les écouter ». Elle se lit sur un téléphone, debout, en corrigeant du
+   wolof : texte confortable, boutons larges, rien de décoratif. */
+.voix {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 22px 16px calc(60px + env(safe-area-inset-bottom));
+  color: rgba(255,255,255,.9);
+}
+.voix h1 { margin: 0 0 6px; font-size: 22px; color: #e7c667; }
+.voix h2 { margin: 26px 0 8px; font-size: 16px; color: #e7c667; }
+.voix-intro { margin: 0 0 14px; font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,.6); }
+
+.voix-code { display: block; margin: 0 0 18px; font-size: 12px; color: rgba(255,255,255,.5); }
+.voix-code input {
+  display: block; width: 100%; max-width: 220px; margin-top: 5px;
+  padding: 11px 13px;
+  border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
+  background: rgba(255,255,255,.05); color: #fff;
+  font: inherit; font-size: 16px; letter-spacing: .12em;
+}
+
+.voix textarea {
+  display: block; width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,.14); border-radius: 14px;
+  background: rgba(255,255,255,.05); color: #fff;
+  font: inherit; font-size: 16px; line-height: 1.5;
+  /* 16 px au minimum : en dessous, l'iPhone zoome tout seul dès qu'on touche
+     le champ, et on perd la page de vue. */
+  resize: vertical;
+}
+
+.voix-rangee { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.voix-ecouter {
+  padding: 11px 20px;
+  border: 0; border-radius: 999px;
+  background: #d4af37; color: #17130a;
+  font: inherit; font-size: 14px; font-weight: 600;
+  cursor: pointer;
+}
+.voix-ecouter:disabled { opacity: .4; cursor: default; }
+.voix-ecouter:active { transform: scale(.97); }
+.voix-pale {
+  padding: 11px 18px;
+  border: 1px solid rgba(255,255,255,.16); border-radius: 999px;
+  background: transparent; color: rgba(255,255,255,.75);
+  font: inherit; font-size: 14px; cursor: pointer;
+}
+
+.voix-etat {
+  margin: 12px 0 0; padding: 9px 13px;
+  border-radius: 12px;
+  background: rgba(212,175,55,.12);
+  color: rgba(255,236,190,.92);
+  font-size: 13px; line-height: 1.45;
+}
+.voix-compte {
+  margin: 16px 0 0; padding: 10px 13px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.05);
+  font-size: 12.5px; line-height: 1.5; color: rgba(255,255,255,.6);
+}
+.voix-compte b { color: #e8c98a; }
+
+.voix-item {
+  margin: 0 0 18px; padding: 13px 14px;
+  border: 1px solid rgba(255,255,255,.08); border-radius: 16px;
+  background: rgba(255,255,255,.03);
+}
+/* Une bordure dorée dit d'un coup d'œil ce qu'il a déjà retouché. */
+.voix-item.change { border-color: rgba(212,175,55,.45); background: rgba(212,175,55,.05); }
+.voix-quand { margin: 0 0 9px; font-size: 12px; color: rgba(255,255,255,.45); }
+.voix-quand span {
+  display: inline-block; min-width: 22px; margin-right: 6px;
+  padding: 1px 6px; border-radius: 8px;
+  background: rgba(255,255,255,.08); color: rgba(255,255,255,.7);
+  text-align: center; font-weight: 600;
+}
+.voix-francais { margin: 8px 0 0; font-size: 12.5px; line-height: 1.45; color: rgba(255,255,255,.42); }
+
+.voix-fin {
+  margin-top: 30px; padding-top: 20px;
+  border-top: 1px solid rgba(255,255,255,.1);
+}
+/* Le bandeau qui dit que cette page ne restera pas. Lamine, le 11 septembre
+   2026 : « elle sera provisoire, après on le supprime ». */
+.voix-provisoire {
+  margin: 0 0 16px; padding: 9px 13px;
+  border: 1px dashed rgba(212,175,55,.45); border-radius: 12px;
+  background: rgba(212,175,55,.07);
+  color: rgba(255,236,190,.85);
+  font-size: 12.5px; line-height: 1.45;
+}
