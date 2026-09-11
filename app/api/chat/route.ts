@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
-import { correctionExacte, exemplesPour } from "@/lib/lexique";
+import { correctionExacte, exemplesPour, motsCorriges } from "@/lib/lexique";
 import { savoirKhalam } from "@/lib/khalam";
 import { savoirProduits } from "@/lib/produits";
 import { SOCLE_RELATIONS, consigneRelations, estSujetRelation } from "@/lib/relations";
@@ -433,6 +433,30 @@ ${cosmetiques}
        elles poussaient le modèle à recopier une formulation stockée même quand
        la question posée était différente — c'est-à-dire à réciter. */
     try{
+      /* ── LES MOTS CORRIGÉS PASSENT TOUJOURS, QUELLE QUE SOIT LA QUESTION ──
+
+         Signalé par Lamine le 11 septembre 2026 : « elle répète les mêmes
+         mots avec les mêmes fautes, j'ai corrigé plusieurs fois ».
+
+         Les corrections étaient rangées SOUS LA QUESTION qui les avait
+         produites, et ne ressortaient que si on reposait une question
+         ressemblante. Un mot corrigé un jour dormait donc pour toujours dès
+         que la conversation changeait de sujet — c'est-à-dire presque tout de
+         suite. On avait rangé de la langue dans une boîte à réponses.
+
+         Ce bloc-ci n'est lié à aucune question : ce sont ses mots à elle,
+         corrigés par des gens d'ici, et ils valent dans toutes ses phrases. */
+      const mots=await motsCorriges();
+      if(mots.length){
+        consigne+="\n\nTA FAÇON DE DIRE, CORRIGÉE PAR DES GENS D'ICI\n"
+          +"Des locuteurs de Dakar ont repris ces mots dans TES réponses. Leur "
+          +"version fait autorité sur la tienne, et elle vaut PARTOUT — pas "
+          +"seulement quand on te repose la même question. Emploie la bonne "
+          +"forme à chaque fois que le mot revient, sans jamais le faire "
+          +"remarquer ni t'en expliquer.\n"
+          +mots.map(m=>`- ne dis pas « ${m.faux} » — dis « ${m.juste} »`).join("\n");
+      }
+
       const exacte=await correctionExacte(question);
       if(exacte){
         consigne+=`\n\nFORMULATION VALIDÉE POUR CETTE QUESTION EXACTE\nUn locuteur natif a corrigé la réponse à cette question précise. Sa formulation fait autorité sur la tienne :\n« ${exacte.corrigee} »\nReprends-la, en l'ajustant si le fil de la conversation le demande.`;

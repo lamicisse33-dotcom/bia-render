@@ -165,3 +165,112 @@ export async function combienParApplication(): Promise<Record<string, number>> {
   }
   return compte;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LES MOTS CORRIGÉS — CE QUI MANQUAIT VRAIMENT
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Signalé par Lamine le 11 septembre 2026 : « on dirait que les corrections
+   elle ne les utilise pas. Elle répète les mêmes mots avec les mêmes fautes.
+   J'ai corrigé plusieurs fois, et chaque fois qu'elle doit le dire, elle le
+   dit de l'autre manière. »
+
+   IL AVAIT RAISON, ET VOICI POURQUOI. Une correction était rangée sous la
+   QUESTION qui l'avait produite, et ressortie seulement quand on reposait une
+   question qui lui ressemblait — deux mots pleins en commun au minimum. Or
+   quand on corrige un MOT, ce mot revient dans des phrases entièrement
+   différentes : on demande le prix du riz aujourd'hui, la semaine prochaine
+   on parle d'un mariage, et le même mot mal dit revient. La correction, elle,
+   dormait, attachée à une question qu'on ne reposera jamais.
+
+   Autrement dit : on avait rangé de la LANGUE dans une boîte à RÉPONSES.
+
+   CE QU'ON FAIT MAINTENANT. On compare ce que BIA avait dit et ce que la
+   personne a écrit à la place, et on en tire les mots qui ont changé. « Elle
+   dit ceci, on dit cela » : ça, ce n'est plus attaché à une question, ça vaut
+   dans toutes ses phrases, pour toujours. C'est ce qu'un correcteur croit
+   faire quand il corrige un mot, et c'est ce qui se passe enfin.
+
+   ON RESTE PRUDENT. Seuls les remplacements COURTS sont retenus — trois mots
+   au plus de chaque côté. Quand quelqu'un réécrit une phrase entière, la
+   comparaison ne donne rien de sûr : on préfère ne rien apprendre plutôt
+   qu'apprendre de travers. Et un mot corrigé plusieurs fois passe devant les
+   autres : c'est celui qui gêne le plus. */
+
+export type MotCorrige = { faux: string; juste: string; fois: number };
+
+/* On garde les mots tels qu'ils s'écrivent — accents et lettres wolof
+   comprises — et on ne coupe que sur la ponctuation et les espaces. */
+const decouperMots = (t: string) =>
+  String(t || "")
+    .replace(/[.,;:!?«»"()\[\]…]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+/* La plus longue sous-suite commune, en table. Deux phrases d'une centaine de
+   mots au plus : la table tient sans peine, et c'est la seule façon d'aligner
+   deux versions sans se fier à l'ordre des mots. */
+function alignement(a: string[], b: string[]): Array<[number, number]> {
+  const n = a.length, m = b.length;
+  const t: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  const bas = (x: string) => x.toLowerCase();
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      t[i][j] = bas(a[i]) === bas(b[j]) ? t[i + 1][j + 1] + 1 : Math.max(t[i + 1][j], t[i][j + 1]);
+    }
+  }
+  const paires: Array<[number, number]> = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (bas(a[i]) === bas(b[j])) { paires.push([i, j]); i++; j++; }
+    else if (t[i + 1][j] >= t[i][j + 1]) i++;
+    else j++;
+  }
+  return paires;
+}
+
+/** Les remplacements courts entre ce qu'elle a dit et ce qu'on a écrit. */
+function remplacements(dit: string, voulu: string): Array<{ faux: string; juste: string }> {
+  const a = decouperMots(dit), b = decouperMots(voulu);
+  /* Une phrase très longue des deux côtés, c'est une réécriture complète :
+     on n'en tire aucune règle de vocabulaire fiable. */
+  if (!a.length || !b.length || a.length > 120 || b.length > 120) return [];
+
+  const communs = alignement(a, b);
+  const sortie: Array<{ faux: string; juste: string }> = [];
+  let i = 0, j = 0;
+  const bloc = (finA: number, finB: number) => {
+    const gauche = a.slice(i, finA), droite = b.slice(j, finB);
+    // Un ajout pur ou une suppression pure n'apprend pas comment DIRE un mot.
+    if (!gauche.length || !droite.length) return;
+    if (gauche.length > 3 || droite.length > 3) return;
+    const faux = gauche.join(" "), juste = droite.join(" ");
+    if (faux.toLowerCase() === juste.toLowerCase()) return;
+    // Des chiffres seuls changent d'une phrase à l'autre : ce n'est pas de la langue.
+    if (/^[\d\s.,%-]+$/.test(faux) || /^[\d\s.,%-]+$/.test(juste)) return;
+    sortie.push({ faux, juste });
+  };
+  for (const [ia, jb] of communs) { bloc(ia, jb); i = ia + 1; j = jb + 1; }
+  bloc(a.length, b.length);
+  return sortie;
+}
+
+/**
+ * Ce que les locuteurs ont corrigé dans SA FAÇON DE DIRE, indépendamment de
+ * la question. Le plus souvent corrigé vient en premier.
+ */
+export async function motsCorriges(max = 40): Promise<MotCorrige[]> {
+  const compte = new Map<string, MotCorrige>();
+  for (const e of await toutes()) {
+    if (!e.proposee || !e.corrigee) continue;
+    for (const r of remplacements(e.proposee, e.corrigee)) {
+      const cle = `${r.faux.toLowerCase()}→${r.juste.toLowerCase()}`;
+      const deja = compte.get(cle);
+      if (deja) deja.fois += 1;
+      else compte.set(cle, { faux: r.faux, juste: r.juste, fois: 1 });
+    }
+  }
+  return [...compte.values()]
+    .sort((x, y) => y.fois - x.fois || x.faux.length - y.faux.length)
+    .slice(0, max);
+}
