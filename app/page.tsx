@@ -3527,14 +3527,73 @@ export default function Home() {
       fait » ;
    3. il se verrouille pendant le travail : quarante fabrications de voix
       prennent du temps, et deux appuis lanceraient deux fois la dépense. */
+/* ── LE BOUTON QUI ENREGISTRE LE RÉPERTOIRE ─────────────────────────────────
+
+   Lamine, le 11 septembre 2026 au soir : « j'ai appuyé plusieurs fois, j'ai
+   attendu chaque fois quand ça se décroche, j'ai appuyé à nouveau, il faut
+   vérifier si c'est parti. »
+
+   Il a eu raison de le demander, et il n'aurait pas dû avoir à le demander.
+   Ce bouton avait deux défauts, et tous les deux le forçaient à dépenser pour
+   savoir où il en était :
+
+   1. IL NE SAVAIT PAS REGARDER. La route sait répondre gratuitement — c'est
+      ce que fait son GET : il compte ce qui manque et ce que ça coûterait,
+      sans fabriquer un seul son. La page ne l'appelait jamais. Le seul moyen
+      de connaître l'état du seau était donc de relancer l'enregistrement.
+
+   2. IL ANNONÇAIT UN PRIX ÉCRIT EN DUR — « environ 1,63 $ ». Ce nombre ne
+      bougeait pas. Qu'il reste cent trente-huit fichiers ou un seul ou aucun,
+      le bouton réclamait 1,63 $. Un prix qui ne correspond à rien est pire
+      qu'aucun prix : il apprend à ne pas lire ce qui est écrit.
+
+   Maintenant : le premier appui REGARDE, et ne coûte rien. Il dit combien de
+   sons doivent exister, combien sont en place, combien manquent, et le vrai
+   prix des manquants. Le second appui — qui n'apparaît que s'il reste quelque
+   chose à faire — dépense, et annonce ce qu'il va dépenser. */
+type EtatRepertoire = {
+  erreur?: string;
+  attendus?: number;
+  en_place?: number;
+  manquants?: number;
+  signes?: number;
+  cout_dollars?: number;
+  pret?: string;
+};
+
 function PapierRepertoire({ code }: { code: string | null }) {
-  const [demande, setDemande] = useState(false);
-  const [occupe, setOccupe] = useState(false);
+  const [regarde, setRegarde] = useState<EtatRepertoire | null>(null);
+  const [occupe, setOccupe] = useState<"" | "regarde" | "enregistre">("");
   const [bilan, setBilan] = useState<string>("");
 
+  /* GRATUIT. Une lecture du seau, aucun son fabriqué, aucun centime. */
+  async function regarder() {
+    if (!code) { setBilan("Il faut ton code."); return; }
+    setOccupe("regarde");
+    setBilan("Elle compte ce qui manque. C'est gratuit — rien n'est fabriqué.");
+    try {
+      const r = await fetch("/api/repertoire", { headers: { "x-bia-code": code } });
+      const d = await r.json() as EtatRepertoire;
+      if (d.erreur) { setBilan(d.erreur); setRegarde(null); return; }
+      setRegarde(d);
+      setBilan(
+        d.manquants === 0
+          ? `Rien ne manque : les ${d.en_place} sons sont en place, et ils ne se paieront plus jamais.`
+          : `Il manque ${d.manquants} son(s) sur ${d.attendus} — ${d.signes} signes, ${d.cout_dollars} $.`
+            + ` ${d.en_place} sont déjà là et ne seront pas repayés.`
+      );
+    } catch (e) {
+      setBilan(`Le comptage n'a pas abouti : ${(e as Error).message}`);
+      setRegarde(null);
+    } finally {
+      setOccupe("");
+    }
+  }
+
+  /* CELUI-LÀ COÛTE. Il ne refait jamais ce qui existe. */
   async function enregistrer() {
     if (!code) { setBilan("Il faut ton code."); return; }
-    setOccupe(true);
+    setOccupe("enregistre");
     setBilan("Elle enregistre les phrases une à une. Ça prend une minute ou deux — ne ferme pas.");
     try {
       const r = await fetch("/api/repertoire", { method: "POST", headers: { "x-bia-code": code } });
@@ -3549,40 +3608,48 @@ function PapierRepertoire({ code }: { code: string | null }) {
         `${d.enregistres} phrase(s) enregistrée(s) pour ${d.cout_dollars} $.`
         + (d.deja_la ? ` ${d.deja_la} y étaient déjà — non repayées.` : "")
         + ` ${d.desormais_gratuit} phrases ne coûteront plus jamais rien.`
+        /* Ce qui a raté reste à refaire : on repart de l'état réel du seau, pas
+           d'un souvenir. Un seul appui de plus suffira. */
         + (rates.length
-          ? ` ⚠ ${rates.length} ratée(s) : ${rates.slice(0, 3).map((x) => `${x.cle} (${x.motif})`).join(", ")}`
+          ? ` ⚠ ${rates.length} ratée(s) : ${rates.slice(0, 3).map((x) => `${x.cle} (${x.motif})`).join(", ")}.`
+            + " Appuie encore : il ne refera que celles-là."
           : "")
       );
-      setDemande(false);
+      setRegarde(null);
     } catch (e) {
       setBilan(`Ça n'a pas abouti : ${(e as Error).message}`);
     } finally {
-      setOccupe(false);
+      setOccupe("");
     }
   }
 
+  const resteAFaire = regarde !== null && (regarde.manquants || 0) > 0;
+
   return (
     <p className="papier-note" style={{ marginTop: 14 }}>
-      {!demande ? (
-        <button type="button" className="papier-lien" onClick={() => setDemande(true)}>
-          Enregistrer ce qui manque →
+      {!resteAFaire ? (
+        <button type="button" className="papier-lien" disabled={occupe !== ""}
+          onClick={() => void regarder()}>
+          {occupe === "regarde" ? "Elle compte…" : "Regarder ce qui manque →"}
         </button>
       ) : (
         <>
-          <button type="button" className="papier-lien" disabled={occupe}
+          <button type="button" className="papier-lien" disabled={occupe !== ""}
             onClick={() => void enregistrer()}>
-            {occupe ? "Elle enregistre…" : "Oui, enregistre — environ 1,63 $"}
+            {occupe === "enregistre"
+              ? "Elle enregistre…"
+              : `Oui, enregistre — ${regarde?.cout_dollars} $`}
           </button>
-          {!occupe ? (
+          {occupe === "" ? (
             <button type="button" className="papier-lien" style={{ marginLeft: 8 }}
-              onClick={() => { setDemande(false); setBilan(""); }}>
+              onClick={() => { setRegarde(null); setBilan(""); }}>
               Pas maintenant
             </button>
           ) : null}
         </>
       )}
       <br />
-      {bilan || "Les 42 sont déjà faites : elles ne seront pas repayées. Restent les 69 nouvelles, en wolof et en français. Une seule fois — après, elles sont dites sans rien payer et sans attendre."}
+      {bilan || "Regarder est gratuit : elle lit le seau et dit ce qui manque, sans rien fabriquer. Tu ne dépenses qu'au second appui, et seulement ce qui manque — une phrase déjà enregistrée n'est jamais repayée."}
     </p>
   );
 }
