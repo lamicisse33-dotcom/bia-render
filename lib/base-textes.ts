@@ -54,21 +54,7 @@ export const NOUVELLES: Nouvelle[] = [
     numero: 43, cle: "quoi-de-neuf", type: "FIXE", groupe: "Conversation naturelle",
     wolof: "Dara beesul Yow nag, lu béss.?",
     francais: "Rien de nouveau ici. Et toi, quoi de neuf ?",
-    /* ── « LU XEW » EST RÉCLAMÉ PAR DEUX RÉPONSES, ET C'EST LAMINE QUI TRANCHE
-
-       Il l'a déclaré ici le 11 septembre après-midi. Mais le matin du même
-       jour, il l'avait déjà mis dans ses six façons de dire « ça va », et
-       avec une raison écrite : « naka mbir yi » et « lu xew » ne parlent pas
-       du corps ni de la santé, ils demandent où en sont les choses — c'est ça
-       qu'on dit vraiment en croisant quelqu'un.
-
-       Une formulation ne peut pas déclencher deux réponses. Devant deux de
-       ses décisions, je garde celle qui porte son raisonnement écrit : « lu
-       xew » reste sur `ca-va`. Les cinq autres formulations suffisent à
-       atteindre celle-ci, et rien de ce qu'elle DIT n'a changé.
-
-       Un mot de lui et elles s'échangent : c'est une ligne à déplacer. */
-    formes: ["Quoi de neuf ?", "Lu bees am ?", "Ana nouvelles yi ?", "Wax ma lu xew ci yaw", "Y a quoi de neuf chez toi ?"],
+    formes: ["Lu xew ?", "Quoi de neuf ?", "Lu bees am ?", "Ana nouvelles yi ?", "Wax ma lu xew ci yaw", "Y a quoi de neuf chez toi ?"],
   },
   {
     numero: 44, cle: "comment-sest-passee-ta-journee", type: "FIXE", groupe: "Conversation naturelle",

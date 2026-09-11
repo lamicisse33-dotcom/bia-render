@@ -189,26 +189,16 @@ export const REPERTOIRE: Entree[] = [
     cle: "de-rien",
     wolof: "Ah li dou dara.",
     francais: "Il n'y a vraiment pas de quoi.",
-    /* ── SIX FORMULATIONS SONT PARTIES VERS « compliment », LE 11 SEPTEMBRE ──
-
-       Lamine a créé l'entrée `compliment` dans les soixante-neuf, et il l'a
-       rangée lui-même dans le groupe « Nées des corrections aux 42 » : c'est
-       en relisant celle-ci qu'il a vu le défaut. « Baax nga », « Yaa gën »,
-       « Bravo », « Tu es forte », « Sa liggéey baax na » ne remercient pas —
-       ils félicitent. Et « Ah li dou dara », « il n'y a pas de quoi », répond
-       à un merci, pas à un compliment. Elle répondait à côté.
-
-       Elles déclenchent donc maintenant « dJërëjëf. Neexna ma may dégg
-       loolu. » — « merci, cela me fait plaisir de l'entendre ».
-
-       CE QU'ELLE DIT ICI N'A PAS CHANGÉ D'UN MOT. Seules les formulations qui
-       l'appellent ont bougé, et son enregistrement reste valable.
-
-       Restent ici les trois qui remercient vraiment. */
     formes: [
+      "baax nga",
+      "yaa gen",
+      "bravo bia",
+      "sa liggeey baax na",
+      "tu es forte",
       "nice",
       "c est gentil",
       "tu es gentille",
+      "bravo",
     ],
     emotion: "douce",
   },
@@ -675,11 +665,7 @@ export const REPERTOIRE: Entree[] = [
       "fan la khalam nekk",
       "votre site",
       "comment vous joindre",
-      /* « c est quoi votre site » est partie vers `site-khalam`, née elle
-         aussi des corrections aux 42 : elle nomme le site et dit ce qu'on y
-         trouve — « les jeux, les applications et les informations » — là où
-         celle-ci répond seulement « sur khalam.app ». Les neuf autres
-         formulations restent ici. */
+      "c est quoi votre site",
       "ou telecharger",
       "fan ngeen nekk",
       "votre adresse",

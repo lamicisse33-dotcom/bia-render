@@ -183,6 +183,100 @@ export const TOUT: Entree[] = [
 /** Y a-t-il de quoi répondre sans rien payer ? */
 export const REPERTOIRE_PRET = TOUT.length > 0;
 
+/* ── QUAND DEUX RÉPONSES SE DISPUTENT LA MÊME QUESTION ──────────────────────
+
+   Lamine, le 11 septembre 2026, en me voyant retirer des formulations :
+   « tout ce que j'ai regardé et corrigé doit être appelé, c'est-à-dire une
+   réponse peut être appelée par plusieurs questions, c'est ce qu'on avait
+   dit, donc tu ne devais rien supprimer. »
+
+   Il a raison, et j'avais résolu le problème par le mauvais bout. Sa règle
+   n'a jamais posé de difficulté : UNE RÉPONSE, PLUSIEURS QUESTIONS — c'est
+   tout l'objet des six formulations, et il y en a six cent treize pour
+   quatre-vingt-quatre réponses.
+
+   Ce qui ne peut pas exister, c'est l'inverse : UNE QUESTION, DEUX RÉPONSES.
+   Quand quelqu'un dit « Baax nga », il faut bien qu'une seule chose sorte du
+   haut-parleur. Sept formulations étaient déclarées deux fois, et j'en avais
+   effacé une copie — donc j'avais touché à ses listes.
+
+   ON N'EFFACE PLUS RIEN. Ses deux listes restent exactement comme il les a
+   écrites, formulation pour formulation. C'est ici, dans le code, qu'on dit
+   laquelle répond — une ligne, visible, et qui se change en un mot.
+
+   Et ce qui n'est pas tranché n'est pas deviné : une formulation disputée
+   sans décision ne déclenche RIEN et s'affiche dans /api/etat. Une réponse
+   au hasard vaut moins que le modèle qui réfléchit. */
+export const QUI_REPOND: Record<string, string> = {
+  /* Les cinq félicitations quittent `de-rien` pour `compliment`. C'est Lamine
+     qui a créé `compliment`, dans le groupe qu'il a nommé « Nées des
+     corrections aux 42 » : c'est en relisant `de-rien` qu'il a vu le défaut.
+     « Baax nga », « Yaa gën », « Bravo » ne remercient pas, ils félicitent —
+     et « Ah li dou dara », « il n'y a pas de quoi », répond à un merci.
+     Les deux réponses gardent toutes leurs formulations. */
+  "baax nga": "compliment",
+  "yaa gen": "compliment",
+  "sa liggeey baax na": "compliment",
+  "tu es forte": "compliment",
+  "bravo": "compliment", // « bravo » et « bravo bia » : normaliser retire « bia »
+
+  /* `site-khalam` nomme le site et dit ce qu'on y trouve — les jeux, les
+     applications, les informations — là où `ou-nous-trouver` répond seulement
+     « sur khalam.app ». Les deux gardent toutes leurs formulations. */
+  "c est quoi votre site": "site-khalam",
+
+  /* « lu xew » : deux décisions de Lamine le même jour. Je garde celle qui
+     porte son raisonnement écrit — « lu xew » ne parle ni du corps ni de la
+     santé, il demande où en sont les choses, c'est ça qu'on dit en croisant
+     quelqu'un. `quoi-de-neuf` garde ses six formulations et reste atteignable
+     par les cinq autres. Un mot de lui et cette ligne devient
+     "quoi-de-neuf". */
+  "lu xew": "ca-va",
+};
+
+/* La même table, mais indexée sur ce que ça SONNE : la troisième passe
+   compare des sonorités, et une dispute doit se trancher là aussi. */
+const QUI_REPOND_SON: Record<string, string> = {};
+for (const [forme, cle] of Object.entries(QUI_REPOND)) QUI_REPOND_SON[sonne(forme)] = cle;
+
+/* Les formulations déclarées par plus d'une réponse. CALCULÉES, jamais
+   écrites à la main : le jour où Lamine ajoute une tournure qui existe déjà
+   ailleurs, elle apparaît ici toute seule. */
+function disputees(clef: (s: string) => string): Set<string> {
+  const vu = new Map<string, string>();
+  const deux = new Set<string>();
+  for (const e of TOUT) {
+    for (const f of e.formes) {
+      const k = clef(f);
+      if (!k) continue;
+      const avant = vu.get(k);
+      if (avant && avant !== e.cle) deux.add(k);
+      else vu.set(k, e.cle);
+    }
+  }
+  return deux;
+}
+const DISPUTEES_LETTRE = disputees(normaliser);
+const DISPUTEES_SON = disputees(sonne);
+
+/** Les disputes que personne n'a tranchées. Elles ne déclenchent rien, et
+    elles se lisent dans /api/etat — c'est la liste à me montrer. */
+export const A_TRANCHER: string[] = [
+  ...new Set([
+    ...[...DISPUTEES_LETTRE].filter((k) => !QUI_REPOND[k]),
+    ...[...DISPUTEES_SON].filter((k) => !QUI_REPOND_SON[k]),
+  ]),
+].sort();
+
+/** Qui répond vraiment quand on dit cette formulation. null = disputé et non
+    tranché : on laisse passer au modèle plutôt que de choisir au hasard. */
+function quiRepond(forme: string, declarePar: Entree, parLeSon: boolean): Entree | null {
+  const k = parLeSon ? sonne(forme) : normaliser(forme);
+  const tranche = (parLeSon ? QUI_REPOND_SON : QUI_REPOND)[k];
+  if (tranche) return TOUT.find((e) => e.cle === tranche) || declarePar;
+  return (parLeSon ? DISPUTEES_SON : DISPUTEES_LETTRE).has(k) ? null : declarePar;
+}
+
 /* Jamais moins de six mots, jamais moins que la plus longue formule déclarée.
    Calculé une fois, au chargement, sur les DEUX listes. */
 const LIMITE_MOTS = Math.max(
@@ -218,7 +312,9 @@ export function trouverDansRepertoire(question: string): Entree | null {
      seulement ensuite les approchées. */
   for (const e of TOUT) {
     for (const f of e.formes) {
-      if (q === normaliser(f)) return e;
+      if (q !== normaliser(f)) continue;
+      const r = quiRepond(f, e, false);
+      if (r) return r;
     }
   }
 
@@ -230,7 +326,10 @@ export function trouverDansRepertoire(question: string): Entree | null {
       if (forme.length < 5) continue;
       /* On tolère ce qui entoure une salutation sans rien y ajouter :
          « bonjour bia », « salaam waalekum salaam ». Rien de plus. */
-      if (q.length <= forme.length + 12 && (q.startsWith(forme + " ") || q.endsWith(" " + forme))) return e;
+      if (q.length <= forme.length + 12 && (q.startsWith(forme + " ") || q.endsWith(" " + forme))) {
+        const r = quiRepond(f, e, false);
+        if (r) return r;
+      }
     }
   }
 
@@ -239,7 +338,9 @@ export function trouverDansRepertoire(question: string): Entree | null {
   if (!dit) return null;
   for (const e of TOUT) {
     for (const f of e.formes) {
-      if (dit === sonne(f)) return e;
+      if (dit !== sonne(f)) continue;
+      const r = quiRepond(f, e, true);
+      if (r) return r;
     }
   }
 
@@ -248,7 +349,10 @@ export function trouverDansRepertoire(question: string): Entree | null {
   for (const e of TOUT) {
     for (const f of e.formes) {
       const forme = sonne(f);
-      if (forme.length >= 8 && uneLettreDEcart(dit, forme)) proches.add(e);
+      if (forme.length >= 8 && uneLettreDEcart(dit, forme)) {
+        const r = quiRepond(f, e, true);
+        if (r) proches.add(r);
+      }
     }
   }
   return proches.size === 1 ? [...proches][0] : null;
@@ -413,6 +517,9 @@ export function etatRepertoire() {
       : NOUVELLES.length,
     textes_relus_par_lamine: RELU,
     textes_nouveaux_relus: RELU_BASE,
+    /* Les questions réclamées par deux réponses et que personne n'a
+       tranchées. Elles ne déclenchent rien — c'est la liste à me montrer. */
+    formulations_a_trancher: A_TRANCHER,
     seau: SEAU,
     actif: repertoireActif() && REPERTOIRE_PRET,
   };
