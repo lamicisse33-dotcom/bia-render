@@ -20,7 +20,7 @@ import { lireMesures, noterMesure } from "@/lib/chrono";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
-import { ralentir, vitesseChoisie } from "@/lib/ralentir";
+import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie } from "@/lib/ralentir";
 import Installer from "./installer";
 import Ecran from "./ecran";
 import type { PieceEcran } from "./ecran";
@@ -224,6 +224,27 @@ export default function Home() {
      s'ouvre pour te montrer cette image ». Il ne vit pas dans le fil : c'est
      une surface à lui, et une seule à la fois. */
   const [ecran, setEcran] = useState<{ titre: string; pieces: PieceEcran[]; credit?: string } | null>(null);
+
+  /* ── LE DÉBIT DE SA VOIX, À PORTÉE DE MAIN ──────────────────────────────
+     Lamine, le 11 septembre 2026 : « où se trouve le réglage dont tu parles ?
+     Il n'y a aucun bouton paramètre sur BIA. »
+
+     Il avait raison, et c'est la deuxième fois que je fais la même erreur en
+     deux jours : j'avais mis ce curseur sur /reglage — une page sans lien,
+     qu'il faut taper à la main et qui demande le code maître. Autant dire
+     qu'elle n'existe pas.
+
+     Le débit n'est pas un réglage d'atelier : c'est un confort d'écoute, et
+     il change d'une personne à l'autre. Quelqu'un qui comprend mal le
+     français veut l'entendre plus lentement, quelqu'un de pressé non. Il vit
+     donc dans « Moi », avec le reste de ce qui appartient à la personne, et
+     il ne demande aucun code. */
+  const [debit, setDebit] = useState(VITESSE_POSEE);
+  useEffect(() => { setDebit(vitesseChoisie()); }, []);
+  useEffect(() => {
+    // Écrit à chaque mouvement : elle le lira au mot suivant, sans rien relancer.
+    try { localStorage.setItem(CLE_VITESSE, String(debit)); } catch {}
+  }, [debit]);
 
   /* Une seule surface : un nouvel écran remplace l'ancien au lieu de
      s'empiler dessus. Deux écrans de chaussures l'un sur l'autre, personne
@@ -2622,9 +2643,26 @@ export default function Home() {
           onChange={(e) => setEmetteur((v) => ({ ...v, [cle]: e.target.value }))} />
       </label>
     );
+    /* Trois repères écrits en toutes lettres : un curseur nu ne dit rien à
+       quelqu'un qui ne lit pas les chiffres. */
+    const mot = debit <= 0.68 ? "Très posée" : debit <= 0.78 ? "Posée" : debit <= 0.9 ? "Normale" : "Vive";
+
     return (
       <>
-        <p className="papier-titre">Mes renseignements</p>
+        <p className="papier-titre">La voix de BIA</p>
+        <p className="papier-note">
+          Si elle parle trop vite, ralentis-la. Sa voix ne change pas — elle
+          prend seulement son temps. C&apos;est pour toi seul, sur ce téléphone.
+        </p>
+        <label className="papier-debit">
+          <span>Elle parle&nbsp;: <b>{mot}</b></span>
+          <input type="range" min={0.6} max={1} step={0.05} value={debit}
+            aria-label="Vitesse de la voix de BIA"
+            onChange={(e) => setDebit(Number(e.target.value))} />
+          <span className="papier-debit-bornes"><i>Plus lentement</i><i>Plus vite</i></span>
+        </label>
+
+        <p className="papier-titre" style={{ marginTop: 22 }}>Mes renseignements</p>
         <p className="papier-note">
           Donnés une fois, ils reviennent sur chacun de tes papiers. Le NINEA et le
           registre de commerce sont ce qui rend un devis recevable par une
