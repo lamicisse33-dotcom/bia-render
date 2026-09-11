@@ -57,7 +57,12 @@ export const REPERTOIRE: Entree[] = [
     cle: "bonsoir",
     wolof: "Naka tay ? Maa ngi thi Diam",
     francais: "Bonsoir. Je suis là.",
-    formes: ["bonsoir", "naka ngoon si", "naka ngoon"],
+    /* Les six de Lamine, le 11 septembre 2026. « Naka soirée bi » et « ya ngi
+       cool » sont des tournures que je n'aurais jamais écrites : c'est
+       exactement pour ça qu'elles manquaient. */
+    formes: ["naka ngoon si", "ya ngi cool", "naka ka nga def si ngoon si",
+      "naka sa ngoon", "naka soiree bi", "jamm nga yendoo",
+      "bonsoir", "naka ngoon"],
     emotion: "douce",
   },
   {
