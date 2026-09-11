@@ -22,7 +22,18 @@ import { creerCode } from "@/lib/codes";
    le code maître. Deux verrous valent mieux qu'un.
 
    La vraie protection reste le code maître : il ne circule que depuis SON
-   téléphone, et il n'est écrit nulle part dans le code. */
+   téléphone, et il n'est écrit nulle part dans le code.
+
+   ── PARLER LA MÊME LANGUE QUE LES DEUX AUTRES ─────────────────────────────
+
+   Sa page appelle déjà /api/code-testeur pour l'Interprète et BIBA : le code
+   maître voyage dans l'en-tête « x-code-acces », le corps porte { nom, heures },
+   et la réponse rend { code, expire, quota, nom }.
+
+   On accepte ici EXACTEMENT la même forme. Autrement il aurait fallu deux
+   chemins séparés dans sa page — deux endroits à corriger le jour où l'un
+   bouge, et un seul des deux corrigé. Une seule différence subsiste, celle
+   qu'on ne peut pas effacer : l'adresse du serveur. */
 
 const MAISON = /^https:\/\/([a-z0-9-]+\.)?khalam\.app$/;
 
@@ -40,7 +51,10 @@ function entetes(origine: string | null): Record<string, string> {
   if (!permise) return {};
   return {
     "access-control-allow-origin": permise,
-    "access-control-allow-headers": "content-type",
+    // « x-code-acces » doit figurer ici : sa page l'envoie, et un en-tête non
+    // annoncé fait échouer la demande de permission, donc l'appel n'est jamais
+    // envoyé. C'est le genre de panne qui ne laisse aucune trace utile.
+    "access-control-allow-headers": "content-type, x-code-acces",
     "access-control-allow-methods": "POST, OPTIONS",
     "access-control-max-age": "86400",
     vary: "origin",
@@ -64,10 +78,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ erreur: "Origine refusée." }, { status: 403 });
   }
 
+  const propre = (v: unknown) => String(v ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
   try {
-    const body = await request.json() as { maitre?: string; heures?: number; nombre?: number };
-    const maitre = (process.env.BIA_CODE_MAITRE || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const donne = String(body.maitre || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const body = await request.json() as {
+      maitre?: string; heures?: number; nombre?: number; nom?: string;
+    };
+
+    /* Le code maître vient de l'en-tête (comme pour l'Interprète) ou du corps :
+       les deux marchent, personne n'a à se souvenir duquel. */
+    const maitre = propre(process.env.BIA_CODE_MAITRE);
+    const donne = propre(request.headers.get("x-code-acces") || body.maitre);
     if (!maitre || donne !== maitre) {
       return NextResponse.json({ erreur: "Code maître refusé." }, { status: 403, headers: tete });
     }
@@ -75,16 +96,24 @@ export async function POST(request: NextRequest) {
     const heures = Math.min(Math.max(Number(body.heures) || 2, 0.25), 720);
     const nombre = Math.min(Math.max(Number(body.nombre) || 1, 1), 50);
     const codes = Array.from({ length: nombre }, () => creerCode(heures));
+    const questions = Number(process.env.BIA_MAX_QUESTIONS || 15);
 
-    /* On renvoie aussi le nom de l'application et l'adresse où le code
-       s'emploie : la page qui les fabrique en sert trois, et un code sans son
-       adresse ne vaut rien pour celui qui le reçoit. */
+    /* Le prénom revient tel qu'il a été tapé, nettoyé de ce qui n'a rien à
+       faire dans un prénom : il finira dans le message qu'il enverra. */
+    const nom = String(body.nom || "").replace(/[^\p{L}\p{M}' -]/gu, "").trim().slice(0, 16);
+
     return NextResponse.json({
+      // La forme que sa page attend déjà.
+      code: codes[0],
+      expire: new Date(Date.now() + heures * 3600_000).toISOString(),
+      quota: questions,
+      nom,
+      // Et ce qu'on rendait avant, pour qui appelle cette route directement.
       codes,
       heures,
+      questions,
       application: "BIA",
       adresse: "bia.khalam.app",
-      questions: Number(process.env.BIA_MAX_QUESTIONS || 15),
     }, { headers: tete });
   } catch {
     return NextResponse.json({ erreur: "Requête mal formée." }, { status: 400, headers: tete });
