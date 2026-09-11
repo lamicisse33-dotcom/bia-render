@@ -17,8 +17,17 @@
 /* Tant que ceci vaut false, RIEN ne s'enregistre et rien ne se sert de
    mémoire : on n'achète pas quarante fichiers audio pour découvrir ensuite
    qu'une phrase sur trois sonne faux à l'oreille d'un Dakarois. Le jour où
-   Lamine a écouté et corrigé, on passe à true et on enregistre une fois. */
-export const RELU = false;
+   Lamine a écouté et corrigé, on passe à true et on enregistre une fois.
+
+   CE JOUR EST ARRIVÉ — 11 septembre 2026. Il a corrigé 34 des 42 phrases,
+   puis il les a toutes écoutées : « j'ai tout écouté à la voix, elle prononce
+   correctement, tout est bien. »
+
+   Le verrou est donc levé. Il ne se relève pas tout seul : si on RETOUCHE un
+   texte plus tard, son enregistrement d'avant reste en place et la nouvelle
+   version ne sera jamais dite. Changer un texte veut dire effacer son fichier
+   dans le seau « repertoire » — sinon on corrige dans le vide. */
+export const RELU = true;
 
 export type Entree = {
   /** Le nom du fichier son, et la clé de l'entrée. */

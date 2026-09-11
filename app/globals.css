@@ -1483,6 +1483,11 @@ button { font: inherit; touch-action: manipulation; }
 /* La porte d'entrée, dans « Moi ». Elle part avec le reste du bloc. */
 .papier-lien {
   display: inline-block;
+  /* Il sert aussi de bouton : sans ça, le navigateur lui met sa propre
+     bordure grise et sa police système, et il ne ressemble plus à son voisin. */
+  font: inherit;
+  background: transparent;
+  cursor: pointer;
   margin-bottom: 4px;
   padding: 9px 14px;
   border: 1px solid rgba(231,198,103,.45);
@@ -1492,6 +1497,7 @@ button { font: inherit; touch-action: manipulation; }
   text-decoration: none;
 }
 .papier-lien:active { background: rgba(231,198,103,.14); }
+.papier-lien:disabled { opacity: .5; cursor: default; }
 /* ELLE DOIT DÉFILER, ET ELLE NE DÉFILAIT PAS.
 
    Lamine, le 11 septembre 2026 : « la page de correction ne défile pas, on ne

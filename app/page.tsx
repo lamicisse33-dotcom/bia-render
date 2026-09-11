@@ -2785,6 +2785,24 @@ export default function Home() {
           </p>
         ) : null}
 
+        {/* LE BOUTON QUI ENREGISTRE — une fois, et il n'y a rien après.
+
+            Lamine, le 11 septembre 2026 : « j'ai tout écouté, tout est bien.
+            Est-ce que ça sera enregistré dans le lexique ? Comme ça on n'aura
+            plus jamais besoin de payer ça. »
+
+            IL DOIT LE LANCER LUI-MÊME. La route exige son code maître, et son
+            code ne doit sortir de son téléphone pour personne — moi compris.
+
+            LE PRIX EST ÉCRIT AVANT, PAS APRÈS, et il faut appuyer deux fois.
+            Un bouton qui dépense un dollar sans prévenir est un piège, même
+            quand c'est le sien.
+
+            Ce n'est pas grave de le presser deux fois : ce qui est déjà
+            enregistré n'est jamais refabriqué — la route regarde d'abord si
+            le fichier existe. */}
+        {estMaitre ? <PapierRepertoire code={code} /> : null}
+
         <p className="papier-titre" style={{ marginTop: 22 }}>Mes renseignements</p>
         <p className="papier-note">
           Donnés une fois, ils reviennent sur chacun de tes papiers. Le NINEA et le
@@ -3486,5 +3504,80 @@ export default function Home() {
 
       <p className="sr-only" aria-live="polite">{labels[mode]}</p>
     </main>
+  );
+}
+
+/* ── ENREGISTRER LE RÉPERTOIRE, UNE SEULE FOIS ──────────────────────────────
+
+   Ce petit bloc vit à part du reste : il ne sert qu'à Lamine, il ne s'affiche
+   que pour son code maître, et le jour où les 42 phrases sont dans le seau il
+   n'a plus rien à faire — il dira « tout y est déjà », et on pourra l'enlever
+   avec la page d'écoute.
+
+   TROIS CHOSES QU'IL FAIT ET QU'UN BOUTON ORDINAIRE NE FAIT PAS :
+
+   1. il annonce le prix AVANT, et demande une deuxième fois ;
+   2. il dit ce qui s'est passé, phrase par phrase, y compris les ratés — un
+      dépôt refusé par Supabase ne doit pas se cacher derrière un « c'est
+      fait » ;
+   3. il se verrouille pendant le travail : quarante fabrications de voix
+      prennent du temps, et deux appuis lanceraient deux fois la dépense. */
+function PapierRepertoire({ code }: { code: string | null }) {
+  const [demande, setDemande] = useState(false);
+  const [occupe, setOccupe] = useState(false);
+  const [bilan, setBilan] = useState<string>("");
+
+  async function enregistrer() {
+    if (!code) { setBilan("Il faut ton code."); return; }
+    setOccupe(true);
+    setBilan("Elle enregistre les phrases une à une. Ça prend une minute ou deux — ne ferme pas.");
+    try {
+      const r = await fetch("/api/repertoire", { method: "POST", headers: { "x-bia-code": code } });
+      const d = await r.json() as {
+        erreur?: string; enregistres?: number; deja_la?: number;
+        cout_dollars?: number; desormais_gratuit?: number;
+        rates?: Array<{ cle: string; langue: string; motif: string }>;
+      };
+      if (d.erreur) { setBilan(d.erreur); return; }
+      const rates = d.rates || [];
+      setBilan(
+        `${d.enregistres} phrase(s) enregistrée(s) pour ${d.cout_dollars} $.`
+        + (d.deja_la ? ` ${d.deja_la} y étaient déjà — non repayées.` : "")
+        + ` ${d.desormais_gratuit} phrases ne coûteront plus jamais rien.`
+        + (rates.length
+          ? ` ⚠ ${rates.length} ratée(s) : ${rates.slice(0, 3).map((x) => `${x.cle} (${x.motif})`).join(", ")}`
+          : "")
+      );
+      setDemande(false);
+    } catch (e) {
+      setBilan(`Ça n'a pas abouti : ${(e as Error).message}`);
+    } finally {
+      setOccupe(false);
+    }
+  }
+
+  return (
+    <p className="papier-note" style={{ marginTop: 14 }}>
+      {!demande ? (
+        <button type="button" className="papier-lien" onClick={() => setDemande(true)}>
+          Enregistrer les 42 phrases →
+        </button>
+      ) : (
+        <>
+          <button type="button" className="papier-lien" disabled={occupe}
+            onClick={() => void enregistrer()}>
+            {occupe ? "Elle enregistre…" : "Oui, enregistre — environ 1,01 $"}
+          </button>
+          {!occupe ? (
+            <button type="button" className="papier-lien" style={{ marginLeft: 8 }}
+              onClick={() => { setDemande(false); setBilan(""); }}>
+              Pas maintenant
+            </button>
+          ) : null}
+        </>
+      )}
+      <br />
+      {bilan || "Une seule fois. Après, ces phrases-là sont dites sans rien payer — et sans attendre."}
+    </p>
   );
 }
