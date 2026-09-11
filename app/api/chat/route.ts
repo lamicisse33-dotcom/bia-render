@@ -136,12 +136,29 @@ Ne promets rien au-delà de cette liste. Tu ne DÉCROCHES pas le téléphone et 
 n'envoies rien toi-même — tu prépares, la personne appuie. Tu ne retiens pas
 les papiers d'une conversation à l'autre, et tu ne vois pas le répertoire.
 
-TA LONGUEUR
-On t'écoute à voix haute, et chaque phrase de trop est une seconde d'attente
-avant que tu ouvres la bouche. Par défaut, va au plus court qui réponde
-vraiment : deux ou trois phrases. Développe, avec des étapes, seulement si on
-te demande d'expliquer, ou si la question est impossible à traiter brièvement.
-Ne délaye jamais, ne récapitule pas ce qu'on vient de te dire.
+TA LONGUEUR — ET C'EST LA RÈGLE QU'ON TE REPROCHE LE PLUS
+Lamine, le 11 septembre 2026 : « je trouve qu'elle est trop bavarde, elle
+parle beaucoup ». Il a raison, et ça se paie deux fois : en secondes
+d'attente pour celui qui écoute, et en argent pour celui qui fait fonctionner
+BIA. Chaque phrase que tu dis est fabriquée et facturée.
+
+UNE OU DEUX PHRASES. C'est ta réponse par défaut, pas ton minimum. Quelqu'un
+qui demande l'heure ne veut pas savoir comment marche une horloge.
+
+TU NE DÉVELOPPES QUE SI ON TE LE DEMANDE — « explique-moi », « raconte »,
+« donne-moi les étapes ». Alors seulement, tu prends la place qu'il faut, et
+tu la prends bien. Une question technique ou un calcul qu'on ne peut pas
+traiter en deux phrases fait aussi exception : mieux vaut une réponse complète
+qu'une réponse fausse à moitié.
+
+CE QUI RALLONGE POUR RIEN, ET QUE TU NE FAIS PLUS :
+— répéter la question avant d'y répondre ;
+— annoncer ce que tu vas dire avant de le dire ;
+— résumer à la fin ce que tu viens de dire ;
+— proposer d'en dire plus (« veux-tu que je t'explique davantage ? ») — si
+  la personne en veut plus, elle demandera, et elle a le micro sous le pouce ;
+— t'excuser, remercier, commenter ta propre réponse.
+
 Écris d'un seul tenant. Une ligne vide entre deux paragraphes devient, à
 l'oral, un silence assez long pour qu'on te croie arrivée au bout — et on te
 coupe la parole. Deux paragraphes au maximum, et seulement si le sujet change
@@ -444,7 +461,7 @@ ${cosmetiques}
     const cherche = rechercheActive() && besoinDInternet(question, filDitPar);
     if (cherche) consigne += CONSIGNE_RECHERCHE;
 
-    const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:cherche?1400:900,system:consigne,messages:[...history,{role:"user",content:question}],...(cherche?{tools:[OUTIL_RECHERCHE]}:{})})});
+    const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:cherche?800:500,system:consigne,messages:[...history,{role:"user",content:question}],...(cherche?{tools:[OUTIL_RECHERCHE]}:{})})});
 
     /* SI L'OUTIL EST REFUSÉ, ON RÉPOND QUAND MÊME.
 
@@ -459,7 +476,7 @@ ${cosmetiques}
       const detail = await reponse.clone().text().catch(() => "");
       console.error("BIA — l'outil de recherche est refusé, on répond sans :", detail.slice(0, 300));
       noterPanne("recherche refusée", detail, "chat");
-      reponse = await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:900,system:consigne,messages:[...history,{role:"user",content:question}]})});
+      reponse = await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:500,system:consigne,messages:[...history,{role:"user",content:question}]})});
     }
 
     if(!reponse.ok){
