@@ -49,8 +49,8 @@ export type PieceEcran = {
 };
 
 export default function Ecran({
-  titre, pieces, onFermer,
-}: { titre: string; pieces: PieceEcran[]; onFermer: () => void }) {
+  titre, pieces, credit, onFermer,
+}: { titre: string; pieces: PieceEcran[]; credit?: string; onFermer: () => void }) {
   const [ouvert, setOuvert] = useState(false);
   const [joue, setJoue] = useState<string | null>(null);
   const [grande, setGrande] = useState<PieceEcran | null>(null);
@@ -87,7 +87,15 @@ export default function Ecran({
         <span className="ecran-eclair" aria-hidden="true" />
 
         <div className="ecran-tete">
-          <p className="ecran-titre">{titre}</p>
+          <p className="ecran-titre">
+            {titre}
+            {/* D'OÙ ÇA VIENT. Brave exige d'être cité par qui se sert de son
+                moteur — c'est écrit dans ses conditions, et c'est la
+                contrepartie du crédit mensuel. Mais ce n'est pas seulement une
+                obligation : quelqu'un a le droit de savoir qui a choisi les
+                images qu'on lui montre. */}
+            {credit ? <em className="ecran-credit">{credit}</em> : null}
+          </p>
           <button type="button" className="ecran-fermer" onClick={onFermer} aria-label="Fermer l'écran">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M18.3 7.1 16.9 5.7 12 10.6 7.1 5.7 5.7 7.1l4.9 4.9-4.9 4.9 1.4 1.4 4.9-4.9 4.9 4.9 1.4-1.4-4.9-4.9Z" />

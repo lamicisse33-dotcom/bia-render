@@ -19,7 +19,7 @@ import type { PieceEcran } from "./ecran";
 type Piece = { cle: string; sorte: "photo" | "video"; nom: string; url: string; attente?: string };
 type Sujet = { cle: string; nom: string; pieces: Piece[] };
 
-export type SujetVu = { titre: string; pieces: PieceEcran[] };
+export type SujetVu = { titre: string; pieces: PieceEcran[]; credit?: string };
 
 /* Deux demandes du même sujet dans la même conversation ne repartent pas au
    serveur. Le catalogue est déjà gardé côté serveur ; ceci évite même

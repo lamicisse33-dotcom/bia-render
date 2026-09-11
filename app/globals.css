@@ -968,6 +968,15 @@ button { font: inherit; touch-action: manipulation; }
   text-transform: none;
 }
 .ecran-titre::first-letter { text-transform: uppercase; }
+/* Le nom du moteur, en tout petit à la suite du titre. Il doit se lire, et
+   ne jamais concurrencer ce que BIA vient de dire. */
+.ecran-credit {
+  margin-left: 8px;
+  font-style: normal;
+  font-size: 10.5px;
+  letter-spacing: .02em;
+  color: rgba(255,255,255,.34);
+}
 .ecran-fermer {
   flex: none;
   width: 34px; height: 34px;

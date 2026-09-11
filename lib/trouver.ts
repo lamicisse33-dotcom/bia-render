@@ -11,20 +11,39 @@
    elle va chercher ce que personne n'a rangé pour elle. Quelqu'un décrit un
    sac en wolof, et les sacs apparaissent.
 
-   POURQUOI UNE CLÉ GOOGLE, ET PAS LA RECHERCHE QU'ELLE A DÉJÀ. La recherche
-   d'Anthropic (lib/recherche.ts) rapporte du TEXTE : des pages lues, résumées,
-   citées. Elle ne rend aucune image exploitable, et aucune consigne n'y
-   changera rien — ce n'est pas ce qu'elle renvoie. Pour des images il faut un
-   moteur d'images, pour des vidéos un moteur de vidéos.
+   POURQUOI PAS LA RECHERCHE QU'ELLE A DÉJÀ. Celle d'Anthropic
+   (lib/recherche.ts) rapporte du TEXTE : des pages lues, résumées, citées.
+   Elle ne rend aucune image exploitable, et aucune consigne n'y changera rien
+   — ce n'est pas ce qu'elle renvoie. Pour des images il faut un moteur
+   d'images, pour des vidéos un moteur de vidéos.
 
-   UNE SEULE CLÉ POUR LES DEUX, et c'est ce qui a décidé du fournisseur : une
-   clé Google Cloud sur laquelle on active « Custom Search API » et « YouTube
-   Data API v3 » fait tourner les deux moteurs. Cent recherches d'images par
-   jour et cent recherches de vidéos par jour, gratuites. Au-delà, l'image se
-   paie cinq dollars les mille — d'où le plafond plus bas.
+   ── POURQUOI DEUX FOURNISSEURS, ET PAS UN ──────────────────────────────────
 
-   CE QU'ON AFFICHE, ET CE QU'ON N'AFFICHE PAS. On montre la VIGNETTE que
-   Google héberge, jamais l'image du site en premier : beaucoup de boutiques
+   J'avais d'abord tout branché sur une seule clé Google : Custom Search API
+   pour les images, YouTube Data API pour les vidéos. Une clé, une facture,
+   simple. En allant chercher le lien exact à donner à Lamine, le 11 septembre
+   2026, j'ai lu le bandeau de la page officielle :
+
+     « The Custom Search JSON API is closed to new customers. »
+     (les clients existants ont jusqu'au 1er janvier 2027)
+
+   Lamine est un nouveau client : cette porte est fermée pour lui. Le code
+   était juste et inutilisable. C'est exactement pour ça qu'on va lire la page
+   au lieu de se fier à ce qu'on croit savoir.
+
+   LES IMAGES PASSENT DONC PAR BRAVE SEARCH, qui vend encore un moteur
+   d'images à qui veut : cinq dollars de crédit inclus chaque mois, environ
+   mille recherches, puis cinq dollars les mille. Une carte est exigée à
+   l'inscription. Brave demande en échange d'être CITÉ — c'est écrit dans ses
+   conditions, et c'est pour ça que son nom apparaît en bas de l'écran.
+
+   LES VIDÉOS RESTENT CHEZ GOOGLE : l'API YouTube, elle, est toujours ouverte,
+   gratuite, et donne cent recherches par jour — et surtout elle rend un
+   identifiant de vidéo, donc une vidéo qui se joue SUR PLACE au lieu d'un lien
+   qui emmène la personne ailleurs.
+
+   CE QU'ON AFFICHE, ET CE QU'ON N'AFFICHE PAS. On montre la VIGNETTE que le
+   moteur héberge, jamais l'image du site en premier : beaucoup de boutiques
    refusent qu'on affiche leurs images depuis ailleurs, et une vignette cassée
    vaut moins que pas d'image du tout. Chaque image porte le nom de son site
    et s'ouvre dessus : on montre où c'est, on ne s'attribue rien.
@@ -33,18 +52,28 @@
    chaussures. Ce que BIA rend, c'est ce qu'un moteur de recherche rend : des
    résultats, avec leur source. */
 
-const CLE = () => String(process.env.GOOGLE_CLE || "").trim();
-const MOTEUR = () => String(process.env.GOOGLE_CSE || "").trim();
+/** Brave Search, pour les images. */
+const BRAVE = () => String(process.env.BRAVE_CLE || "").trim();
+/** Clé Google Cloud avec « YouTube Data API v3 » activée, pour les vidéos. */
+const GOOGLE = () => String(process.env.GOOGLE_CLE || "").trim();
 
-export const imagesActives = () => Boolean(CLE() && MOTEUR());
-export const videosActives = () => Boolean(CLE());
+export const imagesActives = () => Boolean(BRAVE());
+export const videosActives = () => Boolean(GOOGLE());
 
-/* LE PLAFOND. Cent recherches d'images par jour sont gratuites ; la
-   cent-unième se paie. Le compteur repart chaque jour, et quand il est atteint
-   BIA répond sans image au lieu d'ouvrir une facture. Lamine a passé la soirée
-   du 11 septembre à diminuer les charges : ce n'est pas le lendemain qu'on lui
-   ouvre un robinet sans robinet d'arrêt. */
-const PLAFOND_IMAGES = Number(process.env.BIA_IMAGES_JOUR || 100);
+/** Brave exige d'être cité par qui utilise son moteur. On l'écrit sur
+    l'écran, et cette constante est ce que l'écran affiche. */
+export const CITATION_IMAGES = "Brave Search";
+
+/* LE PLAFOND. Brave offre cinq dollars de crédit par mois — environ mille
+   recherches — puis facture. YouTube donne cent recherches par jour,
+   gratuites. Le compteur repart chaque jour, et quand il touche le plafond
+   BIA répond sans image au lieu d'ouvrir une facture. Lamine a passé la
+   soirée du 11 septembre à diminuer les charges : ce n'est pas le lendemain
+   qu'on lui ouvre un robinet sans robinet d'arrêt.
+
+   Trente par jour pour les images : à ce rythme, le crédit mensuel de Brave
+   tient le mois entier sans qu'il ait à y penser. */
+const PLAFOND_IMAGES = Number(process.env.BIA_IMAGES_JOUR || 30);
 const PLAFOND_VIDEOS = Number(process.env.BIA_VIDEOS_JOUR || 100);
 
 const compte = { jour: "", images: 0, videos: 0 };
@@ -124,31 +153,45 @@ export async function chercherImages(demande: string): Promise<Trouvaille[]> {
   if (!prendre("images", PLAFOND_IMAGES)) return [];
 
   try {
-    const url = new URL("https://www.googleapis.com/customsearch/v1");
-    url.searchParams.set("key", CLE());
-    url.searchParams.set("cx", MOTEUR());
+    const url = new URL("https://api.search.brave.com/res/v1/images/search");
     url.searchParams.set("q", requete);
-    url.searchParams.set("searchType", "image");
-    url.searchParams.set("num", String(COMBIEN_IMAGES));
+    url.searchParams.set("count", String(COMBIEN_IMAGES));
     /* La sécurité au maximum. BIA est entre les mains de n'importe qui, et un
-       mot mal choisi ne doit jamais faire apparaître ce qu'il ne faut pas. */
-    url.searchParams.set("safe", "active");
+       mot mal choisi ne doit jamais faire apparaître ce qu'il ne faut pas.
+       (« strict » est déjà le défaut chez Brave ; on l'écrit quand même —
+       un défaut peut changer, une consigne écrite non.) */
+    url.searchParams.set("safesearch", "strict");
+    // Elle cherche en français : autant le dire au moteur.
+    url.searchParams.set("search_lang", "fr");
 
-    const r = await fetch(url, { cache: "no-store" });
+    const r = await fetch(url, {
+      headers: { accept: "application/json", "x-subscription-token": BRAVE() },
+      cache: "no-store",
+    });
     if (!r.ok) throw new Error(`images ${r.status}`);
     const d = (await r.json()) as {
-      items?: { title?: string; link?: string; image?: { thumbnailLink?: string; contextLink?: string } }[];
+      results?: {
+        title?: string;
+        url?: string;
+        source?: string;
+        thumbnail?: { src?: string };
+        properties?: { url?: string };
+        meta_url?: { hostname?: string };
+      }[];
     };
 
-    const pieces: Trouvaille[] = (d.items || []).map((x) => {
-      const page = propre(x.image?.contextLink) || propre(x.link);
+    const pieces: Trouvaille[] = (d.results || []).map((x) => {
+      const page = propre(x.url);
       return {
         sorte: "image" as const,
         titre: propre(x.title).slice(0, 90),
-        vignette: propre(x.image?.thumbnailLink),
-        grande: propre(x.link),
+        /* La vignette de Brave passe par son propre serveur : elle charge
+           toujours, là où l'image de la boutique est souvent refusée. */
+        vignette: propre(x.thumbnail?.src),
+        grande: propre(x.properties?.url) || undefined,
         page,
-        source: nomDuSite(page),
+        source: propre(x.meta_url?.hostname).replace(/^www\./, "")
+          || propre(x.source) || nomDuSite(page),
       };
     }).filter((x) => x.vignette && x.page);
 
@@ -156,8 +199,8 @@ export async function chercherImages(demande: string): Promise<Trouvaille[]> {
     return pieces;
   } catch {
     /* Rien trouvé n'est pas une panne : BIA a déjà répondu avec des mots, et
-       c'est l'essentiel. On garde le vide en mémoire cinq minutes pour ne pas
-       rappeler Google à chaque reformulation. */
+       c'est l'essentiel. On garde le vide en mémoire pour ne pas rappeler le
+       moteur à chaque reformulation. */
     garder(clef, []);
     return [];
   }
@@ -174,7 +217,7 @@ export async function chercherVideos(demande: string): Promise<Trouvaille[]> {
 
   try {
     const url = new URL("https://www.googleapis.com/youtube/v3/search");
-    url.searchParams.set("key", CLE());
+    url.searchParams.set("key", GOOGLE());
     url.searchParams.set("part", "snippet");
     url.searchParams.set("type", "video");
     url.searchParams.set("q", requete);
@@ -229,7 +272,7 @@ export function consigneTrouver(): string {
 
   return `
 
-TU PEUX ALLER CHERCHER DES IMAGES${v ? " ET DES VIDÉOS" : ""} SUR INTERNET
+TU PEUX ALLER CHERCHER ${i && v ? "DES IMAGES ET DES VIDÉOS" : i ? "DES IMAGES" : "DES VIDÉOS"} SUR INTERNET
 Quand quelqu'un te décrit une chose qu'il veut VOIR — un sac, des chaussures,
 un modèle de voiture, une coupe de cheveux, un plat, un lieu, un objet — tu
 peux la lui montrer. Tu écris la balise seule sur sa ligne, à la fin de ta

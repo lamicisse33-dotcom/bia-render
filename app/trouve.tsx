@@ -24,10 +24,15 @@ type Piece = {
 
 export type Resultat = { sorte: "image" | "video"; requete: string; pieces: Piece[] };
 
+/* Les deux moteurs, nommés. Brave l'exige ; pour YouTube c'est simplement
+   honnête — on ne laisse pas croire que BIA a filmé la vidéo. */
+const CREDIT = { image: "Brave Search", video: "YouTube" } as const;
+
 /** Ce que l'écran attend, à partir de ce que le serveur a rapporté. */
-export function versEcran(t: Resultat): { titre: string; pieces: PieceEcran[] } {
+export function versEcran(t: Resultat): { titre: string; pieces: PieceEcran[]; credit: string } {
   return {
     titre: t.requete,
+    credit: CREDIT[t.sorte] || "",
     pieces: t.pieces.map((p, i) => ({
       id: `${p.page || p.video || "p"}-${i}`,
       sorte: p.sorte,

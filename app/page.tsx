@@ -222,12 +222,12 @@ export default function Home() {
      Lamine, le 11 septembre 2026 : « paf, il y a un écran de télévision qui
      s'ouvre pour te montrer cette image ». Il ne vit pas dans le fil : c'est
      une surface à lui, et une seule à la fois. */
-  const [ecran, setEcran] = useState<{ titre: string; pieces: PieceEcran[] } | null>(null);
+  const [ecran, setEcran] = useState<{ titre: string; pieces: PieceEcran[]; credit?: string } | null>(null);
 
   /* Une seule surface : un nouvel écran remplace l'ancien au lieu de
      s'empiler dessus. Deux écrans de chaussures l'un sur l'autre, personne
      ne saurait lequel referme quoi. */
-  const montrerSurEcran = useCallback((v: { titre: string; pieces: PieceEcran[] }) => {
+  const montrerSurEcran = useCallback((v: { titre: string; pieces: PieceEcran[]; credit?: string }) => {
     if (!v?.pieces?.length) return;
     setEcran(v);
   }, []);
@@ -3313,7 +3313,7 @@ export default function Home() {
           Il part de son menton — 52 % de la hauteur, mesuré sur une capture
           et non deviné — et descend jusqu'en bas. La barre du micro reste
           au-dessus de lui : on doit toujours pouvoir lui reparler. */}
-      {ecran ? <Ecran titre={ecran.titre} pieces={ecran.pieces} onFermer={fermerEcran} /> : null}
+      {ecran ? <Ecran titre={ecran.titre} pieces={ecran.pieces} credit={ecran.credit} onFermer={fermerEcran} /> : null}
 
       <Installer />
 
