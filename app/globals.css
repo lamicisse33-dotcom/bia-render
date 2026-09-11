@@ -1492,7 +1492,27 @@ button { font: inherit; touch-action: manipulation; }
   text-decoration: none;
 }
 .papier-lien:active { background: rgba(231,198,103,.14); }
+/* ELLE DOIT DÉFILER, ET ELLE NE DÉFILAIT PAS.
+
+   Lamine, le 11 septembre 2026 : « la page de correction ne défile pas, on ne
+   peut pas descendre jusqu'en bas, elle est figée ».
+
+   La cause n'est pas ici, elle est tout en haut de ce fichier : « html, body {
+   height: 100%; overflow: hidden } ». C'est juste pour la CONVERSATION, qui
+   est un écran fixe — le fil défile à l'intérieur, la barre reste en bas,
+   rien ne bouge autour. Mais cette règle-là vaut pour toutes les pages, et
+   celle-ci n'est pas un écran : c'est un document de onze mille pixels de
+   haut. Il était bloqué au premier écran.
+
+   On ne touche pas à la règle du haut : la conversation en dépend. On donne à
+   cette page son propre défilement, à l'intérieur du cadre. */
 .voix {
+  height: 100%;
+  overflow-y: auto;
+  /* L'élan du doigt, sur iPhone. Sans ça le défilement s'arrête net. */
+  -webkit-overflow-scrolling: touch;
+  /* Arrivé en bas, on ne tire pas la page derrière. */
+  overscroll-behavior: contain;
   max-width: 720px;
   margin: 0 auto;
   padding: 22px 16px calc(60px + env(safe-area-inset-bottom));
