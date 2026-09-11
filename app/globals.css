@@ -1526,6 +1526,10 @@ button { font: inherit; touch-action: manipulation; }
 }
 .voix h1 { margin: 0 0 6px; font-size: 22px; color: #e7c667; }
 .voix h2 { margin: 26px 0 8px; font-size: 16px; color: #e7c667; }
+/* Les familles de nombres : unités, dizaines, argent… Un titre discret,
+   sinon la page devient un sommaire au lieu d'une liste à corriger. */
+.voix-groupe { margin: 22px 0 6px; font-size: 13px; letter-spacing: .08em;
+  text-transform: uppercase; color: rgba(231,198,103,.75); }
 .voix-intro { margin: 0 0 14px; font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,.6); }
 
 .voix-code { display: block; margin: 0 0 18px; font-size: 12px; color: rgba(255,255,255,.5); }

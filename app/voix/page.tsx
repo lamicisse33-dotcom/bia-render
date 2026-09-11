@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { REPERTOIRE } from "@/lib/repertoire-textes";
+import { NOMBRES, GROUPES } from "@/lib/nombres-textes";
 import { ralentir, vitesseChoisie } from "@/lib/ralentir";
 
 /* ── ÉCOUTER AVANT D'ENREGISTRER ────────────────────────────────────────────
@@ -157,11 +158,18 @@ export default function PageVoix() {
     corrections[cle] !== undefined ? corrections[cle] : defaut;
 
   const changees = REPERTOIRE.filter((e) => texteDe(e.cle, e.wolof).trim() !== e.wolof.trim()).length;
+  const changesNombres = NOMBRES.filter((e) => texteDe(e.cle, e.wolof).trim() !== e.wolof.trim()).length;
 
   /* Ce qu'il m'envoie à la fin : seulement ce qu'il a CHANGÉ, avec la clé, pour
      que je pose les corrections sans risque de me tromper de phrase. */
   async function copierLesCorrections() {
-    const lignes = REPERTOIRE
+    /* Les deux listes ensemble : les phrases, puis les nombres. Les clés ne se
+       croisent pas — celles des nombres commencent par n-, f-, p- ou c-. */
+    const toutes = [
+      ...REPERTOIRE.map((e) => ({ cle: e.cle, wolof: e.wolof })),
+      ...NOMBRES.map((e) => ({ cle: e.cle, wolof: e.wolof })),
+    ];
+    const lignes = toutes
       .filter((e) => texteDe(e.cle, e.wolof).trim() !== e.wolof.trim())
       .map((e) => `${e.cle}\n  avant : ${e.wolof}\n  après : ${texteDe(e.cle, e.wolof).trim()}`);
     if (!lignes.length) { setCopie("Rien n'a été changé pour l'instant."); return; }
@@ -257,9 +265,62 @@ export default function PageVoix() {
         })}
       </section>
 
+      {/* ── LES NOMBRES ──────────────────────────────────────────────────────
+
+          Lamine, le 11 septembre 2026 : « sors-moi la liste des chiffres, je
+          veux la corriger, de la même manière. »
+
+          Ces textes-là ne sortent pas de moi : ils sont produits par SON
+          module de nombres wolof. Deux fois mon wolof des nombres avait été
+          faux — les milliers composés, puis l'argent en dërëm — et une erreur
+          sur un montant lu à voix haute coûte de l'argent à quelqu'un. */}
+      <section className="voix-liste">
+        <h2>Les nombres — {NOMBRES.length} à relire</h2>
+        <p className="voix-intro">
+          Ce ne sont pas mes mots : ils viennent de <b>ta</b> règle, celle que
+          tu m&apos;as remise. Écoute, et corrige ce qui ne se dit pas comme ça
+          à Dakar. {changesNombres > 0 ? <b>{changesNombres} déjà corrigé(s).</b> : null}
+        </p>
+
+        {GROUPES.map((g) => {
+          const dedans = NOMBRES.filter((e) => e.groupe === g.cle);
+          if (!dedans.length) return null;
+          return (
+            <div key={g.cle}>
+              <h3 className="voix-groupe">{g.titre}</h3>
+              {g.note ? <p className="voix-intro">{g.note}</p> : null}
+              {dedans.map((e) => {
+                const valeur = texteDe(e.cle, e.wolof);
+                const change = valeur.trim() !== e.wolof.trim();
+                return (
+                  <article key={e.cle} className={change ? "voix-item change" : "voix-item"}>
+                    <p className="voix-quand"><b>{e.etiquette}</b> se dit&nbsp;:</p>
+                    <textarea value={valeur} rows={2}
+                      aria-label={`En wolof — ${e.etiquette}`}
+                      onChange={(ev) => setCorrections((c) => ({ ...c, [e.cle]: ev.target.value }))} />
+                    <div className="voix-rangee">
+                      <button type="button" className="voix-ecouter"
+                        onClick={() => void ecouter(valeur, e.cle)}>
+                        {joue === e.cle ? "▌▌" : "▶"} Écouter
+                      </button>
+                      {change ? (
+                        <button type="button" className="voix-pale"
+                          onClick={() => setCorrections((c) => { const n = { ...c }; delete n[e.cle]; return n; })}>
+                          Remettre la tienne
+                        </button>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          );
+        })}
+      </section>
+
       <div className="voix-fin">
         <button type="button" className="voix-ecouter" onClick={() => void copierLesCorrections()}>
-          Copier mes corrections ({changees})
+          Copier mes corrections ({changees + changesNombres})
         </button>
         {copie ? <p className="voix-etat">{copie}</p> : null}
         <p className="voix-intro">
