@@ -2779,8 +2779,11 @@ export default function Home() {
         {estMaitre ? (
           <p className="papier-note" style={{ marginTop: 14 }}>
             <a href="/voix" className="papier-lien">Écouter les 42 phrases →</a>
+            {" "}
+            <a href="/voix/nombres" className="papier-lien">Écouter les 68 nombres →</a>
             <br />
-            Provisoire, et pour toi seul : on la retire une fois
+            Deux pages provisoires, et pour toi seul : on corrige les phrases
+            d&apos;un côté, les nombres de l&apos;autre. On les retire une fois
             l&apos;enregistrement fait.
           </p>
         ) : null}
