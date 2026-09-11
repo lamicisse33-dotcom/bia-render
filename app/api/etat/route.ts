@@ -7,6 +7,7 @@ import { resumeAttentes, resumeLectures } from "@/lib/attentes-vues";
 import { resumeEmotions } from "@/lib/emotions-vues";
 import { depense } from "@/lib/depense";
 import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
+import { etatRepertoire } from "@/lib/repertoire";
 
 /* Dit à l'interface quels moteurs sont réellement branchés, pour qu'elle
    choisisse le micro et la voix sans deviner. Ouvert : aucun moteur payant
@@ -46,6 +47,10 @@ export async function GET() {
        avec la part revenue du cache. Remis à zéro à chaque redémarrage du
        serveur : c'est une mesure de journée, pas une comptabilité. */
     depense: depense(),
+    /* LE RÉPERTOIRE : combien de phrases sont payées une fois pour toutes, et
+       si les textes ont été relus par Lamine. Tant que ce n'est pas le cas,
+       rien ne s'enregistre et rien ne se sert de mémoire. */
+    repertoire: etatRepertoire(),
     /* CE QU'ELLE VA CHERCHER SUR INTERNET. Cent recherches d'images par jour
        sont gratuites ; la cent-unième se paie. Ce compteur est le robinet
        d'arrêt : quand il touche le plafond, BIA répond sans image plutôt que

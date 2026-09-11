@@ -11,6 +11,7 @@ import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
+import { RELU, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
 
@@ -146,8 +147,20 @@ parle beaucoup ». Il a raison, et ça se paie deux fois : en secondes
 d'attente pour celui qui écoute, et en argent pour celui qui fait fonctionner
 BIA. Chaque phrase que tu dis est fabriquée et facturée.
 
-UNE OU DEUX PHRASES. C'est ta réponse par défaut, pas ton minimum. Quelqu'un
-qui demande l'heure ne veut pas savoir comment marche une horloge.
+L'ESSENTIEL, PUIS TU TE TAIS. Lamine y est revenu le 11 septembre : « elle
+doit dire l'essentiel puis se taire ». UNE PHRASE est ta réponse par défaut —
+deux si la première ne suffit vraiment pas. Quelqu'un qui demande l'heure ne
+veut pas savoir comment marche une horloge.
+
+Quand tu as répondu, ARRÊTE-TOI. Ne cherche pas quoi ajouter, ne relance pas,
+ne demande pas si ça va. Le silence après une réponse juste n'est pas un vide :
+c'est la place de la personne. Elle a le micro sous le pouce.
+
+SAUF SI ON VEUT DISCUTER. Quelqu'un qui te raconte sa journée, qui te cherche,
+qui plaisante, qui a du chagrin — là, tu es une présence, pas un guichet : tu
+réponds à sa mesure, tu tiens la conversation, et la règle d'une phrase ne
+s'applique plus. La différence est simple : on te pose une QUESTION, tu
+réponds court ; on t'ADRESSE LA PAROLE, tu converses.
 
 TU NE DÉVELOPPES QUE SI ON TE LE DEMANDE — « explique-moi », « raconte »,
 « donne-moi les étapes ». Alors seulement, tu prends la place qu'il faut, et
@@ -381,6 +394,36 @@ export async function POST(request:NextRequest){
     const question=String(body.message||"").trim().slice(0,1200);
     if(!question)return NextResponse.json({reply:"Bindal walla waxal sa laaj.",source:"validation"});
 
+    /* ── LE RÉPERTOIRE, AVANT TOUT LE RESTE ──────────────────────────────────
+
+       Lamine, le 11 septembre 2026 : « garder les enregistrements des mots
+       courants, une fois, comme ça on n'aura plus à payer ces mots-là. »
+
+       « Salaam », « naka nga def », « kan nga » : la réponse ne change jamais.
+       On la sert telle quelle, avec le son déjà fabriqué. Zéro jeton, zéro
+       signe envoyé à la voix, et la réponse arrive avant que la personne ait
+       relevé les yeux — au lieu de seize secondes.
+
+       C'EST LA PREMIÈRE CHOSE QU'ON REGARDE, sinon ça ne sert à rien : mis
+       après l'appel au modèle, on aurait déjà payé. Et la correspondance est
+       sévère (voir lib/repertoire.ts) : au moindre doute on laisse passer, car
+       une réponse enregistrée servie à côté vaut bien pire que l'attente. */
+    if(RELU&&repertoireActif()){
+      const toute=trouverDansRepertoire(question);
+      if(toute){
+        const fr=/^[\x00-\x7F\s'’,.!?-]+$/.test(question)&&/\b(bonjour|bonsoir|salut|merci|ca va|qui|quoi|comment|au revoir)\b/i.test(question);
+        const langue=fr?"fr":"wo";
+        return NextResponse.json({
+          reply:fr?toute.francais:toute.wolof,
+          emotion:toute.emotion||"neutre",
+          /* Le son est déjà là : la page le joue directement au lieu de
+             demander /api/voix. C'est là qu'est l'économie. */
+          son:sonDe(toute.cle,langue),
+          source:"répertoire (gratuit)",
+        });
+      }
+    }
+
     // Sans ce contrôle, quiconque trouve l'adresse dépense le crédit de Lamine.
     const verdict=verifierCode(request.headers.get("x-bia-code"));
     if(!verdict.ok){
@@ -585,7 +628,13 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       ...(variable.trim()?[{type:"text",text:variable}]:[]),
     ];
 
-    const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:cherche?800:500,system:consigne,messages:[...history,{role:"user",content:question}],...(cherche?{tools:[OUTIL_RECHERCHE]}:{})})});
+    const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,/* Plafond descendu de 500 à 300 le 11 septembre 2026 : « elle doit dire
+         l'essentiel puis se taire ». Ce n'est pas la consigne qui coûte cher,
+         c'est ce qu'elle écrit — la sortie se paie cinq fois l'entrée, et
+         chaque signe écrit est ensuite un signe envoyé à la voix. 300 jetons
+         laissent largement la place à deux phrases ; au-delà, c'est qu'elle
+         était repartie à bavarder. */
+      max_tokens: cherche?600:300,system:consigne,messages:[...history,{role:"user",content:question}],...(cherche?{tools:[OUTIL_RECHERCHE]}:{})})});
 
     /* SI L'OUTIL EST REFUSÉ, ON RÉPOND QUAND MÊME.
 
@@ -600,7 +649,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       const detail = await reponse.clone().text().catch(() => "");
       console.error("BIA — l'outil de recherche est refusé, on répond sans :", detail.slice(0, 300));
       noterPanne("recherche refusée", detail, "chat");
-      reponse = await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:500,system:consigne,messages:[...history,{role:"user",content:question}]})});
+      reponse = await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:300,system:consigne,messages:[...history,{role:"user",content:question}]})});
     }
 
     if(!reponse.ok){

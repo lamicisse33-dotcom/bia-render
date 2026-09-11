@@ -1039,6 +1039,28 @@ export default function Home() {
      réponse — Soynade n'accepte que 500 caractères — et on va chercher le
      morceau suivant PENDANT que le précédent est lu, sinon un silence
      s'installe entre chaque phrase. */
+  /* ── UNE PHRASE DU RÉPERTOIRE : LE SON EST DÉJÀ FAIT ─────────────────────
+
+     Lamine, le 11 septembre 2026 : « garder les enregistrements des mots
+     courants, une fois, comme ça on n'aura plus à payer ces mots-là. »
+
+     Ici, on ne demande rien à /api/voix : on va chercher le fichier déjà
+     fabriqué et on le joue. Pas un signe facturé, et le son part en une
+     fraction de seconde au lieu de huit. C'est le même chemin d'affichage que
+     la voix ordinaire — visage compris — pour que rien ne se voie. */
+  const direSonTeutFait = useCallback(async (adresse: string, emotion?: string) => {
+    await finirAttente(langueRef.current);
+    window.speechSynthesis?.cancel();
+    couperSon();
+    if (emotion) await jouerSouffle(emotion);
+    const r = await fetch(adresse, { cache: "force-cache" });
+    if (!r.ok) throw new Error("son du répertoire introuvable");
+    setMode("speaking");
+    await jouerEtAnimer(await r.arrayBuffer());
+    setMode("ready");
+    setFace("yeux_ouverts");
+  }, [finirAttente, couperSon, jouerSouffle, jouerEtAnimer]);
+
   const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse") => {
     /* PRENDRE LA PAROLE N'EST PAS COUPER LA PAROLE.
 
@@ -1288,7 +1310,7 @@ export default function Home() {
             : ""].filter(Boolean).join("\n"),
         }),
       });
-      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; trouve?: Resultat | null; source?: string };
+      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; trouve?: Resultat | null; son?: string; source?: string };
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
       /* ICI SE JOUAIT LE SILENCE.
          On coupait l'attente à l'arrivée du TEXTE. Mais la voix, elle, n'est
@@ -1350,7 +1372,15 @@ export default function Home() {
       // ce qui donne l'impression qu'elle réagit à ce qu'on lui a dit.
       const suite = SUITES[emotionRef.current];
       if (!suite) setFace(EMOTION_VERS_FACE[emotionRef.current] || "yeux_ouverts");
-      speak(data.reply, emotionRef.current);
+      /* Une réponse du répertoire arrive avec son son déjà fabriqué : on le
+         joue tel quel. Si le fichier manque — seau vidé, réseau coupé — on
+         retombe sur la synthèse ordinaire plutôt que de rester muette. */
+      if (data.son) {
+        try { await direSonTeutFait(data.son, emotionRef.current); }
+        catch { speak(data.reply, emotionRef.current); }
+      } else {
+        speak(data.reply, emotionRef.current);
+      }
     } catch {
       emotionRef.current = "concernee";
       const fallback = "Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.";
