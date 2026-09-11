@@ -19,13 +19,26 @@ export const voixConfig = {
     temperature: Number(env.SOYNADE_TEMPERATURE || 0.35),
     /* Abaissé de 0,28 à 0,22 le 10 septembre 2026 : « elle parle trop vite,
        elle doit être très reposée, lentement et doucement » (Lamine). Plus
-       ce poids est bas, plus le débit est posé. */
+       ce poids est bas, plus le débit est posé.
+
+       ON NE DESCENDRA PAS PLUS BAS. Il l'a redemandé le 11 septembre — « trop
+       agressive, elle parle très vite » — et la documentation du modèle dit
+       que sous 0,2 ce réglage cesse de ralentir : il abîme la voix. Le
+       ralentissement demandé se fait donc sur le téléphone, sans toucher à la
+       hauteur de sa voix. Voir lib/ralentir.ts. */
     cfgWeight: Number(env.SOYNADE_CFG_WEIGHT || 0.22),
-    /* LA VITESSE. Je n'ai pas la documentation de l'API hébergée : je ne sais
-       donc pas avec certitude si elle accepte un débit, ni comment le champ
-       s'appelle. Deux précautions : le champ n'est envoyé QUE s'il diffère de
-       1, et si Soynade refuse la requête à cause de lui, on la refait sans —
-       BIA parle un peu vite plutôt que de rester muette. */
+    /* LA VITESSE — ET CE QU'ON EN SAIT MAINTENANT.
+
+       J'avais ajouté ce champ « au cas où », sans documentation. Le 11
+       septembre 2026 je suis allé lire celle du modèle dont Oolel Voices est
+       dérivé, et elle est nette : aucun réglage de vitesse n'existe, ni chez
+       lui ni chez Chatterbox — le débit ne se règle qu'indirectement, par
+       `exaggeration` et `cfg_weight`.
+
+       Le champ reste donc là, mais ÉTEINT (vitesse = 1, donc jamais envoyé),
+       et plus rien ne compte dessus : si un jour l'API hébergée en propose un,
+       SOYNADE_SPEED et SOYNADE_SPEED_FIELD l'allument sans toucher au code.
+       Le ralentissement réel se fait sur le téléphone — lib/ralentir.ts. */
     vitesse: Number(env.SOYNADE_SPEED || 1),
     vitesseField: env.SOYNADE_SPEED_FIELD || "speed",
     /* Le clonage de voix. Oolel-Voices accepte un extrait de référence et

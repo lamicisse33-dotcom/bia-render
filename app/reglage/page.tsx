@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { lireMesures, mediane } from "@/lib/chrono";
+import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie } from "@/lib/ralentir";
 import type { Mesure } from "@/lib/chrono";
 
 /* Page d'écoute. Elle sert à choisir la voix de BIA à l'oreille plutôt qu'au
@@ -13,10 +14,10 @@ const PHRASE_WO = "Salaam! Man maa di BIA. Naka nga def tey? Waxal ak man, dinaa
 const PHRASE_FR = "Bonjour, je suis BIA. Comment puis-je vous aider aujourd'hui ?";
 
 const PRESETS = [
-  { nom: "Très reposée", exaggeration: 0.08, temperature: 0.30, cfgWeight: 0.18, vitesse: 0.88 },
-  { nom: "Reposée", exaggeration: 0.10, temperature: 0.35, cfgWeight: 0.22, vitesse: 0.94 },
-  { nom: "Douce", exaggeration: 0.12, temperature: 0.35, cfgWeight: 0.28, vitesse: 1 },
-  { nom: "Actuelle (Interprète)", exaggeration: 0.20, temperature: 0.10, cfgWeight: 0.50, vitesse: 1 },
+  { nom: "Très reposée", exaggeration: 0.08, temperature: 0.30, cfgWeight: 0.18 },
+  { nom: "Reposée", exaggeration: 0.10, temperature: 0.35, cfgWeight: 0.22 },
+  { nom: "Douce", exaggeration: 0.12, temperature: 0.35, cfgWeight: 0.28 },
+  { nom: "Actuelle (Interprète)", exaggeration: 0.20, temperature: 0.10, cfgWeight: 0.50 },
 ];
 
 export default function Reglage() {
@@ -25,15 +26,27 @@ export default function Reglage() {
   const [exag, setExag] = useState(0.12);
   const [temp, setTemp] = useState(0.35);
   const [cfg, setCfg] = useState(0.22);
-  const [vitesse, setVitesse] = useState(1);
+  /* LE DÉBIT, CELUI QUI MARCHE VRAIMENT. Il n'est pas envoyé à Soynade : le
+     modèle de voix n'a aucun réglage de vitesse (vérifié dans sa
+     documentation). C'est le téléphone qui étire le son, sans toucher à la
+     hauteur. Gardé sur l'appareil, donc il prend effet tout de suite, sans
+     redéploiement — et sans consommer un signe de crédit. */
+  const [debit, setDebit] = useState(VITESSE_POSEE);
   const [clonage, setClonage] = useState(true);
   const [etat, setEtat] = useState("");
   const [duree, setDuree] = useState<number | null>(null);
   const [moteur, setMoteur] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const [mesures, setMesures] = useState<Mesure[]>([]);
 
   useEffect(() => { try { setCode(localStorage.getItem("bia-code") || ""); } catch {} }, []);
+  useEffect(() => { setDebit(vitesseChoisie()); }, []);
+  // On l'écrit à chaque mouvement du curseur : BIA le lira au prochain mot.
+  useEffect(() => {
+    try { localStorage.setItem(CLE_VITESSE, String(debit)); } catch {}
+  }, [debit]);
   useEffect(() => { setMesures(lireMesures()); }, []);
 
   async function ecouter() {
@@ -47,7 +60,7 @@ export default function Reglage() {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": code },
         body: JSON.stringify({
-          texte, partie: 0, ou: "réglage", exaggeration: exag, temperature: temp, cfgWeight: cfg, vitesse,
+          texte, partie: 0, ou: "réglage", exaggeration: exag, temperature: temp, cfgWeight: cfg,
           // Chaîne vide = on demande explicitement la voix d'origine, pour
           // pouvoir comparer les deux dans la même minute.
           audioPrompt: clonage ? undefined : "",
@@ -57,10 +70,22 @@ export default function Reglage() {
       if (!d.audio) { setEtat(d.erreur || "Aucun son n'est revenu."); return; }
       setDuree(Date.now() - depart);
       setMoteur(d.moteur || "");
-      const son = new Audio(`data:${d.type_mime || "audio/wav"};base64,${d.audio}`);
-      audioRef.current = son;
+      /* ON ÉCOUTE CE QUE BIA DIRA, PAS AUTRE CHOSE. Le son est ralenti ici
+         exactement comme il le sera dans la conversation : un essai qui ne
+         passerait pas par le même chemin ne servirait à rien. */
+      const octets = Uint8Array.from(atob(d.audio), (c) => c.charCodeAt(0)).buffer;
+      const C = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = audioCtxRef.current || (audioCtxRef.current = new C());
+      if (ctx.state === "suspended") await ctx.resume();
+      const brut = await ctx.decodeAudioData(octets.slice(0));
+      const pose = ralentir(ctx, brut, debit);
+      sourceRef.current?.stop();
+      const source = ctx.createBufferSource();
+      source.buffer = pose;
+      source.connect(ctx.destination);
+      sourceRef.current = source;
+      source.start();
       setEtat("");
-      void son.play();
     } catch (e) {
       setEtat(String((e as Error).message));
     }
@@ -80,7 +105,8 @@ export default function Reglage() {
     <main className="reglage">
       <h1>La voix de BIA</h1>
       <p className="intro">
-        Écoute, compare, puis reporte les trois valeurs dans Render.
+        Écoute, compare, puis reporte dans Render les trois premières valeurs.
+        Le <b>débit</b>, lui, se garde sur ce téléphone et agit immédiatement.
         Chaque écoute consomme du crédit Soynade — la phrase est courte exprès.
       </p>
 
@@ -99,7 +125,7 @@ export default function Reglage() {
       <div className="rangee">
         {PRESETS.map((p) => (
           <button key={p.nom} className="secondaire" type="button"
-            onClick={() => { setExag(p.exaggeration); setTemp(p.temperature); setCfg(p.cfgWeight); setVitesse(p.vitesse); }}>
+            onClick={() => { setExag(p.exaggeration); setTemp(p.temperature); setCfg(p.cfgWeight); }}>
             {p.nom}
           </button>
         ))}
@@ -108,9 +134,9 @@ export default function Reglage() {
       {curseur("Exagération", exag, setExag, "Bas = calme et retenue. Haut = emphase, insistance.")}
       {curseur("Poids CFG", cfg, setCfg, "Bas = débit lent et posé. Haut = débit rapide et net.")}
       {curseur("Température", temp, setTemp, "Bas = régulière, presque mécanique. Haut = vivante, variable.")}
-      {curseur("Vitesse", vitesse, setVitesse,
-        "1 = son débit normal. 0,90 = un dixième plus lent. Si Soynade n'accepte pas ce réglage, la voix revient à 1 toute seule et c'est écrit dans les journaux.",
-        [0.7, 1.2])}
+      {curseur("Débit", debit, setDebit,
+        "0,70 = un tiers plus lent, et c'est le réglage actuel. Sa hauteur de voix ne change pas : c'est toujours la voix de Kha, elle prend seulement son temps. Celui-ci agit TOUT DE SUITE et seulement sur ce téléphone — rien à reporter dans Render. Quand tu as trouvé le bon chiffre, dis-le-moi et j'en fais la valeur de tout le monde.",
+        [0.6, 1])}
 
       <button className="ecouter" type="button" onClick={() => void ecouter()}>Écouter</button>
 
@@ -155,8 +181,14 @@ export default function Reglage() {
         Quand ça te plaît, dans Render → Environment :<br />
         <code>SOYNADE_EXAGGERATION = {exag.toFixed(2)}</code><br />
         <code>SOYNADE_CFG_WEIGHT = {cfg.toFixed(2)}</code><br />
-        <code>SOYNADE_TEMPERATURE = {temp.toFixed(2)}</code><br />
-        <code>SOYNADE_SPEED = {vitesse.toFixed(2)}</code>
+        <code>SOYNADE_TEMPERATURE = {temp.toFixed(2)}</code>
+        <br /><br />
+        {/* SOYNADE_SPEED a disparu d'ici : le modèle de voix n'a pas de
+            réglage de vitesse, et laisser cette ligne aurait fait poser à
+            Lamine une variable qui ne sert à rien. */}
+        Le débit ({debit.toFixed(2)}) ne se reporte nulle part : il est déjà
+        actif sur ce téléphone. Dis-le-moi quand il est bon, et j'en fais la
+        valeur par défaut pour tout le monde.
       </p>
     </main>
   );

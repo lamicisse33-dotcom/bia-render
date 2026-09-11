@@ -20,6 +20,7 @@ import { lireMesures, noterMesure } from "@/lib/chrono";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
+import { ralentir, vitesseChoisie } from "@/lib/ralentir";
 import Installer from "./installer";
 import Ecran from "./ecran";
 import type { PieceEcran } from "./ecran";
@@ -567,7 +568,12 @@ export default function Home() {
       fini(ms);
     };
     ctx.decodeAudioData(octets.slice(0)).then((brut) => {
-      const mémoire = sansSilence(ctx, brut);
+      /* POSÉE, PAS PRESSÉE. Lamine, le 11 septembre 2026 : « ralentir de
+         30 % la vitesse de sa voix, elle est trop agressive ». Le modèle de
+         voix n'a AUCUN réglage de vitesse — vérifié dans sa documentation —
+         alors on étire le son ici, sans toucher à sa hauteur : c'est la voix
+         de Kha, elle ne doit pas devenir plus grave. Voir lib/ralentir.ts. */
+      const mémoire = ralentir(ctx, sansSilence(ctx, brut), vitesseChoisie());
       const { valeurs, pic, pas } = enveloppeDe(mémoire);
       const source = ctx.createBufferSource();
       source.buffer = mémoire;
@@ -801,7 +807,7 @@ export default function Home() {
       const rendre = (fin = 0) => { if (!rendu) { rendu = true; fini(fin); } };
       ctx.decodeAudioData(octets.slice(0)).then((brut) => {
         if (attenteRef.current !== jeton) return rendre();
-        const mémoire = sansSilence(ctx, brut);
+        const mémoire = ralentir(ctx, sansSilence(ctx, brut), vitesseChoisie());
         const { valeurs, pic, pas } = enveloppeDe(mémoire);
         const source = ctx.createBufferSource();
         const volume = ctx.createGain();
@@ -1131,7 +1137,7 @@ export default function Home() {
 
       const programmer = async (octets: ArrayBuffer) => {
         const brut = await ctx.decodeAudioData(octets.slice(0));
-        const mémoire = sansSilence(ctx, brut);
+        const mémoire = ralentir(ctx, sansSilence(ctx, brut), vitesseChoisie());
         const { valeurs, pic, pas } = enveloppeDe(mémoire);
         const source = ctx.createBufferSource();
         source.buffer = mémoire;
