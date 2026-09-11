@@ -6,6 +6,7 @@ import { dernierePanne, pannes } from "@/lib/panne";
 import { resumeAttentes, resumeLectures } from "@/lib/attentes-vues";
 import { resumeEmotions } from "@/lib/emotions-vues";
 import { depense } from "@/lib/depense";
+import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
 
 /* Dit à l'interface quels moteurs sont réellement branchés, pour qu'elle
    choisisse le micro et la voix sans deviner. Ouvert : aucun moteur payant
@@ -45,6 +46,15 @@ export async function GET() {
        avec la part revenue du cache. Remis à zéro à chaque redémarrage du
        serveur : c'est une mesure de journée, pas une comptabilité. */
     depense: depense(),
+    /* CE QU'ELLE VA CHERCHER SUR INTERNET. Cent recherches d'images par jour
+       sont gratuites ; la cent-unième se paie. Ce compteur est le robinet
+       d'arrêt : quand il touche le plafond, BIA répond sans image plutôt que
+       d'ouvrir une facture. Il repart chaque jour à minuit. */
+    trouver: {
+      moteur_images: imagesActives() ? "branché" : "pas de clé Google",
+      moteur_videos: videosActives() ? "branché" : "pas de clé Google",
+      ...comptesDuJour(),
+    },
   }, {
     /* La page d'attente de bia.khalam.app lit cet état depuis un autre
        domaine : sans cet en-tête, le navigateur lui refuse la réponse et

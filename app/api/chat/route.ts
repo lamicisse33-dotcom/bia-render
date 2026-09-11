@@ -4,6 +4,8 @@ import { correctionExacte, exemplesPour, motsCorriges } from "@/lib/lexique";
 import { savoirKhalam } from "@/lib/khalam";
 import { savoirProduits } from "@/lib/produits";
 import { catalogue } from "@/lib/vitrine";
+import { chercherImages, chercherVideos, consigneTrouver } from "@/lib/trouver";
+import type { Trouve } from "@/lib/trouver";
 import { SOCLE_RELATIONS, consigneRelations, estSujetRelation } from "@/lib/relations";
 import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterModele } from "@/lib/depense";
@@ -349,6 +351,24 @@ function detacherVoir(texte:string){
   };
 }
 
+/* ── ELLE VA CHERCHER ELLE-MÊME ─────────────────────────────────────────────
+   « Tu as besoin de chaussures : dès que tu lui parles du type de chaussures
+   que tu veux, elle doit pouvoir te le montrer. » — Lamine, 11 septembre 2026.
+
+   La balise porte une RECHERCHE, pas une clé : tout ce que le modèle veut y
+   mettre, dans la limite du raisonnable. On accepte donc les accents et les
+   espaces, et on refuse tout ce qui ressemble à une adresse — un modèle qui
+   glisserait une URL ferait chercher n'importe quoi. */
+const CHERCHE=/\[{1,2}\s*cherche[\s_-]*(image|photo|video|vidéo)s?\s*[:\-—]?\s*([^\]\n]{2,120})\]{1,2}/i;
+function detacherCherche(texte:string){
+  const m=texte.match(CHERCHE);
+  const nettoye=texte.replace(new RegExp(CHERCHE.source,"gi"),"").replace(/\n{3,}/g,"\n\n").trim();
+  if(!m)return{texte:nettoye,cherche:null as null|{sorte:"image"|"video";quoi:string}};
+  const quoi=m[2].replace(/https?:\/\/\S+/gi,"").replace(/["""«»]/g,"").replace(/\s+/g," ").trim().slice(0,120);
+  const sorte=/vid/i.test(m[1])?"video" as const:"image" as const;
+  return{texte:nettoye,cherche:quoi.length>=2?{sorte,quoi}:null};
+}
+
 /* Quand le moteur ne répond pas, BIA le dit — en wolof, sans détail technique
    pour le testeur. Le motif exact, lui, est journalisé et lisible dans
    /api/etat : c'est là que Lamine regarde. */
@@ -470,6 +490,11 @@ ${cosmetiques}
        assistante qui sort une photo de savon pendant qu'on lui parle de son
        divorce n'est plus une assistante, c'est une affiche. On ne montre que
        ce dont on parle DÉJÀ. */
+    /* Celle-ci VA dans le socle, contrairement au catalogue de la vitrine :
+       elle ne dépend que des clés du serveur, donc elle ne bouge pas d'une
+       question à l'autre. Le cache la garde, et elle ne coûte rien. */
+    socle+=consigneTrouver();
+
     const aMontrer=await catalogue();
     if(aMontrer)variable+=`\n\nCE QUE TU PEUX MONTRER À L'ÉCRAN
 Tu as des images — parfois une vidéo — que tu peux faire apparaître :
@@ -595,7 +620,20 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const {reply:avecBalise,emotion,balise}=detacherEmotion(complet);
     const {texte:sansPapier,papier}=detacherPapier(avecBalise);
     const {texte:sansAppel,appel}=detacherAppel(sansPapier);
-    const {texte:reply,voir}=detacherVoir(sansAppel);
+    const {texte:sansVoir,voir}=detacherVoir(sansAppel);
+    const {texte:reply,cherche:demande}=detacherCherche(sansVoir);
+
+    /* La recherche part APRÈS que le modèle a fini d'écrire, pas pendant : le
+       texte est déjà là, on n'attend que les images. Une demi-seconde de plus,
+       contre un deuxième aller-retour au modèle qu'on aurait payé plein
+       tarif. Et si elle échoue, la réponse part quand même — entière. */
+    let trouve:Trouve|null=null;
+    if(demande){
+      const pieces=demande.sorte==="video"
+        ? await chercherVideos(demande.quoi)
+        : await chercherImages(demande.quoi);
+      if(pieces.length)trouve={sorte:demande.sorte,requete:demande.quoi,pieces};
+    }
     /* ── UN PAPIER SANS UN MOT N'EST PAS UNE PANNE ──────────────────────────
 
        Signalé par Lamine le 10 septembre 2026 : « quand on demande à BIA
@@ -611,10 +649,10 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
        Ce n'est une panne que si elle n'a NI phrase NI geste. Sinon, on lui
        prête une phrase courte et le papier s'ouvre. */
-    if(!reply&&(papier||appel||voir)){
+    if(!reply&&(papier||appel||voir||trouve)){
       oublierPanne();
-      const parDefaut=papier?"Waaw, maa ngi koy defar.":voir?"Xool.":"Waaw.";
-      return NextResponse.json({reply:parDefaut,emotion,papier,appel,voir,source:"geste sans phrase"});
+      const parDefaut=papier?"Waaw, maa ngi koy defar.":(voir||trouve)?"Xool.":"Waaw.";
+      return NextResponse.json({reply:parDefaut,emotion,papier,appel,voir,trouve,source:"geste sans phrase"});
     }
 
     if(!reply){
@@ -625,7 +663,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
-    return NextResponse.json({reply,emotion,papier,appel,voir,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
+    return NextResponse.json({reply,emotion,papier,appel,voir,trouve,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message, "chat");

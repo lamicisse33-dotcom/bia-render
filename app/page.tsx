@@ -22,6 +22,8 @@ import { fichierDe, souffleDe } from "@/lib/sons";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
 import Installer from "./installer";
 import Vitrine from "./vitrine";
+import Trouve from "./trouve";
+import type { Resultat } from "./trouve";
 
 /* Un message peut porter le RENVOI vers un papier — son identifiant, pas son
    contenu. Le papier lui-même vit dans sa propre boîte, qui ne se rogne
@@ -33,6 +35,10 @@ type Message = {
   /** La CLÉ d'un sujet de la vitrine — jamais l'image : elle pèse trop pour
       la mémoire du téléphone, et elle revient de Supabase quand il faut. */
   voir?: string;
+  /** Ce qu'elle est allée chercher sur Internet. Gardé EN ENTIER, contrairement
+      à la vitrine : une recherche se paie, et on ne rachète pas deux fois les
+      mêmes chaussures pour remonter le fil. Six adresses pèsent un kilo-octet. */
+  trouve?: Resultat;
   /** Cette phrase a été corrigée à la main : c'est la bonne, pas la sienne. */
   corrige?: boolean;
 };
@@ -1238,7 +1244,7 @@ export default function Home() {
             : ""].filter(Boolean).join("\n"),
         }),
       });
-      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; source?: string };
+      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; trouve?: Resultat | null; source?: string };
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
       /* ICI SE JOUAIT LE SILENCE.
          On coupait l'attente à l'arrivée du TEXTE. Mais la voix, elle, n'est
@@ -1279,7 +1285,11 @@ export default function Home() {
       /* Elle a quelque chose à montrer. On ne garde que la clé du sujet : le
          fil est rangé dans la mémoire du téléphone, et des images y tiendraient
          trois échanges avant de la remplir. */
-      setHistory((items) => [...items, { role: "bia", text: data.reply, ...(data.voir ? { voir: data.voir } : {}) }]);
+      setHistory((items) => [...items, {
+        role: "bia", text: data.reply,
+        ...(data.voir ? { voir: data.voir } : {}),
+        ...(data.trouve?.pieces?.length ? { trouve: data.trouve } : {}),
+      }]);
       // Le visage prend l'émotion tout de suite, avant même la voix : c'est
       // ce qui donne l'impression qu'elle réagit à ce qu'on lui a dit.
       const suite = SUITES[emotionRef.current];
@@ -2952,6 +2962,10 @@ export default function Home() {
                 {/* Ce qu'elle montre vient SOUS sa phrase, jamais à la place :
                     l'image complète la parole, elle ne la remplace pas. */}
                 {m.voir ? <Vitrine cle={m.voir} /> : null}
+                {/* Ce qu'elle est allée chercher elle-même, sous la phrase
+                    aussi : d'abord ce qu'elle en dit, ensuite ce qu'elle a
+                    trouvé. */}
+                {m.trouve ? <Trouve trouve={m.trouve} /> : null}
                 {m.role === "bia" && i > 0 ? (
                   <button className="mal-dit" type="button" onClick={() => ouvrirCorrection(i)}>
                     {m.corrige ? "Corrigé par toi — retoucher" : "Mal dit"}
@@ -2976,17 +2990,15 @@ export default function Home() {
           {/* LIRE EN WOLOF UN TEXTE FRANÇAIS. On colle le SMS de la banque ou
               de l'école, on appuie sur le haut-parleur, et on l'entend dans sa
               langue. Elle ne répond pas, elle ne conseille pas : elle lit. */}
-          {/* IL ÉTAIT CACHÉ, ET PERSONNE NE LE TROUVAIT. Le champ de fichier
-              reste invisible — c'est sa nature — mais il n'avait plus AUCUN
-              bouton à lui : il fallait ouvrir la fenêtre des services et
-              deviner que « Papier » ouvrait l'appareil photo. Lamine
-              lui-même ne le savait plus le 11 septembre 2026, en me demandant
-              de construire ce qui existait déjà depuis la veille.
+          {/* L'appareil photo vit ici sans se voir : c'est le bouton « Papier »
+              de la fenêtre des services qui le déclenche. Un seul champ de
+              fichier pour toute l'application.
 
-              Une chose qu'on ne voit pas n'existe pas. L'appareil photo
-              revient donc ici, à côté du micro et de l'envoi, sur la seule
-              barre que tout le monde regarde. Le bouton « Papier » des
-              services continue de marcher : il ouvre le même champ. */}
+              J'avais sorti un bouton visible ici le 11 septembre 2026, en
+              croyant réparer un oubli. Lamine l'a repris le jour même :
+              « laisse le bouton Photo là où il était, c'était bien là-bas. »
+              Il a raison — la barre de saisie doit rester une barre de
+              saisie, et les services ont déjà leur rangée. */}
           {/* PAS DE « capture » : avec cet attribut, le téléphone ouvre
               directement l'appareil photo et interdit de choisir une image
               déjà prise. Or Lamine voulait justement envoyer une capture
@@ -2999,12 +3011,6 @@ export default function Home() {
               e.target.value = "";
               if (f) { setPapierOuvert(false); void lirePapierPhoto(f); }
             }} />
-          <button type="button" className="photo" disabled={photoOccupe}
-            onClick={() => photoRef.current?.click()}
-            aria-label="Photographier un papier pour l'entendre en wolof"
-            title="Photographier un papier">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.4 4h5.2l1.2 2H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4.2l1.2-2Zm2.6 4.8a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2Zm0 1.9a2.7 2.7 0 1 1 0 5.4 2.7 2.7 0 0 1 0-5.4Z" /></svg>
-          </button>
           <button type="button" onClick={() => void askBia(saisie)} disabled={!saisie.trim()} aria-label="Envoyer">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12 2-12 2Z" /></svg>
           </button>

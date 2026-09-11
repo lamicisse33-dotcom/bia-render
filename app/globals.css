@@ -939,6 +939,79 @@ button { font: inherit; touch-action: manipulation; }
   color: rgba(255,255,255,.8);
 }
 
+/* ── CE QU'ELLE EST ALLÉE CHERCHER SUR INTERNET ──────────────────────────
+   Lamine, le 11 septembre 2026 : « tu as besoin de chaussures, elle peut
+   aller te proposer les chaussures que tu veux ».
+
+   Même rangée que la vitrine, mais chaque pièce porte son nom et son site en
+   dessous : ce sont des résultats de recherche, et ils doivent en avoir
+   l'air. Une image sans sa source laisserait croire qu'elle est d'elle. */
+.trouve-piece {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255,255,255,.05);
+}
+.trouve-piece > button, .trouve-piece iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 0; padding: 0;
+  background: rgba(0,0,0,.35);
+  cursor: pointer;
+}
+.trouve-piece img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.trouve-lancer { position: relative; }
+.trouve-triangle {
+  position: absolute; left: 50%; top: 50%;
+  width: 46px; height: 46px;
+  margin: -23px 0 0 -23px;
+  border-radius: 50%;
+  background: rgba(0,0,0,.55);
+  /* Le triangle est dessiné par la bordure : rien à charger pour ça. */
+  box-shadow: 0 2px 10px rgba(0,0,0,.4);
+}
+.trouve-triangle::after {
+  content: "";
+  position: absolute; left: 18px; top: 14px;
+  border-style: solid;
+  border-width: 9px 0 9px 14px;
+  border-color: transparent transparent transparent #fff;
+}
+
+.trouve-mot {
+  display: block;
+  padding: 7px 9px 9px;
+  font-size: 11.5px; line-height: 1.3;
+  text-align: left;
+}
+.trouve-mot b {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;      /* deux lignes, puis on coupe : sinon un titre
+                                 de boutique pousse la rangée sur trois étages */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-weight: 500;
+  color: rgba(255,255,255,.9);
+}
+.trouve-mot a, .trouve-mot em {
+  display: block;
+  margin-top: 3px;
+  font-style: normal;
+  color: rgba(255,255,255,.45);
+  text-decoration: none;
+}
+.trouve-mot a { color: rgba(214,180,110,.85); }
+
+.trouve-aller {
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: rgba(214,180,110,.9);
+  color: #1a1408;
+  font-size: 13px; font-weight: 600;
+  text-decoration: none;
+}
+
 /* ── LA RANGÉE DES SERVICES ──────────────────────────────────────────────
    Lamine, le 10 septembre 2026, en dessinant cinq carrés en haut d'une
    capture : « tous les services vont être des boutons sur ces points ; dès
