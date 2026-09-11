@@ -11,7 +11,7 @@ import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
-import { RELU, consigneRepertoire, etiquetteSeule, langueDe, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
+import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, langueDe, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
 
@@ -449,7 +449,7 @@ export async function POST(request:NextRequest){
        après l'appel au modèle, on aurait déjà payé. Et la correspondance est
        sévère (voir lib/repertoire.ts) : au moindre doute on laisse passer, car
        une réponse enregistrée servie à côté vaut bien pire que l'attente. */
-    if(RELU&&repertoireActif()){
+    if(REPERTOIRE_PRET&&repertoireActif()){
       const toute=trouverDansRepertoire(question);
       if(toute){
         /* La langue se décide sur les mots-outils employés, pas sur une
@@ -784,10 +784,21 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     }
     if(choisie){
       oublierPanne();
+      /* LA LANGUE, ICI AUSSI. Ce chemin servait « choisie.wolof » et le son
+         wolof QUOI QU'IL ARRIVE. La correspondance exacte, elle, décide la
+         langue depuis le 11 septembre — mais pas celui-ci, et c'est le plus
+         emprunté des deux : dès qu'on demande autrement que par une formule
+         déclarée, c'est le modèle qui choisit.
+
+         Donc « comment va ta famille ? » posé en français recevait la réponse
+         wolof. La moitié des enregistrements — les 111 français, payés et
+         relus — ne servait que sur une égalité parfaite. */
+      const langueChoisie=langueDe(question);
+      const enFr=langueChoisie==="fr";
       return NextResponse.json({
-        reply:choisie.wolof,
+        reply:enFr?choisie.francais:choisie.wolof,
         emotion:choisie.emotion||"neutre",
-        son:sonDe(choisie.cle,"wo"),
+        son:sonDe(choisie.cle,langueChoisie),
         source:"répertoire (choisi par elle)",
       });
     }

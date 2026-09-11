@@ -1,6 +1,7 @@
 import { lexiqueConfig } from "./lexique";
 import { REPERTOIRE, RELU } from "./repertoire-textes";
 import type { Entree } from "./repertoire-textes";
+import { NOUVELLES, RELU_BASE } from "./base-textes";
 
 /* ── CE QU'ELLE DIT SOUVENT, PAYÉ UNE SEULE FOIS ────────────────────────────
 
@@ -129,11 +130,64 @@ function uneLettreDEcart(a: string, b: string): boolean {
   return faute + (a.length - i) + (b.length - j) <= 1;
 }
 
+/* ── LES DEUX LISTES N'EN FONT QU'UNE ICI ───────────────────────────────────
+
+   Trouvé le 11 septembre 2026 au soir, en vérifiant pour Lamine ce qui
+   survivrait à une panne de clé Soynade. Les soixante-neuf nouvelles réponses
+   étaient INATTEIGNABLES : enregistrées, relues cinq fois, corrigées
+   quarante-neuf fois, payées 1,65 $ — et ce fichier-ci, le seul qui décide ce
+   que BIA reconnaît, ne les importait pas. Elles n'existaient que pour la
+   route qui les enregistre et pour les pages qui les font écouter.
+
+   Aucune des trois fonctions ne les voyait : ni la reconnaissance, ni la
+   consigne donnée au modèle, ni la lecture de l'étiquette qu'il renvoie.
+   Cent trente-huit fichiers audio que personne ne pouvait appeler.
+
+   ── POURQUOI SEULEMENT LES « FIXE » ───────────────────────────────────────
+
+   Lamine, pendant la relecture : « BIA ne devrait pas conseiller
+   automatiquement "laisse-lui de l'espace" sans connaître la situation. »
+   Il avait classé lui-même les réponses relationnelles comme CONTEXTUELLES,
+   et il avait raison — une réponse enregistrée servie sans le contexte est
+   pire que pas de réponse.
+
+   On n'entre donc ici que les FIXE : celles dont le texte est la réponse
+   entière, vraie pour n'importe qui, n'importe quand.
+
+     FIXE            42 des 69  →  servies telles quelles
+     CONTEXTUELLE    25         →  jamais seules ; le modèle répond
+     SEMI-DYNAMIQUE   2         →  l'heure et la météo ; la réponse enregistrée
+                                   n'est qu'une ouverture, l'information vient
+                                   après — la servir seule serait un mensonge
+
+   Les vingt-sept autres restent enregistrées et prêtes : le jour où le code
+   saura servir une ouverture PUIS la suite, elles s'allumeront sans qu'on
+   repaie un centime. Leur absence ici est une décision, pas un oubli. */
+const DES_NOUVELLES: Entree[] = RELU_BASE
+  ? NOUVELLES.filter((n) => n.type === "FIXE").map((n) => ({
+      cle: n.cle,
+      wolof: n.wolof,
+      francais: n.francais,
+      formes: n.formes,
+    }))
+  : [];
+
+/* Une clé en double serait une réponse qui en cache une autre, sans bruit.
+   On garde la première — celle des 42, relue le plus tôt — et l'épreuve
+   tests/epreuve-deux-listes.mjs vérifie qu'il n'y en a aucune. */
+export const TOUT: Entree[] = [
+  ...(RELU ? REPERTOIRE : []),
+  ...DES_NOUVELLES.filter((n) => !REPERTOIRE.some((e) => e.cle === n.cle)),
+];
+
+/** Y a-t-il de quoi répondre sans rien payer ? */
+export const REPERTOIRE_PRET = TOUT.length > 0;
+
 /* Jamais moins de six mots, jamais moins que la plus longue formule déclarée.
-   Calculé une fois, au chargement. */
+   Calculé une fois, au chargement, sur les DEUX listes. */
 const LIMITE_MOTS = Math.max(
   6,
-  ...REPERTOIRE.flatMap((e) => e.formes.map((f) => normaliser(f).split(" ").length)),
+  ...TOUT.flatMap((e) => e.formes.map((f) => normaliser(f).split(" ").length)),
 );
 
 /** Rend l'entrée si la question EST cette formule. Sinon null. */
@@ -162,13 +216,13 @@ export function trouverDansRepertoire(question: string): Entree | null {
      approchée gagner contre une correspondance EXACTE située plus bas dans la
      liste. On regarde donc d'abord toutes les égalités parfaites, et
      seulement ensuite les approchées. */
-  for (const e of REPERTOIRE) {
+  for (const e of TOUT) {
     for (const f of e.formes) {
       if (q === normaliser(f)) return e;
     }
   }
 
-  for (const e of REPERTOIRE) {
+  for (const e of TOUT) {
     for (const f of e.formes) {
       const forme = normaliser(f);
       /* Une formule trop courte après nettoyage n'est plus distinctive :
@@ -183,7 +237,7 @@ export function trouverDansRepertoire(question: string): Entree | null {
   /* TROISIÈME PASSE : ce que ça sonne. C'est celle qui rattrape le micro. */
   const dit = sonne(question);
   if (!dit) return null;
-  for (const e of REPERTOIRE) {
+  for (const e of TOUT) {
     for (const f of e.formes) {
       if (dit === sonne(f)) return e;
     }
@@ -191,7 +245,7 @@ export function trouverDansRepertoire(question: string): Entree | null {
 
   /* QUATRIÈME ET DERNIÈRE : une lettre d'écart, et une seule candidate. */
   const proches = new Set<Entree>();
-  for (const e of REPERTOIRE) {
+  for (const e of TOUT) {
     for (const f of e.formes) {
       const forme = sonne(f);
       if (forme.length >= 8 && uneLettreDEcart(dit, forme)) proches.add(e);
@@ -302,15 +356,15 @@ export function langueDe(question: string): "wo" | "fr" {
    instantanée, elle attrape « salam » et « waaw » sans réveiller personne.
    Le modèle n'est consulté que quand elle n'a rien trouvé. */
 export function consigneRepertoire(): string {
-  if (!RELU) return "";
-  const lignes = REPERTOIRE.map(
+  if (!REPERTOIRE_PRET) return "";
+  const lignes = TOUT.map(
     (e) => `#${e.cle} — quand on demande : ${e.formes.slice(0, 4).join(" / ")}\n    elle dit alors : « ${e.wolof} »`,
   );
   return `
 
 ═══ CE QUI EST DÉJÀ ENREGISTRÉ DE SA VOIX ═══
 
-Ces ${REPERTOIRE.length} réponses existent en son, prêtes à être dites. Quand la
+Ces ${TOUT.length} réponses existent en son, prêtes à être dites. Quand la
 question de la personne est CELLE-LÀ — même dite autrement, même mal
 orthographiée, même en wolof écrit à la française — tu ne rédiges RIEN : tu
 réponds uniquement par l'étiquette, seule, sur une ligne. Exemple de réponse
@@ -336,7 +390,7 @@ export function etiquetteSeule(reponse: string): Entree | null {
   const t = String(reponse || "").trim().replace(/^[«"'\s]+|[»"'.\s]+$/g, "");
   const m = /^#([a-z0-9-]{2,40})$/.exec(t);
   if (!m) return null;
-  return REPERTOIRE.find((e) => e.cle === m[1]) || null;
+  return TOUT.find((e) => e.cle === m[1]) || null;
 }
 
 /** L'adresse du son déjà fabriqué, chez Supabase. */
@@ -346,12 +400,20 @@ export function sonDe(cle: string, langue: "wo" | "fr"): string {
 
 export const repertoireActif = () => Boolean(lexiqueConfig.url && lexiqueConfig.cle);
 
-/** Ce que /api/etat montre : combien d'entrées, et si les textes sont relus. */
+/** Ce que /api/etat montre : combien d'entrées, et si les textes sont relus.
+    Le détail des deux listes est là exprès : c'est ce qui aurait montré, tout
+    de suite, que les soixante-neuf n'étaient branchées nulle part. */
 export function etatRepertoire() {
   return {
-    entrees: REPERTOIRE.length,
+    entrees: TOUT.length,
+    dont_les_42: RELU ? REPERTOIRE.length : 0,
+    dont_les_nouvelles_fixes: DES_NOUVELLES.length,
+    nouvelles_gardees_pour_le_contexte: RELU_BASE
+      ? NOUVELLES.length - DES_NOUVELLES.length
+      : NOUVELLES.length,
     textes_relus_par_lamine: RELU,
+    textes_nouveaux_relus: RELU_BASE,
     seau: SEAU,
-    actif: repertoireActif() && RELU,
+    actif: repertoireActif() && REPERTOIRE_PRET,
   };
 }
