@@ -71,7 +71,15 @@ export const REPERTOIRE: Entree[] = [
     cle: "la-famille",
     wolof: "Ñu ngi ci jàmm, jërëjëf. Yaw naka Sa famille ?",
     francais: "Ils vont bien, merci d'avoir demandé. Et ta famille ?",
-    formes: ["naka waa ker ga", "naka sa waa ker", "comment va la famille", "et la famille", "ana waa ker ga"],
+    /* LES SIX FAÇONS DE LAMINE, le 11 septembre 2026. C'est lui qui les a
+       écrites : « une langue, on peut utiliser plusieurs mots, plusieurs
+       phrases qui désignent tous la même chose. » Les miennes étaient cinq,
+       et toutes calquées sur la même tournure. */
+    formes: ["naka sa waa ker", "naka waa ker ga", "sa waa ker naka lanu def",
+      "mbaa sa waa ker nepp a ngi ci jamm", "naka sa famille bi",
+      "famille bi nu ngi ci jamm",
+      "ana waa ker ga", "comment va la famille", "et la famille",
+      "comment va ta famille"],
     emotion: "douce",
   },
   {

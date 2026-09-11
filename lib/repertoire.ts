@@ -129,12 +129,28 @@ function uneLettreDEcart(a: string, b: string): boolean {
   return faute + (a.length - i) + (b.length - j) <= 1;
 }
 
+/* Jamais moins de six mots, jamais moins que la plus longue formule déclarée.
+   Calculé une fois, au chargement. */
+const LIMITE_MOTS = Math.max(
+  6,
+  ...REPERTOIRE.flatMap((e) => e.formes.map((f) => normaliser(f).split(" ").length)),
+);
+
 /** Rend l'entrée si la question EST cette formule. Sinon null. */
 export function trouverDansRepertoire(question: string): Entree | null {
   const q = normaliser(question);
   if (!q) return null;
-  // Au-delà de six mots, ce n'est plus une formule : c'est une demande.
-  if (q.split(" ").length > 6) return null;
+  /* AU-DELÀ, CE N'EST PLUS UNE FORMULE : C'EST UNE DEMANDE.
+
+     La limite était de six mots, écrite à la main. Le 11 septembre 2026,
+     Lamine a donné ses six façons de demander des nouvelles de la famille, et
+     l'une d'elles — « mbaa sa waa kër ñépp a ngi ci jàmm ? » — en fait neuf.
+     Elle n'aurait jamais pu répondre, sans que rien ne le signale.
+
+     La limite se calcule donc sur les formules elles-mêmes : jamais moins de
+     six, jamais moins que la plus longue qu'on ait déclarée. Ajouter une
+     tournure plus longue ne peut plus la rendre muette. */
+  if (q.split(" ").length > LIMITE_MOTS) return null;
 
   /* DEUX PASSES, ET L'ORDRE COMPTE — l'épreuve me l'a appris.
 
