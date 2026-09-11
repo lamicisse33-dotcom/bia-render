@@ -209,7 +209,7 @@ export const REPERTOIRE: Entree[] = [
     cle: "que-sais-tu-faire",
     wolof: "Mën naa la dimbali ci lu bari : tontu say questions, bind ay messages ak ay devis, lire ay documents yi gua fotoo, ak seet ay images ak informations ci internet.",
     francais: "Je peux t'aider sur beaucoup de choses : répondre à tes questions, écrire des messages et des devis, lire des papiers que tu photographies, chercher des images sur Internet.",
-    formes: ["que sais tu faire", "qu est ce que tu sais faire", "tu peux faire quoi", "tu sers a quoi", "loo mën def", "lan nga mën def", "comment tu peux m aider", "aide moi"],
+    formes: ["que sais tu faire", "tu peux faire quoi", "tu sers a quoi", "loo mën def", "lan nga mën def", "comment tu peux m aider", "aide moi"],
   },
   {
     cle: "parles-tu-wolof",
