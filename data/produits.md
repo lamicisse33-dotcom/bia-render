@@ -24,7 +24,7 @@ d'une passion commune pour la beauté, le bien-être et le soin de la peau.
 
 ### Où les joindre
 - Ngor Almadies, Dakar — Sénégal
-- Téléphone : +221 78 878 24 24
+- Téléphone : +221 78 117 02 87
 - Vente sur WhatsApp Business, Instagram, TikTok, Snapchat, et de la main à
   la main. Pas de boutique en ligne : on appelle ou on écrit.
 
