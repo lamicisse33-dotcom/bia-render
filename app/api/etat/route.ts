@@ -5,6 +5,7 @@ import { lexiqueConfig, combien, combienParApplication } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
 import { resumeAttentes, resumeLectures } from "@/lib/attentes-vues";
 import { resumeEmotions } from "@/lib/emotions-vues";
+import { depense } from "@/lib/depense";
 
 /* Dit à l'interface quels moteurs sont réellement branchés, pour qu'elle
    choisisse le micro et la voix sans deviner. Ouvert : aucun moteur payant
@@ -39,6 +40,11 @@ export async function GET() {
     attentes: resumeAttentes(),
     lecture: resumeLectures(),
     emotions: resumeEmotions(),
+    /* CE QUE ÇA COÛTE, COMPTÉ ET NON DEVINÉ. Les signes réellement envoyés à
+       Soynade, par route, et les jetons que le modèle dit avoir consommés —
+       avec la part revenue du cache. Remis à zéro à chaque redémarrage du
+       serveur : c'est une mesure de journée, pas une comptabilité. */
+    depense: depense(),
   }, {
     /* La page d'attente de bia.khalam.app lit cet état depuis un autre
        domaine : sans cet en-tête, le navigateur lui refuse la réponse et

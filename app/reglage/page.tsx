@@ -47,7 +47,7 @@ export default function Reglage() {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": code },
         body: JSON.stringify({
-          texte, partie: 0, exaggeration: exag, temperature: temp, cfgWeight: cfg, vitesse,
+          texte, partie: 0, ou: "réglage", exaggeration: exag, temperature: temp, cfgWeight: cfg, vitesse,
           // Chaîne vide = on demande explicitement la voix d'origine, pour
           // pouvoir comparer les deux dans la même minute.
           audioPrompt: clonage ? undefined : "",

@@ -4,6 +4,7 @@ import { decouper, synthetiser } from "@/lib/voix";
 import { detecterLangue } from "@/lib/langue";
 import { pourLaVoix } from "@/lib/nombres";
 import { noterPanne } from "@/lib/panne";
+import { noterVoix } from "@/lib/depense";
 
 /* Rend UN morceau de la réponse en audio. Le client demande le morceau 0,
    le joue, et réclame le suivant pendant qu'il parle : la voix démarre donc
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     if (!verdict.ok) return NextResponse.json({ erreur: "code" }, { status: 401 });
 
     const body = await request.json() as {
-      texte?: string; partie?: number; langue?: string;
+      texte?: string; partie?: number; langue?: string; ou?: string;
       exaggeration?: number; temperature?: number; cfgWeight?: number; vitesse?: number;
       audioPrompt?: string | null;
     };
@@ -40,6 +41,13 @@ export async function POST(request: NextRequest) {
 
     // Les réglages ne viennent de la requête que depuis la page /reglage ;
     // ailleurs, ce sont ceux du serveur qui s'appliquent.
+    /* CE QUI PART VRAIMENT CHEZ SOYNADE, compté ici et nulle part ailleurs :
+       c'est ce morceau-ci, après la mise en lettres des nombres, et c'est
+       exactement ce qu'ils facturent. L'étiquette dit d'où il vient, pour
+       qu'on sache enfin QUI mange le crédit — la réponse, une attente, un
+       devis lu à voix haute, ou la page de réglage. */
+    noterVoix(morceaux[partie].length, String(body.ou || "").slice(0, 24) || "réponse");
+
     const parole = await synthetiser(morceaux[partie], langue, {
       exaggeration: body.exaggeration,
       temperature: body.temperature,

@@ -746,7 +746,7 @@ export default function Home() {
       const r = await fetch("/api/voix", {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-        body: JSON.stringify({ texte, partie }),
+        body: JSON.stringify({ texte, partie, ou: "attente" }),
       });
       if (!r.ok) throw new Error("voix indisponible");
       return await r.json() as { parties: number; audio: string | null };
@@ -985,7 +985,7 @@ export default function Home() {
      réponse — Soynade n'accepte que 500 caractères — et on va chercher le
      morceau suivant PENDANT que le précédent est lu, sinon un silence
      s'installe entre chaque phrase. */
-  const speak = useCallback(async (answer: string, emotion?: string) => {
+  const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse") => {
     /* PRENDRE LA PAROLE N'EST PAS COUPER LA PAROLE.
 
        Ce bloc était en tête de la fonction : le son mourait à l'instant où le
@@ -1011,7 +1011,7 @@ export default function Home() {
       const r = await fetch("/api/voix", {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-        body: JSON.stringify({ texte: answer, partie }),
+        body: JSON.stringify({ texte: answer, partie, ou }),
       });
       if (!r.ok) throw new Error("voix indisponible");
       return await r.json() as { parties: number; audio: string | null; type_mime?: string };
@@ -1338,7 +1338,7 @@ export default function Home() {
       emotionRef.current = "neutre";
       setHistory((items) => [...items, { role: "bia", text: d.wolof as string }]);
       setFace("yeux_ouverts");
-      speak(d.wolof);
+      speak(d.wolof, undefined, "lecture");
     } catch {
       setPanne("Pas de réseau.");
       setMode("error");
@@ -1473,7 +1473,7 @@ export default function Home() {
       setHistory((items) => [...items, { role: "user", text: trace }, { role: "bia", text: d.wolof as string }]);
       emotionRef.current = "neutre";
       setFace("yeux_ouverts");
-      speak(d.wolof);
+      speak(d.wolof, undefined, "lecture");
     } catch {
       setPanne("La photo n'a pas pu être envoyée.");
       setMode("error");
@@ -2116,7 +2116,7 @@ export default function Home() {
          montrer le papier à l'écran ne sert à rien s'il ne peut pas le lire.
          Le lui dire, si. */
       setAValider(true);
-      void speak(lecture(d.document, d.totaux ?? null));
+      void speak(lecture(d.document, d.totaux ?? null), undefined, "document");
     } catch {
       if (perime()) return;
       setPapierErreur("Pas de réseau. Le papier n'a pas pu être fabriqué.");

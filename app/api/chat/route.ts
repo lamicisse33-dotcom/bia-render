@@ -5,6 +5,7 @@ import { savoirKhalam } from "@/lib/khalam";
 import { savoirProduits } from "@/lib/produits";
 import { SOCLE_RELATIONS, consigneRelations, estSujetRelation } from "@/lib/relations";
 import { noterPanne, oublierPanne } from "@/lib/panne";
+import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 
@@ -374,16 +375,34 @@ export async function POST(request:NextRequest){
        mathématiques : quelqu'un peut demander l'heure et finir par raconter
        qu'on le frappe. Un plancher de sécurité ne doit jamais dépendre d'un
        mot-clé. */
-    let consigne=system+"\n\n"+SOCLE_RELATIONS;
+    /* ── DEUX MORCEAUX, ET C'EST CE QUI DIVISE LA FACTURE ──────────────────
+
+       Demandé par Lamine le 11 septembre 2026 : « fais le nécessaire pour
+       diminuer les charges ».
+
+       Sa consigne fait près de vingt-sept mille signes — son caractère, le
+       socle des relations, ce qu'elle sait de KHALAM, les produits — et elle
+       repartait EN ENTIER, plein tarif, à chaque question. Or elle est la
+       même à chaque fois.
+
+       Anthropic sait garder un début de consigne en mémoire et le relire dix
+       fois moins cher. Encore faut-il que ce début ne bouge pas d'une
+       question à l'autre : on sépare donc ce qui ne change JAMAIS — le socle
+       ci-dessous — de ce qui dépend de la personne et du moment : le résumé
+       de qui elle est, ses corrections, la recherche.
+
+       L'ordre a changé pour ça, et c'est la seule raison. */
+    let socle=system+"\n\n"+SOCLE_RELATIONS;
+    let variable="";
 
     /* La base des 70 situations, elle, ne se charge que si le sujet s'y prête :
        quinze mille caractères à chaque question tripleraient le coût et
        noieraient son attention. */
     const filDitPar=(body.history||[]).map(item=>String(item.text||""));
-    if(estSujetRelation(question,filDitPar))consigne+=await consigneRelations();
+    if(estSujetRelation(question,filDitPar))variable+=await consigneRelations();
 
     const savoir=await savoirKhalam();
-    if(savoir)consigne+=`\n\n═══ CE QUE TU SAIS DE KHALAM ═══\n${savoir}\n═══ fin de ce que tu sais de KHALAM ═══`;
+    if(savoir)socle+=`\n\n═══ CE QUE TU SAIS DE KHALAM ═══\n${savoir}\n═══ fin de ce que tu sais de KHALAM ═══`;
 
     /* ── LES PRODUITS DE BEAUTÉ, ET LA BARRIÈRE AUTOUR ─────────────────────
 
@@ -398,7 +417,7 @@ export async function POST(request:NextRequest){
        placer — dans une conversation sur la fatigue, sur la pluie — et une
        assistante qui vend quelque chose n'est plus une assistante. */
     const cosmetiques=await savoirProduits();
-    if(cosmetiques)consigne+=`\n\n═══ LES PRODUITS DE BEAUTÉ ═══
+    if(cosmetiques)socle+=`\n\n═══ LES PRODUITS DE BEAUTÉ ═══
 CECI N'EST PAS TON SUJET ET NE CHANGE RIEN À QUI TU ES. Tu es BIA, et tu
 restes exactement la même : ce qui suit est un renseignement que tu détiens,
 comme une adresse qu'on t'aurait donnée, et rien de plus.
@@ -422,7 +441,7 @@ une peau abîmée : là, c'est un médecin.
 ${cosmetiques}
 ═══ fin des produits de beauté ═══`;
     const resume=String(body.resume||"").trim().slice(0,1500);
-    if(resume)consigne+=`\n\nCE QUE TU SAIS DÉJÀ DE CETTE PERSONNE\n${resume}\nUtilise-le naturellement, sans jamais dire que tu l'as «noté».`;
+    if(resume)variable+=`\n\nCE QUE TU SAIS DÉJÀ DE CETTE PERSONNE\n${resume}\nUtilise-le naturellement, sans jamais dire que tu l'as «noté».`;
 
     /* Les corrections des locuteurs natifs passent AVANT le savoir du modèle :
        sur le wolof de Dakar, un humain d'ici a toujours raison contre un
@@ -448,7 +467,7 @@ ${cosmetiques}
          corrigés par des gens d'ici, et ils valent dans toutes ses phrases. */
       const mots=await motsCorriges();
       if(mots.length){
-        consigne+="\n\nTA FAÇON DE DIRE, CORRIGÉE PAR DES GENS D'ICI\n"
+        variable+="\n\nTA FAÇON DE DIRE, CORRIGÉE PAR DES GENS D'ICI\n"
           +"Des locuteurs de Dakar ont repris ces mots dans TES réponses. Leur "
           +"version fait autorité sur la tienne, et elle vaut PARTOUT — pas "
           +"seulement quand on te repose la même question. Emploie la bonne "
@@ -459,11 +478,11 @@ ${cosmetiques}
 
       const exacte=await correctionExacte(question);
       if(exacte){
-        consigne+=`\n\nFORMULATION VALIDÉE POUR CETTE QUESTION EXACTE\nUn locuteur natif a corrigé la réponse à cette question précise. Sa formulation fait autorité sur la tienne :\n« ${exacte.corrigee} »\nReprends-la, en l'ajustant si le fil de la conversation le demande.`;
+        variable+=`\n\nFORMULATION VALIDÉE POUR CETTE QUESTION EXACTE\nUn locuteur natif a corrigé la réponse à cette question précise. Sa formulation fait autorité sur la tienne :\n« ${exacte.corrigee} »\nReprends-la, en l'ajustant si le fil de la conversation le demande.`;
       }else{
         const exemples=await exemplesPour(question);
         if(exemples.length){
-          consigne+="\n\nCOMMENT ON DIT ICI (corrections de locuteurs natifs)\n"
+          variable+="\n\nCOMMENT ON DIT ICI (corrections de locuteurs natifs)\n"
             +"Ces exemples t'apprennent la MANIÈRE de dire — tournure, vocabulaire, rythme. "
             +"Ils ne sont PAS des réponses à resservir : la question posée est différente. "
             +"Inspire-t'en pour la forme, réponds sur le fond avec ta propre tête.\n"
@@ -483,7 +502,15 @@ ${cosmetiques}
        quelque chose qui change — ou quand la personne l'a réclamé. Et il
        reste éteint tant que BIA_RECHERCHE n'est pas posé dans Render. */
     const cherche = rechercheActive() && besoinDInternet(question, filDitPar);
-    if (cherche) consigne += CONSIGNE_RECHERCHE;
+    if (cherche) variable += CONSIGNE_RECHERCHE;
+
+    /* Le socle porte la marque « garde-le en mémoire ». Le reste suit
+       normalement : il change à chaque question, le mettre en cache coûterait
+       plus cher que de l'envoyer. */
+    const consigne=[
+      {type:"text",text:socle,cache_control:{type:"ephemeral"}},
+      ...(variable.trim()?[{type:"text",text:variable}]:[]),
+    ];
 
     const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:cherche?800:500,system:consigne,messages:[...history,{role:"user",content:question}],...(cherche?{tools:[OUTIL_RECHERCHE]}:{})})});
 
@@ -511,7 +538,11 @@ ${cosmetiques}
       return NextResponse.json({reply:PANNE_MOTEUR,emotion:"concernee",source:`panne : modèle ${reponse.status}`});
     }
 
-    const data=await reponse.json() as {content?:Array<{type:string;text?:string}>};
+    const data=await reponse.json() as {content?:Array<{type:string;text?:string}>;usage?:unknown};
+    /* Ce n'est plus une estimation : c'est le modèle lui-même qui dit ce
+       qu'il a consommé, et combien lui est revenu du cache. Ça se lit dans
+       /api/etat, champ « depense ». */
+    noterModele(data.usage, "chat");
     const complet=(data.content||[]).filter(block=>block.type==="text").map(block=>block.text||"").join("\n").trim();
     const {reply:avecBalise,emotion,balise}=detacherEmotion(complet);
     const {texte:sansPapier,papier}=detacherPapier(avecBalise);
