@@ -97,6 +97,12 @@ export const REPERTOIRE: Entree[] = [
     formes: ["naka sa waa ker", "naka waa ker ga", "sa waa ker naka lanu def",
       "mbaa sa waa ker nepp a ngi ci jamm", "naka sa famille bi",
       "famille bi nu ngi ci jamm",
+      /* Sa deuxième série, le 11 septembre 2026. Celle-ci nomme les gens au
+         lieu de la maison — « sa yaay, sa baay » — et c'est une autre porte
+         d'entrée que je n'avais pas. */
+      "sa famille ca va", "naka waa ker ni", "mbaa ker ga nepp a ngi ci jamm",
+      "waa ker ga naka lanu def", "famille bi lepp baax na",
+      "naka sa yaay sa baay ak waa ker ga",
       "ana waa ker ga", "comment va la famille", "et la famille",
       "comment va ta famille"],
     emotion: "douce",
