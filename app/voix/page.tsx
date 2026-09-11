@@ -42,10 +42,12 @@ import { ralentir, vitesseChoisie } from "@/lib/ralentir";
    et une page qui dépense du crédit n'a rien à faire dans une application
    qu'on ouvre au public.
 
-   POUR LA RETIRER, TROIS GESTES, ET RIEN D'AUTRE N'EN DÉPEND :
+   POUR LA RETIRER, QUATRE GESTES, ET RIEN D'AUTRE N'EN DÉPEND :
      1. effacer le dossier app/voix/ ;
      2. effacer le bloc « LA PAGE POUR ÉCOUTER » à la fin de app/globals.css ;
-     3. c'est tout. lib/repertoire-textes.ts RESTE : c'est le répertoire
+     3. effacer le bloc « LA PAGE D’ÉCOUTE » dans app/page.tsx (le lien dans
+        « Moi »), avec l’état estMaitre et son useEffect ;
+     4. c’est tout. lib/repertoire-textes.ts RESTE : c'est le répertoire
         lui-même qui s'en sert, pas cette page.
 
    Le bandeau en haut de l'écran le dit aussi, pour que personne ne la prenne

@@ -287,6 +287,10 @@ export default function Home() {
      c'est seulement cette page qui s'ouvre ». Un seul service ouvert à la
      fois, et la rangée reste en haut pour passer de l'un à l'autre. */
   const [service, setService] = useState<Service>("");
+  /* Vrai seulement si le code gardé sur cet appareil est celui de Lamine. Sert
+     à ne montrer qu'à lui la page d'écoute des voix, qui dépense à chaque
+     appui. La réponse ne dit que oui ou non, et ne coûte rien. */
+  const [estMaitre, setEstMaitre] = useState(false);
   const [aColler, setAColler] = useState("");
   /** Le téléphone sait-il partager ? Sur mobile, oui — et c'est ce qui ouvre WhatsApp. */
   const [partageable, setPartageable] = useState(false);
@@ -2727,6 +2731,16 @@ export default function Home() {
     );
   }
 
+  /* On ne demande QUE quand il ouvre « Moi », et une seule fois : inutile de
+     poser la question à chaque écran à quelqu'un qui ne verra jamais ce lien. */
+  useEffect(() => {
+    if (service !== "fiche" || !code || estMaitre) return;
+    fetch("/api/codes", { headers: { "x-bia-code": code } })
+      .then((r) => (r.ok ? r.json() : { maitre: false }))
+      .then((d: { maitre?: boolean }) => setEstMaitre(Boolean(d.maitre)))
+      .catch(() => {});
+  }, [service, code, estMaitre]);
+
   function vueFiche() {
     const champ = (cle: keyof Emetteur, etiquette: string, mode?: string) => (
       <label className="papier-champ">{etiquette}
@@ -2752,6 +2766,24 @@ export default function Home() {
             onChange={(e) => setDebit(Number(e.target.value))} />
           <span className="papier-debit-bornes"><i>Plus lentement</i><i>Plus vite</i></span>
         </label>
+
+        {/* LA PAGE D'ÉCOUTE — provisoire, et pour Lamine seul.
+
+            Il a dû demander où elle se trouvait. C'est la troisième fois qu'on
+            construit quelque chose sans laisser de porte pour y entrer : une
+            chose qu'on ne voit pas n'existe pas.
+
+            Elle n'apparaît que pour le code maître. Chaque écoute coûte environ
+            deux centimes, et un testeur n'a rien à faire devant un bouton qui
+            dépense. Ce bloc part avec la page, le jour de l'enregistrement. */}
+        {estMaitre ? (
+          <p className="papier-note" style={{ marginTop: 14 }}>
+            <a href="/voix" className="papier-lien">Écouter les 42 phrases →</a>
+            <br />
+            Provisoire, et pour toi seul : on la retire une fois
+            l&apos;enregistrement fait.
+          </p>
+        ) : null}
 
         <p className="papier-titre" style={{ marginTop: 22 }}>Mes renseignements</p>
         <p className="papier-note">

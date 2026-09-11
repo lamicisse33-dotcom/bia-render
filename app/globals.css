@@ -1479,6 +1479,19 @@ button { font: inherit; touch-action: manipulation; }
    Lamine, le 11 septembre 2026 : « une page où je peux coller mes corrections
    pour les écouter ». Elle se lit sur un téléphone, debout, en corrigeant du
    wolof : texte confortable, boutons larges, rien de décoratif. */
+
+/* La porte d'entrée, dans « Moi ». Elle part avec le reste du bloc. */
+.papier-lien {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 9px 14px;
+  border: 1px solid rgba(231,198,103,.45);
+  border-radius: 11px;
+  color: #e7c667;
+  font-size: 14px;
+  text-decoration: none;
+}
+.papier-lien:active { background: rgba(231,198,103,.14); }
 .voix {
   max-width: 720px;
   margin: 0 auto;

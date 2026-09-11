@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { creerCode } from "@/lib/codes";
+import { creerCode, verifierCode } from "@/lib/codes";
 
 /* ── FABRIQUER DES CODES DE TESTEUR POUR BIA ────────────────────────────────
 
@@ -55,10 +55,24 @@ function entetes(origine: string | null): Record<string, string> {
     // annoncé fait échouer la demande de permission, donc l'appel n'est jamais
     // envoyé. C'est le genre de panne qui ne laisse aucune trace utile.
     "access-control-allow-headers": "content-type, x-code-acces",
-    "access-control-allow-methods": "POST, OPTIONS",
+    "access-control-allow-methods": "GET, POST, OPTIONS",
     "access-control-max-age": "86400",
     vary: "origin",
   };
+}
+
+/* « Est-ce que c'est Lamine sur cet appareil ? » — gratuit, et sans rien
+   révéler : on ne répond que oui ou non, jamais le code lui-même.
+
+   L'application s'en sert pour ne montrer QU'À LUI les outils qui dépensent,
+   comme la page d'écoute des voix. Un testeur qui ouvre les réglages ne doit
+   pas tomber sur un bouton qui coûte deux centimes l'appui. */
+export async function GET(request: NextRequest) {
+  const verdict = verifierCode(request.headers.get("x-bia-code"));
+  if (!verdict.ok || !verdict.maitre) {
+    return NextResponse.json({ maitre: false }, { status: 401 });
+  }
+  return NextResponse.json({ maitre: true });
 }
 
 /* Le navigateur demande la permission AVANT d'envoyer le vrai appel. Sans
