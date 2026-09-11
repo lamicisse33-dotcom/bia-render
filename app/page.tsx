@@ -307,6 +307,9 @@ export default function Home() {
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const animationRef = useRef<number | null>(null);
   const enregistreurRef = useRef<MediaRecorder | null>(null);
+  /* De quoi débrancher l'analyseur du micro sans toucher au contexte de la
+     page — qui porte toute sa voix et ne doit jamais être fermé ici. */
+  const debrancherMicroRef = useRef<(() => void) | null>(null);
   /* ── ANNULER PENDANT QU'ON PARLE ────────────────────────────────────────
      Demandé par Lamine le 10 septembre 2026 : « pendant qu'il parle, il peut
      se tromper. Pour que ça ne soit pas transmis à BIA et qu'on ne perde pas
@@ -1710,27 +1713,81 @@ export default function Home() {
       const morceaux: Blob[] = [];
       enregistreurRef.current = enregistreur;
 
-      const contexte = new AudioContext();
-      const analyse = contexte.createAnalyser();
+      /* ── LE MICRO QUI NE SE FERMAIT PLUS APRÈS UNE CORRECTION ─────────────
+
+         Signalé par Lamine le 11 septembre 2026 : « la fenêtre se ferme
+         correctement, mais ensuite si tu parles le micro ne se coupe pas
+         quand tu finis de parler — seulement après avoir effectué une
+         correction. »
+
+         CE CODE OUVRAIT UN SECOND CONTEXTE AUDIO (`new AudioContext()`), alors
+         que la règle est écrite trente lignes plus bas dans ce même fichier :
+         « le contexte de la page, jamais un deuxième — sur iPhone, en ouvrir
+         un second pendant qu'elle parle interrompt le son en cours ».
+
+         Et la conséquence est exactement ce qu'il décrit. Un contexte de plus,
+         ouvert alors que la page vient de se servir du sien, arrive SUSPENDU
+         sur iOS. Un analyseur suspendu ne rend que des 128 — du silence
+         parfait. Le code croit donc que personne n'a encore parlé, et comme sa
+         règle est d'attendre une voix aussi longtemps qu'il faut, il attend
+         pour toujours. Le micro reste ouvert, la personne parle dans le vide.
+
+         On prend donc le contexte de la page, et on ne le ferme jamais : on se
+         contente de débrancher, comme le fait déjà lib/frappe.ts. */
+      const ctxMicro = contexte();
+      if (ctxMicro.state === "suspended") { try { await ctxMicro.resume(); } catch {} }
+      const analyse = ctxMicro.createAnalyser();
       analyse.fftSize = 512;
-      contexte.createMediaStreamSource(flux).connect(analyse);
+      const entree = ctxMicro.createMediaStreamSource(flux);
+      entree.connect(analyse);
+      debrancherMicroRef.current = () => {
+        try { entree.disconnect(); } catch {}
+        try { analyse.disconnect(); } catch {}
+      };
       const tampon = new Uint8Array(analyse.frequencyBinCount);
       let aParle = false;
       let dernierSon = 0;
+      const ouverture = Date.now();
+      /* Un vrai micro n'est JAMAIS parfaitement plat : même une pièce vide a
+         son souffle. Une suite de 128 exacts ne veut donc pas dire « silence »,
+         elle veut dire « l'analyseur ne rend rien ». On compte ces tours. */
+      let toursMuets = 0;
+      let analyseurMort = false;
 
       const veille = setInterval(() => {
+        // iOS suspend le contexte dès qu'on repose le téléphone : on le réveille.
+        if (ctxMicro.state === "suspended") { void ctxMicro.resume(); }
         analyse.getByteTimeDomainData(tampon);
         let creux = 0;
         for (const v of tampon) creux = Math.max(creux, Math.abs(v - 128));
+
+        if (creux === 0) toursMuets++; else toursMuets = 0;
+        /* Deux secondes de platitude absolue : l'analyseur est mort. On ne
+           peut plus se fier au son pour fermer le micro — alors on ferme au
+           temps, généreusement, plutôt que de laisser la personne parler dans
+           un micro qui ne se coupera jamais. */
+        if (!analyseurMort && toursMuets > 16) analyseurMort = true;
+
         if (creux > 8) { aParle = true; dernierSon = Date.now(); }
-        else if (aParle && Date.now() - dernierSon > 2000) arreterEnregistrement();
+        else if (aParle && Date.now() - dernierSon > 2000) { arreterEnregistrement(); return; }
+
+        const depuis = Date.now() - ouverture;
+        if (analyseurMort && depuis > 9000) { arreterEnregistrement(); return; }
+        /* LE DERNIER FILET, et il ne peut pas se tromper. Sa règle est que le
+           micro attend une voix aussi longtemps qu'il faut — mais deux minutes
+           de micro ouvert, ce n'est plus de l'attente, c'est une panne. */
+        if (depuis > 120000) arreterEnregistrement();
       }, 120);
 
       enregistreur.ondataavailable = (e) => { if (e.data.size) morceaux.push(e.data); };
       enregistreur.onstop = async () => {
         clearInterval(veille);
         flux.getTracks().forEach((t) => t.stop());
-        contexte.close().catch(() => {});
+        /* ON NE FERME PLUS LE CONTEXTE : c'est celui de la page, et toute sa
+           voix passe par lui. Le fermer ici la rendait muette jusqu'à ce que
+           `contexte()` en refabrique un. On débranche, c'est tout. */
+        debrancherMicroRef.current?.();
+        debrancherMicroRef.current = null;
         enregistreurRef.current = null;
 
         /* ON JETTE AVANT DE TRANSCRIRE. C'est le tout l'intérêt du bouton :
