@@ -184,6 +184,75 @@ export function trouverDansRepertoire(question: string): Entree | null {
   return proches.size === 1 ? [...proches][0] : null;
 }
 
+/* ── QUAND LES LETTRES NE SUFFISENT PLUS : ON DEMANDE AU MODÈLE ────────────
+
+   Lamine, le 11 septembre 2026, après trois essais infructueux : « il faut la
+   rendre beaucoup plus intelligente pour qu'elle puisse anticiper et
+   comprendre ce qu'on a enregistré, et prioriser tout ce qui va dans ce sens.
+   Elle doit utiliser ses mots-là. »
+
+   IL A RAISON, ET J'AI CHERCHÉ AU MAUVAIS ENDROIT. J'ai passé trois tours à
+   élargir la comparaison de lettres — les accents, puis les sons, puis une
+   lettre d'écart. Chaque fois ça rattrapait une orthographe de plus et
+   laissait passer la suivante. On ne rattrapera jamais toutes les façons
+   d'écrire « naka waa kër ga » par des règles d'écriture, parce que le
+   problème n'est pas l'écriture : c'est le SENS.
+
+   Or il y a quelqu'un, dans la chaîne, qui comprend le sens : le modèle.
+
+   CE QU'IL VOIT DÉSORMAIS. La liste ci-dessous part avec chaque question,
+   dans le SOCLE — donc relue depuis le cache, au dixième du prix, et sans
+   grossir d'un sou quand on ajoute une phrase. Il lui suffit de répondre
+   « #la-famille » pour que BIA serve la réponse enregistrée, mot pour mot,
+   avec son son déjà fabriqué.
+
+   CE QUE ÇA COÛTE VRAIMENT, ET POURQUOI C'EST GAGNANT. On paie le modèle,
+   oui — quelques centièmes de centime. Mais la voix, elle, ne fabrique RIEN :
+   et la voix, c'est 93 % de la facture de BIA, mesuré ce matin. On échange
+   donc une réflexion de quelques centimes contre huit secondes d'attente et
+   la partie chère de la dépense.
+
+   LA CORRESPONDANCE PAR LETTRES RESTE EN PREMIÈRE LIGNE : gratuite,
+   instantanée, elle attrape « salam » et « waaw » sans réveiller personne.
+   Le modèle n'est consulté que quand elle n'a rien trouvé. */
+export function consigneRepertoire(): string {
+  if (!RELU) return "";
+  const lignes = REPERTOIRE.map(
+    (e) => `#${e.cle} — quand on demande : ${e.formes.slice(0, 4).join(" / ")}\n    elle dit alors : « ${e.wolof} »`,
+  );
+  return `
+
+═══ CE QUI EST DÉJÀ ENREGISTRÉ DE SA VOIX ═══
+
+Ces ${REPERTOIRE.length} réponses existent en son, prêtes à être dites. Quand la
+question de la personne est CELLE-LÀ — même dite autrement, même mal
+orthographiée, même en wolof écrit à la française — tu ne rédiges RIEN : tu
+réponds uniquement par l'étiquette, seule, sur une ligne. Exemple de réponse
+complète de ta part : #la-famille
+
+C'EST UNE PRIORITÉ. Si une de ces réponses répond vraiment à la question, tu
+la préfères toujours à une phrase de ton cru : c'est sa voix à elle, déjà
+enregistrée, et elle arrive sans attente.
+
+MAIS SEULEMENT SI ELLE RÉPOND VRAIMENT. « Salaam, dama bëgg ab devis » n'est
+pas une salutation : c'est une demande de devis. Au moindre doute, réponds
+normalement — une réponse enregistrée servie à côté est bien pire qu'une
+phrase que tu écris toi-même.
+
+${lignes.join("\n")}
+═══ fin de ce qui est enregistré ═══`;
+}
+
+/* L'étiquette que le modèle a renvoyée, si sa réponse n'est QUE ça. On exige
+   qu'elle soit seule : une étiquette au milieu d'une phrase, c'est qu'il
+   parlait de la liste au lieu de s'en servir. */
+export function etiquetteSeule(reponse: string): Entree | null {
+  const t = String(reponse || "").trim().replace(/^[«"'\s]+|[»"'.\s]+$/g, "");
+  const m = /^#([a-z0-9-]{2,40})$/.exec(t);
+  if (!m) return null;
+  return REPERTOIRE.find((e) => e.cle === m[1]) || null;
+}
+
 /** L'adresse du son déjà fabriqué, chez Supabase. */
 export function sonDe(cle: string, langue: "wo" | "fr"): string {
   return `${lexiqueConfig.url}/storage/v1/object/public/${SEAU}/${langue}/${encodeURIComponent(cle)}.wav`;

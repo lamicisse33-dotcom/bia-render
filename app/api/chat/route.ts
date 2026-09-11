@@ -11,7 +11,7 @@ import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
-import { RELU, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
+import { RELU, consigneRepertoire, etiquetteSeule, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
 
@@ -579,6 +579,16 @@ ${cosmetiques}
        question à l'autre. Le cache la garde, et elle ne coûte rien. */
     socle+=consigneTrouver();
 
+    /* ── CE QUI EST DÉJÀ DIT DE SA VOIX ────────────────────────────────────
+
+       Lamine : « rends-la beaucoup plus intelligente pour qu'elle anticipe et
+       comprenne ce qu'on a enregistré, et qu'elle priorise. »
+
+       La liste va dans le SOCLE, pas dans la partie variable : elle ne change
+       jamais, donc elle est relue depuis le cache au dixième du prix. Mise
+       dans le variable, on l'aurait repayée plein tarif à chaque question. */
+    if(repertoireActif())socle+=consigneRepertoire();
+
     const aMontrer=await catalogue();
     if(aMontrer)variable+=`\n\nCE QUE TU PEUX MONTRER À L'ÉCRAN
 Tu as des images — parfois une vidéo — que tu peux faire apparaître :
@@ -759,6 +769,27 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        /api/etat, champ « depense ». */
     noterModele(data.usage, "chat");
     const complet=(data.content||[]).filter(block=>block.type==="text").map(block=>block.text||"").join("\n").trim();
+    /* LE MODÈLE A CHOISI UNE RÉPONSE ENREGISTRÉE. On la sert mot pour mot,
+       avec son son déjà fabriqué : la voix ne fabrique rien, et rien n'attend.
+       C'est là qu'est l'économie — la voix, c'est 93 % de la facture. */
+    const choisie=repertoireActif()?etiquetteSeule(complet):null;
+    /* Une étiquette seule qu'on ne connaît pas : le modèle a voulu se servir
+       du répertoire et s'est trompé de nom. La réponse part quand même — mais
+       on le NOTE, sinon BIA dirait « #la-famile » à voix haute sans que
+       personne ne sache d'où ça vient. Ça se lit dans /api/etat. */
+    if(!choisie&&/^#[a-z0-9-]{2,40}\.?$/.test(complet.trim())){
+      noterPanne("étiquette de répertoire inconnue",complet.trim(),"chat");
+    }
+    if(choisie){
+      oublierPanne();
+      return NextResponse.json({
+        reply:choisie.wolof,
+        emotion:choisie.emotion||"neutre",
+        son:sonDe(choisie.cle,"wo"),
+        source:"répertoire (choisi par elle)",
+      });
+    }
+
     const {reply:avecBalise,emotion,balise}=detacherEmotion(complet);
     const {texte:sansPapier,papier}=detacherPapier(avecBalise);
     const {texte:sansAppel,appel}=detacherAppel(sansPapier);
