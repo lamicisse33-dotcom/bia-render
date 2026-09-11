@@ -21,8 +21,10 @@ import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
 import Installer from "./installer";
-import Vitrine from "./vitrine";
-import Trouve from "./trouve";
+import Ecran from "./ecran";
+import type { PieceEcran } from "./ecran";
+import CarteVitrine, { chargerSujet } from "./vitrine";
+import CarteTrouve, { versEcran } from "./trouve";
 import type { Resultat } from "./trouve";
 
 /* Un message peut porter le RENVOI vers un papier — son identifiant, pas son
@@ -215,6 +217,21 @@ export default function Home() {
      clignote en jaune jusqu'à ce qu'on le touche. Il ne s'arrête pas tout
      seul — c'est le principe : on ne rate pas un travail terminé. */
   const [papierFini, setPapierFini] = useState(false);
+
+  /* ── L'ÉCRAN QUI S'OUVRE SOUS SON MENTON ────────────────────────────────
+     Lamine, le 11 septembre 2026 : « paf, il y a un écran de télévision qui
+     s'ouvre pour te montrer cette image ». Il ne vit pas dans le fil : c'est
+     une surface à lui, et une seule à la fois. */
+  const [ecran, setEcran] = useState<{ titre: string; pieces: PieceEcran[] } | null>(null);
+
+  /* Une seule surface : un nouvel écran remplace l'ancien au lieu de
+     s'empiler dessus. Deux écrans de chaussures l'un sur l'autre, personne
+     ne saurait lequel referme quoi. */
+  const montrerSurEcran = useCallback((v: { titre: string; pieces: PieceEcran[] }) => {
+    if (!v?.pieces?.length) return;
+    setEcran(v);
+  }, []);
+  const fermerEcran = useCallback(() => setEcran(null), []);
   /* Elle vient de le lire à voix haute et attend un « oui ». Tant que ce
      n'est pas donné, le papier n'est pas un papier : c'est une proposition. */
   const [aValider, setAValider] = useState(false);
@@ -1290,6 +1307,18 @@ export default function Home() {
         ...(data.voir ? { voir: data.voir } : {}),
         ...(data.trouve?.pieces?.length ? { trouve: data.trouve } : {}),
       }]);
+
+      /* PAF. L'écran s'ouvre de lui-même : c'est tout l'intérêt — elle parle,
+         et la chose apparaît. On replie le clavier d'abord, sinon il couvre
+         justement la moitié basse de l'écran où les images vont se poser. */
+      if (data.trouve?.pieces?.length) {
+        setClavier(false);
+        montrerSurEcran(versEcran(data.trouve));
+      } else if (data.voir) {
+        void chargerSujet(data.voir).then((vu) => {
+          if (vu) { setClavier(false); montrerSurEcran(vu); }
+        });
+      }
       // Le visage prend l'émotion tout de suite, avant même la voix : c'est
       // ce qui donne l'impression qu'elle réagit à ce qu'on lui a dit.
       const suite = SUITES[emotionRef.current];
@@ -2708,6 +2737,8 @@ export default function Home() {
     couperSon();
     window.speechSynthesis?.cancel();
     setHistory([]);
+    // L'écran appartient à la conversation qu'on quitte : il se referme avec.
+    setEcran(null);
     // Nouvelle conversation, donc nouvelle présentation : elle redira une
     // fois « je t'ai bien entendu », puis se taira comme avant.
     presentationFaiteRef.current = false;
@@ -2779,7 +2810,7 @@ export default function Home() {
   }
 
   return (
-    <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"}>
+    <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
       <div className="portrait" aria-hidden="true">
         <div className="avatar" data-face={face} />
       </div>
@@ -2961,11 +2992,10 @@ export default function Home() {
                 </p>
                 {/* Ce qu'elle montre vient SOUS sa phrase, jamais à la place :
                     l'image complète la parole, elle ne la remplace pas. */}
-                {m.voir ? <Vitrine cle={m.voir} /> : null}
-                {/* Ce qu'elle est allée chercher elle-même, sous la phrase
-                    aussi : d'abord ce qu'elle en dit, ensuite ce qu'elle a
-                    trouvé. */}
-                {m.trouve ? <Trouve trouve={m.trouve} /> : null}
+                {/* Les images ne sont plus DANS le fil : ces cartes ne font
+                    que rouvrir l'écran, à leur place dans la conversation. */}
+                {m.voir ? <CarteVitrine cle={m.voir} ouvrir={montrerSurEcran} /> : null}
+                {m.trouve ? <CarteTrouve trouve={m.trouve} ouvrir={montrerSurEcran} /> : null}
                 {m.role === "bia" && i > 0 ? (
                   <button className="mal-dit" type="button" onClick={() => ouvrirCorrection(i)}>
                     {m.corrige ? "Corrigé par toi — retoucher" : "Mal dit"}
@@ -3279,6 +3309,12 @@ export default function Home() {
 
       {/* L'invitation à la poser sur l'écran d'accueil. Elle décide seule
           quand se montrer, et ne se montre pas si BIA y est déjà. */}
+      {/* ── L'ÉCRAN ────────────────────────────────────────────────────────
+          Il part de son menton — 52 % de la hauteur, mesuré sur une capture
+          et non deviné — et descend jusqu'en bas. La barre du micro reste
+          au-dessus de lui : on doit toujours pouvoir lui reparler. */}
+      {ecran ? <Ecran titre={ecran.titre} pieces={ecran.pieces} onFermer={fermerEcran} /> : null}
+
       <Installer />
 
       <p className="sr-only" aria-live="polite">{labels[mode]}</p>

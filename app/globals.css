@@ -870,146 +870,266 @@ button { font: inherit; touch-action: manipulation; }
 .saisie .photo { background: rgba(255,255,255,.09); color: rgba(255,255,255,.85); }
 .saisie .photo:disabled { opacity: .4; }
 
-/* ── CE QU'ELLE MONTRE ───────────────────────────────────────────────────
-   Lamine, le 11 septembre 2026 : « je veux qu'elle puisse montrer des
-   contenus, j'ai vidéo ou photo ».
+/* ── L'ÉCRAN QUI S'OUVRE SOUS SON MENTON ─────────────────────────────────
+   Lamine, le 11 septembre 2026 : « ça doit s'afficher à partir de son menton
+   jusqu'en bas. Il faut faire comme magie : paf, il y a un écran de télévision
+   qui s'ouvre pour te montrer cette image. »
 
-   Une rangée qui glisse du doigt, sous sa phrase. Pas une grille : sur un
-   téléphone tenu d'une main, on fait glisser, on ne vise pas. Et la rangée
-   dit d'elle-même qu'il y a une suite — une grille, une fois pleine, ne dit
-   plus rien. */
-.vitrine {
+   52 %, c'est son menton — MESURÉ sur une capture d'écran, pas deviné : son
+   visage tient le haut, ses épaules le milieu. L'écran part de là.
+
+   z-index 2 : SOUS la barre du micro (3) et sous le clavier (4). Un écran qui
+   recouvrirait le micro emprisonnerait la personne dans des photos. */
+.ecran {
+  /* FIXE, PAS ABSOLU, et ce n'est pas un détail : « 100svh » ne vaut pas
+     toujours la hauteur réelle de la fenêtre selon le navigateur, et l'écran
+     s'arrêtait alors quelques dizaines de pixels avant le bas — une bande
+     noire sous les images, exactement ce que Lamine ne voulait pas
+     (« jusqu'en bas »). Posé sur la fenêtre, il touche le bas, toujours. */
+  position: fixed;
+  z-index: 2;
+  left: 0; right: 0;
+  top: 52svh;
+  bottom: 0;
   display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid rgba(214,180,110,.28);
+  border-radius: 20px 20px 0 0;
+  background:
+    linear-gradient(to bottom, rgba(20,17,28,.97), rgba(6,6,10,.99));
+  backdrop-filter: blur(18px);
+  box-shadow: 0 -22px 60px rgba(0,0,0,.7), 0 -1px 0 rgba(255,255,255,.05) inset;
+
+  /* L'ALLUMAGE. L'écran naît d'une ligne : il se déplie depuis son bord haut,
+     comme une télévision qu'on allume. C'est le « paf ». */
+  transform-origin: 50% 0%;
+  transform: scaleY(.012);
+  opacity: .6;
+  transition: transform .34s cubic-bezier(.16,.9,.24,1), opacity .2s ease;
+}
+.ecran.ouvert { transform: scaleY(1); opacity: 1; }
+
+/* ── LA BARRE DU MICRO PENDANT QUE L'ÉCRAN EST OUVERT ────────────────────
+   Elle est posée d'ordinaire au bas de « 100svh » — et « svh » ne vaut pas
+   toujours la hauteur réelle de la fenêtre. Mesuré à l'épreuve : le micro
+   flottait au MILIEU de l'écran et recouvrait le nom du site sous la
+   première image. Tant que l'écran est ouvert, la barre se pose donc sur la
+   fenêtre elle-même, exactement comme lui : les deux parlent alors du même
+   bas, et la place réservée sous les images est la bonne. */
+.bia-presence[data-ecran="ouvert"] .barre {
+  position: fixed;
+  bottom: max(18px, env(safe-area-inset-bottom));
+}
+/* Les trois points de réflexion vivent au même endroit que la barre : ils
+   tomberaient au milieu des images. L'écran ouvert, ils n'ont rien à dire. */
+.bia-presence[data-ecran="ouvert"] .lueur { opacity: 0; }
+
+/* Le trait de lumière qui court sur le bord pendant l'ouverture, puis meurt.
+   Sans lui, l'écran se déplie proprement mais ne « s'allume » pas. */
+.ecran-eclair {
+  position: absolute;
+  z-index: 2;
+  left: 8%; right: 8%; top: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #ffe9ac, #d6b46e, #ffe9ac, transparent);
+  box-shadow: 0 0 18px 4px rgba(255,220,140,.7);
+  opacity: 0;
+  pointer-events: none;
+}
+.ecran.ouvert .ecran-eclair { animation: allumage .62s ease-out forwards; }
+@keyframes allumage {
+  0%   { opacity: 0;  transform: scaleX(.15); }
+  22%  { opacity: 1;  transform: scaleX(1); }
+  100% { opacity: 0;  transform: scaleX(1); }
+}
+
+/* Le contenu n'arrive qu'une fois l'écran déplié : voir le texte s'étirer
+   pendant l'ouverture donnerait l'impression d'un bogue, pas d'un geste. */
+.ecran-tete, .ecran-rail { opacity: 0; transition: opacity .22s ease .2s; }
+.ecran.ouvert .ecran-tete, .ecran.ouvert .ecran-rail { opacity: 1; }
+
+.ecran-tete {
+  flex: none;
+  display: flex;
+  align-items: center;
   gap: 10px;
-  margin: 8px 0 2px;
-  padding-bottom: 4px;
+  padding: 11px 14px 8px;
+}
+.ecran-titre {
+  flex: 1; min-width: 0;
+  margin: 0;
+  font-size: 13px; line-height: 1.3;
+  color: rgba(255,255,255,.78);
+  /* Une recherche peut être longue ; le titre ne pousse jamais l'écran. */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* Première lettre en capitale sans toucher au texte lui-même. */
+  text-transform: none;
+}
+.ecran-titre::first-letter { text-transform: uppercase; }
+.ecran-fermer {
+  flex: none;
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 50%;
+  background: rgba(255,255,255,.09);
+  color: rgba(255,255,255,.8);
+  cursor: pointer;
+}
+.ecran-fermer:active { transform: scale(.92); }
+.ecran-fermer svg { width: 20px; height: 20px; fill: currentColor; }
+
+/* Une rangée qui glisse du doigt. Sur un téléphone tenu d'une main, on fait
+   glisser — on ne vise pas dans une grille. */
+.ecran-rail {
+  flex: 1; min-height: 0;
+  display: flex;
+  gap: 12px;
+  /* La barre du micro flotte au-dessus du bas de l'écran : sans cette marge,
+     le nom du site se lirait derrière le microphone. */
+  padding: 0 14px calc(16px + max(18px, env(safe-area-inset-bottom)) + 58px);
   overflow-x: auto;
+  overflow-y: hidden;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
-.vitrine::-webkit-scrollbar { display: none; }
+.ecran-rail::-webkit-scrollbar { display: none; }
 
-.vitrine-piece {
+.ecran-piece {
   flex: none;
-  width: min(62vw, 220px);
-  border: 0; padding: 0;
-  border-radius: 16px;
-  overflow: hidden;
-  background: rgba(255,255,255,.06);
-  scroll-snap-align: start;
-}
-.vitrine-piece video, .vitrine-photo img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 4 / 5;
-  object-fit: cover;
-  background: rgba(0,0,0,.3);
-}
-.vitrine-photo { position: relative; cursor: pointer; }
-.vitrine-photo span {
-  position: absolute; left: 0; right: 0; bottom: 0;
-  padding: 18px 10px 8px;
-  font-size: 12px; line-height: 1.25;
-  text-align: left;
-  color: #fff;
-  /* Le nom se lit sur une photo claire comme sur une photo sombre. */
-  background: linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,0));
-}
-
-/* En grand, par-dessus tout. On touche n'importe où pour refermer : c'est le
-   geste que tout le monde essaie d'abord. */
-.vitrine-grand {
-  position: fixed; inset: 0; z-index: 8;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 12px; padding: 20px;
-  background: rgba(0,0,0,.9);
-  cursor: zoom-out;
-}
-.vitrine-grand img {
-  max-width: 100%;
-  max-height: 78vh;
-  border-radius: 14px;
-  object-fit: contain;
-}
-.vitrine-grand p {
-  margin: 0;
-  font-size: 14px;
-  color: rgba(255,255,255,.8);
-}
-
-/* ── CE QU'ELLE EST ALLÉE CHERCHER SUR INTERNET ──────────────────────────
-   Lamine, le 11 septembre 2026 : « tu as besoin de chaussures, elle peut
-   aller te proposer les chaussures que tu veux ».
-
-   Même rangée que la vitrine, mais chaque pièce porte son nom et son site en
-   dessous : ce sont des résultats de recherche, et ils doivent en avoir
-   l'air. Une image sans sa source laisserait croire qu'elle est d'elle. */
-.trouve-piece {
   display: flex;
   flex-direction: column;
+  width: min(76vw, 300px);
+  border-radius: 16px;
+  overflow: hidden;
   background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.07);
+  scroll-snap-align: center;
 }
-.trouve-piece > button, .trouve-piece iframe {
+.ecran-piece > button,
+.ecran-piece > iframe,
+.ecran-piece > video {
+  flex: 1; min-height: 0;
   display: block;
   width: 100%;
-  aspect-ratio: 4 / 3;
   border: 0; padding: 0;
-  background: rgba(0,0,0,.35);
+  background: rgba(0,0,0,.4);
   cursor: pointer;
 }
-.trouve-piece img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ecran-piece img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ecran-piece video { object-fit: contain; }
 
-.trouve-lancer { position: relative; }
-.trouve-triangle {
+.ecran-lancer { position: relative; }
+.ecran-triangle {
   position: absolute; left: 50%; top: 50%;
-  width: 46px; height: 46px;
-  margin: -23px 0 0 -23px;
+  width: 54px; height: 54px;
+  margin: -27px 0 0 -27px;
   border-radius: 50%;
   background: rgba(0,0,0,.55);
-  /* Le triangle est dessiné par la bordure : rien à charger pour ça. */
-  box-shadow: 0 2px 10px rgba(0,0,0,.4);
+  box-shadow: 0 2px 12px rgba(0,0,0,.45);
 }
-.trouve-triangle::after {
+.ecran-triangle::after {
   content: "";
-  position: absolute; left: 18px; top: 14px;
+  position: absolute; left: 21px; top: 16px;
   border-style: solid;
-  border-width: 9px 0 9px 14px;
+  border-width: 11px 0 11px 17px;
   border-color: transparent transparent transparent #fff;
 }
 
-.trouve-mot {
-  display: block;
-  padding: 7px 9px 9px;
-  font-size: 11.5px; line-height: 1.3;
+.ecran-mot {
+  flex: none;
+  padding: 8px 11px 10px;
+  font-size: 12px; line-height: 1.32;
   text-align: left;
 }
-.trouve-mot b {
+.ecran-mot b {
   display: -webkit-box;
-  -webkit-line-clamp: 2;      /* deux lignes, puis on coupe : sinon un titre
-                                 de boutique pousse la rangée sur trois étages */
+  -webkit-line-clamp: 2;   /* deux lignes puis on coupe : un titre de boutique
+                              ne doit pas manger la hauteur de l'image */
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-weight: 500;
-  color: rgba(255,255,255,.9);
+  color: rgba(255,255,255,.92);
 }
-.trouve-mot a, .trouve-mot em {
+.ecran-mot a, .ecran-mot em {
   display: block;
   margin-top: 3px;
   font-style: normal;
+  font-size: 11px;
   color: rgba(255,255,255,.45);
   text-decoration: none;
 }
-.trouve-mot a { color: rgba(214,180,110,.85); }
+.ecran-mot a { color: rgba(214,180,110,.9); }
 
-.trouve-aller {
-  padding: 9px 18px;
+/* En grand, par-dessus tout : une paire de lunettes sur une carte de trois
+   cents pixels ne se juge pas. On touche n'importe où pour refermer. */
+.ecran-grand {
+  position: fixed; inset: 0; z-index: 9;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 14px; padding: 20px;
+  background: rgba(0,0,0,.93);
+  cursor: zoom-out;
+}
+.ecran-grand img {
+  max-width: 100%; max-height: 74vh;
+  border-radius: 14px;
+  object-fit: contain;
+}
+.ecran-grand p {
+  margin: 0; max-width: 32ch;
+  font-size: 14px; text-align: center;
+  color: rgba(255,255,255,.82);
+}
+.ecran-aller {
+  padding: 10px 20px;
   border-radius: 999px;
-  background: rgba(214,180,110,.9);
+  background: rgba(214,180,110,.92);
   color: #1a1408;
   font-size: 13px; font-weight: 600;
   text-decoration: none;
+}
+
+/* ── LA CARTE LAISSÉE DANS LE FIL ────────────────────────────────────────
+   Les images ne vivent plus dans la conversation : il n'y reste qu'un renvoi
+   vers l'écran, comme pour un papier. Le fil est ce qu'on remonte ; l'écran
+   est ce qu'on regarde. */
+.carte-ecran {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 8px 0 2px;
+  padding: 7px 12px 7px 7px;
+  border: 1px solid rgba(214,180,110,.22);
+  border-radius: 14px;
+  background: rgba(214,180,110,.07);
+  text-align: left;
+  cursor: pointer;
+}
+.carte-ecran:active { transform: scale(.99); }
+.carte-ecran img {
+  flex: none;
+  width: 46px; height: 46px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: rgba(0,0,0,.35);
+}
+.carte-ecran span { min-width: 0; }
+.carte-ecran b {
+  display: block;
+  font-size: 13px; font-weight: 500;
+  color: rgba(255,255,255,.9);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.carte-ecran b::first-letter { text-transform: uppercase; }
+.carte-ecran i {
+  display: block;
+  margin-top: 2px;
+  font-style: normal; font-size: 11px;
+  color: rgba(214,180,110,.75);
 }
 
 /* ── LA RANGÉE DES SERVICES ──────────────────────────────────────────────
