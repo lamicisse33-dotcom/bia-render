@@ -3,6 +3,7 @@ import { verifierCode } from "@/lib/codes";
 import { correctionExacte, exemplesPour, motsCorriges } from "@/lib/lexique";
 import { savoirKhalam } from "@/lib/khalam";
 import { savoirProduits } from "@/lib/produits";
+import { catalogue } from "@/lib/vitrine";
 import { SOCLE_RELATIONS, consigneRelations, estSujetRelation } from "@/lib/relations";
 import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterModele } from "@/lib/depense";
@@ -335,6 +336,19 @@ function detacherPapier(texte:string){
   };
 }
 
+/* ── MONTRER QUELQUE CHOSE ──────────────────────────────────────────────────
+   Même principe que le papier et que l'appel : le modèle pose une balise, on
+   la détache, la page affiche. Elle ne doit SURTOUT pas rester dans le texte
+   — sinon BIA prononce « crochet crochet voir deux points » à voix haute. */
+const VOIR=/\[{1,2}\s*voir\s*[:\-—]?\s*([a-z0-9][a-z0-9/_-]{0,79})\s*\]{1,2}/i;
+function detacherVoir(texte:string){
+  const m=texte.match(VOIR);
+  return {
+    texte:texte.replace(new RegExp(VOIR.source,"gi"),"").replace(/\n{3,}/g,"\n\n").trim(),
+    voir:m?m[1].toLowerCase():"",
+  };
+}
+
 /* Quand le moteur ne répond pas, BIA le dit — en wolof, sans détail technique
    pour le testeur. Le motif exact, lui, est journalisé et lisible dans
    /api/etat : c'est là que Lamine regarde. */
@@ -440,6 +454,40 @@ coûte, tu renvoies au numéro. Et tu ne donnes jamais de conseil médical sur
 une peau abîmée : là, c'est un médecin.
 ${cosmetiques}
 ═══ fin des produits de beauté ═══`;
+
+    /* ── CE QU'ELLE PEUT MONTRER ────────────────────────────────────────────
+
+       Demandé par Lamine le 11 septembre 2026 : « je veux qu'elle puisse
+       montrer des contenus, j'ai vidéo ou photo ».
+
+       CE BLOC NE VA PAS DANS LE SOCLE, et ce n'est pas un détail : le socle
+       est marqué « garde-le en mémoire », et une seule photo déposée par
+       Lamine invaliderait le cache entier — sept mille jetons à repayer plein
+       tarif. Le catalogue, lui, tient en trois lignes : il repart à chaque
+       question sans que ça se voie sur la facture.
+
+       ET LA MÊME BARRIÈRE QUE POUR LES COSMÉTIQUES, pour la même raison : une
+       assistante qui sort une photo de savon pendant qu'on lui parle de son
+       divorce n'est plus une assistante, c'est une affiche. On ne montre que
+       ce dont on parle DÉJÀ. */
+    const aMontrer=await catalogue();
+    if(aMontrer)variable+=`\n\nCE QUE TU PEUX MONTRER À L'ÉCRAN
+Tu as des images — parfois une vidéo — que tu peux faire apparaître :
+${aMontrer}
+
+Pour en montrer, tu écris la balise SEULE SUR SA LIGNE, à la fin de ta
+réponse : [[voir:la-clé]] — par exemple la première clé de la liste ci-dessus.
+Une seule balise par réponse, jamais deux.
+
+QUAND. Seulement si la personne te parle DÉJÀ de ce sujet-là, ou si elle
+demande à voir. Jamais pour illustrer une conversation ordinaire, jamais pour
+amener le sujet, jamais de toi-même.
+
+COMMENT TU EN PARLES. Tu ne nommes JAMAIS la balise et tu n'expliques pas
+qu'il y a une image : tu dis simplement « xool » — regarde — ou « am na ay
+nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
+« je t'envoie une photo » n'épelle pas le nom du fichier.`;
+
     const resume=String(body.resume||"").trim().slice(0,1500);
     if(resume)variable+=`\n\nCE QUE TU SAIS DÉJÀ DE CETTE PERSONNE\n${resume}\nUtilise-le naturellement, sans jamais dire que tu l'as «noté».`;
 
@@ -546,7 +594,8 @@ ${cosmetiques}
     const complet=(data.content||[]).filter(block=>block.type==="text").map(block=>block.text||"").join("\n").trim();
     const {reply:avecBalise,emotion,balise}=detacherEmotion(complet);
     const {texte:sansPapier,papier}=detacherPapier(avecBalise);
-    const {texte:reply,appel}=detacherAppel(sansPapier);
+    const {texte:sansAppel,appel}=detacherAppel(sansPapier);
+    const {texte:reply,voir}=detacherVoir(sansAppel);
     /* ── UN PAPIER SANS UN MOT N'EST PAS UNE PANNE ──────────────────────────
 
        Signalé par Lamine le 10 septembre 2026 : « quand on demande à BIA
@@ -562,10 +611,10 @@ ${cosmetiques}
 
        Ce n'est une panne que si elle n'a NI phrase NI geste. Sinon, on lui
        prête une phrase courte et le papier s'ouvre. */
-    if(!reply&&(papier||appel)){
+    if(!reply&&(papier||appel||voir)){
       oublierPanne();
-      const parDefaut=papier?"Waaw, maa ngi koy defar.":"Waaw.";
-      return NextResponse.json({reply:parDefaut,emotion,papier,appel,source:"geste sans phrase"});
+      const parDefaut=papier?"Waaw, maa ngi koy defar.":voir?"Xool.":"Waaw.";
+      return NextResponse.json({reply:parDefaut,emotion,papier,appel,voir,source:"geste sans phrase"});
     }
 
     if(!reply){
@@ -576,7 +625,7 @@ ${cosmetiques}
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
-    return NextResponse.json({reply,emotion,papier,appel,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
+    return NextResponse.json({reply,emotion,papier,appel,voir,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message, "chat");

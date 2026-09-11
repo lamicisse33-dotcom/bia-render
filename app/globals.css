@@ -870,6 +870,75 @@ button { font: inherit; touch-action: manipulation; }
 .saisie .photo { background: rgba(255,255,255,.09); color: rgba(255,255,255,.85); }
 .saisie .photo:disabled { opacity: .4; }
 
+/* ── CE QU'ELLE MONTRE ───────────────────────────────────────────────────
+   Lamine, le 11 septembre 2026 : « je veux qu'elle puisse montrer des
+   contenus, j'ai vidéo ou photo ».
+
+   Une rangée qui glisse du doigt, sous sa phrase. Pas une grille : sur un
+   téléphone tenu d'une main, on fait glisser, on ne vise pas. Et la rangée
+   dit d'elle-même qu'il y a une suite — une grille, une fois pleine, ne dit
+   plus rien. */
+.vitrine {
+  display: flex;
+  gap: 10px;
+  margin: 8px 0 2px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.vitrine::-webkit-scrollbar { display: none; }
+
+.vitrine-piece {
+  flex: none;
+  width: min(62vw, 220px);
+  border: 0; padding: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255,255,255,.06);
+  scroll-snap-align: start;
+}
+.vitrine-piece video, .vitrine-photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  background: rgba(0,0,0,.3);
+}
+.vitrine-photo { position: relative; cursor: pointer; }
+.vitrine-photo span {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 18px 10px 8px;
+  font-size: 12px; line-height: 1.25;
+  text-align: left;
+  color: #fff;
+  /* Le nom se lit sur une photo claire comme sur une photo sombre. */
+  background: linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,0));
+}
+
+/* En grand, par-dessus tout. On touche n'importe où pour refermer : c'est le
+   geste que tout le monde essaie d'abord. */
+.vitrine-grand {
+  position: fixed; inset: 0; z-index: 8;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 12px; padding: 20px;
+  background: rgba(0,0,0,.9);
+  cursor: zoom-out;
+}
+.vitrine-grand img {
+  max-width: 100%;
+  max-height: 78vh;
+  border-radius: 14px;
+  object-fit: contain;
+}
+.vitrine-grand p {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(255,255,255,.8);
+}
+
 /* ── LA RANGÉE DES SERVICES ──────────────────────────────────────────────
    Lamine, le 10 septembre 2026, en dessinant cinq carrés en haut d'une
    capture : « tous les services vont être des boutons sur ces points ; dès
