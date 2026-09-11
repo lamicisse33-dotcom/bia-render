@@ -2781,9 +2781,11 @@ export default function Home() {
             <a href="/voix" className="papier-lien">Écouter les 42 phrases →</a>
             {" "}
             <a href="/voix/nombres" className="papier-lien">Écouter les 68 nombres →</a>
+            {" "}
+            <a href="/voix/base" className="papier-lien">Écouter les 69 nouvelles →</a>
             <br />
-            Deux pages provisoires, et pour toi seul : on corrige les phrases
-            d&apos;un côté, les nombres de l&apos;autre. On les retire une fois
+            Trois pages provisoires, et pour toi seul : les phrases, les
+            nombres, puis les 69 nouvelles réponses. On les retire une fois
             l&apos;enregistrement fait.
           </p>
         ) : null}

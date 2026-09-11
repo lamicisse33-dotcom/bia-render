@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { NOMBRES, GROUPES } from "@/lib/nombres-textes";
 import { REPERTOIRE } from "@/lib/repertoire-textes";
+import { NOUVELLES } from "@/lib/base-textes";
 import { DOLLAR_PAR_SIGNE, useEcoute, texteDesCorrections } from "../ecoute";
 
 /* ── ÉCOUTER AVANT D'ENREGISTRER — LES NOMBRES ──────────────────────────────
@@ -70,7 +71,9 @@ export default function PageNombres() {
       </p>
 
       <p className="voix-ailleurs">
-        <a href="/voix" className="voix-pale">← Les {REPERTOIRE.length} phrases</a>
+        <a href="/voix" className="voix-pale">Les {REPERTOIRE.length} phrases</a>
+        {" · "}
+        <a href="/voix/base" className="voix-pale">Les {NOUVELLES.length} nouvelles</a>
       </p>
 
       <label className="voix-code">

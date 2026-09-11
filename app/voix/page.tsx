@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { REPERTOIRE } from "@/lib/repertoire-textes";
 import { NOMBRES } from "@/lib/nombres-textes";
+import { NOUVELLES } from "@/lib/base-textes";
 import { DOLLAR_PAR_SIGNE, useEcoute, texteDesCorrections } from "./ecoute";
 
 /* ── ÉCOUTER AVANT D'ENREGISTRER — LES 42 PHRASES ───────────────────────────
@@ -91,7 +92,9 @@ export default function PageVoix() {
       {/* Les deux listes sont deux pages : on passe de l'une à l'autre d'un
           geste, sans repasser par les réglages. */}
       <p className="voix-ailleurs">
-        <a href="/voix/nombres" className="voix-pale">Les {NOMBRES.length} nombres →</a>
+        <a href="/voix/nombres" className="voix-pale">Les {NOMBRES.length} nombres</a>
+        {" · "}
+        <a href="/voix/base" className="voix-pale">Les {NOUVELLES.length} nouvelles</a>
       </p>
 
       <label className="voix-code">
@@ -169,7 +172,9 @@ export default function PageVoix() {
           seulement après qu&apos;on enregistre — une fois, pour toujours.
         </p>
         <p className="voix-ailleurs">
-          <a href="/voix/nombres" className="voix-pale">Passer aux {NOMBRES.length} nombres →</a>
+          <a href="/voix/nombres" className="voix-pale">Passer aux {NOMBRES.length} nombres</a>
+          {" · "}
+          <a href="/voix/base" className="voix-pale">Passer aux {NOUVELLES.length} nouvelles</a>
         </p>
       </div>
     </main>
