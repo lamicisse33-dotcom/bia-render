@@ -1151,3 +1151,24 @@ button { font: inherit; touch-action: manipulation; }
   .poser span { flex: 1 0 100%; }
   .poser button { flex: 1; }
 }
+
+/* ── LE COIN DES PAPIERS : LE BOUTON ET LE PETIT CLAVIER, CÔTE À CÔTE ───────
+
+   Signalé par Lamine le 11 septembre 2026, capture à l'appui : le petit
+   clavier qui clignote s'affichait EN BAS À GAUCHE, sous la rangée, au lieu
+   d'être à côté du bouton des papiers.
+
+   La cause tient en une ligne : la barre du bas est une grille à trois cases
+   — clavier à gauche, micro au centre, papiers à droite. Le petit clavier
+   était un QUATRIÈME enfant ; une grille pleine met le suivant à la ligne, et
+   il partait donc se ranger tout seul en bas à gauche.
+
+   Les deux tiennent maintenant dans la même case. Le clavier s'ouvre à la
+   droite du bouton, sur la même ligne que le micro, et il ne peut plus
+   descendre — quelle que soit la largeur de l'écran. */
+.coin-papier {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}

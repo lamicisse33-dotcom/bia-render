@@ -2179,8 +2179,19 @@ export default function Home() {
   useEffect(() => { papierOccupeRef.current = papierOccupe; }, [papierOccupe]);
   useEffect(() => {
     papierOuvertRef.current = papierOuvert;
-    // Ouvrir l'écran, c'est avoir vu le travail : le clignotement s'arrête.
-    if (papierOuvert) setPapierFini(false);
+    /* Ouvrir l'écran, c'est avoir vu le travail : tout ce qui appelle
+       s'éteint.
+
+       Signalé par Lamine le 11 septembre 2026 : « la bulle jaune qui clignote
+       reste là-bas même si on ouvre le message, elle continue à clignoter.
+       Dès qu'on ouvre le message elle doit arrêter. »
+
+       Il avait raison, et c'était une vraie faute : le point d'or ne
+       s'éteignait QUE en changeant de personne ou en recommençant une
+       conversation. Il pouvait donc appeler pendant des heures pour un
+       message déjà lu — et un signal qui ment est pire qu'un signal absent,
+       parce qu'on cesse de le croire. */
+    if (papierOuvert) { setPapierFini(false); setPapierPret(null); }
   }, [papierOuvert]);
 
   /* Rouvrir un papier déjà écrit : celui du fil, ou celui de la liste. On
@@ -2821,6 +2832,19 @@ export default function Home() {
             chose de prêt : on doit pouvoir décider soi-même d'écrire un
             message, sans attendre qu'elle le propose. Quand elle, de son
             côté, a de quoi écrire, un point d'or s'allume dessus. */}
+        {/* ── LE COIN DES PAPIERS ──────────────────────────────────────────
+            Le bouton et le petit clavier tiennent dans UNE SEULE case de la
+            rangée, côte à côte.
+
+            Signalé par Lamine le 11 septembre 2026, capture à l'appui : « le
+            petit clavier qui clignote doit se positionner sur le tracé rouge,
+            même ligne que tous les autres. » Il était bien écrit juste après
+            le bouton, mais la rangée est une grille à trois cases — clavier,
+            micro, papiers — et un quatrième enfant se met à la ligne tout
+            seul. Il tombait donc en bas à gauche, là où il n'a rien à faire.
+            Les deux boutons partagent maintenant la même case : le clavier ne
+            peut plus descendre. */}
+        <div className="coin-papier">
         <button className={papierPret ? "papier-ouvrir pret" : "papier-ouvrir"} type="button"
           onClick={() => ouvrirPapier()} aria-label="Écrire un message, un devis ou une lettre">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2861,6 +2885,7 @@ export default function Home() {
             </g>
           </svg>
         </button>
+        </div>
       </div>
 
       <section className="clavier" aria-hidden={!clavier}>
