@@ -693,9 +693,31 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     /* Le socle porte la marque « garde-le en mémoire ». Le reste suit
        normalement : il change à chaque question, le mettre en cache coûterait
-       plus cher que de l'envoyer. */
+       plus cher que de l'envoyer.
+
+       ── POURQUOI UNE HEURE, ET PAS CINQ MINUTES ─────────────────────────
+
+       Anthropic a écrit à Lamine le 11 septembre 2026 : son taux de relecture
+       du cache est faible. Le compteur de BIA disait la même chose — 39 % des
+       jetons relus, 61 % repayés.
+
+       Le cache dure CINQ MINUTES par défaut. Or on ne parle pas à BIA cinq
+       minutes d'affilée : on lui pose une question, on s'en va, on revient une
+       demi-heure plus tard. À chaque retour le socle était froid, et on le
+       repayait en entier — huit mille jetons, pour une question qui en compte
+       vingt.
+
+       Une heure coûte deux fois l'entrée à l'écriture au lieu d'une fois et
+       quart, et se relit toujours au dixième. Il suffit donc d'UNE question de
+       plus dans l'heure pour que ce soit gagnant — et il y en a toujours une.
+
+       Ça répare aussi un second trou. L'outil de recherche ne part qu'avec les
+       questions d'actualité, et l'activer change la consigne système : le socle
+       ne se reconnaît plus. Il existe donc deux socles, avec et sans Internet,
+       qui se chassaient l'un l'autre toutes les cinq minutes. Sur une heure,
+       les deux tiennent ensemble et personne ne repaie. */
     const consigne=[
-      {type:"text",text:socle,cache_control:{type:"ephemeral"}},
+      {type:"text",text:socle,cache_control:{type:"ephemeral",ttl:"1h"}},
       ...(variable.trim()?[{type:"text",text:variable}]:[]),
     ];
 

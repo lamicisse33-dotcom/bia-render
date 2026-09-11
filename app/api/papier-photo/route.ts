@@ -162,7 +162,18 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           model,
           max_tokens: 2400,
-          system: CONSIGNE,
+          /* LA CONSIGNE NE CHANGE JAMAIS, ET ELLE EST LONGUE : mille cinq
+             cents jetons repayés plein tarif à chaque photo lue, alors qu'un
+             jeton relu depuis le cache coûte le dixième. Le minimum pour que
+             le cache accepte est de mille vingt-quatre jetons ; on passe, mais
+             de peu — si on raccourcit un jour cette consigne, le cache cessera
+             de la prendre, sans erreur ni avertissement.
+             (En dessous, Anthropic ignore la marque sans rien dire — c'est
+             pour ça que traduire, reformuler et résumer n'en portent pas.)
+
+             Une heure, comme le socle de la conversation : on ne lit pas des
+             papiers toutes les cinq minutes. */
+          system: [{ type: "text", text: CONSIGNE, cache_control: { type: "ephemeral", ttl: "1h" } }],
           messages: [{
             role: "user",
             content: [

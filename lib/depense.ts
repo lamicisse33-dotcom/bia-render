@@ -29,12 +29,18 @@
 const DOLLAR_PAR_SIGNE = 0.22 / 1000;
 
 /* Claude Sonnet 5, tarifs publiés : 2 $ le million de jetons en entrée, 10 $
-   en sortie. Un jeton relu depuis le cache coûte le dixième de l'entrée, et
-   sa mise en cache coûte un quart de plus qu'une entrée normale. */
+   en sortie. Un jeton relu depuis le cache coûte le dixième de l'entrée.
+
+   L'ÉCRITURE EST PASSÉE DE 2,50 À 4 $ le 11 septembre 2026, et ce n'est pas
+   une hausse de tarif : on garde maintenant le cache une heure au lieu de cinq
+   minutes. Une heure se paie deux fois l'entrée à l'écriture, cinq minutes un
+   quart de plus. Si on revenait un jour à cinq minutes, ce chiffre redescend à
+   2,5 — sinon le compteur mentirait, et un compteur qui ment est pire que pas
+   de compteur. */
 const DOLLAR_PAR_JETON_ENTREE = 2 / 1_000_000;
 const DOLLAR_PAR_JETON_SORTIE = 10 / 1_000_000;
 const DOLLAR_PAR_JETON_CACHE_LU = 0.2 / 1_000_000;
-const DOLLAR_PAR_JETON_CACHE_ECRIT = 2.5 / 1_000_000;
+const DOLLAR_PAR_JETON_CACHE_ECRIT = 4 / 1_000_000;
 
 type Voix = { appels: number; signes: number };
 type Modele = {
