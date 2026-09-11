@@ -3556,10 +3556,16 @@ type EtatRepertoire = {
   attendus?: number;
   en_place?: number;
   manquants?: number;
+  incertains?: number;
   signes?: number;
   cout_dollars?: number;
   pret?: string;
 };
+
+/* Quand Supabase refuse de dire si un son existe, on ne le fabrique pas et on
+   ne le cache pas non plus. Un appui de plus tranchera, et il sera gratuit. */
+const direIncertains = (n?: number) =>
+  n ? ` ${n} n'ont pas pu être vérifiés — ils ne seront pas refaits dans le doute. Regarde encore, c'est gratuit.` : "";
 
 function PapierRepertoire({ code }: { code: string | null }) {
   const [regarde, setRegarde] = useState<EtatRepertoire | null>(null);
@@ -3577,10 +3583,11 @@ function PapierRepertoire({ code }: { code: string | null }) {
       if (d.erreur) { setBilan(d.erreur); setRegarde(null); return; }
       setRegarde(d);
       setBilan(
-        d.manquants === 0
+        (d.manquants === 0
           ? `Rien ne manque : les ${d.en_place} sons sont en place, et ils ne se paieront plus jamais.`
           : `Il manque ${d.manquants} son(s) sur ${d.attendus} — ${d.signes} signes, ${d.cout_dollars} $.`
-            + ` ${d.en_place} sont déjà là et ne seront pas repayés.`
+            + ` ${d.en_place} sont déjà là et ne seront pas repayés.`)
+        + direIncertains(d.incertains)
       );
     } catch (e) {
       setBilan(`Le comptage n'a pas abouti : ${(e as Error).message}`);
@@ -3599,7 +3606,7 @@ function PapierRepertoire({ code }: { code: string | null }) {
       const r = await fetch("/api/repertoire", { method: "POST", headers: { "x-bia-code": code } });
       const d = await r.json() as {
         erreur?: string; enregistres?: number; deja_la?: number;
-        cout_dollars?: number; desormais_gratuit?: number;
+        incertains?: number; cout_dollars?: number; desormais_gratuit?: number;
         rates?: Array<{ cle: string; langue: string; motif: string }>;
       };
       if (d.erreur) { setBilan(d.erreur); return; }
@@ -3608,6 +3615,7 @@ function PapierRepertoire({ code }: { code: string | null }) {
         `${d.enregistres} phrase(s) enregistrée(s) pour ${d.cout_dollars} $.`
         + (d.deja_la ? ` ${d.deja_la} y étaient déjà — non repayées.` : "")
         + ` ${d.desormais_gratuit} phrases ne coûteront plus jamais rien.`
+        + direIncertains(d.incertains)
         /* Ce qui a raté reste à refaire : on repart de l'état réel du seau, pas
            d'un souvenir. Un seul appui de plus suffira. */
         + (rates.length

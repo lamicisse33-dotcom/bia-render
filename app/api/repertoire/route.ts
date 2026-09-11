@@ -64,15 +64,56 @@ function motifLisible(err: Error): string {
   return (propre || "panne sans message").slice(0, 90);
 }
 
-/** Le son est-il déjà là ? Une requête de tête, sans corps, sans coût. */
-async function dejaLa(cle: string, langue: string): Promise<boolean> {
-  try {
-    const r = await fetch(
-      `${lexiqueConfig.url}/storage/v1/object/info/public/${SEAU}/${chemin(cle, langue)}`,
-      { headers: entetes(), cache: "no-store" },
-    );
-    return r.ok;
-  } catch { return false; }
+/* ── « ABSENT » ET « JE N'AI PAS PU SAVOIR » NE SONT PAS LA MÊME CHOSE ──────
+
+   Le 11 septembre 2026, en mesurant la taille des 222 sons pour Lamine, j'ai
+   posé la question douze fois à la fois — comme le faisait le code que je
+   venais d'écrire. Trente-trois fichiers sur deux cent vingt-deux m'ont
+   répondu ceci, en cent vingt-cinq octets :
+
+     {"statusCode":"429","error":"too_many_connections"}
+
+   Les fichiers étaient là. Supabase refusait simplement de répondre si vite.
+   Et l'ancien code lisait ce refus comme une absence — il aurait REFABRIQUÉ
+   trente-trois sons déjà achetés, et fait payer Lamine deux fois pour rien.
+
+   Mesuré ensuite : trente demandes à douze de front passent sans refus, mais
+   deux cent vingt-deux d'affilée à cette largeur en font tomber une sur six.
+   Le nombre exact n'est donc pas la garantie — la garantie est de ne jamais
+   confondre les deux réponses.
+
+     200 → le son est là (et on regarde sa taille : un fichier vide se refait)
+     400 → le son n'existe pas ; c'est ce que Supabase répond pour un absent
+     429 ou 5xx → on ne sait pas ; on réessaie, puis on l'avoue
+
+   Un son « inconnu » n'est JAMAIS fabriqué. Ne rien dépenser et le dire vaut
+   mieux que dépenser dans le doute. */
+type EtatDuSon = "oui" | "non" | "inconnu";
+
+const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Le son est-il déjà là ? Une lecture de fiche, sans corps, sans coût. */
+async function etatDuSon(cle: string, langue: string): Promise<EtatDuSon> {
+  const adresse = `${lexiqueConfig.url}/storage/v1/object/info/public/${SEAU}/${chemin(cle, langue)}`;
+  /* Trois tentatives, en laissant Supabase respirer entre deux. */
+  for (const pause of [0, 500, 1500]) {
+    if (pause) await dormir(pause);
+    try {
+      const r = await fetch(adresse, { headers: entetes(), cache: "no-store" });
+      if (r.ok) {
+        /* La fiche donne la taille. Un « son » de cent octets n'est pas un
+           son : c'est un dépôt coupé en route, et il faut le refaire. */
+        const fiche = await r.json().catch(() => null) as { size?: number } | null;
+        const taille = fiche && typeof fiche.size === "number" ? fiche.size : 0;
+        return taille > 1000 ? "oui" : "non";
+      }
+      if (r.status === 400 || r.status === 404) return "non";
+      /* 429, 5xx : Supabase est débordé, pas muet. On réessaie. */
+    } catch {
+      /* Coupure réseau : pareil, ça n'apprend rien sur le fichier. */
+    }
+  }
+  return "inconnu";
 }
 
 async function deposer(cle: string, langue: string, audio: Buffer): Promise<boolean> {
@@ -137,11 +178,19 @@ function tousLesSonsAttendus(): Attendu[] {
    dépense. C'est ce temps mort qui a fait couper la requête en route et perdu
    quatre-vingt-treize fichiers.
 
-   Douze questions à la fois, pas plus. Supabase les encaisse sans broncher et
-   la vérification passe d'une minute à quelques secondes. On ne monte pas
-   plus haut : ce qui compte est que ça aboutisse toujours, pas que ça aille
-   au plus vite une fois sur deux. */
-const DE_FRONT = 12;
+   SIX questions à la fois, pas plus. Mesuré le même soir, trente demandes :
+
+     une par une   8,3 s   aucun refus
+     trois         4,0 s   aucun refus
+     six           2,3 s   aucun refus
+     douze         1,5 s   aucun refus sur trente… mais une sur six refusée
+                           quand on tient cette largeur sur deux cent vingt-deux
+     vingt         4,5 s   six refus sur trente, et PLUS LENT que six
+
+   Vingt est plus lent que six : passé une certaine largeur, Supabase refuse,
+   et un refus coûte plus cher en temps qu'il ne fait gagner. Six tient la
+   vérification sous vingt secondes sans jamais s'en approcher. */
+const DE_FRONT = 6;
 
 async function parPaquets<T, R>(liste: T[], faire: (x: T) => Promise<R>): Promise<R[]> {
   const sortie: R[] = [];
@@ -151,13 +200,18 @@ async function parPaquets<T, R>(liste: T[], faire: (x: T) => Promise<R>): Promis
   return sortie;
 }
 
-/** Le tri : ce qui est déjà là, et ce qu'il reste à fabriquer. Gratuit. */
+/** Le tri en TROIS tas : déjà là, à fabriquer, et « je n'ai pas pu savoir ».
+    Gratuit — aucune voix n'est appelée ici. */
 async function trier(liste: Attendu[]) {
-  const presence = await parPaquets(liste, (a) => dejaLa(a.cle, a.langue));
+  const etats = await parPaquets(liste, (a) => etatDuSon(a.cle, a.langue));
   const enPlace: Attendu[] = [];
   const aFaire: Attendu[] = [];
-  liste.forEach((a, i) => (presence[i] ? enPlace : aFaire).push(a));
-  return { enPlace, aFaire };
+  const incertains: Attendu[] = [];
+  liste.forEach((a, i) => {
+    const tas = etats[i] === "oui" ? enPlace : etats[i] === "non" ? aFaire : incertains;
+    tas.push(a);
+  });
+  return { enPlace, aFaire, incertains };
 }
 
 /** Ce qui manque, et ce que ça coûterait. Gratuit. */
@@ -171,17 +225,21 @@ export async function GET(request: NextRequest) {
   }
 
   const liste = tousLesSonsAttendus();
-  const { enPlace, aFaire } = await trier(liste);
+  const { enPlace, aFaire, incertains } = await trier(liste);
   const signes = aFaire.reduce((t, a) => t + a.texte.length, 0);
 
   return NextResponse.json({
     ...etatRepertoire(),
-    /* Les trois chiffres que Lamine lit : combien de sons doivent exister,
-       combien existent, combien manquent. Le premier ne bouge que quand on
-       ajoute une réponse ; le deuxième est relu dans le seau à chaque appui. */
+    /* Les chiffres que Lamine lit : combien de sons doivent exister, combien
+       existent, combien manquent. Le premier ne bouge que quand on ajoute une
+       réponse ; le deuxième est relu dans le seau à chaque appui. Et le
+       quatrième est le plus honnête des quatre — ceux dont on n'a pas pu
+       savoir. Il vaut zéro presque toujours ; quand il ne vaut pas zéro, il
+       faut le voir plutôt que de le deviner. */
     attendus: liste.length,
     en_place: enPlace.length,
     manquants: aFaire.length,
+    incertains: incertains.length,
     signes,
     cout_dollars: Math.round(signes * DOLLAR_PAR_SIGNE * 1000) / 1000,
     detail: aFaire.map((a) => ({ cle: a.cle, langue: a.langue, signes: a.texte.length })),
@@ -210,10 +268,14 @@ export async function POST(request: NextRequest) {
   const rates: { cle: string; langue: string; motif: string }[] = [];
   let signes = 0;
 
-  /* Le tri d'abord, par paquets de douze : quelques secondes au lieu d'une
+  /* Le tri d'abord, par paquets de six : quelques secondes au lieu d'une
      minute. Ensuite seulement la dépense, et celle-là reste une par une —
-     Soynade n'aime pas qu'on lui parle à douze voix. */
-  const { enPlace, aFaire } = await trier(tousLesSonsAttendus());
+     Soynade n'aime pas qu'on lui parle à six voix.
+
+     LES INCERTAINS NE SONT PAS FABRIQUÉS. Un son dont Supabase n'a pas voulu
+     dire s'il existe est peut-être déjà payé ; on ne le repaie pas dans le
+     doute. On le dit, et un appui de plus tranchera. */
+  const { enPlace, aFaire, incertains } = await trier(tousLesSonsAttendus());
 
   for (const a of aFaire) {
     try {
@@ -231,6 +293,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     enregistres: faits.length,
     deja_la: enPlace.length,
+    incertains: incertains.length,
     rates,
     signes,
     cout_dollars: Math.round(signes * DOLLAR_PAR_SIGNE * 1000) / 1000,
