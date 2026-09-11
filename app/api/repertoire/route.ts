@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { lexiqueConfig } from "@/lib/lexique";
 import { REPERTOIRE, RELU, etatRepertoire, repertoireActif } from "@/lib/repertoire";
+import { NOUVELLES, RELU_BASE } from "@/lib/base-textes";
 import { synthetiser } from "@/lib/voix";
 import { noterVoix } from "@/lib/depense";
 import { noterPanne } from "@/lib/panne";
@@ -66,6 +67,22 @@ async function deposer(cle: string, langue: string, audio: Buffer): Promise<bool
   return r.ok;
 }
 
+/* ── TOUT CE QUI DOIT EXISTER EN SON ────────────────────────────────────────
+
+   Deux listes, deux verrous. Les 42 premières sont relues depuis ce matin ;
+   les 69 nouvelles depuis cet après-midi. Une liste dont le verrou est fermé
+   n'apparaît pas ici : ni comptée, ni fabriquée, ni facturée.
+
+   Les deux routes — celle qui compte et celle qui fabrique — lisent CETTE
+   fonction. Écrire la boucle deux fois, c'était se préparer à n'en corriger
+   qu'une. */
+function toutCeQuiSeDit() {
+  return [
+    ...(RELU ? REPERTOIRE.map((e) => ({ cle: e.cle, wolof: e.wolof, francais: e.francais })) : []),
+    ...(RELU_BASE ? NOUVELLES.map((e) => ({ cle: e.cle, wolof: e.wolof, francais: e.francais })) : []),
+  ];
+}
+
 /** Ce qui manque, et ce que ça coûterait. Gratuit. */
 export async function GET(request: NextRequest) {
   const verdict = verifierCode(request.headers.get("x-bia-code"));
@@ -77,7 +94,7 @@ export async function GET(request: NextRequest) {
   }
 
   const manquants: { cle: string; langue: string; signes: number }[] = [];
-  for (const e of REPERTOIRE) {
+  for (const e of toutCeQuiSeDit()) {
     for (const [langue, texte] of [["wo", e.wolof], ["fr", e.francais]] as const) {
       if (!texte.trim()) continue;
       if (!(await dejaLa(e.cle, langue))) manquants.push({ cle: e.cle, langue, signes: texte.length });
@@ -106,7 +123,7 @@ export async function POST(request: NextRequest) {
   if (!repertoireActif()) {
     return NextResponse.json({ erreur: "Supabase n'est pas configuré." }, { status: 400 });
   }
-  if (!RELU) {
+  if (!RELU && !RELU_BASE) {
     return NextResponse.json({
       erreur: "Les textes n'ont pas encore été relus. Rien n'a été enregistré, et rien n'a été payé.",
     }, { status: 409 });
@@ -117,7 +134,7 @@ export async function POST(request: NextRequest) {
   const rates: { cle: string; langue: string; motif: string }[] = [];
   let signes = 0;
 
-  for (const e of REPERTOIRE) {
+  for (const e of toutCeQuiSeDit()) {
     for (const [langue, texte] of [["wo", e.wolof], ["fr", e.francais]] as const) {
       if (!texte.trim()) continue;
       if (await dejaLa(e.cle, langue)) { sautes.push(`${langue}/${e.cle}`); continue; }

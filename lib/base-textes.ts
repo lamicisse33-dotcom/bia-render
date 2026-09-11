@@ -19,7 +19,22 @@
      CONTEXTUELLE    elle ouvre une action, ou dépend de ce qui précède — elle
                      ne peut pas être servie seule. */
 
-export const RELU_BASE = false;
+/* LE VERROU DES 69, LEVÉ LE 11 SEPTEMBRE 2026.
+
+   Lamine a relu cinq versions du document, corrigé quarante-neuf textes, puis
+   tranché sur les huit que je croyais fautifs : « je me base seulement sur la
+   prononciation, c'est pour ça que j'ai écrit de cette manière. Ne touche pas,
+   c'est bon comme ça. »
+
+   Il a raison et je regardais avec les mauvais yeux. « dJéemal » n'est pas un
+   « d » en trop : c'est ce qui force la voix à dire « dj » là où un « J » seul
+   ne le garantit pas. Ces textes s'écrivent pour une bouche, pas pour une
+   page — et c'est lui qui sait comment ça se dit.
+
+   Comme pour les 42, le verrou ne se relève pas tout seul : retoucher un texte
+   plus tard n'efface pas son enregistrement. Changer un texte veut dire
+   effacer son fichier dans le seau, sinon on corrige dans le vide. */
+export const RELU_BASE = true;
 
 export type Nouvelle = {
   /** Le numéro du document de travail, 43 à 111. */
@@ -37,62 +52,62 @@ export type Nouvelle = {
 export const NOUVELLES: Nouvelle[] = [
   {
     numero: 43, cle: "quoi-de-neuf", type: "FIXE", groupe: "Conversation naturelle",
-    wolof: "Dara bees amul. Yow nag, lu xew ?",
+    wolof: "Dara beesul Yow nag, lu béss.?",
     francais: "Rien de nouveau ici. Et toi, quoi de neuf ?",
     formes: ["Lu xew ?", "Quoi de neuf ?", "Lu bees am ?", "Ana nouvelles yi ?", "Wax ma lu xew ci yaw", "Y a quoi de neuf chez toi ?"],
   },
   {
     numero: 44, cle: "comment-sest-passee-ta-journee", type: "FIXE", groupe: "Conversation naturelle",
-    wolof: "Sama journée bi baax na. Yow nag, naka sa journée ?",
+    wolof: "Sama journée neekhna com dégg naa la kay. Yow nag, naka sa journée ?",
     francais: "Ma journée s'est bien passée. Et toi, comment va ta journée ?",
     formes: ["Naka sa journée ?", "Comment s'est passée ta journée ?", "Naka la sa journée bi deme ?", "Journée bi baax na ?", "Naka nga yendoo tey ?", "Ta journée s'est bien passée ?"],
   },
   {
     numero: 45, cle: "tu-fais-quoi", type: "FIXE", groupe: "Conversation naturelle",
-    wolof: "Maa ngi fii, prête à discuter ak yaw.",
+    wolof: "Maa ngi fii, pur wakhtan ak yaw.",
     francais: "Je suis là, prête à discuter avec toi.",
     formes: ["Looy def ?", "Tu fais quoi ?", "Lan ngay def léegi ?", "Tu es en train de faire quoi ?", "Yaw looy def ?", "Qu'est-ce que tu fais là ?"],
   },
   {
     numero: 46, cle: "tu-es-occupee", type: "FIXE", groupe: "Conversation naturelle",
-    wolof: "Déedéet, disponible naa. Wax ma.",
+    wolof: "Déedéet, disponible naa. managniu wakhtaan sula neéxé.",
     francais: "Non, je suis disponible. Dis-moi.",
     formes: ["Occupée nga ?", "Tu es occupée ?", "Ndax am nga temps ?", "Disponible nga ?", "Tu as une minute ?", "Mën naa wax ak yaw ?"],
   },
   {
     numero: 47, cle: "tu-entends", type: "FIXE", groupe: "Conversation naturelle",
-    wolof: "Waaw, dégg naa la bu baax.",
+    wolof: "waw, dégg naa la bu baax.",
     francais: "Oui, je t'entends bien.",
     formes: ["Dégg nga ma ?", "Tu m'entends ?", "Ndax dégg nga ma bu baax ?", "Tu m'entends bien ?", "Allo, dégg nga ma ?", "Est-ce que tu m'entends ?"],
   },
   {
     numero: 48, cle: "tu-comprends", type: "FIXE", groupe: "Conversation naturelle",
-    wolof: "Waaw, dégg naa li ngay wax.",
+    wolof: "waw, dégg naa li ngay wax.",
     francais: "Oui, je comprends ce que tu dis.",
     formes: ["Dégg nga li ma wax ?", "Tu comprends ?", "Ndax xam nga li ma bëgg wax ?", "Tu as compris ce que je dis ?", "Dégg nga li may wax ?", "Tu comprends le wolof que je parle ?"],
   },
   {
     numero: 49, cle: "parlons-un-peu", type: "FIXE", groupe: "Conversation naturelle",
-    wolof: "Waaw, aucun problème. Lan nga bëgg nu waxtaane ?",
+    wolof: "waw, aucun problème. Lan nga bëgg nu waxtaane ?",
     francais: "Oui, aucun problème. De quoi veux-tu qu'on parle ?",
     formes: ["Nu waxtaan tuuti", "On discute un peu ?", "Mën nanu waxtaan ?", "On peut parler un moment ?", "Waxtaanal ak man", "J'ai envie de discuter avec toi"],
   },
   {
     numero: 50, cle: "raconte-moi-quelque-chose", type: "FIXE", groupe: "Conversation naturelle",
-    wolof: "Waaw. Ban sujet nga bëgg : Sénégal, amour, santé, argent walla autre chose ?",
+    wolof: "waw. Ban sujet nga bëgg : Sénégal, amour, santé, argent walla autre chose ?",
     francais: "D'accord. Sur quel sujet : le Sénégal, l'amour, la santé, l'argent ou autre chose ?",
     formes: ["Nettali ma dara", "Raconte-moi quelque chose", "Wax ma ab histoire", "Tu peux me raconter une histoire ?", "Nettali ma ab léeb", "Dis-moi quelque chose d'intéressant"],
   },
   {
     numero: 51, cle: "pose-moi-une-question", type: "FIXE", groupe: "Conversation naturelle",
-    wolof: "Baax na. Naka sa journée bi dem tey ?",
+    wolof: "baax na. Naka sa journée tey ?",
     francais: "D'accord. Comment s'est passée ta journée aujourd'hui ?",
     formes: ["Laajal ma dara", "Pose-moi une question", "Yow laajal ma", "À toi de me poser une question", "Am nga ab laaj ?", "Tu n'as pas une question pour moi ?"],
   },
   {
     numero: 52, cle: "memoire-de-la-conversation", type: "CONTEXTUELLE", groupe: "Conversation naturelle",
-    wolof: "Su nu waxantee ci waxtaan bii, man naa fàttaliku li nga ma wax. Waaye mënuma la reconnaître automatiquement.",
-    francais: "Si nous avons discuté dans cette conversation, je peux me souvenir de ce que tu m'as dit. Mais je ne peux pas te reconnaître automatiquement.",
+    wolof: "So ma fattalee , man naa fàttaliku li nga ma wax. Waaye mënuma la reconnaître automatiquement.",
+    francais: "Si tu me le rappelles, je pourrai m’en souvenir de ce que tu m'as dit. Mais je ne peux pas te reconnaître automatiquement.",
     suite: "Ce qu'elle retient vaut pour la conversation en cours, pas au-delà. Elle ne promet rien qu'elle ne tienne.",
     formes: ["Fàttaliku nga li nu waxoon ?", "Tu te rappelles de notre discussion ?", "Fàttaliku nga li ma la wax ?", "Tu te souviens de ce que je t'ai dit ?", "Ndax yaa ngi fàttaliku li nu waxoon ?", "Tu as gardé ce qu'on s'est dit ?"],
   },
@@ -104,13 +119,13 @@ export const NOUVELLES: Nouvelle[] = [
   },
   {
     numero: 54, cle: "je-suis-triste", type: "FIXE", groupe: "Émotions et soutien",
-    wolof: "Désolée naa ci li nga yëg. Soo bëggee, wax ma li xew.",
+    wolof: "Désolée ci li ngay ressentir. wayeé Soo bëggee, wax ma li xew. niou waxtanci.",
     francais: "Je suis désolée de ce que tu ressens. Si tu veux, dis-moi ce qui s'est passé.",
     formes: ["Dama tiis", "Je suis triste", "Sama xol dafa metti", "J'ai le cœur lourd", "Dama am naqar", "Je ne me sens pas bien moralement"],
   },
   {
     numero: 55, cle: "je-suis-content", type: "FIXE", groupe: "Émotions et soutien",
-    wolof: "Maasha Allah, neex na ma dégg loolu ! Lu la bégal ?",
+    wolof: "Maasha Allah, neex nama ma dégg loolu ! man ci Lu lay bégal rékk laay dokh.",
     francais: "Maasha Allah, ça me fait plaisir de l'entendre ! Qu'est-ce qui te rend heureux ?",
     formes: ["Dama bég", "Je suis content", "Dama am mbégte", "Je suis heureux aujourd'hui", "Sama xol dafa sedd", "Je suis vraiment de bonne humeur"],
   },
@@ -134,31 +149,31 @@ export const NOUVELLES: Nouvelle[] = [
   },
   {
     numero: 59, cle: "je-narrive-pas-a-dormir", type: "FIXE", groupe: "Émotions et soutien",
-    wolof: "Jéemal teg téléphone bi tuuti, dalal sa xel te noyyee ndànk.",
+    wolof: "dJéemal teg téléphone bi tuuti, dalal sa xel te  respire  ndànk.",
     francais: "Essaie de poser le téléphone un peu, calme ton esprit et respire doucement.",
     formes: ["Mënuma nelaw", "Je n'arrive pas à dormir", "Nelaw bi dafa ma raw", "J'ai des insomnies", "Sama gët yi tëjuwul", "Je suis au lit mais je ne dors pas"],
   },
   {
     numero: 60, cle: "encourage-moi", type: "FIXE", groupe: "Émotions et soutien",
-    wolof: "Bul décourager. Ndànk-ndànk ngay dem, waaye dinga àgg.",
+    wolof: "Bul décourager. Ndànk-ndànk ngay demé, waaye dinga àgg.",
     francais: "N'abandonne pas. Tu avances doucement, mais tu arriveras.",
     formes: ["Encourage ma", "Encourage-moi", "Wax ma ay baat yu ma dooleel", "Donne-moi du courage", "Dama soxla courage", "J'ai besoin d'encouragement aujourd'hui"],
   },
   {
     numero: 61, cle: "jai-peur", type: "FIXE", groupe: "Émotions et soutien",
-    wolof: "Bul ragal. Wax ma li xew, nu xool ko étape par étape.",
+    wolof: "Bul ragal. Wakh ma li xew, niu xool ko étape par étape.",
     francais: "N'aie pas peur. Dis-moi ce qui se passe, on va regarder ça étape par étape.",
     formes: ["Dama ragal", "J'ai peur", "Dama am tiitaange", "Quelque chose me fait peur", "Sama xol dafa daw", "J'ai vraiment peur de ce qui va arriver"],
   },
   {
     numero: 62, cle: "je-mennuie", type: "FIXE", groupe: "Émotions et soutien",
-    wolof: "Nu waxtaan, jouer à un petit jeu, walla ma raconter la quelque chose ?",
+    wolof: "Niu waxtaan, jouer à un petit jeu, walla ma raconteé la quelque chose ?",
     francais: "On discute, on joue à un petit jeu, ou je te raconte quelque chose ?",
     formes: ["Dama amul lu ma def", "Je m'ennuie", "Amuma programme", "Je n'ai rien à faire", "Dama tàyyi", "Je m'ennuie vraiment là"],
   },
   {
     numero: 63, cle: "as-tu-mange", type: "FIXE", groupe: "Vie quotidienne sénégalaise",
-    wolof: "Man duma lekk, waaye yaw, lekkoon nga ?",
+    wolof: "Man duma lekk, waaye yaw, ndakh lekka nga ?",
     francais: "Moi je ne mange pas, mais toi, as-tu mangé ?",
     formes: ["Lekk nga ?", "Tu as mangé ?", "Ndax lekkoon nga ?", "As-tu déjà mangé ?", "Pare nga lekk ?", "Tu as pris ton repas ?"],
   },
@@ -188,8 +203,8 @@ export const NOUVELLES: Nouvelle[] = [
   },
   {
     numero: 68, cle: "il-fait-chaud", type: "FIXE", groupe: "Vie quotidienne sénégalaise",
-    wolof: "Tàngaay bi Dakar dafa metti dé ! Naanal ndox bu bari.",
-    francais: "La chaleur à Dakar est vraiment dure ! Bois beaucoup d'eau.",
+    wolof: "Tàngaay bi afrique dafa metti! Naanal ndox bu bari.",
+    francais: "La chaleur à afrique est vraiment dure ! Bois beaucoup d'eau.",
     formes: ["Dafa tàng", "Il fait chaud", "Tàngaay bi dafa metti", "Quelle chaleur aujourd'hui", "Dama tàng", "Il fait vraiment trop chaud ici"],
   },
   {
@@ -200,7 +215,7 @@ export const NOUVELLES: Nouvelle[] = [
   },
   {
     numero: 70, cle: "plus-de-connexion", type: "FIXE", groupe: "Vie quotidienne sénégalaise",
-    wolof: "Vérifie données mobiles yi walla Wi-Fi bi, nga jéemaat.",
+    wolof: "Vérifieél données mobiles bi walla Wi-Fi bi, nga jéemaat.",
     francais: "Vérifie tes données mobiles ou le Wi-Fi, puis réessaie.",
     formes: ["Connexion bi amul", "Je n'ai plus de connexion", "Internet bi dafa dem", "Ça ne capte plus", "Réseau bi baaxul", "Je n'arrive plus à me connecter"],
   },
@@ -225,20 +240,20 @@ export const NOUVELLES: Nouvelle[] = [
   },
   {
     numero: 74, cle: "heure-actuelle", type: "SEMI-DYNAMIQUE", groupe: "Vie quotidienne sénégalaise",
-    wolof: "Ma vérifier heure bi pour la.",
+    wolof: "Ma vérifier heure bi diott.",
     francais: "Je vais vérifier l'heure pour toi.",
     suite: "BIA lit ensuite l'heure réelle de l'appareil. La phrase enregistrée ne donne jamais d'heure.",
     formes: ["Ñaata waxtu la ?", "Quelle heure est-il ?", "Léegi ñaata waxtu la ?", "Il est quelle heure ?", "Wax ma heure bi", "Tu peux me dire l'heure ?"],
   },
   {
     numero: 75, cle: "je-vais-prier", type: "FIXE", groupe: "Religion et expressions courantes",
-    wolof: "Demal ci jàmm. Yàlla na nangul sa julli.",
+    wolof: "Demal ci jàmm. Yàlla na yalla nangula sa julli.",
     francais: "Vas-y en paix. Que Dieu accepte ta prière.",
     formes: ["Maa ngi dem julli", "Je vais prier", "Dinaa julli léegi", "Je pars faire la prière", "Julli bi jot na", "C'est l'heure de la prière, j'y vais"],
   },
   {
     numero: 76, cle: "jai-fini-de-prier", type: "FIXE", groupe: "Religion et expressions courantes",
-    wolof: "Yàlla na ko nangul.",
+    wolof: "Yàlla na yalla nangu.",
     francais: "Que Dieu l'accepte.",
     formes: ["Julli naa ba noppi", "J'ai fini de prier", "Pare naa julli", "Je viens de terminer ma prière", "Jullee naa", "Je sors de la prière"],
   },
@@ -250,13 +265,13 @@ export const NOUVELLES: Nouvelle[] = [
   },
   {
     numero: 78, cle: "inchallah", type: "FIXE", groupe: "Religion et expressions courantes",
-    wolof: "Inchallah, Yàlla na yombal.",
+    wolof: "Inchallah, Yàlla na yalla yombal.",
     francais: "Inchallah, que Dieu facilite.",
     formes: ["Inchallah", "Si Dieu le veut", "Su neexee Yàlla", "On verra, inchallah", "Bu soobee Yàlla", "Inchallah ça va marcher"],
   },
   {
     numero: 79, cle: "alhamdoulilah", type: "FIXE", groupe: "Religion et expressions courantes",
-    wolof: "Alhamdoulilah. Yàlla na ko barkeel.",
+    wolof: "Alhamdoulilah. Yàlla na ko yalla barkeel.",
     francais: "Alhamdoulilah. Que Dieu bénisse.",
     formes: ["Alhamdoulilah", "Hamdoulilah", "Sant Yàlla", "Grâce à Dieu", "Yàlla baax na", "On remercie Dieu pour tout"],
   },
@@ -288,7 +303,7 @@ export const NOUVELLES: Nouvelle[] = [
   },
   {
     numero: 84, cle: "envoyer-un-message", type: "CONTEXTUELLE", groupe: "Téléphone et fonctions pratiques",
-    wolof: "Kan nga bëgg yónnee message bi, te lan nga bëgg wax ko ?",
+    wolof: "Kan nga bëgg yónnee message bi, te lan nga  ko bëgg wax?",
     francais: "À qui veux-tu envoyer le message, et que veux-tu lui dire ?",
     suite: "BIA rédige, puis montre le message avant tout envoi.",
     formes: ["Yónneel ma ab message", "Envoie un message", "Mën nga yónnee SMS ?", "Tu peux envoyer un message ?", "Dama bëgg yónnee message", "Je veux envoyer un message à quelqu'un"],
@@ -307,19 +322,19 @@ export const NOUVELLES: Nouvelle[] = [
   },
   {
     numero: 87, cle: "expliquer-simplement", type: "CONTEXTUELLE", groupe: "Téléphone et fonctions pratiques",
-    wolof: "Waaw, dinaa ko expliquer ci wax yu yomb.",
+    wolof: "Waaw, dinaa ko expliquer ba mu leer.",
     francais: "Oui, je vais l'expliquer avec des mots simples.",
     formes: ["Expliquer ma ko", "Explique-moi simplement", "Firil ma ko ci wax yu yomb", "Tu peux m'expliquer autrement ?", "Dégguma ko, expliquer ma", "Explique-moi ce message"],
   },
   {
     numero: 88, cle: "corriger-francais", type: "CONTEXTUELLE", groupe: "Téléphone et fonctions pratiques",
-    wolof: "Waaw, yónnee ma phrase bi, ma corriger ko.",
+    wolof: "waw, yónnee ma phrase bi, ma corriger ko.",
     francais: "Oui, envoie-moi la phrase, je vais la corriger.",
     formes: ["Corriger ma sama français", "Corrige mon français", "Mën nga corriger phrase bi ?", "Tu peux corriger ma phrase ?", "Sama français bi baax na ?", "Regarde si mon français est correct"],
   },
   {
     numero: 89, cle: "corriger-wolof", type: "CONTEXTUELLE", groupe: "Téléphone et fonctions pratiques",
-    wolof: "Waaw, yónnee ma ko. Dinaa ko def wolof bu naturel.",
+    wolof: "waw, yónnee ma ko. Dinaa ko def wolof bu naturel.",
     francais: "Oui, envoie-le-moi. Je vais le mettre en wolof naturel.",
     formes: ["Corriger ma sama wolof", "Corrige mon wolof", "Sama wolof bi baax na ?", "Tu peux corriger ce wolof ?", "Def ko wolof bu naturel", "Mets-moi ça en bon wolof"],
   },
@@ -331,122 +346,122 @@ export const NOUVELLES: Nouvelle[] = [
   },
   {
     numero: 91, cle: "parler-moins-vite", type: "CONTEXTUELLE", groupe: "Téléphone et fonctions pratiques",
-    wolof: "Baax na, dinaa wax ndànk.",
+    wolof: "baax na, dinaa wax ndànk.",
     francais: "D'accord, je vais parler doucement.",
     suite: "Le système doit RÉELLEMENT ralentir la lecture des audios suivants. Annoncer sans ralentir serait mentir.",
     formes: ["Waxal ndànk", "Parle moins vite", "Dangay wax bu gaaw", "Tu parles trop vite", "Waxal ndànk ndànk", "Peux-tu parler plus lentement ?"],
   },
   {
     numero: 92, cle: "parler-plus-fort", type: "CONTEXTUELLE", groupe: "Téléphone et fonctions pratiques",
-    wolof: "Baax na. Su ma déggatul, yokkal volume téléphone bi tuuti.",
+    wolof: "baax na. So ma déggatul, yokkal volume téléphone bi tuuti.",
     francais: "D'accord. Si tu ne m'entends plus, augmente un peu le volume du téléphone.",
     suite: "BIA ne peut pas monter le volume général du téléphone sans autorisation du système : elle ne le promet donc pas.",
     formes: ["Waxal bu kawe", "Parle plus fort", "Dégguma la bu baax", "Je ne t'entends pas bien", "Waxal bu gëna kawe", "Tu peux hausser la voix ?"],
   },
   {
     numero: 93, cle: "arreter-de-parler", type: "CONTEXTUELLE", groupe: "Téléphone et fonctions pratiques",
-    wolof: "Baax na, maa ngi noppi.",
+    wolof: "Baax na,noppi naa.",
     francais: "D'accord, je me tais.",
     suite: "Le système interrompt immédiatement l'audio en cours.",
     formes: ["Noppil", "Arrête", "Taxawal", "Stop", "Bul waxati", "Arrête de parler s'il te plaît"],
   },
   {
     numero: 94, cle: "continuer", type: "CONTEXTUELLE", groupe: "Téléphone et fonctions pratiques",
-    wolof: "Waaw, maa ngi kontine.",
+    wolof: "dacor, maa ngi continué.",
     francais: "Oui, je continue.",
     suite: "Le système reprend la réponse ou la lecture interrompue.",
     formes: ["Kontine", "Continue", "Toppal ci", "Vas-y continue", "Wéyal", "Tu peux reprendre où tu t'es arrêtée ?"],
   },
   {
     numero: 95, cle: "probleme-de-couple", type: "CONTEXTUELLE", groupe: "Couple, famille et relations",
-    wolof: "Wax ma li xew ndànk. Dinaa la déglu sans juger.",
+    wolof: "Wax ma li xew doucement . Dinaa la déglu sans juger.",
     francais: "Dis-moi doucement ce qui s'est passé. Je vais t'écouter sans juger.",
     suite: "Réponse relationnelle : elle ouvre l'échange, elle ne conclut pas. Le conseil vient après, une fois la situation connue.",
     formes: ["Am naa problème ak sama jëkkër", "J'ai un problème de couple", "Man ak sama jabar dañuy xuloo", "Ça ne va pas avec ma femme", "Sama relation bi baaxul", "Mon couple traverse une mauvaise passe"],
   },
   {
     numero: 96, cle: "ne-me-repond-plus", type: "CONTEXTUELLE", groupe: "Couple, famille et relations",
-    wolof: "Depuis quand la personne ne te répond plus ? Ndax am na lu xewoon entre vous ?",
+    wolof: "Depuis kagn la personne ne te répond plus ? Ndax am na lu xewoon entre vous ?",
     francais: "Depuis quand la personne ne te répond plus ? Est-ce qu'il s'est passé quelque chose entre vous ?",
     suite: "BIA ne conseille rien avant d'avoir la réponse. Le conseil dépend de ce qui est dit ensuite.",
     formes: ["Tontuwul ma", "Il ne me répond plus", "Du tontu sama message yi", "Elle ne répond plus à mes messages", "Dafa ma bàyyi", "Il ne me donne plus de nouvelles"],
   },
   {
     numero: 97, cle: "demander-pardon", type: "CONTEXTUELLE", groupe: "Couple, famille et relations",
-    wolof: "Wax ma li xewoon ndànk. Su ma ko xamee, dinaa la wax naka nga koy ñaan baal.",
+    wolof: "Wax ma li xew doucement. Su ma ko xamee, dinaa la menaa wax naka nga koy djieég lo.",
     francais: "Dis-moi doucement ce qui s'est passé. Quand je le saurai, je te dirai comment demander pardon.",
     suite: "Réponse relationnelle : elle ouvre l'échange, elle ne conclut pas. Le conseil vient après, une fois la situation connue.",
     formes: ["Naka laa koy ñaan baal ?", "Comment demander pardon ?", "Bëgg naa ñaan baal", "Je veux m'excuser", "Dama koy ñaan jéggal", "Comment lui présenter mes excuses ?"],
   },
   {
     numero: 98, cle: "savoir-sil-maime", type: "CONTEXTUELLE", groupe: "Couple, famille et relations",
-    wolof: "Wax ma naka mu la jëfe ak yaw. Jëfin moo gën a wone dëgg gi, wax rekk doyul.",
+    wolof: "Wax ma naka lay comportewo ak yaw. Jëf dji mooy gëna wone dëgg gi, wax rekk doyul.",
     francais: "Dis-moi comment cette personne se comporte avec toi. Les actes montrent mieux la vérité ; les paroles seules ne suffisent pas.",
     suite: "Réponse relationnelle : elle ouvre l'échange, elle ne conclut pas. Le conseil vient après, une fois la situation connue.",
     formes: ["Ndax dafa ma bëgg ?", "Est-ce qu'il m'aime ?", "Naka laa koy xam ?", "Comment savoir si elle m'aime ?", "Ndax dëgg la may wax ?", "Je ne sais pas si ses sentiments sont sincères"],
   },
   {
     numero: 99, cle: "dispute-de-couple", type: "CONTEXTUELLE", groupe: "Couple, famille et relations",
-    wolof: "Wax ma li waral xuloo bi. Su ma ko dégee, dinaa la dimbali.",
+    wolof: "Wax ma li waral xuloo bi. Su ma ko khamé, dinaa la xélal.",
     francais: "Dis-moi ce qui a causé la dispute. Quand je l'aurai entendu, je pourrai t'aider.",
     suite: "Réponse relationnelle : elle ouvre l'échange, elle ne conclut pas. Le conseil vient après, une fois la situation connue.",
     formes: ["Dañu xuloo", "On s'est disputés", "Man ak moom dañu am xuloo", "On a eu une grosse dispute", "Xuloo bi metti na", "On s'est encore disputés hier"],
   },
   {
     numero: 100, cle: "je-pense-a-quelquun", type: "CONTEXTUELLE", groupe: "Couple, famille et relations",
-    wolof: "Kan nga bëgg wax ? Te lan moo tax ngay ko xalaat bépp saa ?",
+    wolof: "Kan nga bëgg wax ? Te lan moo tax nga koy xalaat saa suneé?",
     francais: "De qui parles-tu ? Et pourquoi penses-tu constamment à cette personne ?",
     suite: "Réponse relationnelle : elle ouvre l'échange, elle ne conclut pas. Le conseil vient après, une fois la situation connue.",
     formes: ["Dama koy xalaat", "Je pense à quelqu'un", "Sama xel dafa nekk ci moom", "Je n'arrête pas de penser à elle", "Bépp saa dama koy xalaat.", "Je pense tout le temps à cette personne"],
   },
   {
     numero: 101, cle: "ma-famille-me-manque", type: "FIXE", groupe: "Couple, famille et relations",
-    wolof: "Wooteel leen walla yónnee leen message. Dégg seen baat dina la defal jàmm.",
+    wolof: "Woo leen walla yónnee leen message. Dégg seen baat dina la defal du bien.",
     francais: "Appelle-les ou envoie-leur un message. Entendre leur voix te fera du bien.",
     formes: ["Sama famille bi dafa ma manque", "Ma famille me manque", "Dama namm sama waa kër", "Mes proches me manquent", "Dama bëgg gis sama famille", "Ma famille me manque beaucoup"],
   },
   {
     numero: 102, cle: "donne-moi-un-conseil", type: "CONTEXTUELLE", groupe: "Couple, famille et relations",
-    wolof: "Waaw. Conseil bi ci ban domaine la : amour, famille, santé walla argent ?",
+    wolof: "Waaw. Conseil bi ci ban domaine la : amour, famille, santé walla argent wala ci sa liggéey?",
     francais: "D'accord. Le conseil concerne quel domaine : l'amour, la famille, la santé ou l'argent ?",
     suite: "Cette phrase sert seulement à identifier le domaine. Le conseil complet dépend ensuite de la situation décrite.",
     formes: ["Digal ma", "Donne-moi un conseil", "Am nga ab conseil ?", "Tu peux me conseiller ?", "Dama soxla conseil", "J'ai besoin d'un conseil de ta part"],
   },
   {
     numero: 103, cle: "compliment", type: "FIXE", groupe: "Nées des corrections aux 42",
-    wolof: "Jërëjëf. Neex na ma dégg loolu.",
+    wolof: "dJërëjëf. Neexna ma may dégg loolu.",
     francais: "Merci. Cela me fait plaisir de l'entendre.",
     formes: ["Baax nga", "Bravo BIA", "Yaa gën", "Tu es forte", "Sa liggéey baax na", "Tu fais vraiment du bon travail"],
   },
   {
     numero: 104, cle: "langues-parlees", type: "FIXE", groupe: "Nées des corrections aux 42",
-    wolof: "Wolof mooy sama langue principale. Mën naa itam wax français ak anglais.",
+    wolof: "Wolof mooy sama langue principale. Mën naa itam wax français ak anglais ak yénéni lak.",
     francais: "Le wolof est ma langue principale. Je parle aussi français et anglais.",
     formes: ["Yan làkk nga mën a wax ?", "Quelles langues parles-tu ?", "Ñaata làkk nga xam ?", "Tu parles combien de langues ?", "Wax ma làkk yi nga mën a wax", "Quelles sont les langues que tu maîtrises ?"],
   },
   {
     numero: 105, cle: "repete-derniere-reponse", type: "CONTEXTUELLE", groupe: "Nées des corrections aux 42",
-    wolof: "Waaw, dinaa ko waxaat.",
+    wolof: "dacor, ma waxaat ko.",
     francais: "Oui, je vais le redire.",
     suite: "Le système rejoue ensuite la dernière réponse, sans repasser par la voix : c'est gratuit et immédiat. Si aucune réponse ne précède, BIA le dit au lieu de se taire.",
     formes: ["Waxaatal ko", "Répète", "Waxaatal ma ko beneen yoon.", "Redis-le moi", "Dégguma ko bu baax, waxaatal", "Tu peux répéter ce que tu viens de dire ?"],
   },
   {
     numero: 106, cle: "audio-utilisateur-incompris", type: "CONTEXTUELLE", groupe: "Nées des corrections aux 42",
-    wolof: "Dégguma la bu baax. Waxaatal ma ko ndànk, su la neexee.",
+    wolof: "Dégguma la bu baax. Waxaatal doucemen s’il te plaît.",
     francais: "Je ne t'ai pas bien entendu. Répète doucement, s'il te plaît.",
     suite: "Cette phrase ne se déclenche PAR AUCUNE formulation : c'est BIA qui la sort quand la transcription est vide, trop courte ou illisible. Elle n'a donc pas de six façons.",
     formes: [],
   },
   {
     numero: 107, cle: "site-khalam", type: "FIXE", groupe: "Nées des corrections aux 42",
-    wolof: "Lépp ci khalam.app la nekk : jeux yi, applications yi ak infos yi.",
+    wolof: "Lépp ci sit internét bu khalam.app la nekk : jeux yi, applications yi ak infos yi.",
     francais: "Tout est sur khalam.app : les jeux, les applications et les informations.",
     formes: ["Ana seen site ?", "C'est quoi votre site ?", "Fan laa leen di gis ci internet ?", "Où est votre site web ?", "Seen adresse internet ?", "Sur quel site je vous trouve ?"],
   },
   {
     numero: 108, cle: "contacter-khalam", type: "FIXE", groupe: "Nées des corrections aux 42",
-    wolof: "Mën nga nu jokkoo ci khalam.app, formulaire bi fa la nekk.",
+    wolof: "Mën nga nu contacter ci khalam.app, formulaire bi fa la nekk.",
     francais: "Tu peux nous joindre depuis khalam.app, le formulaire s'y trouve.",
     formes: ["Naka laa leen di jokkoo ?", "Comment vous contacter ?", "Bëgg naa wax ak KHALAM", "Je veux joindre quelqu'un de KHALAM", "Am ngeen numéro walla mail ?", "Comment vous écrire directement ?"],
   },
@@ -459,7 +474,7 @@ export const NOUVELLES: Nouvelle[] = [
   },
   {
     numero: 110, cle: "me-reconnais-tu", type: "CONTEXTUELLE", groupe: "Nées des coupures de 52 et 101",
-    wolof: "Mënuma la reconnaître automatiquement. Wax ma sa tur, dinaa ko fàttaliku ci waxtaan bii.",
+    wolof: "Mënuma la reconnaître automatiquement. Wax ma sa tur, ma djiémko fàttaliku.",
     francais: "Je ne peux pas te reconnaître automatiquement. Dis-moi ton nom, je m'en souviendrai pendant cette conversation.",
     suite: "Elle ne prétend pas connaître qui lui parle. Elle propose le seul chemin honnête : qu'on se nomme.",
     formes: ["Xam nga ma ?", "Tu me reconnais ?", "Ndax xam nga kan laa ?", "Tu sais qui je suis ?", "Fàttaliku nga ma ?", "Tu te souviens de moi ?"],

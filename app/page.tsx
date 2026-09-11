@@ -3565,13 +3565,13 @@ function PapierRepertoire({ code }: { code: string | null }) {
     <p className="papier-note" style={{ marginTop: 14 }}>
       {!demande ? (
         <button type="button" className="papier-lien" onClick={() => setDemande(true)}>
-          Enregistrer les 42 phrases →
+          Enregistrer ce qui manque →
         </button>
       ) : (
         <>
           <button type="button" className="papier-lien" disabled={occupe}
             onClick={() => void enregistrer()}>
-            {occupe ? "Elle enregistre…" : "Oui, enregistre — environ 1,01 $"}
+            {occupe ? "Elle enregistre…" : "Oui, enregistre — environ 1,63 $"}
           </button>
           {!occupe ? (
             <button type="button" className="papier-lien" style={{ marginLeft: 8 }}
@@ -3582,7 +3582,7 @@ function PapierRepertoire({ code }: { code: string | null }) {
         </>
       )}
       <br />
-      {bilan || "Une seule fois. Après, ces phrases-là sont dites sans rien payer — et sans attendre."}
+      {bilan || "Les 42 sont déjà faites : elles ne seront pas repayées. Restent les 69 nouvelles, en wolof et en français. Une seule fois — après, elles sont dites sans rien payer et sans attendre."}
     </p>
   );
 }
