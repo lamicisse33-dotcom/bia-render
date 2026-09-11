@@ -873,12 +873,36 @@ export default function Home() {
          s'installer parce que quelqu'un n'a pas voulu se nommer. */
       attendLeNomRef.current = true;
       void ecouterRef.current?.();
-      const limite = Date.now() + 9000;
-      while (attendLeNomRef.current && Date.now() < limite) {
-        if (attenteRef.current !== jeton || stopAttenteRef.current) return;
-        await pause(200);
+      /* ── POURQUOI ELLE SE « PLANTAIT » APRÈS UNE CORRECTION ──────────────
+
+         Signalé par Lamine le 11 septembre 2026 : « après avoir corrigé,
+         quand tu lui parles, elle se plante ; il faut fermer et rouvrir pour
+         qu'elle redevienne normale. »
+
+         Elle n'était pas plantée. Elle attendait un PRÉNOM, et elle a pris
+         sa phrase pour ce prénom — puis l'a jetée, sans répondre.
+
+         Le chemin exact : au premier échange elle demande « comment tu
+         t'appelles ? » et lève ce drapeau, le temps d'écouter la réponse.
+         Ouvrir la fenêtre de correction appelle taire(), qui coupe le tour en
+         cours ; cette boucle sortait alors par un `return` sec — SANS
+         rabaisser le drapeau. Il restait levé pour toujours. Tout ce qu'on
+         disait ensuite partait dans la case « prénom » et n'allait nulle
+         part. Recharger la page effaçait le drapeau : d'où « je ferme et je
+         rouvre, et elle redevient normale ».
+
+         Le drapeau se rabaisse désormais par un `finally` : quelle que soit
+         la façon dont on sort d'ici — fin normale, interruption, erreur — il
+         ne peut plus rester levé. */
+      try {
+        const limite = Date.now() + 9000;
+        while (attendLeNomRef.current && Date.now() < limite) {
+          if (attenteRef.current !== jeton || stopAttenteRef.current) return;
+          await pause(200);
+        }
+      } finally {
+        attendLeNomRef.current = false;
       }
-      attendLeNomRef.current = false;
       const tout_neuf = nomRef.current.trim();
       if (tout_neuf) nouveauNomRef.current = tout_neuf;
     }
@@ -1800,6 +1824,11 @@ export default function Home() {
     couperSon();
     tourRef.current = null;
     attenteRef.current = null;
+    /* Quelqu'un vient de reprendre la main — pour corriger, pour ouvrir un
+       papier, pour écrire. Il ne répond donc plus à « comment tu t'appelles ».
+       Sans cette ligne, sa phrase suivante repartait dans la case du prénom
+       et disparaissait sans réponse. */
+    attendLeNomRef.current = false;
     /* ON LUI COUPE LA PAROLE : L'INTERFACE DOIT REDEVENIR UTILISABLE TOUT DE
        SUITE. La boucle de lecture s'en apercevra à son tour, mais elle peut
        dormir encore deux secondes — et pendant ces deux secondes, le micro
