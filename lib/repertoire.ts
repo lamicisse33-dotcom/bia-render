@@ -200,6 +200,76 @@ export function trouverDansRepertoire(question: string): Entree | null {
   return proches.size === 1 ? [...proches][0] : null;
 }
 
+/* ── EN QUELLE LANGUE ON LUI PARLE ─────────────────────────────────────────
+
+   Lamine, le 11 septembre 2026 : « j'espère que tu as fait de même pour le
+   côté français. »
+
+   Je ne l'avais pas fait, et c'était pire que ça : la moitié des questions
+   françaises recevaient l'enregistrement WOLOF. Mesuré sur le serveur — six
+   sur dix. « Quel âge as-tu ? », « Où habites-tu ? », « Bonne journée »,
+   « Répète » : toutes répondaient en wolof.
+
+   POURQUOI. L'ancien test exigeait deux choses. D'abord que la question soit
+   écrite en pur ASCII — donc le moindre accent la disqualifiait, et le
+   français en est plein : âge, Où, écrire, journée, Répète, coûte. Ensuite
+   qu'elle contienne un mot d'une liste de neuf. Autant dire que seul un
+   français sans accent et convenu passait.
+
+   Les 42 enregistrements français dormaient pour rien.
+
+   CE QU'ON FAIT MAINTENANT : on compte les mots-outils propres à chaque
+   langue et on prend la plus fournie. Ces mots-là ne se partagent pas : « je,
+   tu, vous, est, comment, pourquoi » d'un côté ; « nga, naka, ngi, laa, mooy,
+   ak, bi » de l'autre. Les mots communs aux deux — « sa », « la », « ci » —
+   sont volontairement écartés : ils ne tranchent rien.
+
+   À ÉGALITÉ, C'EST LE WOLOF. C'est sa langue ; le français n'est servi que
+   lorsqu'on lui parle clairement français. */
+const MOTS_FRANCAIS = new Set(["je","tu","vous","nous","il","elle","ils","elles",
+  "est","es","suis","sont","etes","etais","sera","ai","as","avez","avons",
+  "que","qui","quoi","quel","quelle","quels","quelles","comment","pourquoi",
+  "combien","quand","est ce","peux","peut","pouvez","veux","veut","sais","sait",
+  "le","les","un","une","des","du","au","aux","ce","cet","cette","ces",
+  "pour","avec","dans","sur","chez","mon","ma","mes","ton","tes","votre","vos",
+  "ne","pas","plus","tres","bien","merci","bonjour","bonsoir","salut","oui",
+  "non","pardon","desole","desolee","bienvenue","attends","demain","nuit",
+  "journee","revoir","bientot","coute","cout","prix","code","message","devis",
+  "papier","document","image","images","internet","site","nom","age","fille",
+  "femme","homme","robot","humaine","parles","parle","ecrire","lire","montrer",
+  "chercher","trouver","avoir","faire","fait","faite","creee","cree","dis",
+  "moi","toi","ca","va","c est","d accord","s il","te","la plait",
+  /* Les mots qui arrivent SEULS. Une question d'un seul mot ne donne aucun
+     indice de grammaire : « Répète » tombait en wolof faute d'être ici. */
+  "repete","repetez","encore","compris","comprends","entendu","coucou","bye",
+  "bravo","sorry","excuse","gentil","gentille","forte","minute","minutes",
+  "courage","chance","allo","ok","nice","marche","appelles","createur"]);
+
+const MOTS_WOLOF = new Set(["nga","naka","ngi","laa","mooy","moo","moom","ak",
+  "bi","yi","ga","gi","ba","ji","mi","ni","waaw","deedeet","deet","jamm",
+  "kan","lan","lu","loo","xam","xamuma","men","mën","mena","def","defar",
+  "sos","bind","bindal","wax","waxal","waxaat","wonal","won","seet","jot",
+  "dem","nekk","dekk","tudd","tur","yow","yaw","man","maa","noo","ndax",
+  "mbaa","nun","nepp","waa","ker","kër","yaay","baay","jigeen","goor",
+  "nit","bari","tuuti","suba","ngoon","yendu","yendul","yendoo","fanaan",
+  "fanaanal","nelaw","dalal","jerejef","jaraama","amul","solo","dara","baax",
+  "baaxul","begg","soxla","dimbali","tontu","liggeey","xaar","fan","ana",
+  "beneen","yoon","ci","sant","sa","fi","la","ko","ma","mu","nu","na","am"]);
+
+/** « wo » ou « fr », selon les mots-outils que la question emploie. */
+export function langueDe(question: string): "wo" | "fr" {
+  const mots = normaliser(question).split(" ").filter(Boolean);
+  if (!mots.length) return "wo";
+  let fr = 0, wo = 0;
+  for (const m of mots) {
+    if (MOTS_FRANCAIS.has(m)) fr++;
+    if (MOTS_WOLOF.has(m)) wo++;
+  }
+  /* Les mots que les deux se partagent — sa, la, ci, ma, na — comptent des
+     deux côtés et s'annulent : ils ne tranchent rien, c'est voulu. */
+  return fr > wo ? "fr" : "wo";
+}
+
 /* ── QUAND LES LETTRES NE SUFFISENT PLUS : ON DEMANDE AU MODÈLE ────────────
 
    Lamine, le 11 septembre 2026, après trois essais infructueux : « il faut la

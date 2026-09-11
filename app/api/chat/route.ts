@@ -11,7 +11,7 @@ import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
-import { RELU, consigneRepertoire, etiquetteSeule, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
+import { RELU, consigneRepertoire, etiquetteSeule, langueDe, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
 
@@ -452,8 +452,10 @@ export async function POST(request:NextRequest){
     if(RELU&&repertoireActif()){
       const toute=trouverDansRepertoire(question);
       if(toute){
-        const fr=/^[\x00-\x7F\s'’,.!?-]+$/.test(question)&&/\b(bonjour|bonsoir|salut|merci|ca va|qui|quoi|comment|au revoir)\b/i.test(question);
-        const langue=fr?"fr":"wo";
+        /* La langue se décide sur les mots-outils employés, pas sur une
+           liste de neuf mots et l'absence d'accents — voir langueDe(). */
+        const langue=langueDe(question);
+        const fr=langue==="fr";
         return NextResponse.json({
           reply:fr?toute.francais:toute.wolof,
           emotion:toute.emotion||"neutre",
