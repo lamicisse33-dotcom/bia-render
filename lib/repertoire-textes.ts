@@ -50,7 +50,13 @@ export const REPERTOIRE: Entree[] = [
     cle: "salut",
     wolof: "Salaamualeekum. Maa ngi fi. Lane ga soxla won ?",
     francais: "Bonjour. Je suis là. Que veux-tu ?",
-    formes: ["salam", "salaam", "salam aleikoum", "asalamalekoum", "salamalekoum", "bonjour", "salut", "nanga def", "naka nga def", "na nga def", "coucou", "allo"],
+    /* « NANGA DEF » A CHANGÉ DE CAMP, le 11 septembre 2026. Il était ici,
+       comme salutation. Lamine l'a mis dans ses six façons de dire « ça va » —
+       et à Dakar il est les deux. Une phrase ne peut pas déclencher deux
+       réponses : c'est lui qui tranche, elle répond désormais « ça va ».
+       Ses trois orthographes partent ensemble, sinon elles se disputeraient
+       la même question. */
+    formes: ["salam", "salaam", "salam aleikoum", "asalamalekoum", "salamalekoum", "bonjour", "salut", "coucou", "allo"],
     emotion: "douce",
   },
   {
@@ -69,7 +75,15 @@ export const REPERTOIRE: Entree[] = [
     cle: "ca-va",
     wolof: "Maa ngi sant. Yow nag, naka nga def ?",
     francais: "Ça va bien, merci. Et toi ?",
-    formes: ["ca va", "ca va bien", "comment vas tu", "comment tu vas", "jamm nga am", "mbaa sa yaram jamm", "naka nga yendoo", "naka suba si", "jamm ngeen am"],
+    /* Les six de Lamine. « Naka mbir yi » et « lu xew » ne parlent pas du
+       corps ni de la santé : ils demandent où en sont les choses — c'est ça
+       qu'on dit vraiment en croisant quelqu'un. */
+    formes: ["naka nga def", "yaangi ci jamm", "naka yaram bi",
+      "mbaa lepp ngi baakh", "naka mbir yi", "lu xew ca va",
+      "nanga def", "na nga def", "lu xew",
+      "ca va", "ca va bien", "comment vas tu", "comment tu vas",
+      "jamm nga am", "mbaa sa yaram jamm", "naka nga yendoo",
+      "naka suba si", "jamm ngeen am"],
     emotion: "douce",
   },
   {
