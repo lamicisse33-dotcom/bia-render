@@ -862,11 +862,37 @@ export default function Home() {
   /* La voix du navigateur : béquille, gardée pour le cas où Oolel ne répond
      pas. Elle ne sait pas dire le wolof, d'où la réécriture phonétique — et
      seulement pour le wolof, sinon le français ressort déformé. */
-  const parlerAvecLeTelephone = useCallback((answer: string) => {
+  /* ── ELLE REND LA MAIN QUAND LA VOIX S'EST TUE, PAS AVANT ────────────────
+
+     Trouvé par l'audit du 12 septembre au soir, et c'est juste :
+
+       « parlerAvecLeTelephone() lance speechSynthesis.speak() de façon
+         asynchrone et retourne avant la fin réelle de la voix. Comme le
+         retour à ready déclenche ecouter() 180 ms plus tard, le micro peut
+         être rouvert pendant que speechSynthesis parle encore. »
+
+     Et c'est pire que ça. `bouche(true)`, appelée par `onstart`, met l'état à
+     « speaking » ; l'appelant, lui, mettait « ready » juste après l'appel.
+     Les deux se battaient donc dans un ordre que personne ne décide — selon
+     lequel arrivait en dernier, BIA restait figée sur « elle parle » ou
+     rouvrait le micro sur sa propre voix de secours. La même famille de
+     course que celle du prénom, à un autre endroit.
+
+     La fonction rend maintenant une promesse qui ne se dénoue qu'à la FIN
+     réelle de la voix. L'appelant attend, puis décide de l'état — et comme
+     `stopMouth` remet déjà « ready », il n'a le plus souvent rien à faire.
+
+     ET ELLE SE DÉNOUE TOUJOURS. Sur iPhone, `onend` manque parfois à l'appel
+     — c'est connu. Une promesse qui ne se dénoue jamais, ici, ce serait un
+     micro mort pour de bon : on aurait échangé une course contre un blocage.
+     Un garde-fou la dénoue donc au bout d'une durée calculée sur la longueur
+     du texte, généreusement. */
+  const voixDuTelephoneRef = useRef(false);
+  const parlerAvecLeTelephone = useCallback((answer: string) => new Promise<void>((fini) => {
     // Pas de voix du tout sur cet appareil : on rend la main tout de suite,
     // sinon BIA resterait « en train de répondre » pour toujours — et le
     // micro, qui se ferme pendant qu'elle parle, ne se rouvrirait jamais.
-    if (!("speechSynthesis" in window)) { stopMouth(answer); return; }
+    if (!("speechSynthesis" in window)) { stopMouth(answer); fini(); return; }
     window.speechSynthesis.cancel();
     const voices = window.speechSynthesis.getVoices();
     const wolof = voices.find((v) => v.lang.toLowerCase().startsWith("wo"));
@@ -880,11 +906,30 @@ export default function Home() {
     else if (french) { utterance.voice = french; utterance.lang = french.lang; }
     else utterance.lang = "fr-FR";
     utterance.rate = enWolof ? 1.02 : 1.06;
+
+    /* Le drapeau dit « une voix de secours est en train de parler ». Le filet
+       court des deux secondes et demie le lit : entre l'appel et `onstart`,
+       l'état est encore « réfléchit », et sans ce drapeau le filet rouvrirait
+       le micro juste avant que la voix ne commence. */
+    voixDuTelephoneRef.current = true;
+    let rendu = false;
+    const rendre = () => {
+      if (rendu) return;
+      rendu = true;
+      clearTimeout(gardeFou);
+      voixDuTelephoneRef.current = false;
+      bouche(false, answer);
+      fini();
+    };
+    /* Quatorze signes par seconde, le double, et trois secondes de marge :
+       un garde-fou doit être large, il ne sert qu'à ne jamais rester coincé. */
+    const gardeFou = setTimeout(rendre, Math.min(45000, 3000 + (answer.length / 14) * 2000));
+
     utterance.onstart = () => bouche(true);
-    utterance.onend = () => bouche(false, answer);
-    utterance.onerror = () => bouche(false, answer);
+    utterance.onend = rendre;
+    utterance.onerror = rendre;
     window.speechSynthesis.speak(utterance);
-  }, [bouche, stopMouth]);
+  }), [bouche, stopMouth]);
 
   /* ── Les sons qui ne s'écrivent pas ───────────────────────────────────
 
@@ -1424,7 +1469,7 @@ export default function Home() {
     if (moteursRef.current && moteursRef.current.voix === "navigateur") {
       await prendreLaParole();
       if (emotion) await jouerSouffle(emotion);
-      parlerAvecLeTelephone(answer);
+      await parlerAvecLeTelephone(answer);
       return;
     }
 
@@ -1486,7 +1531,7 @@ export default function Home() {
       let bloc = await premier;
       noterAttente();          // le son est là : l'attente est finie, on la note
       await prendreLaParole();
-      if (!bloc.audio) { parlerAvecLeTelephone(answer); return; }
+      if (!bloc.audio) { await parlerAvecLeTelephone(answer); return; }
       // Le rire vient maintenant : entre la dernière phrase d'attente et le
       // premier mot de la réponse, il fait la liaison.
       if (emotion) await jouerSouffle(emotion);
@@ -1649,7 +1694,7 @@ export default function Home() {
          langue inconnue. Le motif exact se lit dans /api/etat. */
       setPanne(`panne : sa voix — ${String(e).replace(/^Error:\s*/, "").slice(0, 60)}`);
       await prendreLaParole();
-      parlerAvecLeTelephone(answer);
+      await parlerAvecLeTelephone(answer);
     }
   }, [contexte, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth]);
 
@@ -2215,6 +2260,10 @@ export default function Home() {
     if (!conversation || mode !== "thinking") return;
     const filet = setTimeout(() => {
       if (!conversationRef.current || attenteRef.current) return;
+      /* Et pas pendant qu'une voix de secours parle : entre l'appel et son
+         `onstart`, l'état est encore « réfléchit », et rouvrir le micro là
+         serait l'ouvrir sur sa propre phrase. */
+      if (voixDuTelephoneRef.current) return;
       setMode("ready");
       setFace("yeux_ouverts");
     }, 2500);
@@ -2698,6 +2747,9 @@ export default function Home() {
             if (rire.rit) {
               await finirAttente(langueRef.current, false);
               await jouerSouffle(rire.emotion || "rire");
+              /* Deux attentes viennent de passer (fermer l'attente, jouer le
+                 rire) : ce tour peut ne plus être le tour en cours. */
+              if (!estLeTour(monTour)) return;
               if (rire.seulement) { setMode("ready"); setFace("joie"); return; }
             }
             void askBia(d.texte, true, monTour);
@@ -2739,10 +2791,16 @@ export default function Home() {
                quelqu'un devant un micro qui ne transmet rien. */
             if (noteEcouteRef.current) {
               const enFrancais: boolean = (langueRef.current as Langue) === "fr";
-              parlerAvecLeTelephone(enFrancais
+              /* ON ATTEND QU'ELLE AIT FINI DE LE DIRE. Sans ce `await`, le
+                 retour au repos partait aussitôt, le micro se rouvrait
+                 180 ms plus tard — et BIA enregistrait sa propre phrase de
+                 panne, la transcrivait, et répondait à elle-même. */
+              await parlerAvecLeTelephone(enFrancais
                 ? "Mon oreille est en panne, ce n'est pas toi. Regarde l'état de BIA."
                 : "Sama nopp bi dafa yàqu, du yaw. Xoolal état bi.");
-              setMode("ready"); setFace("concernee");
+              /* `stopMouth` a déjà remis « ready » à la fin de la voix : on ne
+                 le réécrit que si ce tour est encore le tour en cours. */
+              if (estLeTour(monTour)) setFace("concernee");
             } else {
               const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
                 ?.repertoire?.base_sons?.[langueRef.current] || "";
@@ -2750,8 +2808,8 @@ export default function Home() {
                 /* .mp3 : octetsDuRepertoire retombe seul sur le .wav si la
                    conversion n'est pas encore passée par cette phrase-là. */
                 try { await direSonTeutFait(`${base}audio-utilisateur-incompris.mp3`, "concernee"); }
-                catch { setMode("ready"); setFace("yeux_ouverts"); }
-              } else {
+                catch { if (estLeTour(monTour)) { setMode("ready"); setFace("yeux_ouverts"); } }
+              } else if (estLeTour(monTour)) {
                 setMode("ready"); setFace("yeux_ouverts");
               }
             }
@@ -2760,7 +2818,7 @@ export default function Home() {
           /* Le réseau a lâché pendant la transcription : même règle. Sans ce
              finirAttente, l'attente survivait à l'erreur et bloquait tout. */
           await finirAttente(langueRef.current, false);
-          setMode("error");
+          if (estLeTour(monTour)) setMode("error");
         }
       };
 
