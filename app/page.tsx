@@ -2095,6 +2095,53 @@ export default function Home() {
     return () => clearTimeout(secours);
   }, [mode]);
 
+  /* ── LE FILET COURT : « ELLE RÉFLÉCHIT » SANS RIEN EN VOL ────────────────
+
+     Trois minutes, c'était le filet d'un temps où un appui valait une phrase :
+     le bouton restait là, et on rappuyait. En conversation continue, il n'y a
+     plus de bouton à rappuyer — le micro se rouvre tout seul au retour au
+     repos, ou jamais. Trois minutes de micro mort devant quelqu'un, c'est une
+     panne, pas un filet.
+
+     Alors on se donne un signe SÛR d'état coincé, au lieu d'attendre. Quand
+     elle réfléchit pour de vrai, un jeton d'attente est posé (`attenteRef`) et
+     il vit jusqu'à ce que la réponse arrive. « Elle réfléchit » SANS jeton, ce
+     n'est pas une réflexion : c'est un tour qui s'est perdu.
+
+     Deux secondes et demie de marge, parce qu'il y a un battement entre le
+     `setMode("thinking")` et la pose du jeton, et qu'un faux positif ici
+     rouvrirait le micro pendant qu'elle parle. C'est déclenché par le
+     changement d'état, pas par une horloge qui tourne : ça ne coûte rien. */
+  useEffect(() => {
+    if (!conversation || mode !== "thinking") return;
+    const filet = setTimeout(() => {
+      if (!conversationRef.current || attenteRef.current) return;
+      setMode("ready");
+      setFace("yeux_ouverts");
+    }, 2500);
+    return () => clearTimeout(filet);
+  }, [conversation, mode]);
+
+  /* ── ET UNE PANNE NE DOIT PAS TUER LA CONVERSATION ──────────────────────
+
+     « error » ne relance rien, volontairement : après un échec, le bouton
+     reste à la personne. C'est juste quand elle a un bouton sous les yeux.
+     En conversation, ce même choix rend le micro définitivement muet pour un
+     seul paquet réseau perdu — et il y en aura, sur un téléphone à Dakar.
+
+     On redonne donc le micro après trois secondes. Une phrase perdue est un
+     incident ; un micro mort au milieu d'une démonstration, c'en est un
+     autre. Le témoin a eu le temps de montrer la panne. */
+  useEffect(() => {
+    if (!conversation || mode !== "error") return;
+    const reprise = setTimeout(() => {
+      if (!conversationRef.current) return;
+      setMode("ready");
+      setFace("yeux_ouverts");
+    }, 3000);
+    return () => clearTimeout(reprise);
+  }, [conversation, mode]);
+
   // Clignement des yeux au repos.
   useEffect(() => {
     /* Un clignement franc paraît mécanique. Trois images descendantes puis
@@ -2378,9 +2425,6 @@ export default function Home() {
           return;
         }
 
-        setMode("thinking");
-        setFace("pensive");
-
         /* Elle répond MAINTENANT, sans attendre la transcription : c'est tout
            l'intérêt: le silence après qu'on a parlé est le plus inquiétant. */
         /* ── ON NE MENT PLUS SUR LE FORMAT DE L'ENREGISTREMENT ──────────────
@@ -2433,10 +2477,33 @@ export default function Home() {
            au premier mot, parce que BIA est wolof d'abord. */
         forme.append("indice_langue", langueDuFil.current);
 
-        /* CE QU'ELLE VIENT D'ENTENDRE EST-IL UN PRÉNOM ?
-           Entre « comment tu t'appelles ? » et la réponse, oui — et alors ce
-           n'est PAS une nouvelle question : on ne relance rien, on retient le
-           prénom et l'attente reprend là où elle en était. */
+        /* ── LE PRÉNOM NE DOIT PAS TOUCHER À L'ÉTAT DU MICRO ──────────────
+
+           Lamine, le 12 septembre 2026 au soir, juste avant de présenter
+           BIA : « tu parles une, deux fois, la troisième fois elle se met à
+           réfléchir, le micro se bloque. »
+
+           C'ÉTAIT UNE COURSE, ET ELLE ÉTAIT ICI.
+
+           Entre « comment tu t'appelles ? » et la réponse, le micro est
+           rouvert PENDANT qu'elle parle, pour attraper le prénom. Deux tours
+           vivent donc en même temps : celui de la vraie question, et cette
+           capture-ci. Or l'état passait à « réfléchit » dès l'arrêt de
+           l'enregistrement — celui-ci compris — et la capture du prénom
+           rendait la main sans jamais le remettre.
+
+           Tout dépendait alors de l'ordre d'arrivée. Si le prénom se
+           terminait APRÈS qu'elle avait fini de parler, le dernier mot
+           prononcé sur l'état était « réfléchit »… et c'est le RETOUR AU
+           REPOS qui rouvre le micro. Il ne revenait jamais.
+
+           Deux tours marchaient, le troisième bloquait, et ça paraissait
+           aléatoire parce que ça dépendait de sa vitesse à lui contre la
+           durée de la réponse. Le filet de secours existait — mais à trois
+           minutes, ce qui, devant quelqu'un, est une panne.
+
+           La capture du prénom ne touche donc plus à l'état, et elle passe
+           AVANT qu'on annonce quoi que ce soit. */
         if (attendLeNomRef.current) {
           try {
             const r = await fetch("/api/ecouter", { method: "POST", headers: { "x-bia-code": codeRef.current }, body: forme });
@@ -2454,8 +2521,18 @@ export default function Home() {
             }
           } catch {}
           attendLeNomRef.current = false;
+          /* Et on ne prend la parole à personne : on ne rend le micro que si
+             plus rien n'est en vol — ni réponse en fabrication (le jeton
+             d'attente), ni enregistrement déjà repris. Dans tous les autres
+             cas, c'est le tour en cours qui rendra la main. */
+          if (!attenteRef.current && !enregistreurRef.current) {
+            setMode((m) => (m === "thinking" ? "ready" : m));
+          }
           return;
         }
+
+        setMode("thinking");
+        setFace("pensive");
 
         const jeton = {};
         attenteRef.current = jeton;
