@@ -2,6 +2,7 @@
   "name": "bia",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "engines": {
     "node": ">=20.9.0"
   },
@@ -11,6 +12,7 @@
     "start": "next start -p ${PORT:-3000}"
   },
   "dependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "maplibre-gl": "^6.9.0",
     "next": "15.5.4",
     "pdfkit": "^0.20.2",

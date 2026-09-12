@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { KBITS, versMp3 } from "@/lib/mp3";
 import { verifierCode } from "@/lib/codes";
 import { lexiqueConfig } from "@/lib/lexique";
 import { REPERTOIRE, RELU, etatRepertoire, repertoireActif } from "@/lib/repertoire";
@@ -42,6 +43,9 @@ function entetes(type?: string) {
 }
 
 const chemin = (cle: string, langue: string) => `${langue}/${cle}.wav`;
+/* La version légère, à côté de l'original. Les deux cohabitent : le WAV est
+   ce qui a été payé, le MP3 est ce qu'on télécharge. */
+const cheminMp3 = (cle: string, langue: string) => `${langue}/${cle}.mp3`;
 
 /* ── DIRE LA PANNE SANS RECRACHER LA PAGE ───────────────────────────────────
 
@@ -97,7 +101,12 @@ const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Le son est-il déjà là ? Une lecture de fiche, sans corps, sans coût. */
 async function etatDuSon(cle: string, langue: string): Promise<EtatDuSon> {
-  const adresse = `${lexiqueConfig.url}/storage/v1/object/info/public/${SEAU}/${chemin(cle, langue)}`;
+  return etatDuFichier(chemin(cle, langue));
+}
+
+/** La même question, pour n'importe quel fichier du seau. */
+async function etatDuFichier(ou: string): Promise<EtatDuSon> {
+  const adresse = `${lexiqueConfig.url}/storage/v1/object/info/public/${SEAU}/${ou}`;
   /* Trois tentatives, en laissant Supabase respirer entre deux. */
   for (const pause of [0, 500, 1500]) {
     if (pause) await dormir(pause);
@@ -120,19 +129,106 @@ async function etatDuSon(cle: string, langue: string): Promise<EtatDuSon> {
 }
 
 async function deposer(cle: string, langue: string, audio: Buffer): Promise<boolean> {
+  return deposerFichier(chemin(cle, langue), new Uint8Array(audio), "audio/wav",
+    `répertoire : dépôt ${cle}/${langue}`);
+}
+
+async function deposerFichier(ou: string, octets: Uint8Array, type: string, quoi: string): Promise<boolean> {
   const r = await fetch(
-    `${lexiqueConfig.url}/storage/v1/object/${SEAU}/${chemin(cle, langue)}`,
+    `${lexiqueConfig.url}/storage/v1/object/${SEAU}/${ou}`,
     {
       method: "POST",
-      headers: { ...entetes("audio/wav"), "x-upsert": "true" },
-      body: new Uint8Array(audio),
+      /* CE CACHE-CONTROL EST LA MOITIÉ DU GAIN, et il manquait.
+
+         Mesuré le 12 septembre : les fichiers du répertoire arrivaient avec
+         « cache-control: no-cache ». Le navigateur les reprenait donc au
+         RÉSEAU à chaque fois, pour des fichiers gravés une fois pour toutes.
+         Un an de garde : ils ne changent jamais, et si l'un devait changer,
+         il changerait de nom.
+
+         Le téléphone les garde aussi de son côté (voir octetsDuRepertoire
+         dans app/page.tsx). Les deux ensemble, et « Salaam » ne coûte plus
+         un octet après la première fois. */
+      headers: { ...entetes(type), "x-upsert": "true", "cache-control": "public, max-age=31536000, immutable" },
+      body: octets,
     },
   );
   if (!r.ok) {
     const detail = (await r.text().catch(() => "")).slice(0, 300);
-    noterPanne(`répertoire : dépôt ${cle}/${langue}`, detail, "repertoire");
+    noterPanne(quoi, detail, "repertoire");
   }
   return r.ok;
+}
+
+/* ── ALLÉGER CE QUI EST DÉJÀ PAYÉ ──────────────────────────────────────────
+
+   Lamine, le 12 septembre 2026 : « vas-y, il faut le convertir en MP3. »
+
+   Mesuré : le WAV de « Salaam » pèse 136 364 octets, le MP3 à 64 kbit/s en
+   pèse 23 232 — six fois moins à télécharger, pour la même voix. Sur un
+   téléphone en 4G à Dakar, c'est la différence entre une réponse
+   « instantanée » et une réponse qui commence par attendre.
+
+   AUCUNE VOIX N'EST REPAYÉE. On ne redemande rien à Soynade : on relit le
+   fichier déjà acheté, on le recompresse, on repose le résultat à côté. Et
+   ON NE SUPPRIME RIEN — le WAV reste l'original, et le téléphone retombe
+   dessus si un MP3 manque.
+
+   ON N'EN FAIT QU'UN PAQUET PAR APPUI. Deux cent soixante-dix conversions
+   d'affilée tiendraient une requête ouverte trois minutes, et une requête qui
+   dure trois minutes finit par être coupée quelque part — on ne saurait même
+   pas où ça s'est arrêté. Chaque appui en fait cent vingt et dit combien il
+   en reste ; un deuxième appui finit le travail. C'est le même geste que pour
+   l'enregistrement, et il le connaît déjà. */
+const PAR_APPUI = 120;
+
+type Allege = { faits: number; deja: number; rates: { ou: string; motif: string }[]; restent: number;
+  avant: number; apres: number };
+
+async function alleger(liste: Attendu[]): Promise<Allege> {
+  /* On ne convertit que ce dont le WAV existe : convertir un son qui n'a pas
+     encore été enregistré n'a pas de sens, et son MP3 arrivera au prochain
+     appui — après l'enregistrement, qui tourne juste avant. */
+  const etats = await parPaquets(liste, (a) => etatDuFichier(cheminMp3(a.cle, a.langue)));
+  const aFaire = liste.filter((_, i) => etats[i] === "non");
+  const deja = etats.filter((e) => e === "oui").length;
+
+  const lot = aFaire.slice(0, PAR_APPUI);
+  const rates: { ou: string; motif: string }[] = [];
+  let faits = 0, avant = 0, apres = 0;
+
+  const resultats = await parPaquets(lot, async (a) => {
+    const ou = cheminMp3(a.cle, a.langue);
+    try {
+      const r = await fetch(
+        `${lexiqueConfig.url}/storage/v1/object/public/${SEAU}/${chemin(a.cle, a.langue)}`,
+        { headers: entetes(), cache: "no-store" },
+      );
+      /* Le WAV n'est pas là (400 de Supabase) : ce n'est pas une panne, c'est
+         un son qui n'a pas encore été enregistré. On passe sans se plaindre. */
+      if (!r.ok) return null;
+      const wav = await r.arrayBuffer();
+      if (wav.byteLength < 1000) return null;
+      const mp3 = versMp3(wav);
+      /* Un MP3 plus gros que son WAV voudrait dire qu'on s'est trompé de
+         réglage : on ne dépose pas, ça ne ferait qu'alourdir. */
+      if (mp3.length >= wav.byteLength) throw new Error("le MP3 n'allège rien");
+      if (!(await deposerFichier(ou, mp3, "audio/mpeg", `répertoire : MP3 ${ou}`))) {
+        throw new Error("dépôt refusé");
+      }
+      return { wav: wav.byteLength, mp3: mp3.length };
+    } catch (err) {
+      rates.push({ ou, motif: motifLisible(err as Error) });
+      return null;
+    }
+  });
+
+  for (const x of resultats) {
+    if (!x) continue;
+    faits++; avant += x.wav; apres += x.mp3;
+  }
+
+  return { faits, deja, rates, restent: Math.max(0, aFaire.length - lot.length), avant, apres };
 }
 
 /* ── TOUT CE QUI DOIT EXISTER EN SON ────────────────────────────────────────
@@ -246,6 +342,11 @@ export async function GET(request: NextRequest) {
   const { enPlace, aFaire, incertains } = await trier(liste);
   const signes = aFaire.reduce((t, a) => t + a.texte.length, 0);
 
+  /* Combien sont encore lourds. On le REGARDE ici, on ne le fait pas : cette
+     route est celle qui ne dépense rien, et ça vaut aussi pour le temps. */
+  const mp3 = await parPaquets(enPlace, (a) => etatDuFichier(cheminMp3(a.cle, a.langue)));
+  const aAlleger = mp3.filter((e) => e === "non").length;
+
   return NextResponse.json({
     ...etatRepertoire(),
     /* Les chiffres que Lamine lit : combien de sons doivent exister, combien
@@ -264,6 +365,12 @@ export async function GET(request: NextRequest) {
     /* Dire NON en expliquant pourquoi vaut mieux qu'un bouton qui ne fait
        rien : c'est ce qu'on lit quand l'enregistrement refuse de partir. */
     pret: RELU ? "oui" : "non — les textes attendent d'être relus par Lamine (RELU dans lib/repertoire.ts)",
+    /* Le poids, et ce qu'il reste à alléger. Rien de tout ça ne coûte un
+       centime de voix : les fichiers sont déjà payés, on ne fait que les
+       recompresser. */
+    a_alleger: aAlleger,
+    deja_legers: enPlace.length - aAlleger,
+    mp3_kbits: KBITS,
   });
 }
 
@@ -308,6 +415,22 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  /* ── PUIS ON ALLÈGE, ET ÇA NE COÛTE RIEN ──────────────────────────────
+
+     Après l'enregistrement, jamais avant : un son qu'on vient de fabriquer
+     mérite son MP3 dans le même appui, et un son qui n'existe pas encore n'a
+     rien à convertir.
+
+     SI ÇA ÉCHOUE, L'ENREGISTREMENT RESTE FAIT. C'est la partie qui a coûté
+     de l'argent ; elle ne doit pas être perdue parce qu'une compression a
+     mal tourné. On rapporte l'échec et on rend la main. */
+  let leger: Allege | null = null;
+  try {
+    leger = await alleger(tousLesSonsAttendus());
+  } catch (err) {
+    noterPanne("répertoire : allègement", (err as Error).message.slice(0, 300), "repertoire");
+  }
+
   return NextResponse.json({
     enregistres: faits.length,
     deja_la: enPlace.length,
@@ -318,5 +441,16 @@ export async function POST(request: NextRequest) {
     /* Ce qu'on veut lire après : à partir de maintenant, ces phrases-là ne se
        paieront plus jamais. */
     desormais_gratuit: faits.length + enPlace.length,
+    /* Et ce qui vient de maigrir. Zéro dollar : aucune voix n'est repayée. */
+    allegement: leger ? {
+      convertis: leger.faits,
+      deja_legers: leger.deja,
+      restent: leger.restent,
+      rates: leger.rates,
+      avant_ko: Math.round(leger.avant / 1024),
+      apres_ko: Math.round(leger.apres / 1024),
+      fois_plus_petit: leger.apres ? Math.round((leger.avant / leger.apres) * 10) / 10 : null,
+      cout_dollars: 0,
+    } : { erreur: "l'allègement a échoué — l'enregistrement, lui, est fait" },
   });
 }

@@ -562,9 +562,26 @@ export function etiquetteSeule(reponse: string): Entree | null {
   return TOUT.find((e) => e.cle === m[1]) || null;
 }
 
-/** L'adresse du son déjà fabriqué, chez Supabase. */
+/* ── ON DEMANDE LE LÉGER, ON GARDE LE LOURD ────────────────────────────────
+
+   Lamine, le 12 septembre 2026 : « il faut le convertir en MP3. »
+
+   Mesuré : 136 364 octets en WAV pour « Salaam », 23 232 en MP3 — six fois
+   moins à télécharger, la même voix. On demande donc le MP3.
+
+   ET LE WAV RESTE. Il est l'original, celui qui a été payé et relu ; on ne
+   supprime pas ce qui a été payé. Si un MP3 manque — une conversion pas
+   encore passée, un dépôt raté — le téléphone retombe sur le WAV tout seul,
+   sans un mot (voir octetsDuRepertoire dans app/page.tsx, et dire() dans
+   app/carte/Carte.tsx). Une réponse lourde vaut infiniment mieux qu'un
+   silence. */
 export function sonDe(cle: string, langue: "wo" | "fr"): string {
-  return `${lexiqueConfig.url}/storage/v1/object/public/${SEAU}/${langue}/${encodeURIComponent(cle)}.wav`;
+  return `${lexiqueConfig.url}/storage/v1/object/public/${SEAU}/${langue}/${encodeURIComponent(cle)}.mp3`;
+}
+
+/** L'original, quand le léger n'est pas là. */
+export function sonLourdDe(adresse: string): string {
+  return adresse.replace(/\.mp3$/, ".wav");
 }
 
 /* Le dossier où vivent tous les sons d'une langue.

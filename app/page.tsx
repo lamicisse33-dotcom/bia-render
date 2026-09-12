@@ -1323,14 +1323,33 @@ export default function Home() {
       } catch { }
     }
 
-    const r = await fetch(adresse);
-    if (!r.ok) throw new Error("son du répertoire introuvable");
-    /* On met de côté AVANT de lire : une fois le corps consommé, il ne se
-       relit plus. */
-    if (boite) { try { await boite.put(adresse, r.clone()); } catch { } }
-    const octets = await r.arrayBuffer();
-    cacheSons.current.set(adresse, octets);
-    return octets;
+    /* ── LE LÉGER D'ABORD, L'ORIGINAL SI BESOIN ─────────────────────────
+
+       On demande le MP3 : six fois plus léger que le WAV, la même voix.
+       Mais un MP3 peut manquer — la conversion n'est pas encore passée sur
+       cette phrase-là, ou son dépôt a raté — et dans ce cas le WAV est
+       toujours là, puisqu'on ne supprime jamais ce qui a été payé.
+
+       ON NE DIT RIEN À LA PERSONNE. Elle entend la même phrase, un peu plus
+       tard. Un silence, lui, se remarquerait. */
+    const candidats = adresse.endsWith(".mp3")
+      ? [adresse, adresse.replace(/\.mp3$/, ".wav")]
+      : [adresse];
+
+    let dernier = "";
+    for (const ou of candidats) {
+      let r: Response;
+      try { r = await fetch(ou); } catch (e) { dernier = String(e); continue; }
+      if (!r.ok) { dernier = `${r.status}`; continue; }
+      /* On met de côté AVANT de lire : une fois le corps consommé, il ne se
+         relit plus. Et on le range sous l'adresse DEMANDÉE, pas sous celle
+         qui a répondu : au prochain tour on cherchera la même. */
+      if (boite) { try { await boite.put(adresse, r.clone()); } catch { } }
+      const octets = await r.arrayBuffer();
+      cacheSons.current.set(adresse, octets);
+      return octets;
+    }
+    throw new Error(`son du répertoire introuvable (${dernier})`);
   }, []);
 
   const direSonTeutFait = useCallback(async (adresse: string, emotion?: string) => {
@@ -2437,7 +2456,9 @@ export default function Home() {
               const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
                 ?.repertoire?.base_sons?.[langueRef.current] || "";
               if (base) {
-                try { await direSonTeutFait(`${base}audio-utilisateur-incompris.wav`, "concernee"); }
+                /* .mp3 : octetsDuRepertoire retombe seul sur le .wav si la
+                   conversion n'est pas encore passée par cette phrase-là. */
+                try { await direSonTeutFait(`${base}audio-utilisateur-incompris.mp3`, "concernee"); }
                 catch { setMode("ready"); setFace("yeux_ouverts"); }
               } else {
                 setMode("ready"); setFace("yeux_ouverts");

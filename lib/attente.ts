@@ -146,6 +146,11 @@ export function dire(p: Parole, langue: Langue, nom = ""): string {
     Supabase et n'a pas à la connaître. */
 export function fichiersPossibles(p: Parole, langue: Langue, baseDuSeau = ""): string[] {
   return [
+    /* Le MP3 d'abord : six fois plus léger, et c'est la phrase qui doit
+       arriver LE PLUS VITE de toutes — elle couvre le silence pendant qu'elle
+       réfléchit. Le WAV reste juste derrière, pour les phrases dont la
+       conversion n'est pas encore passée. */
+    baseDuSeau ? `${baseDuSeau}${cleDe(p)}.mp3` : "",
     baseDuSeau ? `${baseDuSeau}${cleDe(p)}.wav` : "",
     `/sons/attente/${p.fichier}-${langue}.mp3`,
   ].filter(Boolean);

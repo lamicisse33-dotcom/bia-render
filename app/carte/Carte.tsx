@@ -144,17 +144,27 @@ export default function Carte({
 
     if (!baseSons.current) { enTexte(); return; }
 
+    /* ── LE LÉGER D'ABORD, L'ORIGINAL SI BESOIN ────────────────────────────
+
+       Le MP3 pèse six fois moins que le WAV : au volant, avec un réseau qui
+       vient et qui va, c'est exactement là que ça compte. Mais s'il manque —
+       conversion pas encore passée, dépôt raté — le WAV est toujours là, et
+       une instruction lourde vaut infiniment mieux qu'un carrefour manqué. */
+    const jouer = (adresse: string) => new Promise<void>((fini, rate) => {
+      const a = new Audio(adresse);
+      sonEnCours.current = a;
+      a.onended = () => fini();
+      a.onerror = () => rate(new Error("son de guidage absent"));
+      a.play().catch(rate);
+    });
+
     setDitQuelqueChose(true);
     try {
       for (const c of utiles) {
         if (jeton.current !== mien) return;
-        await new Promise<void>((fini, rate) => {
-          const a = new Audio(baseSons.current + encodeURIComponent(c) + ".wav");
-          sonEnCours.current = a;
-          a.onended = () => fini();
-          a.onerror = () => rate(new Error("son de guidage absent"));
-          a.play().catch(rate);
-        });
+        const base = baseSons.current + encodeURIComponent(c);
+        try { await jouer(base + ".mp3"); }
+        catch { await jouer(base + ".wav"); }
       }
     } catch {
       /* Les fichiers ne sont pas encore achetés, ou l'un manque : on parle
