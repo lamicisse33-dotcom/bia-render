@@ -11,7 +11,8 @@ import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
-import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, langueDe, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
+import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, langueDe, normaliser, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
+import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
 
@@ -521,7 +522,7 @@ const PAS_DE_CLE="Sama moteur bi taxawul : kon bi ci biir amul. Wax ko KHALAM.";
 
 export async function POST(request:NextRequest){
   try{
-    const body=await request.json() as {message?:string;history?:Array<{role:string;text:string}>;resume?:string};
+    const body=await request.json() as {message?:string;history?:Array<{role:string;text:string}>;resume?:string;blaguesDites?:string[]};
     const question=String(body.message||"").trim().slice(0,1200);
     if(!question)return NextResponse.json({reply:"Bindal walla waxal sa laaj.",source:"validation"});
 
@@ -539,6 +540,45 @@ export async function POST(request:NextRequest){
        après l'appel au modèle, on aurait déjà payé. Et la correspondance est
        sévère (voir lib/repertoire.ts) : au moindre doute on laisse passer, car
        une réponse enregistrée servie à côté vaut bien pire que l'attente. */
+    /* ── UNE BLAGUE, ET JAMAIS DEUX FOIS LA MÊME ────────────────────────────
+
+       Lamine, le 12 septembre 2026 : « quelques blagues seulement, et on le
+       garde pour qu'elle puisse la raconter gratuitement. »
+
+       Avant le répertoire, parce qu'une demande de blague n'est pas une
+       question ordinaire — et avant la vérification du code, comme le
+       répertoire : ça ne coûte rien, donc ça ne se garde pas.
+
+       LA ROTATION VIENT DU TÉLÉPHONE. C'est lui qui se souvient de ce qu'il a
+       déjà entendu ; le serveur, lui, redémarre — trois fois cette nuit — et
+       resservirait éternellement la première. Il envoie sa liste, on choisit
+       dans le reste, et quand tout a servi on repart au début : mieux vaut
+       une blague déjà entendue il y a longtemps que pas de blague.
+
+       ELLE RIT APRÈS, PAS AVANT. Rire avant la chute, c'est la vendre. */
+    if(RELU_BLAGUES&&BLAGUES.length&&repertoireActif()){
+      const q=normaliser(question);
+      if(q&&DEMANDES_DE_BLAGUE.some(d=>q===normaliser(d))){
+        const dites=new Set((body.blaguesDites||[]).map(String));
+        const libres=BLAGUES.filter(b=>!dites.has(b.cle));
+        const choix=(libres.length?libres:BLAGUES)[Math.floor(Math.random()*(libres.length||BLAGUES.length))];
+        const langue=langueDe(question);
+        return NextResponse.json({
+          reply:langue==="fr"?choix.francais:choix.wolof,
+          /* Le visage reste posé PENDANT la blague : c'est le rire d'après
+             qui porte l'émotion, pas celui d'avant. */
+          emotion:"douce",
+          son:sonDe(choix.cle,langue),
+          rireApres:choix.rire,
+          blague:choix.cle,
+          /* Quand toutes ont servi, on le dit : c'est le signal qu'il est
+             temps d'en écrire d'autres. */
+          toutesDites:libres.length===0,
+          source:"blague (gratuite)",
+        });
+      }
+    }
+
     if(REPERTOIRE_PRET&&repertoireActif()){
       const toute=trouverDansRepertoire(question);
       if(toute){

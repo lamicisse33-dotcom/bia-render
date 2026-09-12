@@ -321,6 +321,16 @@ export default function Home() {
   const [aConfirmer, setAConfirmer] = useState<Lieu[] | null>(null);
   const [chercheLieu, setChercheLieu] = useState(false);
 
+  /* ── LES BLAGUES DÉJÀ ENTENDUES ─────────────────────────────────────────
+
+     Une blague répétée n'est plus une blague. La mémoire de ce qui a servi
+     vit ICI, sur le téléphone, et pas sur le serveur : Render redémarre —
+     trois fois dans la nuit du 12 septembre 2026 — et une rotation gardée
+     là-bas resservirait éternellement la première.
+
+     On l'envoie à chaque demande ; le serveur choisit dans le reste. */
+  const blaguesDites = useRef<string[]>([]);
+
   /* ── SON ÉCLIPSE ────────────────────────────────────────────────────────
 
      Lamine, le 12 septembre 2026 à trois heures du matin : « quand elle doit
@@ -1474,12 +1484,13 @@ export default function Home() {
           /* Le prénom qu'elle vient d'apprendre part avec la question : elle
              le dit dans sa réponse, et c'est ce qui attache quelqu'un à une
              application. Une seule fois — après, il est dans ses notes. */
+          blaguesDites: blaguesDites.current,
           resume: [resumeRef.current, nouveauNomRef.current
             ? `La personne vient de te dire son prénom : ${nouveauNomRef.current}. Emploie-le une fois dans ta réponse, naturellement, sans en faire trop.`
             : ""].filter(Boolean).join("\n"),
         }),
       });
-      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; source?: string };
+      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; source?: string };
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
       /* ICI SE JOUAIT LE SILENCE.
          On coupait l'attente à l'arrivée du TEXTE. Mais la voix, elle, n'est
@@ -1521,6 +1532,13 @@ export default function Home() {
          qu'un nom en clair — il ne sait pas où sont les choses, et on ne lui
          demande surtout pas de coordonnées. */
       if (data.carte) void chercherLeLieu(data.carte);
+      /* On retient la blague servie, pour ne pas la réentendre demain. Quand
+         toutes ont servi, le serveur le dit et on repart de zéro — mieux vaut
+         une blague entendue il y a longtemps que pas de blague. */
+      if (data.blague) {
+        blaguesDites.current = [...blaguesDites.current.filter((b) => b !== data.blague), data.blague];
+        if (data.toutesDites) blaguesDites.current = [data.blague];
+      }
       /* ELLE VEUT QU'ON REGARDE. Plein écran, elle se retire — le même geste
          que la carte, pour qu'il n'y ait qu'une chose à apprendre. */
       if (data.film?.video) {
@@ -1560,7 +1578,20 @@ export default function Home() {
          joue tel quel. Si le fichier manque — seau vidé, réseau coupé — on
          retombe sur la synthèse ordinaire plutôt que de rester muette. */
       if (data.son) {
-        try { await direSonTeutFait(data.son, emotionRef.current); }
+        try {
+          await direSonTeutFait(data.son, emotionRef.current);
+          /* ── ELLE RIT APRÈS LA CHUTE, PAS AVANT ────────────────────────
+
+             L'ordre n'est pas un détail : rire avant la chute, c'est la
+             vendre ; rire après, c'est la partager. direSonTeutFait joue
+             l'émotion AVANT le son — c'est juste pour une réponse, faux pour
+             une blague. Le rire d'une blague vient donc ici, une fois qu'elle
+             a fini de parler.
+
+             Et il ne coûte rien : c'est un enregistrement de la vraie voix de
+             Kha, déjà dans public/sons/. */
+          if (data.rireApres) await jouerSouffle(data.rireApres);
+        }
         catch { speak(data.reply, emotionRef.current); }
       } else {
         speak(data.reply, emotionRef.current);

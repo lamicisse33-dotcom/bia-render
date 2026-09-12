@@ -5,6 +5,7 @@ import { REPERTOIRE, RELU, etatRepertoire, repertoireActif } from "@/lib/reperto
 import { NOUVELLES, RELU_BASE } from "@/lib/base-textes";
 import { GUIDAGE, RELU_GUIDAGE } from "@/lib/guidage-textes";
 import { A_FABRIQUER, cleDe } from "@/lib/attente";
+import { BLAGUES, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { synthetiser } from "@/lib/voix";
 import { noterVoix } from "@/lib/depense";
 import { noterPanne } from "@/lib/panne";
@@ -158,6 +159,10 @@ function toutCeQuiSeDit() {
        été déposées — huit secondes et quelques signes payés, à chaque
        question, pour deux phrases qui ne changent jamais. */
     ...A_FABRIQUER.map((p) => ({ cle: cleDe(p), wolof: p.wo, francais: p.fr })),
+    /* LES BLAGUES. Mêmes règles que tout le reste : achetées une fois, dites
+       pour toujours. Leur rire, lui, est déjà dans public/sons/ — c'est la
+       vraie voix de Kha, et il ne s'achète pas. */
+    ...(RELU_BLAGUES ? BLAGUES.map((b) => ({ cle: b.cle, wolof: b.wolof, francais: b.francais })) : []),
   ];
 }
 
