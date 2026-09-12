@@ -14,7 +14,15 @@ export async function POST(request: NextRequest) {
     if (fichier.size > 20 * 1024 * 1024) return NextResponse.json({ erreur: "Enregistrement trop long." }, { status: 413 });
 
     const indice = String(form.get("indice_langue") || "") || null;
-    const reco = await transcrire(fichier, "parole.webm", indice);
+    /* LE NOM DU FICHIER VIENT DU TÉLÉPHONE, PAS D'ICI.
+
+       Il était écrit en dur : « parole.webm », quel que soit ce qu'on
+       recevait vraiment. Safari — Mac et iPhone — enregistre en MP4 : on
+       annonçait donc du webm à ElevenLabs en lui tendant du MP4, et il
+       refusait. Le format d'un enregistrement ne se décide pas sur le
+       serveur : il se constate. */
+    const nom = (fichier instanceof File && fichier.name) ? fichier.name : "parole.webm";
+    const reco = await transcrire(fichier, nom, indice);
     return NextResponse.json(reco);
   } catch (err) {
     /* ── UNE ÉCOUTE QUI ÉCHOUE NE LAISSAIT AUCUNE TRACE ──────────────────

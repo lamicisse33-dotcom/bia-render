@@ -1959,8 +1959,36 @@ export default function Home() {
 
         /* Elle répond MAINTENANT, sans attendre la transcription : c'est tout
            l'intérêt: le silence après qu'on a parlé est le plus inquiétant. */
+        /* ── ON NE MENT PLUS SUR LE FORMAT DE L'ENREGISTREMENT ──────────────
+
+           Lamine, le 12 septembre 2026 : « quand j'ai écrit un message sur le
+           clavier, elle répond correctement. Mais quand je parle, elle me dit
+           répète s'il te plaît. »
+
+           Voilà pourquoi, et c'était une seule ligne. MediaRecorder enregistre
+           dans le format du navigateur : du webm sur Chrome, du MP4 sur
+           Safari — Mac et iPhone. Et on rhabillait TOUJOURS le résultat en
+           « audio/webm », sous le nom « parole.webm ».
+
+           Donc sur Safari on envoyait du MP4 en prétendant que c'était du
+           webm. ElevenLabs lit le type annoncé, trouve autre chose, et
+           refuse. La route renvoyait alors un texte vide, que le téléphone
+           lisait comme « je n'ai rien entendu » — et BIA demandait de répéter,
+           indéfiniment, quoi qu'on lui dise.
+
+           Sur Chrome ça marchait ; c'est pour ça que ça a marché des jours
+           avant de casser le soir où l'essai s'est fait sur un Mac.
+
+           On envoie donc le VRAI type, et une extension qui lui correspond.
+           Rien à deviner : l'enregistreur le dit lui-même. */
+        const typeReel = enregistreur.mimeType || morceaux[0]?.type || "audio/webm";
+        const extension =
+          typeReel.includes("mp4") || typeReel.includes("mpeg") || typeReel.includes("aac") ? "m4a"
+          : typeReel.includes("ogg") ? "ogg"
+          : typeReel.includes("wav") ? "wav"
+          : "webm";
         const forme = new FormData();
-        forme.append("audio", new Blob(morceaux, { type: "audio/webm" }), "parole.webm");
+        forme.append("audio", new Blob(morceaux, { type: typeReel }), `parole.${extension}`);
 
         /* CE QU'ELLE VIENT D'ENTENDRE EST-IL UN PRÉNOM ?
            Entre « comment tu t'appelles ? » et la réponse, oui — et alors ce
