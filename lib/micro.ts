@@ -68,26 +68,55 @@
 
 /* ═══ 1. LE SILENCE QUI TERMINE UN TOUR ══════════════════════════════════ */
 
+/* ── DEUX SECONDES, ET C'EST SA DÉCISION ──────────────────────────────────
+
+   Lamine, le 12 septembre 2026 au soir : « il faut faire de sorte que le
+   micro se coupe après deux secondes de silence. S'il détecte un son, il peut
+   se rallumer. Je pense que ça peut résoudre le problème. »
+
+   ── ET ÇA RENVERSE CE QU'ON AVAIT FAIT LE MATIN ───────────────────────────
+
+   Le matin même il disait l'inverse : « je lui ai dit Salam, elle est restée
+   presque quatre secondes avant de réagir ». J'avais donc remplacé les deux
+   secondes fixes par une échelle — 0,9 s après un mot, 1,2 s après une
+   phrase, 1,5 s après un récit.
+
+   Ce qu'il a appris entre les deux, c'est POURQUOI elle répondait de travers.
+   Une phrase coupée trop tôt part à moitié chez le moteur de transcription, et
+   une moitié de phrase wolof ne se transcrit pas : elle se devine. Mieux vaut
+   attendre une seconde de plus et qu'elle comprenne, que répondre vite à une
+   phrase qu'elle n'a pas entendue en entier.
+
+   C'est son application, c'est sa langue, et il vient d'entendre les deux. Je
+   pose donc son nombre. Ce que ça coûte, dit franchement : sur « Salaam »,
+   elle répondra environ une seconde plus tard qu'hier soir.
+
+   ET LE RALLUMAGE EST DÉJÀ LÀ, c'est la conversation continue du matin : dès
+   qu'elle revient au repos, le micro se rouvre tout seul — donc le son
+   suivant est entendu sans qu'on appuie. */
+
+/** Le silence qui ferme le micro. Un seul nombre, et c'est le sien. */
+export const SILENCE_QUI_FERME = 2000;
+
 /** Jamais moins, quoi qu'il arrive : en dessous, on coupe la parole. */
-export const SILENCE_LE_PLUS_COURT = 900;
+export const SILENCE_LE_PLUS_COURT = SILENCE_QUI_FERME;
 
-/** Un mot ou deux : en dessous de cette durée de parole, on ferme vite. */
+/* Les deux paliers de l'échelle du matin. Ils ne décident plus rien — son
+   nombre vaut pour toutes les longueurs de parole — mais ils restent nommés
+   ici : le jour où il redemandera une fermeture plus vive après un mot seul,
+   c'est cette fonction-là qu'on rouvre, et l'échelle est déjà écrite. */
 export const PAROLE_COURTE = 1200;
-
-/** Au-delà, c'est un récit : on laisse le temps de reprendre son souffle. */
 export const PAROLE_LONGUE = 4000;
 
 /**
  * Combien de silence il faut, après le dernier son, pour considérer que la
- * personne a fini.
+ * personne a fini. Deux secondes, quelle que soit la longueur de sa phrase.
  *
  * @param dureeDeParole combien de temps elle vient de parler, en millisecondes
  */
 export function silenceQuiSuffit(dureeDeParole: number): number {
-  const parole = Number.isFinite(dureeDeParole) && dureeDeParole > 0 ? dureeDeParole : 0;
-  if (parole < PAROLE_COURTE) return SILENCE_LE_PLUS_COURT;
-  if (parole < PAROLE_LONGUE) return 1200;
-  return 1500;
+  void dureeDeParole;
+  return SILENCE_QUI_FERME;
 }
 
 /* ═══ 2. LE BRUIT DE LA PIÈCE ════════════════════════════════════════════
