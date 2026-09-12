@@ -510,6 +510,28 @@ export default function Home() {
   const [annule, setAnnule] = useState(false);
   const moteursRef = useRef<{ voix: string; ecoute: string } | null>(null);
   const tourRef = useRef<object | null>(null);
+
+  /* ── UN TOUR ANCIEN N'ÉCRIT JAMAIS L'ÉTAT D'UN TOUR RÉCENT ──────────────
+
+     La règle vient de la relecture du 12 septembre au soir, et elle est la
+     bonne. Le motif existait déjà dans BIA — `tourRef` pour la lecture de la
+     voix, `attenteRef` pour la phrase d'attente : chacun porte un jeton, et
+     ce qui revient d'un jeton périmé se jette. Mais ces deux jetons ne
+     couvraient qu'un SOUS-SYSTÈME chacun. Le TOUR, lui, n'en avait pas.
+
+     Or c'est exactement là qu'était le blocage du troisième tour : la capture
+     du prénom écrivait l'état d'un tour qui ne lui appartenait plus. Une
+     course réparée à la main est réparée une fois ; une règle posée les
+     empêche toutes.
+
+     Un numéro suffit — et il est plus sûr qu'un objet, parce qu'il se lit
+     dans un journal. Six choses vivent en parallèle ici (le micro, la
+     transcription, le modèle, la voix, le prénom, l'interruption) : chacune
+     porte désormais le numéro du tour où elle est née, et ne parle que si ce
+     tour est encore le tour en cours. */
+  const numeroDuTourRef = useRef(0);
+  const ouvrirUnTour = useCallback(() => ++numeroDuTourRef.current, []);
+  const estLeTour = useCallback((n: number) => numeroDuTourRef.current === n, []);
   const resumeRef = useRef("");
   const resumeEnCours = useRef(false);
   const emotionRef = useRef("neutre");
@@ -1634,9 +1656,13 @@ export default function Home() {
 
 
 
-  const askBia = useCallback(async (question: string, parole = false) => {
+  const askBia = useCallback(async (question: string, parole = false, tourDonne?: number) => {
     const clean = question.trim();
     if (!clean || busyRef.current) return;
+    /* Le micro a déjà ouvert son tour avant d'envoyer la parole à la
+       transcription : on le REPREND, on n'en ouvre pas un second. Une
+       question tapée, elle, ouvre le sien. */
+    const monTour = tourDonne ?? ouvrirUnTour();
     busyRef.current = true;
     setSaisie("");
     setHistory((items) => [...items, { role: "user", text: clean }]);
@@ -1688,6 +1714,14 @@ export default function Home() {
       });
       const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string };
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
+      /* ── ET SI CE N'EST PLUS SON TOUR, ELLE SE TAIT ────────────────────
+
+         La réponse du modèle peut arriver après qu'on lui a coupé la parole,
+         qu'on a ouvert le clavier, ou qu'une nouvelle phrase est partie.
+         Elle parlerait alors par-dessus le tour suivant, et c'est elle qui
+         écrirait le dernier état — le blocage exact qu'on vient de réparer,
+         par un autre chemin. Ce qui revient d'un tour périmé se jette. */
+      if (!estLeTour(monTour)) return;
       /* La formulation de service qu'elle vient de servir : on la retient
          pour ne pas la resservir juste après. */
       if (data.service) dernierService.current = data.service;
@@ -1820,7 +1854,7 @@ export default function Home() {
       // sera prête.
       busyRef.current = false;
     }
-  }, [speak, attendreEnParlant, finirAttente]);
+  }, [speak, attendreEnParlant, finirAttente, ouvrirUnTour, estLeTour]);
 
   /* LE TEXTE FRANÇAIS QU'ON COLLE, DIT EN WOLOF.
 
@@ -2142,6 +2176,23 @@ export default function Home() {
     const secours = setTimeout(() => setMode("ready"), 180000);
     return () => clearTimeout(secours);
   }, [mode]);
+
+  /* ── LE JOURNAL DES ÉTATS ────────────────────────────────────────────────
+
+     Demandé à la relecture du 12 septembre au soir, et c'est juste : « si ça
+     bloque, on saura immédiatement quel état n'a pas été quitté. »
+
+     Une console ne se lit pas sur un téléphone, alors le journal vit AUSSI
+     dans la page : les quarante derniers changements, avec le numéro du tour
+     et l'horloge, sur `window.biaEtats`. On le récupère en branchant le
+     téléphone au Mac, ou en le recopiant. Trois lignes suffisent pour savoir
+     quel état est resté coincé, au lieu de le déduire d'un récit. */
+  useEffect(() => {
+    const lieu = window as typeof window & { biaEtats?: string[] };
+    const ligne = `[tour ${numeroDuTourRef.current}] ${new Date().toLocaleTimeString("fr-FR")} → ${mode}${conversation ? " (conversation)" : ""}`;
+    lieu.biaEtats = [...(lieu.biaEtats || []).slice(-39), ligne];
+    console.log(`BIA ${ligne}`);
+  }, [mode, conversation]);
 
   /* ── LE FILET COURT : « ELLE RÉFLÉCHIT » SANS RIEN EN VOL ────────────────
 
@@ -2579,6 +2630,10 @@ export default function Home() {
           return;
         }
 
+        /* LE TOUR S'OUVRE ICI, et il s'ouvre AVANT le premier changement
+           d'état : tout ce qui suivra portera ce numéro et devra le montrer
+           pour avoir le droit d'écrire l'état. */
+        const monTour = ouvrirUnTour();
         setMode("thinking");
         setFace("pensive");
 
@@ -2604,6 +2659,11 @@ export default function Home() {
              Sans ça, BIA répétait « je ne t'entends pas bien, répète » à
              chaque phrase — et on répétait plus fort devant un micro qui ne
              transmettait rien. Le motif exact se lit dans /api/etat. */
+          /* Une transcription qui revient alors qu'on a déjà repris la parole
+             ailleurs — clavier ouvert, micro refermé, nouvelle phrase — n'a
+             plus rien à dire. Elle ne doit surtout pas lancer une réponse ni
+             écrire l'état. */
+          if (!estLeTour(monTour)) return;
           if (d.panne) {
             setPanne(`panne : l'écoute — ${d.motif || "moteur muet"}`);
             noteEcouteRef.current = d.motif || "moteur muet";
@@ -2640,7 +2700,7 @@ export default function Home() {
               await jouerSouffle(rire.emotion || "rire");
               if (rire.seulement) { setMode("ready"); setFace("joie"); return; }
             }
-            void askBia(d.texte, true);
+            void askBia(d.texte, true, monTour);
           } else {
             /* ── ELLE N'A RIEN ENTENDU, ET ELLE RESTAIT FIGÉE ────────────
 
@@ -2710,7 +2770,7 @@ export default function Home() {
     } catch {
       setMode("error");
     }
-  }, [arreterEnregistrement, askBia, attendreEnParlant, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle]);
+  }, [arreterEnregistrement, askBia, attendreEnParlant, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour]);
 
   /* L'attente a besoin de rouvrir le micro pour recevoir le prénom, mais elle
      est définie avant `ecouter`. Ce renvoi évite d'avoir à réordonner tout le
@@ -2829,6 +2889,15 @@ export default function Home() {
     couperSon();
     tourRef.current = null;
     attenteRef.current = null;
+    /* ── ON LUI COUPE LA PAROLE : LE TOUR EST CLOS ─────────────────────────
+
+       C'est l'endroit le plus important de la règle. Quand quelqu'un reprend
+       la main, tout ce qui est en vol appartient déjà au passé : la réponse
+       du modèle qui arrive, la voix en fabrication, la transcription en
+       cours. En tournant le numéro du tour, ils deviennent tous périmés
+       d'un coup — aucun d'eux ne pourra plus écrire l'état, et c'est le
+       nouveau tour qui décidera. */
+    ouvrirUnTour();
     /* Quelqu'un vient de reprendre la main — pour corriger, pour ouvrir un
        papier, pour écrire. Il ne répond donc plus à « comment tu t'appelles ».
        Sans cette ligne, sa phrase suivante repartait dans la case du prénom
@@ -2843,7 +2912,7 @@ export default function Home() {
     // Le visage revient au repos s'il était figé sur la réflexion. Les
     // images de bouche, elles, sont remises par l'animation qui s'arrête.
     setFace((f) => (f === "pensive" ? "yeux_ouverts" : f));
-  }, [couperSon]);
+  }, [couperSon, ouvrirUnTour]);
   taireRef.current = taire;
 
   /* ── ELLE SE REMET À ÉCOUTER TOUTE SEULE ────────────────────────────────

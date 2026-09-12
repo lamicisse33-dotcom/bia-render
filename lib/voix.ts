@@ -17,16 +17,42 @@ export const voixConfig = {
        d'environnement, et la page /reglage sert à les choisir à l'oreille. */
     exaggeration: Number(env.SOYNADE_EXAGGERATION || 0.10),
     temperature: Number(env.SOYNADE_TEMPERATURE || 0.35),
-    /* Abaissé de 0,28 à 0,22 le 10 septembre 2026 : « elle parle trop vite,
-       elle doit être très reposée, lentement et doucement » (Lamine). Plus
-       ce poids est bas, plus le débit est posé.
+    /* ── LE RÉGLAGE QUI LA FAISAIT DIRE AUTRE CHOSE QUE SON TEXTE ──────────
 
-       ON NE DESCENDRA PAS PLUS BAS. Il l'a redemandé le 11 septembre — « trop
-       agressive, elle parle très vite » — et la documentation du modèle dit
-       que sous 0,2 ce réglage cesse de ralentir : il abîme la voix. Le
-       ralentissement demandé se fait donc sur le téléphone, sans toucher à la
-       hauteur de sa voix. Voir lib/ralentir.ts. */
-    cfgWeight: Number(env.SOYNADE_CFG_WEIGHT || 0.22),
+       Lamine, le 12 septembre 2026 au soir, capture à l'appui : « la voix que
+       j'ai entendue n'était pas une voix de robot, c'était bien la voix de
+       Kha. Mais ce qu'elle disait ne correspondait pas avec le texte écrit
+       dans la discussion. »
+
+       Sa voix, et pas son texte. C'est CE réglage-ci, et il ne fait pas ce
+       que son nom laisse croire.
+
+       « cfg_weight » n'est pas un réglage de débit : c'est le POIDS DU GUIDAGE
+       (classifier-free guidance). C'est lui qui décide à quel point le modèle
+       reste ACCROCHÉ au texte qu'on lui donne. Plus il est bas, plus le
+       modèle est libre — et un modèle libre, dans une voix clonée, se met à
+       dire des syllabes qui ne sont plus le texte. Dans la voix de Kha, avec
+       son intonation, dans une langue qui ne ressemble plus à rien de
+       connaissable. Exactement ce qu'il décrit.
+
+       Le débit baisse aussi quand on le baisse — c'est un EFFET DE BORD, et
+       c'est pour ça que je l'avais descendu de 0,28 à 0,22 le 10 septembre
+       quand il a demandé une voix plus posée. Je réglais la vitesse avec le
+       bouton de la fidélité au texte.
+
+       ET ON N'EN A PLUS BESOIN. Depuis le 11 septembre, le ralentissement
+       demandé se fait SUR LE TÉLÉPHONE — lib/ralentir.ts, WSOLA, sans toucher
+       à la hauteur de sa voix, réglable par le curseur « Débit » du panneau
+       « Moi ». La lenteur ne dépend donc plus de ce réglage-ci du tout.
+
+       On le remet à 0,5, la valeur documentée du modèle : elle dit son texte,
+       et elle le dit posément parce que c'est le téléphone qui la pose.
+
+       À JUGER À L'OREILLE, et c'est à lui : la page /reglage permet de dire
+       la même phrase à 0,22 et à 0,5 pour comparer. Et si Render porte encore
+       un SOYNADE_CFG_WEIGHT à 0,22, c'est LUI qui gagne — il faut l'enlever
+       là-bas pour que cette valeur-ci s'applique. */
+    cfgWeight: Number(env.SOYNADE_CFG_WEIGHT || 0.5),
     /* LA VITESSE — ET CE QU'ON EN SAIT MAINTENANT.
 
        J'avais ajouté ce champ « au cas où », sans documentation. Le 11
