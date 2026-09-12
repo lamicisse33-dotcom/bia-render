@@ -142,15 +142,50 @@ button { font: inherit; touch-action: manipulation; }
    est là, même quand elle ne fait rien. Il ne bat pas — c'est l'état
    « listening » qui bat, et deux animations en même temps donneraient une
    alarme au lieu d'une présence. */
-.microphone.en-conversation {
-  border-color: rgba(226, 176, 74, .75);
-  box-shadow: 0 0 0 3px rgba(226, 176, 74, .22), 0 10px 36px rgba(0, 0, 0, .55);
+/* ── ET MON ANNEAU ÉTEIGNAIT LE BATTEMENT DU MICRO ─────────────────────────
+
+   Lamine, le 12 septembre 2026 : « le micro n'arrive pas à clignoter, et tout
+   le reste clignote en même temps. Quand tu parles, ce n'est pas normal. »
+
+   Il regardait juste. J'avais posé mon anneau doré sur box-shadow — la MÊME
+   propriété que l'animation « listen » du micro, qui bat en rouge pendant
+   qu'il écoute. Deux règles sur la même propriété : l'une gagne, l'autre
+   disparaît. Résultat, le bouton avait exactement le même air qu'elle
+   t'entende ou qu'elle soit sourde — et pendant ce temps la lueur de la page
+   et le point doré des papiers battaient, eux, très bien. Trois choses qui
+   clignotent et la seule qui compte qui ne dit rien.
+
+   ON NE SE BAT PLUS POUR LA MÊME PROPRIÉTÉ. L'anneau devient un élément à
+   part — ::after — qui ne touche à rien de ce que l'animation du micro
+   utilise. Le battement rouge continue son travail, l'anneau doré fait le
+   sien par-dessus.
+
+   ET UN SEUL BAT À LA FOIS. En conversation, l'anneau est FIXE : il dit
+   « le fil est ouvert », et une présence n'a pas besoin de clignoter. Il ne
+   se met à battre que quand une voix passe le seuil — « je t'entends » — et
+   c'est le seul retour immédiat dont dispose quelqu'un qui parle dans le
+   vide. */
+.microphone.en-conversation { border-color: rgba(226, 176, 74, .75); }
+.microphone.en-conversation::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 2px solid rgba(226, 176, 74, .55);
+  pointer-events: none;
+  transition: border-color .12s ease;
 }
-/* « Je t'entends » : l'anneau s'épaissit à l'instant où une voix passe le
-   seuil. C'est le seul retour immédiat dont dispose quelqu'un qui parle dans
-   le vide — et c'est ce qui distingue « elle attend » de « elle est sourde ». */
-.microphone.en-conversation.entend {
-  box-shadow: 0 0 0 7px rgba(226, 176, 74, .34), 0 0 38px rgba(226, 176, 74, .45);
+.microphone.en-conversation.entend::after {
+  border-color: rgba(226, 176, 74, .95);
+  animation: micro-entend .9s ease-in-out infinite;
+}
+@keyframes micro-entend {
+  50% { transform: scale(1.12); border-color: rgba(255, 224, 150, 1); }
+}
+/* Un téléphone qui refuse les animations : l'anneau reste vif, sans battre.
+   L'information passe par la couleur, pas par le mouvement. */
+@media (prefers-reduced-motion: reduce) {
+  .microphone.en-conversation.entend::after { animation: none; }
 }
 
 /* ── LE TÉMOIN DES QUATRE ÉTATS ──────────────────────────────────────────

@@ -36,9 +36,9 @@ import { fichierDe, souffleDe } from "@/lib/sons";
 import { lireLeRire } from "@/lib/rires";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
 import {
-  INTERVENTION_MAXIMALE, MESURE_DU_FOND, REGLAGES_DU_MICRO,
+  INTERVENTION_MAXIMALE, REGLAGES_DU_MICRO,
   SILENCE_QUI_CLÔT_LA_CONVERSATION, TENIR_POUR_COUPER, TOUR_DE_VEILLE,
-  TOURS_MUETS_AVANT_DE_DOUTER, couvreSaVoix, seuilDeParole, silenceQuiSuffit, vautLaPeine,
+  TOURS_MUETS_AVANT_DE_DOUTER, couvreSaVoix, silenceQuiSuffit, suivreLeBruit, vautLaPeine,
 } from "@/lib/micro";
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie } from "@/lib/ralentir";
 import Installer from "./installer";
@@ -2215,19 +2215,22 @@ export default function Home() {
       let dureeParlee = 0;
       const ouverture = Date.now();
 
-      /* ── ON MESURE D'ABORD LA PIÈCE ──────────────────────────────────────
+      /* ── LE SUIVEUR DE BRUIT ─────────────────────────────────────────────
 
-         Le seuil était fixe : « creux > 8 ». Dans une chambre la nuit il
-         entend une respiration ; dans un taxi vitres ouvertes il entend la
-         rue sans arrêt, et le micro ne se ferme jamais.
+         Lamine, le 12 septembre 2026 : « tu peux rester à parler, elle
+         n'entend rien. »
 
-         On écoute donc quatre dixièmes de seconde avant de décider ce qu'est
-         le silence ICI. Si quelqu'un parle pendant ce temps-là, tant mieux :
-         le seuil monte un peu, et sa voix le dépasse largement de toute
-         façon. */
-      let fond = 0;
-      let seuil = seuilDeParole(0);
-      seuilRef.current = seuil;
+         MA PREMIÈRE VERSION MESURAIT SA VOIX ET L'APPELAIT « BRUIT DE FOND ».
+         J'écoutais la pièce quatre dixièmes de seconde et je gardais LE PLUS
+         FORT — or personne n'attend avant de parler : on appuie et on parle.
+         Le seuil montait à 34, une voix ordinaire ne le dépasse pas, et BIA
+         restait sourde pour toute la conversation.
+
+         Le fond n'est pas le plus fort de ce qu'on entend, c'est le plus
+         FAIBLE. Tout est maintenant dans lib/micro.ts, où ça se mesure sur
+         des suites de nombres au lieu de se deviner devant un téléphone. */
+      const bruit = suivreLeBruit();
+      seuilRef.current = bruit.seuil();
       /* Un vrai micro n'est JAMAIS parfaitement plat : même une pièce vide a
          son souffle. Une suite de 128 exacts ne veut donc pas dire « silence »,
          elle veut dire « l'analyseur ne rend rien ». On compte ces tours. */
@@ -2283,20 +2286,24 @@ export default function Home() {
            attendre pour rien. */
         const depuis = Date.now() - ouverture;
 
-        /* Les premiers instants servent à mesurer le fond sonore, et rien
-           d'autre : on prend le plus fort de ce qu'on entend, et on s'y cale. */
-        if (depuis < MESURE_DU_FOND) {
-          fond = Math.max(fond, creux);
-          return;
-        }
-        if (seuil === seuilDeParole(0) && fond > 0) { seuil = seuilDeParole(fond); seuilRef.current = seuil; }
+        /* Une voix, ou pas. Le suiveur tient le fond à jour et garde deux
+           seuils : plus haut pour commencer à entendre, plus bas pour
+           continuer. Sans ce second seuil, « je t'entends » clignotait dix
+           fois par seconde et le micro se fermait dans les creux d'une
+           phrase — l'autre moitié de « ce n'est pas net ». */
+        const uneVoix = bruit.voir(creux);
+        seuilRef.current = bruit.seuil();
 
-        if (creux > seuil) {
+        if (uneVoix) {
           if (!aParle) { debutParole = Date.now(); setEntendParler(true); }
           else dureeParlee += Date.now() - dernierSon;
           aParle = true;
           dernierSon = Date.now();
         } else if (aParle) {
+          /* On ne montre plus « je t'entends » : le témoin redevient « je
+             t'écoute » dès que la voix retombe, et c'est ce qui donne
+             l'impression qu'elle suit. */
+          setEntendParler(false);
           const assez = silenceQuiSuffit(dernierSon - debutParole);
           if (Date.now() - dernierSon > assez) { arreterEnregistrement(); return; }
         }

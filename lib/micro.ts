@@ -90,27 +90,187 @@ export function silenceQuiSuffit(dureeDeParole: number): number {
   return 1500;
 }
 
-/* ═══ 2. LE BRUIT DE LA PIÈCE ════════════════════════════════════════════ */
+/* ═══ 2. LE BRUIT DE LA PIÈCE ════════════════════════════════════════════
 
-/** Combien de temps on écoute la pièce avant de décider ce qu'est le silence. */
-export const MESURE_DU_FOND = 400;
+   ── MA PREMIÈRE VERSION RENDAIT BIA SOURDE, ET C'EST LUI QUI L'A VU ──────
 
-/** Le seuil d'autrefois, qui devient notre plancher : une pièce calme. */
+   Lamine, le 12 septembre 2026 : « ce n'est toujours pas net, tu peux rester
+   à parler, elle n'entend rien. »
+
+   Il avait raison, et le défaut était entier. J'écoutais la pièce pendant
+   quatre dixièmes de seconde et je gardais LE PLUS FORT de ce que
+   j'entendais :
+
+       fond = Math.max(fond, creux)
+
+   Or personne n'attend quatre dixièmes de seconde avant de parler : on
+   appuie et on parle. Je mesurais donc SA VOIX et je l'appelais « bruit de
+   fond ». Le seuil montait alors à 34 — mon plafond — et une voix ordinaire
+   ne le dépasse pas. BIA devenait sourde pour tout le reste de la
+   conversation.
+
+   J'avais même écrit, dans le commentaire : « si quelqu'un parle pendant ce
+   temps-là, tant mieux, sa voix le dépasse largement de toute façon ». C'était
+   une supposition, et elle était fausse. Le pire genre de ligne : celle qui
+   affirme sans avoir mesuré.
+
+   ── LA BONNE FORMULE, ET POURQUOI C'EST CELLE-LÀ ─────────────────────────
+
+   Le bruit de fond n'est pas le plus fort de ce qu'on entend : c'est le plus
+   FAIBLE. Par définition, c'est ce qui reste quand personne ne parle.
+
+   On suit donc un MINIMUM QUI PEUT REMONTER :
+
+     — il descend INSTANTANÉMENT au moindre creux de silence, parce qu'un
+       silence dit la vérité sur la pièce ;
+     — il remonte LENTEMENT, quelques unités par seconde, pour suivre une rue
+       qui s'anime ou un ventilateur qu'on allume.
+
+   Parler ne peut donc plus le faire monter : une phrase de trois secondes ne
+   lui donne que le temps de monter d'un cheveu, et la première respiration le
+   ramène au vrai.
+
+   ── ET DEUX SEUILS, PAS UN ───────────────────────────────────────────────
+
+   C'est l'autre moitié de « ce n'est pas net ». Avec un seul seuil, la voix
+   qui l'effleure fait clignoter « je t'entends / je n'entends plus » dix fois
+   par seconde, et le micro se ferme dans les creux d'une phrase.
+
+   Il faut donc plus de force pour COMMENCER à entendre que pour CONTINUER —
+   c'est ce qu'on appelle une hystérésis, et c'est exactement ce qui manquait.
+   Une fois qu'on a reconnu une voix, on la suit dans ses creux. */
+
+/** Le fond de départ, avant d'avoir rien mesuré. UN, et pas quatre : avec
+    quatre, le seuil de départ valait quinze, et une voix faible — un
+    téléphone tenu à bout de bras, mesuré à quatorze — passait dessous sans
+    être entendue. À un, le seuil de départ vaut huit : exactement l'ancien
+    seuil fixe, celui qui a fonctionné pendant trois jours. On part donc de ce
+    qu'on savait marcher, et on s'adapte à partir de là. */
+export const FOND_AU_DEPART = 1;
+
+/** De combien le fond peut remonter par tour de veille. À 60 ms le tour, ça
+    fait environ deux unités et demie par seconde : assez pour suivre une rue
+    qui s'anime, beaucoup trop lent pour qu'une phrase le fasse monter. */
+export const REMONTEE_DU_FOND = 0.15;
+
+/** Le fond ne monte jamais au-delà : au-dessus, c'est qu'on mesure autre
+    chose qu'un fond, et s'y caler rendrait sourd. */
+export const FOND_LE_PLUS_HAUT = 9;
+
+/* Les bornes du seuil de départ.
+
+   LE BAS EST HUIT, ET C'EST UN CHIFFRE QUI A UNE HISTOIRE : c'est l'ancien
+   seuil fixe, celui qui a fonctionné pendant trois jours avant que je le
+   remplace. Je l'avais mis à sept en réglant à l'oreille ; l'épreuve m'a
+   montré ce que ça coûtait — une rue constante à huit passait au-dessus de
+   sept, était prise pour une voix, et le micro ne se fermait plus jamais.
+   On ne descend pas sous ce qui marchait.
+
+   LE HAUT A ÉTÉ DESCENDU DE 34 À 26 : trente-quatre est au-dessus d'une voix
+   ordinaire tenue à bout de bras, donc un plafond à trente-quatre est un
+   plafond qui rend sourd. */
 export const SEUIL_LE_PLUS_BAS = 8;
+export const SEUIL_LE_PLUS_HAUT = 26;
 
-/** Et le plafond : au-delà, c'est qu'on mesure une voix, pas un fond. Se
-    caler dessus rendrait BIA sourde. */
-export const SEUIL_LE_PLUS_HAUT = 34;
+/* ── PROPORTIONNEL, ET PAS « FOND PLUS SIX » ───────────────────────────────
 
-/**
- * Le seuil à partir duquel on considère que quelqu'un parle, sachant le bruit
- * de fond mesuré. Il faut dépasser le fond franchement — sinon la rue suffit
- * à tenir le micro ouvert pour toujours.
- */
+   J'avais écrit « fond × 2,2 + 6 ». Le « + 6 » est ce qui manquait une voix
+   faible : il ajoute six unités même dans une pièce parfaitement silencieuse,
+   et une voix de quatorze passait sous un seuil de quinze.
+
+   Le bruit ne s'ajoute pas, il se MULTIPLIE : une voix doit être deux fois
+   plus forte que la pièce pour être une voix. En dessous, elle est noyée
+   dedans — et c'est vrai physiquement, pas seulement commode. */
+
+/** Pour COMMENCER à entendre une voix : deux fois le fond, jamais moins que
+    l'ancien seuil fixe de huit. */
 export function seuilDeParole(fond: number): number {
   const f = Number.isFinite(fond) && fond > 0 ? fond : 0;
-  const vise = Math.round(f * 2.2 + 4);
-  return Math.min(SEUIL_LE_PLUS_HAUT, Math.max(SEUIL_LE_PLUS_BAS, vise));
+  return Math.min(SEUIL_LE_PLUS_HAUT, Math.max(SEUIL_LE_PLUS_BAS, Math.round(f * 2)));
+}
+
+/** Pour CONTINUER à l'entendre. Plus bas : une fois la voix reconnue, on la
+    suit dans les creux d'une phrase au lieu de la perdre à chaque respiration. */
+export function seuilPourContinuer(fond: number): number {
+  const f = Number.isFinite(fond) && fond > 0 ? fond : 0;
+  return Math.min(SEUIL_LE_PLUS_HAUT, Math.max(5, Math.round(f * 1.3)));
+}
+
+/** Au bout de combien de temps une « voix » qui ne retombe jamais doit être
+    reconnue pour ce qu'elle est : du bruit. Douze secondes — une phrase
+    humaine a des creux bien avant. */
+export const AVANT_DE_DOUTER_DE_LA_VOIX = 12000;
+
+/* ── LE SUIVEUR DE BRUIT ───────────────────────────────────────────────────
+
+   Un objet minuscule, et c'est lui qui décide si quelqu'un parle. Il est ici
+   et pas dans la page pour une seule raison : on peut lui faire écouter des
+   suites de nombres et vérifier ce qu'il en conclut. Le même code dans une
+   boucle d'interface ne se vérifie qu'en parlant devant un téléphone. */
+export type Suiveur = {
+  /** À appeler à chaque tour de veille avec l'amplitude entendue (0 à 127). */
+  voir(creux: number): boolean;
+  /** Le fond tel qu'il le voit en ce moment. Pour l'affichage et l'épreuve. */
+  fond(): number;
+  /** Le seuil de départ en ce moment — le guetteur d'écho s'en sert aussi. */
+  seuil(): number;
+};
+
+export function suivreLeBruit(): Suiveur {
+  let fond = FOND_AU_DEPART;
+  let parle = false;
+  /* Depuis combien de tours la voix ne retombe pas, et quel est le plus
+     faible niveau vu pendant ce temps : de quoi reconnaître une rue qu'on a
+     prise pour une voix. */
+  let toursDeVoix = 0;
+  let creuxDeLaVoix = Infinity;
+
+  return {
+    voir(creux: number): boolean {
+      const c = Number.isFinite(creux) && creux > 0 ? creux : 0;
+
+      /* ── LE FOND DESCEND TOUT DE SUITE, ET NE MONTE PAS PENDANT QU'ON PARLE
+
+         Un silence dit la vérité sur la pièce : on le prend immédiatement.
+         Une voix ne dit rien du fond — au contraire, la laisser le faire
+         monter était exactement mon défaut de départ. Le fond ne remonte donc
+         QUE quand personne ne parle, et lentement.
+
+         L'épreuve me l'a appris deux fois : sans ce gel, une phrase de trois
+         secondes faisait monter le fond de sept unités, et la première
+         hésitation au milieu perdait la voix. */
+      if (c < fond) fond = c;
+      else if (!parle) fond = Math.min(FOND_LE_PLUS_HAUT, fond + REMONTEE_DU_FOND);
+
+      const barre = parle ? seuilPourContinuer(fond) : seuilDeParole(fond);
+      parle = c > barre;
+
+      /* ── ET SI « LA VOIX » NE RETOMBE JAMAIS, C'EST QUE C'EST LA RUE ──────
+
+         C'est le prix du gel, et il faut le payer honnêtement : dans une pièce
+         dont le bruit constant dépasse huit, le premier tour prend la rue pour
+         une voix, et le gel l'y enferme. Une vraie phrase a des creux — pas
+         une seule dans douze secondes. Passé ce délai, on adopte le plus
+         faible niveau entendu comme étant le fond : c'était bien la rue. */
+      if (parle) {
+        toursDeVoix++;
+        if (c < creuxDeLaVoix) creuxDeLaVoix = c;
+        if (toursDeVoix * TOUR_DE_VEILLE > AVANT_DE_DOUTER_DE_LA_VOIX) {
+          fond = Math.min(FOND_LE_PLUS_HAUT, creuxDeLaVoix);
+          toursDeVoix = 0;
+          creuxDeLaVoix = Infinity;
+          parle = c > seuilDeParole(fond);
+        }
+      } else {
+        toursDeVoix = 0;
+        creuxDeLaVoix = Infinity;
+      }
+
+      return parle;
+    },
+    fond: () => Math.round(fond * 10) / 10,
+    seuil: () => seuilDeParole(fond),
+  };
 }
 
 /* ═══ 3. CE QU'ON ENVOIE, ET CE QU'ON JETTE ══════════════════════════════ */
