@@ -1406,14 +1406,41 @@ export default function Home() {
       return;
     }
 
+    /* ── UNE SEULE LANGUE POUR TOUTE LA RÉPONSE ───────────────────────────
+
+       Le téléphone n'envoyait PAS la langue, alors le serveur la devinait —
+       et il la devinait MORCEAU PAR MORCEAU. Une réponse coupée en trois
+       pouvait donc être lue par le modèle wolof, puis par le modèle
+       français, puis par le wolof : la voix changeait de langue au milieu
+       d'une phrase, sur un texte pourtant juste à l'écran.
+
+       On décide ici, une fois, sur la réponse ENTIÈRE — un fragment de
+       quatre mots ne se juge pas, une réponse complète oui. */
+    const langueDite = estWolof(answer) ? "wo" : "fr";
+
     const demander = async (partie: number) => {
-      const r = await fetch("/api/voix", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-        body: JSON.stringify({ texte: answer, partie, ou }),
-      });
-      if (!r.ok) throw new Error("voix indisponible");
-      return await r.json() as { parties: number; audio: string | null; type_mime?: string };
+      /* ── ET ON REDEMANDE UNE FOIS AVANT D'ABANDONNER ──────────────────
+
+         Un paquet perdu suffisait à faire basculer toute la réponse sur la
+         voix du téléphone. À Dakar, sur un réseau mobile, ça arrive. Une
+         seconde tentative coûte un quart de seconde ; le repli, lui, coûte
+         la voix de Kha. Sauf sur un code refusé : insister n'y changerait
+         rien. */
+      let dernier = "";
+      for (let essai = 0; essai < 2; essai++) {
+        try {
+          const r = await fetch("/api/voix", {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+            body: JSON.stringify({ texte: answer, partie, ou, langue: langueDite }),
+          });
+          if (r.ok) return await r.json() as { parties: number; audio: string | null; type_mime?: string };
+          dernier = String(r.status);
+          if (r.status === 401 || r.status === 403) break;
+        } catch (e) { dernier = String(e).slice(0, 60); }
+        if (essai === 0) await new Promise((f) => setTimeout(f, 250));
+      }
+      throw new Error(`voix indisponible (${dernier})`);
     };
 
     const enOctets = (b64: string) => {
@@ -1577,7 +1604,28 @@ export default function Home() {
         }),
       }).catch(() => {});
       stopMouth(answer);
-    } catch {
+    } catch (e) {
+      /* ── LE REPLI NE DOIT PLUS ÊTRE UN MYSTÈRE ──────────────────────────
+
+         Lamine, le 12 septembre 2026, capture à l'appui : « elle écrit la
+         réponse correctement, mais sur la voix, elle utilisait une langue
+         que je ne connais pas. »
+
+         C'était ce repli-ci, et il était MUET sur lui-même. Quand la voix de
+         Kha échoue — crédit Soynade épuisé, clé refusée, réseau coupé — le
+         téléphone lit à sa place. Et comme aucun iPhone n'a de voix wolof,
+         on lui donne du wolof RETOUCHÉ pour une bouche française :
+         « jariñu » devient « djarignou ». Lu par une voix française
+         synthétique, ça ne ressemble plus à rien de connaissable — pas au
+         wolof, pas au français. Exactement ce qu'il décrit.
+
+         Le texte, lui, n'avait rien : il vient du modèle, pas de la voix.
+         C'est pour ça que l'écran était juste et la voix incompréhensible.
+
+         MAINTENANT ÇA SE VOIT. Une panne de voix s'affiche comme une panne
+         d'oreille : on ne cherche plus une heure pourquoi elle parle une
+         langue inconnue. Le motif exact se lit dans /api/etat. */
+      setPanne(`panne : sa voix — ${String(e).replace(/^Error:\s*/, "").slice(0, 60)}`);
       await prendreLaParole();
       parlerAvecLeTelephone(answer);
     }
