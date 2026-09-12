@@ -320,6 +320,36 @@ export default function Home() {
   const [aConfirmer, setAConfirmer] = useState<Lieu[] | null>(null);
   const [chercheLieu, setChercheLieu] = useState(false);
 
+  /* ── SON ÉCLIPSE ────────────────────────────────────────────────────────
+
+     Lamine, le 12 septembre 2026 à trois heures du matin : « quand elle doit
+     se retirer de l'écran, il faut que ça soit un peu plus spectaculaire.
+     Comme un hologramme qui s'éteint : ça fait des rayons, après ça grouille
+     un peu, et puis ça s'éclipse d'un coup. »
+
+     Les trois temps sont dans app/globals.css. Ici, une seule chose : la
+     carte et la vidéo n'arrivent QU'APRÈS l'extinction. Sans cette attente,
+     le plein écran recouvrirait l'animation et personne ne la verrait — le
+     geste serait joué, mais derrière un rideau.
+
+     Sept cent vingt millisecondes. Assez pour être vu, trop court pour faire
+     attendre. */
+  const [eclipse, setEclipse] = useState(false);
+  const [rallume, setRallume] = useState(false);
+  const eclipser = useCallback(async (ouvrir: () => void) => {
+    setEclipse(true);
+    await new Promise((r) => setTimeout(r, 720));
+    ouvrir();
+    setEclipse(false);
+  }, []);
+  /* Le retour : elle se rallume, sans grouiller. Un retour n'est pas une
+     panne. */
+  const revenir = useCallback((fermer: () => void) => {
+    fermer();
+    setRallume(true);
+    setTimeout(() => setRallume(false), 460);
+  }, []);
+
   /* ── LA VIDÉO QUI PREND TOUT L'ÉCRAN ─────────────────────────────────────
      Lamine, le 12 septembre 2026 : « elle se retire définitivement comme elle
      fait sur la carte ». Deux sources : YouTube, ou un fichier du téléphone —
@@ -1493,7 +1523,8 @@ export default function Home() {
       /* ELLE VEUT QU'ON REGARDE. Plein écran, elle se retire — le même geste
          que la carte, pour qu'il n'y ait qu'une chose à apprendre. */
       if (data.film?.video) {
-        setFilm({ sorte: "youtube", video: data.film.video, titre: data.film.titre, source: data.film.source });
+        const f = data.film;
+        void eclipser(() => setFilm({ sorte: "youtube", video: f.video, titre: f.titre, source: f.source }));
       }
       setPanne(data.source && data.source.startsWith("panne") ? data.source : "");
       /* Elle a quelque chose à montrer. On ne garde que la clé du sujet : le
@@ -3245,7 +3276,8 @@ export default function Home() {
 
   return (
     <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
-      <div className="portrait" aria-hidden="true">
+      <div className={eclipse ? "portrait eclipse" : rallume ? "portrait rallume" : "portrait"}
+        aria-hidden="true">
         <div className="avatar" data-face={face} />
       </div>
 
@@ -3763,7 +3795,7 @@ export default function Home() {
               <p className="carte-confirme-titre">Je t&apos;emmène où&nbsp;?</p>
               {aConfirmer.map((lieu) => (
                 <button key={`${lieu.lat},${lieu.lon}`} type="button" className="carte-choix"
-                  onClick={() => { setCarte(lieu); setAConfirmer(null); }}>
+                  onClick={() => { setAConfirmer(null); void eclipser(() => setCarte(lieu)); }}>
                   {lieu.dit}
                   {lieu.sur === false ? <em> — je ne suis pas sûre de celui-là</em> : null}
                 </button>
@@ -3796,7 +3828,8 @@ export default function Home() {
           if (!f) return;
           if (adresseLocale.current) URL.revokeObjectURL(adresseLocale.current);
           adresseLocale.current = URL.createObjectURL(f);
-          setFilm({ sorte: "fichier", url: adresseLocale.current, titre: f.name });
+          const nom = f.name;
+          void eclipser(() => setFilm({ sorte: "fichier", url: adresseLocale.current, titre: nom }));
           e.target.value = "";
         }} />
 
@@ -3811,7 +3844,7 @@ export default function Home() {
           langue={langueRef.current}
           parle={mode === "speaking"}
           onDitTexte={(texte) => void speak(texte, "neutre", "guidage")}
-          onFermer={() => setCarte(null)}
+          onFermer={() => revenir(() => setCarte(null))}
         />
       ) : null}
 
@@ -3833,10 +3866,10 @@ export default function Home() {
             });
             setFilm(null);
           } : undefined}
-          onFermer={() => {
+          onFermer={() => revenir(() => {
             if (adresseLocale.current) { URL.revokeObjectURL(adresseLocale.current); adresseLocale.current = ""; }
             setFilm(null);
-          }}
+          })}
         />
       ) : null}
 

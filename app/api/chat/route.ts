@@ -4,7 +4,7 @@ import { correctionExacte, exemplesPour, motsCorriges, seSuffitAElleMeme } from 
 import { savoirKhalam } from "@/lib/khalam";
 import { savoirProduits } from "@/lib/produits";
 import { catalogue } from "@/lib/vitrine";
-import { chercherImages, chercherVideos, consigneTrouver } from "@/lib/trouver";
+import { chercherImages, chercherVideos, consigneTrouver, videosActives } from "@/lib/trouver";
 import type { Trouve } from "@/lib/trouver";
 import { SOCLE_RELATIONS, consigneRelations, estSujetRelation } from "@/lib/relations";
 import { noterPanne, oublierPanne } from "@/lib/panne";
@@ -901,11 +901,43 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        carte. On ne garde que la PREMIÈRE : plein écran, on ne choisit pas
        dans une galerie, on regarde. */
     let film:{video:string;titre:string;source?:string}|null=null;
+    /* ── UNE PROMESSE NON TENUE EST PIRE QU'UN REFUS ────────────────────────
+
+       Lamine, le 12 septembre 2026 : « je lui ai demandé de me montrer une
+       vidéo de musique sur YouTube. Elle me dit d'accord je vais te montrer,
+       mais elle ne montrait rien. »
+
+       La cause est dans /api/etat, et elle y était depuis le début :
+       « moteur_videos : pas de clé Google ». Sans GOOGLE_CLE, la recherche
+       rend une liste vide — et BIA, qui avait déjà écrit « d'accord », restait
+       sur sa promesse. Personne n'était prévenu : ni elle, ni Lamine, ni le
+       journal des pannes.
+
+       C'est la quatrième fois cette nuit que le coupable est une panne
+       invisible. Alors elle le DIT, et ça se note. Une machine qui promet et
+       ne tient pas se fait désinstaller ; une machine qui dit « je ne peux
+       pas » garde sa confiance. */
+    let filmRate="";
     if(regarde){
       const pieces=await chercherVideos(regarde);
       const un=pieces.find(p=>p.video);
       if(un?.video)film={video:un.video,titre:un.titre||regarde,source:un.source};
+      else{
+        filmRate=videosActives()
+          ?`aucune vidéo trouvée pour « ${regarde} »`
+          :"pas de clé Google : la recherche de vidéos est éteinte";
+        noterPanne("vidéo promise, pas montrée",filmRate,"trouver");
+      }
     }
+
+    /* Elle a écrit « d'accord, je te montre » et il n'y a rien à montrer : on
+       ajoute la vérité à sa phrase, dans la langue où on lui a parlé. C'est
+       ce qui part vers le téléphone, donc c'est ce qu'elle DIT à voix haute. */
+    const ceQuElleDit=filmRate
+      ? `${reply} ${langueDe(question)==="fr"
+          ? "Mais je n'arrive pas à ouvrir la vidéo : ma recherche de vidéos ne marche pas en ce moment."
+          : "Waaye mënuma ubbi vidéo bi : sama recherche vidéo bi dafa dox ul léegi."}`.trim()
+      : reply;
     /* ── UN PAPIER SANS UN MOT N'EST PAS UNE PANNE ──────────────────────────
 
        Signalé par Lamine le 10 septembre 2026 : « quand on demande à BIA
@@ -935,7 +967,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
-    return NextResponse.json({reply,emotion,papier,appel,voir,carte,film,trouve,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
+    return NextResponse.json({reply:ceQuElleDit,emotion,papier,appel,voir,carte,film,trouve,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message, "chat");
