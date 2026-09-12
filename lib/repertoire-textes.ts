@@ -77,7 +77,7 @@ export const REPERTOIRE: Entree[] = [
   },
   {
     cle: "bonsoir",
-    wolof: "Naka tay ? Maa ngi thi Diam yaw nakk",
+    wolof: "Naka tay ? Maa ngi thi Diam yaw nakk.",
     francais: "Bonsoir. Je suis là.",
     /* Les six de Lamine, le 11 septembre 2026. « Naka soirée bi » et « ya ngi
        cool » sont des tournures que je n'aurais jamais écrites : c'est
@@ -477,7 +477,7 @@ export const REPERTOIRE: Entree[] = [
   },
   {
     cle: "parles-tu-wolof",
-    wolof: "waw, deggna wolof mooy sama langue principale. Mën naa itam wax français, anglai ak yénén lak",
+    wolof: "waw, deggna wolof mooy sama langue principale. Mën naa itam wax français, anglai ak yénén lak.",
     francais: "Oui, le wolof est ma première langue. Je parle aussi français.",
     formes: [
       "ndax degg nga wolof",

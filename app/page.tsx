@@ -3010,7 +3010,7 @@ export default function Home() {
                  panne, la transcrivait, et répondait à elle-même. */
               await parlerAvecLeTelephone(enFrancais
                 ? "Mon oreille est en panne, ce n'est pas toi. Regarde l'état de BIA."
-                : "Sama nopp bi degul dara, Xoolal ndakh am nga code bu bax");
+                : "Sama nopp bi degul dara, Xoolal ndakh am nga code bu bax.");
               /* `stopMouth` a déjà remis « ready » à la fin de la voix : on ne
                  le réécrit que si ce tour est encore le tour en cours. */
               if (estLeTour(monTour)) setFace("concernee");

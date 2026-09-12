@@ -519,7 +519,7 @@ function detacherCherche(texte:string){
    pour le testeur. Le motif exact, lui, est journalisé et lisible dans
    /api/etat : c'est là que Lamine regarde. */
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
-const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi .waala nga  Wax ko KHALAM.";
+const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
 export async function POST(request:NextRequest){
   try{
@@ -628,7 +628,7 @@ export async function POST(request:NextRequest){
         absent:"Duggal sa kod ngir waxtaan ak BIA.",
         invalide:"Kod bi baaxul. Xoolaat ko.",
         expire:"Sa kod bi jeex na waxtu wi.",
-        epuise:"Sa kod bi jeex na  wital benen kod ci waa khalam",
+        epuise:"Sa kod bi jeex na. Wital benen kod ci waa khalam.",
       } as const;
       /* ── ELLE PEUT ENFIN DIRE POURQUOI ELLE NE RÉPOND PAS ──────────────
 

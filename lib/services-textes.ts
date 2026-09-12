@@ -56,9 +56,12 @@
    ouvre l'application elle doit saluer et dire je suis là ». Elle est DÉJÀ
    enregistrée et payée, trois fois :
 
-       #salut      « Salaamualeekum. Maa ngi fi. Lane ga soxla won ? »
-       #bonsoir    « Naka tay ? Maa ngi thi Diam »
-       #bienvenue  « Dalal ak jamm. Maa ngi lay xaar. »
+       #salut      « Salut, maa ngi ci jàmm. Lan laa mëna defal tey pour yaw ? »
+       #bonsoir    « Naka tay ? Maa ngi thi Diam yaw nakk. »
+       #bienvenue  « Dalal ak jamm. Maa ngi lay dégglu. »
+
+   (Recopiées ici telles qu'il les a corrigées le 12 septembre à 21 h 30 : un
+   exemple qui cite un ancien texte fait chercher dans le mauvais fichier.)
 
    Il n'y a rien à enregistrer : il y a à les JOUER au bon moment, et c'est du
    code, pas de la voix. Trois formulations, donc pas de répétition, et le
@@ -66,11 +69,12 @@
 
    ── LE VERROU ─────────────────────────────────────────────────────────────
 
-   RELU_SERVICES reste FAUX tant que Lamine ne les a pas relues sur
-   /voix/services. Verrou fermé : ces phrases ne sont ni comptées, ni
-   fabriquées, ni facturées. C'est la même règle que pour les 42, les 69 et
-   les 49 du guidage — et elle a déjà évité deux fois d'enregistrer du wolof
-   que je croyais juste. */
+   RELU_SERVICES est resté FAUX jusqu'au 12 septembre à 22 h : tant que Lamine
+   ne les avait pas relues, ces phrases n'étaient ni comptées, ni fabriquées,
+   ni facturées. C'est la même règle que pour les 42, les 69 et les 49 du
+   guidage — et elle a évité TROIS fois d'enregistrer du wolof que je croyais
+   juste. La troisième fois est racontée juste en dessous : vingt corrections
+   sur trente-quatre phrases. */
 
 /* ── LE VERROU EST LEVÉ, LE 12 SEPTEMBRE 2026 À 22 H ────────────────────────
 
@@ -165,10 +169,10 @@ export const SERVICES: Service[] = [
      Le wolof est à vérifier à son oreille : « maa ngi ko def » est « je suis
      en train de le faire ». S'il préfère autre chose, c'est une ligne. */
   { cle: "svc-commun-1", groupe: "services", quand: "sa phrase, pour n'importe quel service",
-    wolof: "Dacor", francais: "D'accord, j'exécute." },
+    wolof: "Dacor.", francais: "D'accord, j'exécute." },
 
   { cle: "svc-carte-1", groupe: "services", quand: "il demande à être emmené quelque part",
-    wolof: "waw, niudém", francais: "D'accord, je t'emmène." },
+    wolof: "waw, niudém.", francais: "D'accord, je t'emmène." },
   { cle: "svc-carte-2", groupe: "services", quand: "autre formulation",
     wolof: "Ñu dem, maa ngi seet yoon wi.", francais: "Allons-y, je cherche le chemin." },
   { cle: "svc-carte-3", groupe: "services", quand: "autre formulation",
@@ -236,7 +240,7 @@ export const SERVICES: Service[] = [
   { cle: "svc-appel-1", groupe: "services", quand: "elle ouvre un numéro à appeler",
     wolof: "Maa ngi lay diokh numero bi.", francais: "Je t'ouvre le numéro." },
   { cle: "svc-appel-2", groupe: "services", quand: "autre formulation",
-    wolof: "Jeeleel Numero bi,", francais: "Voilà le numéro." },
+    wolof: "Jeeleel Numero bi.", francais: "Voilà le numéro." },
   { cle: "svc-appel-3", groupe: "services", quand: "autre formulation",
     wolof: "waaw, maa ngi koy ubbi.", francais: "D'accord, je l'ouvre." },
 
@@ -251,7 +255,7 @@ export const SERVICES: Service[] = [
      la machine, pas avec la voix de Kha. » */
   { cle: "panne-oreille", groupe: "pannes",
     quand: "l'écoute est cassée — clé refusée, quota épuisé. Répéter ne sert à rien",
-    wolof: "Sama nopp bi degul dara, Xoolal ndakh am nga code bu bax",
+    wolof: "Sama nopp bi degul dara, Xoolal ndakh am nga code bu bax.",
     francais: "Mon oreille est en panne, ce n'est pas toi. Regarde l'état de BIA." },
 
   /* Déjà dans app/api/chat/route.ts, sous le nom PANNE_MOTEUR. */
@@ -263,7 +267,7 @@ export const SERVICES: Service[] = [
   /* PAS_DE_CLE, même fichier. */
   { cle: "panne-sans-cle", groupe: "pannes",
     quand: "la clé du modèle manque sur le serveur",
-    wolof: "Sama moteur bi taxawna : xolal sa crédit bi .waala nga  Wax ko KHALAM.",
+    wolof: "Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.",
     francais: "Mon moteur est arrêté : la clé n'est pas là. Dis-le à KHALAM." },
 
   /* Le message de l'erreur inattendue, fin de la route du chat. */
@@ -300,7 +304,7 @@ export const SERVICES: Service[] = [
     francais: "Ton code a dépassé son temps." },
   { cle: "code-epuise", groupe: "pannes",
     quand: "le code a épuisé ses questions",
-    wolof: "Sa kod bi jeex na  wital benen kod ci waa khalam",
+    wolof: "Sa kod bi jeex na. Wital benen kod ci waa khalam.",
     francais: "Ton code a épuisé ses questions." },
 ];
 
