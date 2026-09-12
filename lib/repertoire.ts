@@ -246,13 +246,45 @@ export const QUI_REPOND: Record<string, string> = {
      « sur khalam.app ». Les deux gardent toutes leurs formulations. */
   "c est quoi votre site": "site-khalam",
 
-  /* « lu xew » : deux décisions de Lamine le même jour. Je garde celle qui
-     porte son raisonnement écrit — « lu xew » ne parle ni du corps ni de la
-     santé, il demande où en sont les choses, c'est ça qu'on dit en croisant
-     quelqu'un. `quoi-de-neuf` garde ses six formulations et reste atteignable
-     par les cinq autres. Un mot de lui et cette ligne devient
-     "quoi-de-neuf". */
-  "lu xew": "ca-va",
+  /* ── « LU XEW » : IL A DONNÉ LE MOT, LA LIGNE A CHANGÉ ─────────────────
+
+     Cette ligne disait "ca-va", et son commentaire finissait par : « un mot
+     de lui et cette ligne devient "quoi-de-neuf" ».
+
+     Le mot est arrivé le 12 septembre 2026, dans sa base de déclencheurs :
+     « lu xew » est rangé sous #quoi-de-neuf, de sa main. C'était mon
+     arbitrage, pas le sien, et il est wolof — « lu xew » demande ce qui s'est
+     passé, pas comment va le corps.
+
+     #ca-va garde ses trente formulations et reste atteignable par toutes les
+     autres, « lu xew ca va » comprise. Rien n'est perdu. */
+  "lu xew": "quoi-de-neuf",
+
+  /* ── « NAKA SA JOURNÉE » : ELLE NE RÉPONDAIT PLUS DU TOUT ──────────────
+
+     Deux réponses la réclamaient — #ca-va, où il vient de la ranger, et
+     #comment-sest-passee-ta-journee, dont elle est presque le titre. Deux
+     candidates, donc aucune : la règle de ce fichier est de se taire plutôt
+     que de choisir au hasard, et elle a bien fonctionné.
+
+     Il l'a rangée sous #ca-va. C'est le plus courant à Dakar : on demande la
+     journée comme on demande la santé, sans vouloir un récit. L'autre réponse
+     reste atteignable par ses six formulations propres. */
+  "naka sa journee": "ca-va",
+
+  /* ── « NAKA SUBA SI » : LE MATIN N'EST PAS LA SANTÉ ────────────────────
+
+     Elle était déclarée dans #ca-va depuis le 11 septembre. Le 12, il la
+     range dans #salut — avec « jàmm nga fanaan », « suba si jàmm », « bon
+     réveil ».
+
+     Et il a raison, c'est même ce qui manquait le plus à BIA : à Dakar on ne
+     dit pas « bonjour », on demande si la nuit a été paisible. « Naka suba
+     si » est une SALUTATION du matin, pas une question sur la santé. Je
+     n'avais aucune de ces quatre formules dans mes listes.
+
+     #ca-va garde la sienne, « naka nga yendoo », pour l'après-midi. */
+  "naka suba si": "salut",
 };
 
 /* La même table, mais indexée sur ce que ça SONNE : la troisième passe
