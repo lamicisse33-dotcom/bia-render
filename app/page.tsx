@@ -33,6 +33,7 @@ import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } fr
 import { lireMesures, noterMesure } from "@/lib/chrono";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
+import { lireLeRire } from "@/lib/rires";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie } from "@/lib/ralentir";
 import Installer from "./installer";
@@ -2078,6 +2079,30 @@ export default function Home() {
           dernierDitRef.current = d.texte || "";
           if (d.texte) {
             langueRef.current = estWolof(d.texte) ? "wo" : "fr";
+            /* ── QUAND ON RIT, ELLE RIT — SANS PASSER PAR PERSONNE ─────────
+
+               Lamine, le 12 septembre 2026 : « quand la personne rit, elle
+               doit rire carrément, automatiquement. »
+
+               AUTOMATIQUEMENT, donc sans le modèle. Un rire qui arrive cinq
+               secondes après celui de l'autre n'est pas un rire partagé :
+               c'est un commentaire. On le reconnaît dans ce que le micro a
+               transcrit et elle rit tout de suite, avec la vraie voix de Kha.
+
+               ET ON NE RÉPOND PAS À UN RIRE PAR UNE PHRASE. Si la personne
+               n'a fait que rire, elle rit avec, et c'est tout : rien envoyé
+               au modèle, rien envoyé à la voix, rien payé. Répondre « c'est
+               drôle en effet » à quelqu'un qui rit, c'est ce que fait une
+               machine.
+
+               Si le rire accompagne une phrase, le rire part d'abord et la
+               réponse suit — comme dans une vraie conversation. */
+            const rire = lireLeRire(d.texte);
+            if (rire.rit) {
+              await finirAttente(langueRef.current, false);
+              await jouerSouffle(rire.emotion || "rire");
+              if (rire.seulement) { setMode("ready"); setFace("joie"); return; }
+            }
             void askBia(d.texte, true);
           } else {
             /* ── ELLE N'A RIEN ENTENDU, ET ELLE RESTAIT FIGÉE ────────────
@@ -2146,7 +2171,7 @@ export default function Home() {
     } catch {
       setMode("error");
     }
-  }, [arreterEnregistrement, askBia, attendreEnParlant, finirAttente, direSonTeutFait, parlerAvecLeTelephone]);
+  }, [arreterEnregistrement, askBia, attendreEnParlant, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle]);
 
   /* L'attente a besoin de rouvrir le micro pour recevoir le prénom, mais elle
      est définie avant `ecouter`. Ce renvoi évite d'avoir à réordonner tout le
