@@ -33,10 +33,11 @@
    de RELU exprès — les 42 phrases sont relues, ces nombres-ci ne le sont pas
    encore, et un seul verrou pour les deux enregistrerait les nombres sans
    qu'il les ait entendus. */
-/* ── ONZE CORRECTIONS DE LAMINE, LE 12 SEPTEMBRE 2026 ──────────────────────
+/* ── LES DOUZE CORRECTIONS DE LAMINE, LE 12 SEPTEMBRE 2026 ─────────────────
 
-   Il a relu la fiche et renvoyé douze lignes. Onze sont posées telles quelles
-   ci-dessous ; la douzième est en attente, et c'est expliqué à sa ligne.
+   Il a relu la fiche et renvoyé douze lignes. Les douze sont posées telles
+   quelles ci-dessous — la dernière, « Fan wer », l'a été le soir même, quand
+   il a répondu à la question que j'avais laissée ouverte à sa ligne.
 
    LES POURCENTAGES. « pour cent » était du français posé au milieu du wolof.
    Il écrit « ci téeméer bu nekk » — pour chaque centaine. C'est du wolof, et
@@ -97,29 +98,30 @@ export const NOMBRES: Nombre[] = [
   { cle: "n-20", etiquette: "20", wolof: "ñaar-fukk", groupe: "unites" },
 
   /* ── LES DIZAINES ─────────────────────────────────────────────────────── */
-  /* ── « n-30 » ATTEND UN MOT DE LUI, ET JE NE L'AI PAS POSÉE ──────────────
+  /* ── SA DOUZIÈME CORRECTION, POSÉE LE 12 SEPTEMBRE AU SOIR ────────────────
 
-     Il a écrit : ñett-fukk → « Fan wer ».
+     J'avais laissé « ñett-fukk » et posé la question, en pensant qu'il avait
+     confondu le nombre trente avec les trente jours d'un mois. Sa réponse :
 
-     Je ne l'applique pas, et voici pourquoi — en sachant qu'il est wolof et
-     que je ne le suis pas, donc que c'est peut-être moi qui me trompe.
+       « 30 en wolof, si tu parles de nombre, chiffre 30 veut dire "Fan wer".
+         Mais si tu parles d'argent, 30 F veut dire 6 dërëm en wolof,
+         juróom-benn dërëm. »
 
-     Cette entrée est le NOMBRE trente. Elle vit dans une série que rien ne
-     casse : 40 ñeent-fukk, 50 juróom-fukk, 60 juróom-benn-fukk, 70, 80, 90 —
-     toutes bâties sur « fukk ». Et « fan wer », si je le comprends, ce sont
-     LES JOURS D'UN MOIS : une durée, pas un nombre.
+     Il a répondu aux DEUX questions à la fois, et il a raison sur les deux :
 
-     Ce qui m'arrête, c'est où ce nombre est employé. Il sert à dire un
-     MONTANT : « 30 000 francs » se dit avec lui. Si trente devient « fan
-     wer », elle dira « les jours du mois mille francs ». Et la règle est
-     écrite en tête de ce fichier, de nous deux : une erreur sur un montant
-     coûte de l'argent à quelqu'un.
+       — le nombre trente est irrégulier, comme « onze » ne se dit pas
+         « dix-un » en français. Ma série en fukk était une déduction de ma
+         part, pas une observation ;
 
-     MON HYPOTHÈSE : il a vu « 30 » sur la page et pensé au mois — et ce qu'il
-     veut, c'est une entrée EN PLUS pour « trente jours / un mois », pas
-     remplacer le nombre. Si c'est ça, je l'ajoute et je ne touche pas à
-     celle-ci. Un mot de lui et c'est fait, dans un sens ou dans l'autre. */
-  { cle: "n-30", etiquette: "30", wolof: "ñett-fukk", groupe: "dizaines" },
+       — et la raison pour laquelle ça ne met aucun prix en danger, c'est que
+         L'ARGENT NE DIT JAMAIS TRENTE : un montant se divise par cinq avant
+         d'être prononcé, donc 30 F devient six dërëm. Mon inquiétude — « elle
+         dira les jours du mois mille francs » — tombait toute seule.
+
+     Reste un seul endroit où trente peut entrer dans un prix : 150 F, qui
+     fait trente dërëm. Celui-là est marqué « en attente » dans
+     lib/wolof-nombres.ts, et il attend son oreille. */
+  { cle: "n-30", etiquette: "30", wolof: "Fan wer", groupe: "dizaines" },
   { cle: "n-40", etiquette: "40", wolof: "ñeent-fukk", groupe: "dizaines" },
   { cle: "n-50", etiquette: "50", wolof: "juróom-fukk", groupe: "dizaines" },
   { cle: "n-60", etiquette: "60", wolof: "juróom-benn-fukk", groupe: "dizaines" },
@@ -159,6 +161,16 @@ export const NOMBRES: Nombre[] = [
      il commence à cinq francs ». 1 dërëm = 5 F CFA. C'est l'endroit le plus
      dangereux de la liste — se tromper ici multiplie ou divise un prix par
      cinq. À relire avec la plus grande attention. */
+  /* Sa ligne du 12 septembre au soir, et la plus petite de la liste : elle
+     montre la règle à nu. Trente francs ne disent pas trente — ils disent
+     six, parce qu'on divise par cinq avant de parler.
+
+     UNE LETTRE ATTEND SON OREILLE. Il l'a écrite « juróom benn dërëm », sans
+     le « i » de liaison. Ses neuf autres montants l'ont tous — « ñaari
+     dërëm », « téeméeri dërëm » — alors j'ai suivi ses neuf lignes plutôt que
+     sa frappe au téléphone. S'il entend qu'il faut dire « juróom-benn
+     dërëm », c'est un caractère à enlever ici. */
+  { cle: "f-30", etiquette: "30 F CFA", wolof: "juróom-benni dërëm", groupe: "argent" },
   { cle: "f-500", etiquette: "500 F CFA", wolof: "téeméeri dërëm", groupe: "argent" },
   { cle: "f-1000", etiquette: "1 000 F CFA", wolof: "ñaari téeméeri dërëm", groupe: "argent" },
   { cle: "f-2500", etiquette: "2 500 F CFA", wolof: "juróomi téeméeri dërëm", groupe: "argent" },

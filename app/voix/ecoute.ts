@@ -5,8 +5,8 @@ import { ralentir, vitesseChoisie } from "@/lib/ralentir";
 
 /* ── LA MÉCANIQUE D'ÉCOUTE, ÉCRITE UNE SEULE FOIS ───────────────────────────
 
-   Il y a maintenant DEUX pages de correction : les 42 phrases, et les 68
-   nombres. Lamine, le 11 septembre 2026 : « présente-le en page de
+   Il y a maintenant DEUX pages de correction : les 42 phrases, et les
+   nombres (leur compte bouge — il en a ajouté un le 12 septembre au soir). Lamine, le 11 septembre 2026 : « présente-le en page de
    correction, comme tu as fait avec les quarante réponses — c'est plus simple
    pour nous. »
 

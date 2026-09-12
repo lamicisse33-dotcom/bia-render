@@ -28,6 +28,7 @@ import {
   chargerPapiers, garderPapier, oublierPapiers, nouvelIdPapier, titreDe,
 } from "@/lib/papiers";
 import type { PapierGarde } from "@/lib/papiers";
+import { NOMBRES } from "@/lib/nombres-textes";
 import { franc, lecture, sorteEvoquee, totauxDe } from "@/lib/documents";
 import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
 import { lireMesures, noterMesure } from "@/lib/chrono";
@@ -3610,7 +3611,7 @@ export default function Home() {
           <p className="papier-note" style={{ marginTop: 14 }}>
             <a href="/voix" className="papier-lien">Écouter les 42 phrases →</a>
             {" "}
-            <a href="/voix/nombres" className="papier-lien">Écouter les 68 nombres →</a>
+            <a href="/voix/nombres" className="papier-lien">Écouter les {NOMBRES.length} nombres →</a>
             {" "}
             <a href="/voix/base" className="papier-lien">Écouter les 69 nouvelles →</a>
             {" "}
