@@ -1,4 +1,6 @@
 import { lexiqueConfig } from "./lexique";
+import { empreinteDe } from "./empreinte";
+import { pourLaVoix } from "./nombres";
 import { REPERTOIRE, RELU } from "./repertoire-textes";
 import type { Entree } from "./repertoire-textes";
 import { NOUVELLES, RELU_BASE } from "./base-textes";
@@ -947,13 +949,41 @@ export function etiquetteSeule(reponse: string): Entree | null {
    sans un mot (voir octetsDuRepertoire dans app/page.tsx, et dire() dans
    app/carte/Carte.tsx). Une réponse lourde vaut infiniment mieux qu'un
    silence. */
-export function sonDe(cle: string, langue: "wo" | "fr"): string {
-  return `${lexiqueConfig.url}/storage/v1/object/public/${SEAU}/${langue}/${encodeURIComponent(cle)}.mp3`;
+/* ── L'ADRESSE PORTE L'EMPREINTE DU TEXTE, ET C'EST INDISPENSABLE ──────────
+
+   Les sons sont rangés dans le cache du téléphone sous leur adresse, déclarée
+   IMMUABLE — c'est ce qui les rend gratuits et instantanés au second passage.
+   Refaire un son chez Supabase ne changerait donc rien à ce qu'on entend : le
+   téléphone rejouerait sa vieille copie pour toujours, sans redemander.
+
+   Sans cette signature, tout le mécanisme « à refaire » du 12 septembre ne
+   servirait à rien : on repaierait l'enregistrement et on entendrait encore
+   l'ancienne prononciation. C'est le genre de piège qui fait perdre une
+   soirée à chercher dans le mauvais fichier.
+
+   Texte changé → empreinte changée → adresse changée → le téléphone
+   retélécharge. Texte inchangé → adresse inchangée → rien ne bouge et rien ne
+   coûte. Supabase ignore la question qui suit le « ? » et rend le même
+   fichier ; c'est le cache du navigateur, lui, qui la lit.
+
+   LE TEXTE EST OPTIONNEL : un appelant qui ne l'a pas obtient l'adresse nue,
+   exactement comme avant. Rien ne casse, mais rien ne se rafraîchit non plus,
+   et c'est pour ça que les appels du répertoire le passent tous. */
+export function sonDe(cle: string, langue: "wo" | "fr", texte?: string): string {
+  const nu = `${lexiqueConfig.url}/storage/v1/object/public/${SEAU}/${langue}/${encodeURIComponent(cle)}.mp3`;
+  return texte?.trim() ? `${nu}?v=${empreinteDe(pourLaVoix(texte, langue))}` : nu;
 }
 
-/** L'original, quand le léger n'est pas là. */
+/** L'original, quand le léger n'est pas là.
+
+    L'EMPREINTE SE TRAVERSE : depuis qu'une adresse peut finir par « ?v=… »,
+    chercher « .mp3 » en fin de chaîne ne trouvait plus rien et le repli sur le
+    WAV était mort sans bruit. On coupe donc avant la question, on remplace, et
+    on la remet — sinon le WAV de secours reviendrait, lui, du vieux cache. */
 export function sonLourdDe(adresse: string): string {
-  return adresse.replace(/\.mp3$/, ".wav");
+  const q = adresse.indexOf("?");
+  if (q < 0) return adresse.replace(/\.mp3$/, ".wav");
+  return adresse.slice(0, q).replace(/\.mp3$/, ".wav") + adresse.slice(q);
 }
 
 /* Le dossier où vivent tous les sons d'une langue.

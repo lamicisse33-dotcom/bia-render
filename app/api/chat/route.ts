@@ -569,7 +569,7 @@ export async function POST(request:NextRequest){
           /* Le visage reste posé PENDANT la blague : c'est le rire d'après
              qui porte l'émotion, pas celui d'avant. */
           emotion:"douce",
-          son:sonDe(choix.cle,langue),
+          son:sonDe(choix.cle,langue,langue==="fr"?choix.francais:choix.wolof),
           rireApres:choix.rire,
           blague:choix.cle,
           /* Quand toutes ont servi, on le dit : c'est le signal qu'il est
@@ -608,7 +608,7 @@ export async function POST(request:NextRequest){
           emotion:toute.emotion||"neutre",
           /* Le son est déjà là : la page le joue directement au lieu de
              demander /api/voix. C'est là qu'est l'économie. */
-          son:sonDe(toute.cle,langue),
+          son:sonDe(toute.cle,langue,fr?toute.francais:toute.wolof),
           source:"répertoire (gratuit)",
           /* ── C'ÉTAIT UNE SALUTATION ────────────────────────────────────
              Le téléphone en a besoin pour le tour SUIVANT : « dès que la
@@ -643,7 +643,7 @@ export async function POST(request:NextRequest){
       const dite=panneDite(`code-${verdict.raison}`);
       return NextResponse.json({
         reply:messages[verdict.raison],
-        ...(dite?{son:sonDe(dite.cle,"wo")}:{}),
+        ...(dite?{son:sonDe(dite.cle,"wo",dite.wolof)}:{}),
         source:"code",motif:verdict.raison,
       },{status:401});
     }
@@ -1010,7 +1010,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return NextResponse.json({
         reply:enFr?choisie.francais:choisie.wolof,
         emotion:choisie.emotion||"neutre",
-        son:sonDe(choisie.cle,langueChoisie),
+        son:sonDe(choisie.cle,langueChoisie,langueChoisie==="fr"?choisie.francais:choisie.wolof),
         source:"répertoire (choisi par elle)",
       });
     }
@@ -1132,7 +1132,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return NextResponse.json({
         reply:langue==="fr"?accuse.francais:accuse.wolof,
         emotion,papier,appel,voir,carte,film,trouve,
-        son:sonDe(accuse.cle,langue),
+        son:sonDe(accuse.cle,langue,langue==="fr"?accuse.francais:accuse.wolof),
         /* Le téléphone le renverra à la question suivante, pour qu'on ne
            serve pas deux fois de suite la même formulation. Le serveur ne
            peut pas s'en souvenir : Render redémarre. */

@@ -9,6 +9,8 @@ import { A_FABRIQUER, cleDe } from "@/lib/attente";
 import { RELU_SERVICES, SERVICES } from "@/lib/services-textes";
 import { BLAGUES, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { synthetiser } from "@/lib/voix";
+import { pourLaVoix } from "@/lib/nombres";
+import { empreinteDe } from "@/lib/empreinte";
 import { noterVoix } from "@/lib/depense";
 import { noterPanne } from "@/lib/panne";
 
@@ -76,17 +78,9 @@ const chemin = (cle: string, langue: string) => `${langue}/${cle}.wav`;
    textes-là, et les déclarer périmés ferait repayer un dollar pour rien. */
 const MANIFESTE = "manifeste-des-textes.json";
 
-/** Une empreinte courte et stable d'un texte. Pas de la cryptographie : de
-    quoi voir qu'un texte a changé, en huit signes. */
-function empreinteDe(texte: string): string {
-  const t = String(texte || "").replace(/\s+/g, " ").trim();
-  let a = 0x811c9dc5, b = 0x01000193;
-  for (let i = 0; i < t.length; i++) {
-    a = ((a ^ t.charCodeAt(i)) * b) >>> 0;
-    b = (b + 0x9e3779b9) >>> 0;
-  }
-  return (a.toString(36) + t.length.toString(36)).slice(0, 8);
-}
+/* L'empreinte elle-même vit dans lib/empreinte.ts : l'adresse du son la
+   calcule aussi, et les deux doivent tomber sur le même nombre. Deux copies
+   auraient fini par diverger. */
 
 type Manifeste = Record<string, string>;
 
@@ -393,18 +387,53 @@ async function parPaquets<T, R>(liste: T[], faire: (x: T) => Promise<R>): Promis
   return sortie;
 }
 
-/** Le tri en TROIS tas : déjà là, à fabriquer, et « je n'ai pas pu savoir ».
+/* ── L'EMPREINTE SE PREND SUR CE QUI SERA DIT, PAS SUR CE QUI EST ÉCRIT ─────
+
+   Et c'est tout l'intérêt. Ce qui décide du SON, c'est le texte tel qu'il part
+   chez le moteur : nombres en lettres, adresse en français. Deux textes qui
+   s'affichent différemment mais se disent pareil n'ont aucune raison de coûter
+   deux enregistrements ; et deux textes identiques à l'écran qui se DISENT
+   différemment — c'est exactement ce qui vient d'arriver avec « khalam.app » —
+   doivent être refaits.
+
+   Résultat : la règle de prononciation des adresses posée aujourd'hui fait
+   basculer d'elle-même en « à refaire » les quatorze phrases qui citent le
+   site. Je n'ai aucune liste à tenir à la main, donc aucune à oublier. */
+const empreinteDite = (a: Attendu) => empreinteDe(pourLaVoix(a.texte, a.langue));
+
+const nomDuSon = (a: Attendu) => `${a.langue}/${a.cle}`;
+
+/** Le tri en QUATRE tas : déjà là et juste, à fabriquer, à REFAIRE parce que
+    ce qu'elle doit dire a changé, et « je n'ai pas pu savoir ».
     Gratuit — aucune voix n'est appelée ici. */
 async function trier(liste: Attendu[]) {
   const etats = await parPaquets(liste, (a) => etatDuSon(a.cle, a.langue));
+  const manifeste = await lireManifeste();
   const enPlace: Attendu[] = [];
   const aFaire: Attendu[] = [];
+  const aRefaire: Attendu[] = [];
   const incertains: Attendu[] = [];
   liste.forEach((a, i) => {
-    const tas = etats[i] === "oui" ? enPlace : etats[i] === "non" ? aFaire : incertains;
-    tas.push(a);
+    if (etats[i] === "non") { aFaire.push(a); return; }
+    if (etats[i] !== "oui") { incertains.push(a); return; }
+    /* ── AU PREMIER PASSAGE, RIEN N'EST PÉRIMÉ ───────────────────────────
+       Pas de manifeste : les sons en place ont été enregistrés depuis ces
+       textes-là. Les déclarer périmés ferait repayer un dollar pour rien, et
+       ce serait une accusation sans preuve. On écrit l'empreinte et on se
+       taira la prochaine fois. */
+    const connue = manifeste?.[nomDuSon(a)];
+    if (manifeste && connue && connue !== empreinteDite(a)) aRefaire.push(a);
+    else enPlace.push(a);
   });
-  return { enPlace, aFaire, incertains };
+  return { enPlace, aFaire, aRefaire, incertains };
+}
+
+/** Le manifeste tel qu'il doit être après cet enregistrement : on garde ce
+    qu'on n'a pas touché, et on inscrit ce qu'on vient de fabriquer. */
+function manifesteSuivant(ancien: Manifeste | null, faits: Attendu[]): Manifeste {
+  const suite: Manifeste = { ...(ancien || {}) };
+  for (const a of faits) suite[nomDuSon(a)] = empreinteDite(a);
+  return suite;
 }
 
 /** Ce qui manque, et ce que ça coûterait. Gratuit. */
@@ -418,8 +447,12 @@ export async function GET(request: NextRequest) {
   }
 
   const liste = tousLesSonsAttendus();
-  const { enPlace, aFaire, incertains } = await trier(liste);
-  const signes = aFaire.reduce((t, a) => t + a.texte.length, 0);
+  const { enPlace, aFaire, aRefaire, incertains } = await trier(liste);
+  /* Ce qu'on paie est ce qu'on ENVOIE : le texte préparé pour la voix, pas le
+     texte écrit. « 300 000 F » part en « trois cent mille francs CFA » et
+     coûte trois fois plus de signes — autant le savoir avant d'appuyer. */
+  const aPayer = [...aFaire, ...aRefaire];
+  const signes = aPayer.reduce((t, a) => t + pourLaVoix(a.texte, a.langue).length, 0);
 
   /* Combien sont encore lourds. On le REGARDE ici, on ne le fait pas : cette
      route est celle qui ne dépense rien, et ça vaut aussi pour le temps. */
@@ -437,10 +470,24 @@ export async function GET(request: NextRequest) {
     attendus: liste.length,
     en_place: enPlace.length,
     manquants: aFaire.length,
+    /* ── À REFAIRE, ET C'EST NOUVEAU ───────────────────────────────────────
+       Sa question du 12 septembre : « le répertoire, il faut vérifier est-ce
+       que vraiment elle lit les mots corrigés. » Elle ne les lisait pas : un
+       son porte le nom de sa CLÉ, donc un texte corrigé après enregistrement
+       affichait la correction et disait toujours les anciens mots, sans que
+       rien puisse le voir.
+       Maintenant on garde l'empreinte de ce qui a été DIT, et un texte qui ne
+       se dit plus pareil se signale ici. */
+    a_refaire: aRefaire.length,
+    detail_a_refaire: aRefaire.map((a) => ({
+      cle: a.cle, langue: a.langue, signes: pourLaVoix(a.texte, a.langue).length,
+    })),
     incertains: incertains.length,
     signes,
     cout_dollars: Math.round(signes * DOLLAR_PAR_SIGNE * 1000) / 1000,
-    detail: aFaire.map((a) => ({ cle: a.cle, langue: a.langue, signes: a.texte.length })),
+    detail: aFaire.map((a) => ({
+      cle: a.cle, langue: a.langue, signes: pourLaVoix(a.texte, a.langue).length,
+    })),
     /* Dire NON en expliquant pourquoi vaut mieux qu'un bouton qui ne fait
        rien : c'est ce qu'on lit quand l'enregistrement refuse de partir. */
     pret: RELU ? "oui" : "non — les textes attendent d'être relus par Lamine (RELU dans lib/repertoire.ts)",
@@ -479,16 +526,48 @@ export async function POST(request: NextRequest) {
      LES INCERTAINS NE SONT PAS FABRIQUÉS. Un son dont Supabase n'a pas voulu
      dire s'il existe est peut-être déjà payé ; on ne le repaie pas dans le
      doute. On le dit, et un appui de plus tranchera. */
-  const { enPlace, aFaire, incertains } = await trier(tousLesSonsAttendus());
+  const { enPlace, aFaire, aRefaire, incertains } = await trier(tousLesSonsAttendus());
+  const ancienManifeste = await lireManifeste();
+  /* ── ET ON REFAIT CE QUI NE DIT PLUS LA BONNE CHOSE ────────────────────
+     Le « à refaire » vient en second, après les manquants : si le crédit ou
+     le temps s'épuise en route, mieux vaut avoir une phrase muette de moins
+     qu'une phrase mal dite de moins. Une phrase mal dite se comprend quand
+     même ; une phrase absente laisse un silence. */
+  const posesReussies: Attendu[] = [];
 
-  for (const a of aFaire) {
+  for (const a of [...aFaire, ...aRefaire]) {
     try {
-      const parole = await synthetiser(a.texte, a.langue, {});
+      /* ── ON ENREGISTRE CE QU'ELLE DOIT DIRE, PAS CE QUI EST ÉCRIT ────────
+
+         Lamine, le 12 septembre 2026 : « elle cite mal l'adresse du site. »
+
+         VOILÀ LA CAUSE, ET ELLE ÉTAIT ICI. La voix en direct passe par
+         `pourLaVoix()` — c'est là que les nombres deviennent des mots et,
+         depuis aujourd'hui, que les adresses se disent en français. Cette
+         route-ci, celle qui FABRIQUE les sons du répertoire, appelait
+         `synthetiser` sur le texte brut : elle envoyait « khalam.app » et
+         « 300 000 » tels quels au moteur.
+
+         Les sons enregistrés et la voix en direct ne disaient donc pas la
+         même chose à partir du même texte. Pire : ce sont justement les sons
+         enregistrés qu'on entend le plus souvent, puisqu'ils sont gratuits et
+         instantanés. La mauvaise prononciation était dans ce qu'on entend
+         toujours, et la bonne dans ce qu'on entend rarement.
+
+         Un seul chemin, maintenant, pour les deux.
+
+         ET CE QU'ON COMPTE SUIT CE QU'ON PAIE : Soynade facture les signes
+         qu'on lui envoie, donc « trois cent mille francs CFA » et pas
+         « 300 000 F ». Le décompte se fait sur le texte dit. */
+      const aDire = pourLaVoix(a.texte, a.langue);
+      const parole = await synthetiser(aDire, a.langue, {});
       if (!parole) throw new Error("aucun moteur de voix");
-      noterVoix(a.texte.length, "répertoire");
-      signes += a.texte.length;
-      if (await deposer(a.cle, a.langue, parole.audio)) faits.push(`${a.langue}/${a.cle}`);
-      else rates.push({ cle: a.cle, langue: a.langue, motif: "dépôt refusé" });
+      noterVoix(aDire.length, "répertoire");
+      signes += aDire.length;
+      if (await deposer(a.cle, a.langue, parole.audio)) {
+        faits.push(nomDuSon(a));
+        posesReussies.push(a);
+      } else rates.push({ cle: a.cle, langue: a.langue, motif: "dépôt refusé" });
     } catch (err) {
       rates.push({ cle: a.cle, langue: a.langue, motif: motifLisible(err as Error) });
     }
@@ -503,6 +582,24 @@ export async function POST(request: NextRequest) {
      SI ÇA ÉCHOUE, L'ENREGISTREMENT RESTE FAIT. C'est la partie qui a coûté
      de l'argent ; elle ne doit pas être perdue parce qu'une compression a
      mal tourné. On rapporte l'échec et on rend la main. */
+  /* ── ET ON ÉCRIT L'EMPREINTE DE CE QU'ON VIENT DE DIRE ──────────────────
+
+     APRÈS les dépôts réussis, et seulement pour eux : inscrire une empreinte
+     pour un son qui n'a pas été déposé, ce serait déclarer juste un fichier
+     qui n'existe pas, et le son manquerait pour toujours sans que rien ne le
+     signale. On n'écrit que ce qu'on a vraiment posé.
+
+     LE PREMIER PASSAGE INSCRIT AUSSI LES SONS DÉJÀ EN PLACE. Sans ça, le
+     manifeste ne connaîtrait que les nouveaux, et les trois cent vingt-six
+     anciens resteraient à jamais hors surveillance — une correction sur l'un
+     d'eux ne se verrait pas davantage qu'avant. Ils ont été enregistrés depuis
+     ces textes-là : on l'écrit, sans rien repayer. */
+  const manifeste = manifesteSuivant(
+    ancienManifeste,
+    ancienManifeste ? posesReussies : [...posesReussies, ...enPlace],
+  );
+  await ecrireManifeste(manifeste);
+
   let leger: Allege | null = null;
   try {
     leger = await alleger(tousLesSonsAttendus());
@@ -512,8 +609,14 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     enregistres: faits.length,
+    /* On sépare les deux, parce qu'ils ne veulent pas dire la même chose : un
+       manquant comble un silence, un refait corrige une phrase mal dite. */
+    dont_refaits: posesReussies.filter((a) => aRefaire.includes(a)).length,
     deja_la: enPlace.length,
     incertains: incertains.length,
+    /* Combien de phrases sont désormais sous surveillance : une correction sur
+       l'une d'elles se signalera d'elle-même au prochain regard. */
+    textes_suivis: Object.keys(manifeste).length,
     rates,
     signes,
     cout_dollars: Math.round(signes * DOLLAR_PAR_SIGNE * 1000) / 1000,

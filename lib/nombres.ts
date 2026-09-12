@@ -37,6 +37,8 @@
 
 const unites = ["zéro", "un", "deux", "trois", "quatre", "cinq", "six", "sept",
   "huit", "neuf", "dix", "onze", "douze", "treize", "quatorze", "quinze", "seize"];
+import { adressesPourLaVoix } from "./adresses";
+
 const dizaines = ["", "", "vingt", "trente", "quarante", "cinquante",
   "soixante", "soixante", "quatre-vingt", "quatre-vingt"];
 
@@ -122,6 +124,19 @@ function lire(brut: string): number | null {
 export function pourLaVoix(texte: string, _langue: "wo" | "fr" = "fr"): string {
   let t = String(texte || "");
   if (!t) return t;
+
+  /* ── LES ADRESSES D'ABORD, ET AVANT MÊME LES GARDES ────────────────────
+
+     Lamine, le 12 septembre 2026 : « elle cite mal l'adresse du site, il faut
+     qu'elle le lise en français clairement. »
+
+     AVANT LES NOMBRES, et il faut dire pourquoi : une adresse peut contenir
+     des chiffres. « bia2.khalam.app » passerait sinon par la mise en lettres,
+     qui y verrait un nombre à convertir, et l'adresse ressortirait cassée.
+     On la met donc en mots pendant qu'elle est encore entière.
+
+     Le détail est dans lib/adresses.ts, avec le choix de « point ap ». */
+  t = adressesPourLaVoix(t);
 
   const gardes: string[] = [];
   const garder = (m: string) => `@@${lettresDe(gardes.push(m) - 1)}@@`;
