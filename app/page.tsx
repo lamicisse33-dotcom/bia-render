@@ -35,7 +35,11 @@ import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 import { lireLeRire } from "@/lib/rires";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
-import { TOUR_DE_VEILLE, TOURS_MUETS_AVANT_DE_DOUTER, silenceQuiSuffit } from "@/lib/micro";
+import {
+  INTERVENTION_MAXIMALE, MESURE_DU_FOND, REGLAGES_DU_MICRO,
+  SILENCE_QUI_CLÔT_LA_CONVERSATION, TENIR_POUR_COUPER, TOUR_DE_VEILLE,
+  TOURS_MUETS_AVANT_DE_DOUTER, couvreSaVoix, seuilDeParole, silenceQuiSuffit, vautLaPeine,
+} from "@/lib/micro";
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie } from "@/lib/ralentir";
 import Installer from "./installer";
 import Ecran from "./ecran";
@@ -193,6 +197,19 @@ export default function Home() {
   const [history, setHistory] = useState<Message[]>([]);
   const [face, setFace] = useState<Face>("yeux_ouverts");
   const [mode, setMode] = useState<"ready" | "listening" | "thinking" | "speaking" | "error">("ready");
+  /* ── LA CONVERSATION VOCALE ────────────────────────────────────────────
+     Demandée par Lamine le 12 septembre 2026 : « un premier appui ouvre la
+     conversation vocale, le microphone reste ensuite actif… un second appui
+     permet de fermer complètement. »
+
+     `mode` dit ce qu'elle fait à cet instant ; `conversation` dit si le fil
+     est ouvert. Les deux sont nécessaires : pendant qu'elle réfléchit, le
+     mode n'est plus « listening » mais la conversation, elle, continue. */
+  const [conversation, setConversation] = useState(false);
+  /* Le quatrième indicateur qu'il demande : « parole détectée ». Il existait
+     déjà DANS le micro (`aParle`), mais rien ne le montrait — on ne voyait
+     pas la différence entre « je t'écoute » et « je t'entends ». */
+  const [entendParler, setEntendParler] = useState(false);
   const [clavier, setClavier] = useState(false);
   const [saisie, setSaisie] = useState("");
   /* PLUS DE TEXTE SUR L'ÉCRAN.
@@ -433,6 +450,36 @@ export default function Home() {
   /* De quoi débrancher l'analyseur du micro sans toucher au contexte de la
      page — qui porte toute sa voix et ne doit jamais être fermé ici. */
   const debrancherMicroRef = useRef<(() => void) | null>(null);
+
+  /* ── LE MICRO RESTE OUVERT ENTRE DEUX TOURS ────────────────────────────
+
+     Avant, chaque tour rouvrait le micro : `getUserMedia` à chaque phrase.
+     Cet appel-là coûte de un à trois dixièmes de seconde, et sur certains
+     téléphones il refait clignoter la pastille rouge à chaque fois — comme
+     si BIA redemandait la permission.
+
+     Le flux et son analyseur vivent donc le temps de la CONVERSATION, pas
+     le temps d'une phrase. C'est aussi ce qui permet de l'entendre pendant
+     qu'elle parle : sans flux ouvert à ce moment-là, on ne pourrait pas lui
+     couper la parole. */
+  const fluxRef = useRef<MediaStream | null>(null);
+  const analyseRef = useRef<AnalyserNode | null>(null);
+  /* Vrai tant que la conversation vocale est ouverte. C'est un ref ET un état :
+     l'état pour l'affichage, le ref pour onstop et les veilles, qui ont été
+     posés avant et ne verraient jamais un état changé depuis. */
+  const conversationRef = useRef(false);
+  /* L'énergie de SA voix à cet instant, entre 0 et 1 — celle qui fait bouger
+     sa bouche. On s'en sert pour savoir s'il faut la couper : il faut la
+     COUVRIR, pas seulement faire du bruit pendant qu'elle parle. */
+  const sonDelleRef = useRef(0);
+  /* Le seuil de parole calculé pour la pièce où l'on se trouve. Partagé avec
+     le guetteur qui écoute pendant qu'elle parle : les deux doivent juger la
+     même pièce, sinon l'un entend ce que l'autre ignore. */
+  const seuilRef = useRef(0);
+  /* `taire` est défini plus bas ; les veilles, elles, sont posées avant. Ce
+     renvoi évite de réordonner tout le fichier pour une seule flèche — même
+     procédé que `ecouterRef`. */
+  const taireRef = useRef<(() => void) | null>(null);
   /* ── ANNULER PENDANT QU'ON PARLE ────────────────────────────────────────
      Demandé par Lamine le 10 septembre 2026 : « pendant qu'il parle, il peut
      se tromper. Pour que ça ne soit pas transmis à BIA et qu'on ne perde pas
@@ -655,6 +702,9 @@ export default function Home() {
   }, []);
 
   const couperSon = useCallback(() => {
+    /* Elle ne parle plus : son énergie retombe, sinon la barre à franchir
+       pour l'interrompre resterait haute alors qu'elle s'est tue. */
+    sonDelleRef.current = 0;
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
     animationRef.current = null;
     try { sourceRef.current?.stop(); } catch {}
@@ -743,6 +793,7 @@ export default function Home() {
         const ecoule = (ctx.currentTime - depart) * 1000;
         const i = Math.floor(ecoule / (pas * 1000));
         const part = i >= 0 && i < valeurs.length ? valeurs[i] / pic : 0;
+        sonDelleRef.current = part;
         const forme = formeBouche(part, i);
         if (forme !== precedente && ecoule - dernierChangement >= MINIMUM) {
           precedente = forme;
@@ -988,6 +1039,7 @@ export default function Home() {
           const ecoule = ctx.currentTime - depart;
           const i = Math.floor(ecoule / pas);
           const part = i >= 0 && i < valeurs.length ? valeurs[i] / pic : 0;
+          sonDelleRef.current = part;
           const forme = formeBouche(part, i);
           if (forme !== precedente && ecoule - dernierChangement >= 0.13) {
             precedente = forme; dernierChangement = ecoule; setFace(forme);
@@ -1439,9 +1491,11 @@ export default function Home() {
         if (tourRef.current !== jeton) return;
         const t = ctx.currentTime;
         const seg = segments.find((s) => t >= s.debut && t < s.fin);
+        if (!seg) sonDelleRef.current = 0;
         if (seg) {
           const i = Math.floor((t - seg.debut) / seg.pas);
           const part = i >= 0 && i < seg.valeurs.length ? seg.valeurs[i] / seg.pic : 0;
+          sonDelleRef.current = part;
           const forme = formeBouche(part, i);
           if (forme !== precedente && t - dernierChangement >= MINIMUM) {
             precedente = forme;
@@ -1972,9 +2026,66 @@ export default function Home() {
      attend une voix aussi longtemps qu'il faut ; dès que quelqu'un a parlé,
      il se ferme deux secondes après le dernier son. Un second appui conclut
      tout de suite. */
+  /* ── LE MICRO DE LA CONVERSATION ────────────────────────────────────────
+
+     Ouvert une fois, gardé jusqu'à ce qu'on referme la conversation vocale.
+     `getUserMedia` coûte un à trois dixièmes de seconde et rallume la
+     pastille rouge du téléphone : le refaire à chaque phrase, c'était payer
+     ça dix fois dans une conversation.
+
+     Et c'est ce qui rend possible de lui couper la parole : pour l'entendre
+     pendant qu'elle parle, il faut que le micro soit ouvert à ce moment-là. */
+  const micro = useCallback(async () => {
+    const ctxMicro = contexte();
+    if (ctxMicro.state === "suspended") { try { await ctxMicro.resume(); } catch { } }
+
+    if (fluxRef.current?.active && analyseRef.current) {
+      return { flux: fluxRef.current, analyse: analyseRef.current, ctxMicro };
+    }
+
+    /* Les trois réglages demandés par Lamine — écho, bruit, volume. Le
+       navigateur les honore quand il sait et les ignore sans se plaindre
+       quand il ne sait pas ; dans ce cas on garde un micro qui marche, ce qui
+       vaut mieux qu'une exception. */
+    let flux: MediaStream;
+    try { flux = await navigator.mediaDevices.getUserMedia(REGLAGES_DU_MICRO); }
+    catch { flux = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+
+    const analyse = ctxMicro.createAnalyser();
+    analyse.fftSize = 512;
+    const entree = ctxMicro.createMediaStreamSource(flux);
+    entree.connect(analyse);
+
+    fluxRef.current = flux;
+    analyseRef.current = analyse;
+    debrancherMicroRef.current = () => {
+      try { entree.disconnect(); } catch { }
+      try { analyse.disconnect(); } catch { }
+      flux.getTracks().forEach((t) => t.stop());
+      fluxRef.current = null;
+      analyseRef.current = null;
+    };
+    return { flux, analyse, ctxMicro };
+  }, [contexte]);
+
+  /* Fermer complètement : le second appui, la fin d'une séance, le départ de
+     la page. On coupe le fil AVANT le micro, pour qu'aucune veille ne
+     redémarre un tour sur un flux qu'on vient d'éteindre. */
+  const fermerConversation = useCallback(() => {
+    conversationRef.current = false;
+    setConversation(false);
+    setEntendParler(false);
+    const e = enregistreurRef.current;
+    if (e && e.state !== "inactive") { try { e.stop(); } catch { } }
+    enregistreurRef.current = null;
+    debrancherMicroRef.current?.();
+    debrancherMicroRef.current = null;
+    setMode((m) => (m === "listening" ? "ready" : m));
+  }, []);
+
   const ecouter = useCallback(async () => {
     try {
-      const flux = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const { flux, analyse, ctxMicro } = await micro();
       const enregistreur = new MediaRecorder(flux);
       const morceaux: Blob[] = [];
       enregistreurRef.current = enregistreur;
@@ -2000,21 +2111,26 @@ export default function Home() {
 
          On prend donc le contexte de la page, et on ne le ferme jamais : on se
          contente de débrancher, comme le fait déjà lib/frappe.ts. */
-      const ctxMicro = contexte();
-      if (ctxMicro.state === "suspended") { try { await ctxMicro.resume(); } catch {} }
-      const analyse = ctxMicro.createAnalyser();
-      analyse.fftSize = 512;
-      const entree = ctxMicro.createMediaStreamSource(flux);
-      entree.connect(analyse);
-      debrancherMicroRef.current = () => {
-        try { entree.disconnect(); } catch {}
-        try { analyse.disconnect(); } catch {}
-      };
       const tampon = new Uint8Array(analyse.frequencyBinCount);
       let aParle = false;
       let dernierSon = 0;
       let debutParole = 0;
+      let dureeParlee = 0;
       const ouverture = Date.now();
+
+      /* ── ON MESURE D'ABORD LA PIÈCE ──────────────────────────────────────
+
+         Le seuil était fixe : « creux > 8 ». Dans une chambre la nuit il
+         entend une respiration ; dans un taxi vitres ouvertes il entend la
+         rue sans arrêt, et le micro ne se ferme jamais.
+
+         On écoute donc quatre dixièmes de seconde avant de décider ce qu'est
+         le silence ICI. Si quelqu'un parle pendant ce temps-là, tant mieux :
+         le seuil monte un peu, et sa voix le dépasse largement de toute
+         façon. */
+      let fond = 0;
+      let seuil = seuilDeParole(0);
+      seuilRef.current = seuil;
       /* Un vrai micro n'est JAMAIS parfaitement plat : même une pièce vide a
          son souffle. Une suite de 128 exacts ne veut donc pas dire « silence »,
          elle veut dire « l'analyseur ne rend rien ». On compte ces tours. */
@@ -2068,8 +2184,19 @@ export default function Home() {
            Et on regarde deux fois plus souvent (60 ms au lieu de 120), parce
            qu'un tour de veille manqué, c'est un dixième de seconde de plus à
            attendre pour rien. */
-        if (creux > 8) {
-          if (!aParle) debutParole = Date.now();
+        const depuis = Date.now() - ouverture;
+
+        /* Les premiers instants servent à mesurer le fond sonore, et rien
+           d'autre : on prend le plus fort de ce qu'on entend, et on s'y cale. */
+        if (depuis < MESURE_DU_FOND) {
+          fond = Math.max(fond, creux);
+          return;
+        }
+        if (seuil === seuilDeParole(0) && fond > 0) { seuil = seuilDeParole(fond); seuilRef.current = seuil; }
+
+        if (creux > seuil) {
+          if (!aParle) { debutParole = Date.now(); setEntendParler(true); }
+          else dureeParlee += Date.now() - dernierSon;
           aParle = true;
           dernierSon = Date.now();
         } else if (aParle) {
@@ -2077,24 +2204,46 @@ export default function Home() {
           if (Date.now() - dernierSon > assez) { arreterEnregistrement(); return; }
         }
 
-        const depuis = Date.now() - ouverture;
         if (analyseurMort && depuis > 9000) { arreterEnregistrement(); return; }
-        /* LE DERNIER FILET, et il ne peut pas se tromper. Sa règle est que le
-           micro attend une voix aussi longtemps qu'il faut — mais deux minutes
-           de micro ouvert, ce n'est plus de l'attente, c'est une panne. */
-        if (depuis > 120000) arreterEnregistrement();
+
+        /* ── LES DEUX FILETS DE TEMPS ────────────────────────────────────
+
+           Lamine : « durée maximale d'une intervention : 60 à 90 secondes ».
+           Passé ce cap, on envoie CE QU'ON A plutôt que de tout perdre : une
+           minute et quart de parole qu'on jette, c'est bien pire qu'une
+           phrase coupée.
+
+           Et le second : micro ouvert sans que personne ne dise rien. Au bout
+           de deux minutes et demie, ce n'est plus une conversation, c'est une
+           lampe rouge et de la batterie. On referme, et le bouton revient. */
+        if (aParle && depuis > INTERVENTION_MAXIMALE) { arreterEnregistrement(); return; }
+        if (!aParle && depuis > SILENCE_QUI_CLÔT_LA_CONVERSATION) {
+          conversationRef.current = false;
+          setConversation(false);
+          arreterEnregistrement();
+        }
       }, TOUR_DE_VEILLE);
 
       enregistreur.ondataavailable = (e) => { if (e.data.size) morceaux.push(e.data); };
       enregistreur.onstop = async () => {
         clearInterval(veille);
-        flux.getTracks().forEach((t) => t.stop());
-        /* ON NE FERME PLUS LE CONTEXTE : c'est celui de la page, et toute sa
-           voix passe par lui. Le fermer ici la rendait muette jusqu'à ce que
-           `contexte()` en refabrique un. On débranche, c'est tout. */
-        debrancherMicroRef.current?.();
-        debrancherMicroRef.current = null;
+        setEntendParler(false);
         enregistreurRef.current = null;
+
+        /* ── LE MICRO NE SE FERME QUE SI LA CONVERSATION SE FERME ──────────
+
+           Avant, chaque fin de tour éteignait le flux et débranchait
+           l'analyseur : c'était juste, tant qu'un appui valait une phrase.
+           En conversation continue, ce serait rouvrir le micro — et
+           redemander la permission — à chaque respiration.
+
+           ON NE FERME PLUS LE CONTEXTE DE LA PAGE non plus : c'est celui qui
+           porte toute sa voix. Le fermer ici la rendait muette jusqu'à ce que
+           `contexte()` en refabrique un. */
+        if (!conversationRef.current) {
+          debrancherMicroRef.current?.();
+          debrancherMicroRef.current = null;
+        }
 
         /* ON JETTE AVANT DE TRANSCRIRE. C'est le tout l'intérêt du bouton :
            rien ne part au réseau, rien n'est payé, et BIA n'a jamais entendu
@@ -2109,7 +2258,20 @@ export default function Home() {
           return;
         }
 
-        if (!aParle || !morceaux.length) { setMode("ready"); return; }
+        /* ── UNE PORTE QUI CLAQUE N'EST PAS UNE QUESTION ──────────────────
+
+           Micro ouvert en permanence, le moindre choc ferme un tour et part
+           chez le moteur de transcription — qui est PAYÉ — pour revenir avec
+           du vide, pendant que BIA répond à une porte. On exige donc une
+           vraie parole : assez longue pour être une syllabe humaine.
+
+           On ne dit rien, on ne montre rien : on se remet simplement à
+           écouter, et personne ne s'aperçoit de rien. C'est exactement ce que
+           fait une personne qui entend un bruit et continue d'écouter. */
+        if (!aParle || !morceaux.length || !vautLaPeine(dureeParlee)) {
+          setMode((m) => (m === "listening" ? "ready" : m));
+          return;
+        }
 
         setMode("thinking");
         setFace("pensive");
@@ -2331,6 +2493,12 @@ export default function Home() {
   }, [askBia, moteurs]);
 
   useEffect(() => () => {
+    /* On quitte la page : le micro doit se fermer avec elle. Un flux laissé
+       ouvert garde la pastille rouge allumée sur le téléphone — on croit
+       alors que BIA écoute encore. */
+    conversationRef.current = false;
+    debrancherMicroRef.current?.();
+    debrancherMicroRef.current = null;
     if (mouthTimer.current) clearInterval(mouthTimer.current);
     if (resetTimer.current) clearTimeout(resetTimer.current);
     window.speechSynthesis?.cancel();
@@ -2424,6 +2592,78 @@ export default function Home() {
     // images de bouche, elles, sont remises par l'animation qui s'arrête.
     setFace((f) => (f === "pensive" ? "yeux_ouverts" : f));
   }, [couperSon]);
+  taireRef.current = taire;
+
+  /* ── ELLE SE REMET À ÉCOUTER TOUTE SEULE ────────────────────────────────
+
+     Lamine, le 12 septembre 2026 : « après sa réponse, BIA se remet
+     automatiquement à écouter. »
+
+     ON NE LE FAIT PAS DEPUIS onstop, et c'est le point délicat. `askBia` est
+     lancée sans être attendue : onstop rend la main pendant que la réponse se
+     fabrique. Relancer le micro là, ce serait l'ouvrir PENDANT qu'elle parle —
+     elle s'entendrait, se transcrirait, se répondrait.
+
+     On se raccroche donc à ce qui est vrai : le retour au repos. Quel que
+     soit le chemin — une réponse dite, un rire seul, une phrase annulée, un
+     bruit qu'on a jeté — BIA finit toujours par revenir à « ready », et c'est
+     à cet instant que le micro se rouvre.
+
+     PAS APRÈS UNE PANNE (« error ») : on ne relance pas une boucle sur
+     quelque chose qui vient d'échouer. Le bouton reste là, c'est à la
+     personne de décider.
+
+     Le dixième de seconde d'attente laisse le son se taire pour de bon : sans
+     lui, la traîne de sa dernière syllabe ouvre le tour suivant. */
+  useEffect(() => {
+    if (!conversation || mode !== "ready") return;
+    if (enregistreurRef.current) return;
+    const t = setTimeout(() => {
+      if (!conversationRef.current || enregistreurRef.current) return;
+      void ecouterRef.current?.();
+    }, 180);
+    return () => clearTimeout(t);
+  }, [conversation, mode]);
+
+  /* ── LUI COUPER LA PAROLE ───────────────────────────────────────────────
+
+     Lamine : « si l'utilisateur reprend la parole pendant la réponse de BIA,
+     la lecture s'arrête immédiatement et BIA l'écoute. »
+
+     ET C'EST LE PLUS DANGEREUX DE TOUT LE FICHIER. Micro ouvert pendant
+     qu'elle parle dans le haut-parleur : elle s'entend. Elle se transcrit,
+     elle se répond, et ça tourne en boucle en payant une transcription à
+     chaque tour. L'annulation d'écho du navigateur aide, mais elle ne suffit
+     pas toujours sur un haut-parleur de téléphone.
+
+     Alors on demande deux choses à la fois, et il choisit ainsi le
+     12 septembre : il faut la COUVRIR — être plus fort qu'elle, sa propre
+     énergie servant de barre — et TENIR un quart de seconde. Un claquement de
+     portière est fort mais court ; un écho est court et jamais plus fort que
+     la source. Une vraie voix est les deux.
+
+     Avec des écouteurs, il n'y a pas d'écho du tout : la barre retombe au
+     seuil ordinaire et elle se tait au premier mot. */
+  useEffect(() => {
+    if (!conversation || mode !== "speaking") return;
+    const analyse = analyseRef.current;
+    if (!analyse) return;
+    const tampon = new Uint8Array(analyse.frequencyBinCount);
+    let tenu = 0;
+    const guet = setInterval(() => {
+      analyse.getByteTimeDomainData(tampon);
+      let creux = 0;
+      for (const v of tampon) creux = Math.max(creux, Math.abs(v - 128));
+      if (couvreSaVoix(creux, sonDelleRef.current, seuilRef.current || 8)) {
+        tenu += TOUR_DE_VEILLE;
+        /* On la fait taire : `taire()` coupe le son, remet le repos — et
+           c'est le retour au repos qui rouvre le micro, par l'effet
+           ci-dessus. Un seul chemin, pas deux. */
+        if (tenu >= TENIR_POUR_COUPER) { tenu = 0; taireRef.current?.(); }
+      } else tenu = 0;
+    }, TOUR_DE_VEILLE);
+    return () => clearInterval(guet);
+  }, [conversation, mode]);
 
   /* LE MICRO SE FERME PENDANT QU'ELLE PARLE.
 
@@ -2436,19 +2676,39 @@ export default function Home() {
      coupait sa phrase, mélangeait les deux voix, et faisait repartir un tour
      par-dessus le précédent. Le bouton s'éteint donc, visiblement, et se
      rallume quand elle a fini. */
-  const microFerme = mode === "thinking" || mode === "speaking";
+  /* ── LE BOUTON A CHANGÉ DE SENS, ET C'EST VOULU ────────────────────────
+
+     Le 9 septembre, Lamine : « dès que le micro est coupé, et pendant qu'elle
+     parle, le micro doit rester inactif, le temps qu'elle finisse, pour ne
+     pas embrouiller. » Le bouton s'éteignait donc pendant qu'elle parlait.
+
+     Le 12 septembre, il demande l'inverse : « si l'utilisateur reprend la
+     parole pendant la réponse de BIA, la lecture s'arrête immédiatement. »
+     Les deux demandes ne se contredisent pas vraiment — la première visait le
+     mélange des deux voix, que le guetteur d'écho règle maintenant tout seul.
+
+     EN CONVERSATION, LE BOUTON RESTE DONC VIVANT : un appui pendant qu'elle
+     parle la fait taire et rend la parole. Hors conversation, rien ne change,
+     et c'est le bouton manuel de secours qu'il demande de garder. */
+  const microFerme = !conversation && (mode === "thinking" || mode === "speaking");
 
   function toggleMicrophone() {
     if (microFerme) return;
-    taire();
     contexte();   // débloque le son du navigateur, sans rien prononcer
 
     const parScribe = moteurs ? moteurs.ecoute !== "navigateur" : false;
     if (parScribe) {
-      if (mode === "listening") { arreterEnregistrement(); return; }
+      /* SECOND APPUI : on ferme tout. C'est la seule façon de sortir, et elle
+         doit marcher à n'importe quel moment — pendant qu'elle écoute,
+         réfléchit ou parle. */
+      if (conversation) { taire(); fermerConversation(); return; }
+      taire();
+      conversationRef.current = true;
+      setConversation(true);
       void ecouter();
       return;
     }
+    taire();
     if (!recognitionRef.current) { setMode("error"); return; }
     if (mode === "listening") { recognitionRef.current.stop(); return; }
     try { recognitionRef.current.start(); } catch { setMode("error"); }
@@ -2476,6 +2736,10 @@ export default function Home() {
   }
 
   function ouvrirClavier() {
+    /* Écrire, c'est arrêter de parler. Laisser le micro ouvert pendant qu'on
+       tape enverrait le bruit du clavier à la transcription — et ferait
+       répondre BIA à des touches. */
+    if (conversation) fermerConversation();
     taire();
     contexte();
     setClavier(true);
@@ -2489,6 +2753,24 @@ export default function Home() {
     speaking: "BIA répond — le micro se rouvrira quand elle aura fini",
     error: "Micro indisponible. Appuyer pour réessayer",
   };
+
+  /* ── LES QUATRE INDICATEURS ────────────────────────────────────────────
+
+     Lamine : « indicateurs visibles : écoute, parole détectée, réflexion et
+     réponse ».
+
+     Le quatrième — « je t'entends » — est le seul nouveau, et c'est celui qui
+     manquait le plus : sans lui, on ne sait pas si le micro est ouvert ou
+     s'il est ouvert ET qu'il capte quelque chose. C'est toute la différence
+     entre « elle attend » et « elle est sourde ».
+
+     En français seulement : cette ligne est un témoin technique, pas une
+     parole de BIA. Ce qu'elle DIT reste en wolof. */
+  const temoin = !conversation ? "" :
+    mode === "listening" ? (entendParler ? "Je t'entends" : "Je t'écoute") :
+    mode === "thinking" ? "Je réfléchis" :
+    mode === "speaking" ? "Je réponds" :
+    mode === "error" ? "" : "Je t'écoute";
 
   /* LA CORRECTION, EN GRAND.
 
@@ -3481,8 +3763,11 @@ export default function Home() {
         </button>
         )}
 
-        <button className="microphone" type="button" onClick={toggleMicrophone}
-          disabled={microFerme} aria-disabled={microFerme} aria-label={labels[mode]}>
+        <button
+          className={conversation ? `microphone en-conversation${entendParler && mode === "listening" ? " entend" : ""}` : "microphone"}
+          type="button" onClick={toggleMicrophone}
+          disabled={microFerme} aria-disabled={microFerme}
+          aria-label={conversation ? "Fermer la conversation vocale" : labels[mode]}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V5a3.5 3.5 0 0 0-7 0v6a3.5 3.5 0 0 0 3.5 3.5Zm-6-4a1 1 0 0 1 2 0V11a4 4 0 0 0 8 0v-.5a1 1 0 1 1 2 0V11a6 6 0 0 1-5 5.92V19h3a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3v-2.08A6 6 0 0 1 6 11v-.5Z" />
           </svg>
@@ -4023,7 +4308,8 @@ export default function Home() {
         />
       ) : null}
 
-      <p className="sr-only" aria-live="polite">{labels[mode]}</p>
+      {temoin ? <p className="temoin-vocal" aria-hidden="true">{temoin}</p> : null}
+      <p className="sr-only" aria-live="polite">{temoin || labels[mode]}</p>
     </main>
   );
 }

@@ -123,6 +123,51 @@ button { font: inherit; touch-action: manipulation; }
 .microphone:disabled { opacity: .5; cursor: default; }
 .microphone:disabled:active { transform: translateX(-50%) scale(1); }
 
+/* ── LA CONVERSATION VOCALE EST OUVERTE ──────────────────────────────────
+
+   Lamine, le 12 septembre 2026 : « un premier appui ouvre la conversation
+   vocale… un second appui permet de fermer complètement. »
+
+   Un bouton qui a deux sens doit avoir deux visages, sinon on ne sait jamais
+   si l'on ouvre ou si l'on ferme. L'anneau doré dit : le fil est ouvert, elle
+   est là, même quand elle ne fait rien. Il ne bat pas — c'est l'état
+   « listening » qui bat, et deux animations en même temps donneraient une
+   alarme au lieu d'une présence. */
+.microphone.en-conversation {
+  border-color: rgba(226, 176, 74, .75);
+  box-shadow: 0 0 0 3px rgba(226, 176, 74, .22), 0 10px 36px rgba(0, 0, 0, .55);
+}
+/* « Je t'entends » : l'anneau s'épaissit à l'instant où une voix passe le
+   seuil. C'est le seul retour immédiat dont dispose quelqu'un qui parle dans
+   le vide — et c'est ce qui distingue « elle attend » de « elle est sourde ». */
+.microphone.en-conversation.entend {
+  box-shadow: 0 0 0 7px rgba(226, 176, 74, .34), 0 0 38px rgba(226, 176, 74, .45);
+}
+
+/* ── LE TÉMOIN DES QUATRE ÉTATS ──────────────────────────────────────────
+
+   Écoute, parole détectée, réflexion, réponse. Posé au-dessus du bouton,
+   discret : c'est un voyant, pas un message. Il ne paraît QUE pendant une
+   conversation vocale — hors conversation, il n'y a rien à surveiller. */
+.temoin-vocal {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 84px);
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(13, 13, 18, .72);
+  border: 1px solid rgba(226, 176, 74, .28);
+  color: #e2b04a;
+  font-size: 12px;
+  letter-spacing: .4px;
+  white-space: nowrap;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
