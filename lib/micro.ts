@@ -376,6 +376,59 @@ export const TOUR_DE_VEILLE = 60;
     de la veille, sinon le micro se ferme au nez de quelqu'un qui réfléchit. */
 export const TOURS_MUETS_AVANT_DE_DOUTER = Math.round(2000 / TOUR_DE_VEILLE);
 
+/* ═══ LE POINT ORANGE ════════════════════════════════════════════════════
+
+   Lamine, le 12 septembre 2026 : « il faut tout faire pour cacher ce point
+   orange qui écrit "enregistré", ça ça fait fuir les gens, je te le dis. »
+
+   ── CE QU'IL FAUT DIRE D'ABORD : ON NE PEUT PAS LE CACHER ─────────────────
+
+   Ce point-là n'appartient pas à BIA. C'est iOS qui le dessine, au-dessus de
+   toutes les applications, et c'est exprès : c'est la promesse qu'Apple fait
+   à celui qui tient le téléphone — « tant que ce point est allumé, quelqu'un
+   t'écoute ». Aucune ligne de code web ne l'éteint, et une application qui
+   saurait l'éteindre serait précisément le mouchard qu'il craint.
+
+   ── DONC ON NE LE CACHE PAS : ON LE REND VRAI ─────────────────────────────
+
+   Le point s'allume parce que BIA tenait le micro OUVERT du début à la fin de
+   la conversation — pendant qu'elle réfléchit, pendant qu'elle parle, pendant
+   qu'on lit sa réponse. C'était un choix de vitesse : `getUserMedia` coûte
+   un à trois dixièmes de seconde, et le refaire à chaque phrase, c'était
+   payer ça dix fois.
+
+   Mais le résultat, sur un téléphone prêté, c'est un point orange allumé en
+   permanence alors que personne ne parle. Il a raison : ça ne se défend pas.
+
+   On lâche donc le micro dès que la personne a fini sa phrase, et on le
+   reprend quand c'est à elle de parler. Le point s'allume pendant qu'on
+   l'écoute, et il S'ÉTEINT le reste du temps. Ce n'est plus une lampe
+   suspecte, c'est un témoin exact.
+
+   ── CE QUE ÇA COÛTE, DIT FRANCHEMENT ─────────────────────────────────────
+
+   Deux choses, et c'est tout :
+
+     1. Un à trois dixièmes de seconde en plus à chaque tour, le temps de
+        reprendre le micro. À côté de l'aller-retour jusqu'au serveur, ça ne
+        se remarque pas.
+
+     2. LUI COUPER LA PAROLE À LA VOIX N'EST PLUS POSSIBLE. Pour l'entendre
+        pendant qu'elle parle, il faudrait le micro ouvert pendant qu'elle
+        parle — c'est-à-dire le point orange allumé pendant qu'elle parle,
+        exactement ce qu'il ne veut plus. On ne peut pas avoir les deux.
+        L'interruption reste entière au doigt : un appui sur le micro la fait
+        taire immédiatement.
+
+   Si un jour il préfère l'inverse, ça se retourne ICI, sur cette ligne, et
+   nulle part ailleurs. */
+
+/** Lâcher le micro entre deux tours, pour que le point orange du téléphone
+    ne soit allumé que pendant qu'on écoute vraiment. Son choix du
+    12 septembre. `false` rend le micro ouvert en continu — et l'interruption
+    à la voix avec. */
+export const MICRO_LACHE_ENTRE_LES_TOURS = true;
+
 /* ═══ CE QU'ON DEMANDE AU TÉLÉPHONE ══════════════════════════════════════ */
 
 /* Il n'y avait AUCUN réglage : `getUserMedia({ audio: true })`, et le

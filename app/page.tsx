@@ -39,7 +39,7 @@ import { fichierDe, souffleDe } from "@/lib/sons";
 import { lireLeRire } from "@/lib/rires";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
 import {
-  INTERVENTION_MAXIMALE, REGLAGES_DU_MICRO,
+  INTERVENTION_MAXIMALE, MICRO_LACHE_ENTRE_LES_TOURS, REGLAGES_DU_MICRO,
   SILENCE_QUI_CLÔT_LA_CONVERSATION, TENIR_POUR_COUPER, TOUR_DE_VEILLE,
   TOURS_MUETS_AVANT_DE_DOUTER, couvreSaVoix, silenceQuiSuffit, suivreLeBruit, vautLaPeine,
 } from "@/lib/micro";
@@ -2640,12 +2640,38 @@ export default function Home() {
 
       enregistreur.ondataavailable = (e) => { if (e.data.size) morceaux.push(e.data); };
       enregistreur.onstop = async () => {
+        /* ── LA PLACE SE LIBÈRE D'ABORD, LE SORT DE L'ENREGISTREMENT ENSUITE ─
+
+           Lamine, le 12 septembre 2026 : « le micro après deux ou trois
+           questions le micro reste inactif, y a toujours un problème. »
+
+           C'ÉTAIT MON DÉFAUT D'HIER SOIR, et il était entier. La garde
+           d'appartenance était posée AVANT `enregistreurRef.current = null` :
+           un enregistrement périmé — celui qu'on vient de couper en reprenant
+           la parole — sortait par le `return` sec et laissait dans le ref un
+           MediaRecorder mort.
+
+           Or la boucle qui rouvre le micro au retour au repos commence par
+           « si un enregistreur occupe la place, c'est qu'un tour est déjà en
+           cours, je ne fais rien ». Elle trouvait donc éternellement ce
+           cadavre, et ne rouvrait plus JAMAIS le micro. La conversation
+           restait ouverte, le bouton restait allumé, et plus rien n'écoutait.
+
+           Deux ou trois questions : le temps qu'un `taire()` passe — une
+           parole coupée, un bouton de correction, un papier ouvert.
+
+           La place se libère donc INCONDITIONNELLEMENT. Un enregistrement
+           fini est fini, qu'il soit encore le nôtre ou non. */
+        if (enregistreurRef.current === enregistreur) enregistreurRef.current = null;
+        clearInterval(veille);
+        /* « Je t'entends » s'éteint aussi dans tous les cas : un enregistrement
+           fini n'entend plus personne, même périmé. Sans ça, le halo du bouton
+           restait allumé sur un micro qui ne captait rien. */
+        setEntendParler(false);
+
         /* Cet arrêt appartient-il encore à l'enregistrement en cours ? Si on a
            coupé la parole entre-temps, ce qui suit n'a plus rien à dire. */
-        if (!estCetEnregistrement(idEnr)) { clearInterval(veille); return; }
-        clearInterval(veille);
-        setEntendParler(false);
-        enregistreurRef.current = null;
+        if (!estCetEnregistrement(idEnr)) return;
 
         /* ── LE MICRO NE SE FERME QUE SI LA CONVERSATION SE FERME ──────────
 
@@ -2656,8 +2682,24 @@ export default function Home() {
 
            ON NE FERME PLUS LE CONTEXTE DE LA PAGE non plus : c'est celui qui
            porte toute sa voix. Le fermer ici la rendait muette jusqu'à ce que
-           `contexte()` en refabrique un. */
-        if (!conversationRef.current) {
+           `contexte()` en refabrique un.
+
+           ── ET LE 12 SEPTEMBRE AU SOIR, IL RENVERSE ÇA ─────────────────────
+
+           « Il faut tout faire pour cacher ce point orange qui écrit
+           "enregistré", ça fait fuir les gens. »
+
+           Ce raisonnement-là — garder le micro pour ne pas redemander la
+           permission — était juste du point de vue de la vitesse et faux du
+           point de vue de celui qui tient le téléphone : il voyait un point
+           orange allumé pendant que BIA parlait, pendant qu'il lisait, et
+           pendant qu'il ne se passait rien.
+
+           On lâche donc le micro à la fin de CHAQUE parole. Il se reprend tout
+           seul au tour suivant, par `micro()`, qui le rouvre quand le flux
+           n'est plus là. Le pourquoi et le prix sont écrits en entier dans
+           `lib/micro.ts`, à côté de la ligne qui le décide. */
+        if (!conversationRef.current || MICRO_LACHE_ENTRE_LES_TOURS) {
           debrancherMicroRef.current?.();
           debrancherMicroRef.current = null;
         }
@@ -2802,7 +2844,7 @@ export default function Home() {
              plus rien n'est en vol — ni réponse en fabrication (le jeton
              d'attente), ni enregistrement déjà repris. Dans tous les autres
              cas, c'est le tour en cours qui rendra la main. */
-          if (!attenteRef.current && !enregistreurRef.current) {
+          if (!attenteRef.current && enregistreurRef.current?.state !== "recording") {
             setMode((m) => (m === "thinking" ? "ready" : m));
           }
           return;
@@ -3142,6 +3184,17 @@ export default function Home() {
        chemin ouvert — et c'était celui du prénom. */
     ouvrirUnTour();
     nouvelEnregistrement();
+    /* ── ET ON ARRÊTE L'ENREGISTREUR, PAS SEULEMENT SON NUMÉRO ────────────
+
+       Tourner le numéro rendait l'enregistrement périmé sans l'arrêter : le
+       MediaRecorder continuait de tourner pour rien, et il gardait la place
+       que la boucle de réouverture regarde. Le déclarer mort et le laisser
+       vivre, c'était le défaut de « le micro reste inactif ».
+
+       On ne le met pas à `null` ici : c'est `onstop` qui libère la place, et
+       il n'y a qu'un chemin. */
+    const mourant = enregistreurRef.current;
+    if (mourant && mourant.state !== "inactive") { try { mourant.stop(); } catch { } }
     /* Quelqu'un vient de reprendre la main — pour corriger, pour ouvrir un
        papier, pour écrire. Il ne répond donc plus à « comment tu t'appelles ».
        Sans cette ligne, sa phrase suivante repartait dans la case du prénom
@@ -3150,9 +3203,22 @@ export default function Home() {
     /* ON LUI COUPE LA PAROLE : L'INTERFACE DOIT REDEVENIR UTILISABLE TOUT DE
        SUITE. La boucle de lecture s'en apercevra à son tour, mais elle peut
        dormir encore deux secondes — et pendant ces deux secondes, le micro
-       resterait éteint sans raison. On ne touche à rien si elle n'était ni en
-       train de parler ni en train de réfléchir. */
-    setMode((m) => (m === "speaking" || m === "thinking" ? "ready" : m));
+       resterait éteint sans raison.
+
+       ── ET « LISTENING » EN FAIT PARTIE, DEPUIS LE 12 SEPTEMBRE AU SOIR ────
+
+       C'était la seconde moitié de son « le micro reste inactif », et le
+       journal des états l'a montrée en trois lignes : après un `taire()` pris
+       pendant qu'on écoutait, le mode restait sur `listening` pour toujours.
+
+       Il n'y avait pourtant plus rien qui écoutait — `taire()` venait
+       justement de périmer l'enregistrement. L'écran affichait donc une
+       écoute morte, et la boucle qui rouvre le micro, elle, n'attend qu'un
+       retour à `ready` : elle ne se déclenchait jamais.
+
+       Un état qu'on ne quitte pas est une panne, même quand il a l'air
+       normal. Si on a tué l'écoute, on dit qu'elle est finie. */
+    setMode((m) => (m === "speaking" || m === "thinking" || m === "listening" ? "ready" : m));
     // Le visage revient au repos s'il était figé sur la réflexion. Les
     // images de bouche, elles, sont remises par l'animation qui s'arrête.
     setFace((f) => (f === "pensive" ? "yeux_ouverts" : f));
@@ -3206,15 +3272,31 @@ export default function Home() {
 
      Le dixième de seconde d'attente laisse le son se taire pour de bon : sans
      lui, la traîne de sa dernière syllabe ouvre le tour suivant. */
+  /* ── ET SEUL UN ENREGISTREUR VIVANT A LE DROIT DE BARRER LA ROUTE ────────
+
+     Troisième verrou du 12 septembre, et c'est celui qui pardonne. Les deux
+     premiers — `onstop` qui libère la place, `taire()` qui arrête vraiment —
+     empêchent le cadavre d'exister. Celui-ci fait qu'un cadavre, s'il en
+     restait un par un chemin que je n'ai pas vu, ne condamne plus le micro :
+     on ne s'arrête que devant un enregistreur QUI ENREGISTRE.
+
+     Un ref qu'on oublie de vider est une faute d'inattention ordinaire. Qu'un
+     oubli pareil rende BIA sourde pour le reste de la séance, ça ne doit plus
+     pouvoir arriver. */
+  const enregistreEncore = useCallback(
+    () => enregistreurRef.current !== null && enregistreurRef.current.state === "recording",
+    [],
+  );
+
   useEffect(() => {
     if (!conversation || mode !== "ready") return;
-    if (enregistreurRef.current) return;
+    if (enregistreEncore()) return;
     const t = setTimeout(() => {
-      if (!conversationRef.current || enregistreurRef.current) return;
+      if (!conversationRef.current || enregistreEncore()) return;
       void ecouterRef.current?.();
     }, 180);
     return () => clearTimeout(t);
-  }, [conversation, mode]);
+  }, [conversation, mode, enregistreEncore]);
 
   /* ── LUI COUPER LA PAROLE ───────────────────────────────────────────────
 
@@ -3311,9 +3393,27 @@ export default function Home() {
   function annulerCeQueJeDis() {
     if (mode !== "listening") return;
     annuleRef.current = true;
+    /* ── ANNULER NE PASSE PLUS PAR `onstop`, ET C'EST POUR ÇA QUE ÇA MARCHE ─
+
+         `taire()` périme l'enregistrement en cours — c'est son travail. Mais
+         c'était `onstop` qui affichait « annulé » et rendait le repos, et son
+         `onstop` arrivait donc PÉRIMÉ : il sortait par la garde
+         d'appartenance sans rien afficher. Le bouton annulait vraiment, et
+         l'écran n'en disait rien.
+
+         Deux chemins pour un seul geste, dont l'un est mort : on garde celui
+         qui est vivant. L'annulation fait tout elle-même, et `annuleRef`
+         reste levé pour l'unique cas où l'enregistrement serait encore le
+         nôtre — il jettera l'audio sans le transcrire. */
     taire();
-    if (enregistreurRef.current) arreterEnregistrement();
-    else if (recognitionRef.current) {
+    if (enregistreurRef.current) {
+      arreterEnregistrement();
+      annuleRef.current = false;
+      setMode("ready");
+      setFace("yeux_ouverts");
+      setAnnule(true);
+      setTimeout(() => setAnnule(false), 3200);
+    } else if (recognitionRef.current) {
       /* Le navigateur transcrit au fil de la parole : il n'y a pas
          d'enregistrement à jeter, on l'arrête et on ignore ce qu'il rapporte. */
       try { recognitionRef.current.abort?.(); } catch {}
