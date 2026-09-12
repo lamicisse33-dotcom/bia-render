@@ -11,7 +11,7 @@ import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
-import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, langueDe, normaliser, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
+import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
@@ -579,9 +579,25 @@ export async function POST(request:NextRequest){
       }
     }
 
+    /* ── ET CE QUI NE SE SERT QU'UNE FOIS ──────────────────────────────────
+
+       Lamine, le 12 septembre 2026 : « elle est moins intelligente… elle
+       était un peu plus là avant. »
+
+       Mesuré : sur trente-deux questions vraies, quinze recevaient une
+       réponse figée depuis que le répertoire est passé de 42 à 84 — et
+       c'étaient les humaines. « Dama sonn » recevait la même phrase à la
+       première minute et à la centième.
+
+       On ne supprime rien : on regarde SI ON SE CONNAÎT. Premiers mots, la
+       réponse enregistrée — instantanée, gratuite, sa vraie voix. Conversation
+       engagée ou notes déjà prises : elle répond elle-même. Voir PERSONNELLES
+       dans lib/repertoire.ts. */
+    const seConnait=onSeConnait((body.history||[]).length,String(body.resume||""));
+
     if(REPERTOIRE_PRET&&repertoireActif()){
       const toute=trouverDansRepertoire(question);
-      if(toute){
+      if(toute&&figeeConvient(toute.cle,seConnait)){
         /* La langue se décide sur les mots-outils employés, pas sur une
            liste de neuf mots et l'absence d'accents — voir langueDe(). */
         const langue=langueDe(question);

@@ -451,18 +451,73 @@ export function langueDe(question: string): "wo" | "fr" {
    avec son son déjà fabriqué.
 
    CE QUE ÇA COÛTE VRAIMENT, ET POURQUOI C'EST GAGNANT. On paie le modèle,
-   oui — quelques centièmes de centime. Mais la voix, elle, ne fabrique RIEN :
-   et la voix, c'est 93 % de la facture de BIA, mesuré ce matin. On échange
-   donc une réflexion de quelques centimes contre huit secondes d'attente et
-   la partie chère de la dépense.
+   oui — quelques centièmes de centime. Mais la voix, elle, ne fabrique RIEN,
+   et la voix se paie au signe : 0,22 $ les mille, plus deux secondes fixes et
+   36 millisecondes par signe d'attente, mesurés sur le vrai serveur. On
+   échange donc une réflexion de quelques centimes contre la partie chère de
+   la dépense et la plus longue des deux attentes.
 
    LA CORRESPONDANCE PAR LETTRES RESTE EN PREMIÈRE LIGNE : gratuite,
    instantanée, elle attrape « salam » et « waaw » sans réveiller personne.
    Le modèle n'est consulté que quand elle n'a rien trouvé. */
+/* ── LES VINGT-DEUX QU'ON NE SERT PAS DEUX FOIS ─────────────────────────────
+
+   Lamine, le 12 septembre 2026 : « beaucoup de lenteur, et apparemment elle
+   est moins intelligente… elle était un peu plus là avant. »
+
+   IL A RAISON, ET C'EST MOI QUI L'AI FAIT. Le répertoire est passé de 42 à 84
+   réponses dans la nuit. Mesuré ensuite sur trente-deux questions vraies :
+   QUINZE recevaient désormais une réponse figée — et c'étaient précisément
+   les humaines. « Dama sonn », « sama yaay dafa ma naqari », « waxal ma
+   dara », « lu xew » : la même phrase, mot pour mot, quelle que soit la
+   personne, quelle que soit l'heure, quoi qu'elle lui ait raconté dix minutes
+   plus tôt. Une machine à sous. C'est exactement ce qu'il entend par « elle
+   est moins là ».
+
+   ON N'EN SUPPRIME AUCUNE — il l'a interdit le 11 septembre, et il a raison :
+   une phrase enregistrée est payée, relue et corrigée par lui. On change
+   QUAND elle sert.
+
+     — Premiers mots, personne inconnue : la réponse enregistrée. C'est même
+       la meilleure — instantanée, sa vraie voix, gratuite.
+     — Dès qu'on se connaît (la conversation est engagée, ou elle a des notes
+       sur la personne) : ces vingt-deux-là repassent à BIA elle-même. Une
+       consolation enregistrée dite deux fois n'est plus une consolation.
+
+   LES AUTRES NE BOUGENT PAS. « Salaam », « jërëjëf », « kan moo la defar »,
+   le prix d'un code, l'adresse de KHALAM : la bonne réponse est la même le
+   premier jour et le centième. Elles restent gratuites et immédiates, et
+   l'économie reste. */
+export const PERSONNELLES = new Set<string>([
+  /* Comment ça va, et ce qui s'est passé depuis. */
+  "ca-va", "la-famille", "quoi-de-neuf", "comment-sest-passee-ta-journee",
+  "tu-fais-quoi", "tu-es-occupee",
+  /* Les invitations à parler : par définition, la réponse ne peut pas être
+     toujours la même — sinon elle raconte deux fois la même chose. */
+  "parlons-un-peu", "raconte-moi-quelque-chose", "pose-moi-une-question",
+  /* Ce qu'on ressent. C'est ici que ça se joue vraiment. */
+  "je-suis-fatigue", "je-suis-triste", "je-suis-content", "je-suis-enerve",
+  "je-suis-inquiet", "je-me-sens-seul", "je-narrive-pas-a-dormir",
+  "encourage-moi", "jai-peur", "je-mennuie",
+  "ma-famille-me-manque", "ma-mere-me-manque", "prie-pour-moi",
+]);
+
+/** Se connaît-on assez pour qu'une phrase enregistrée sonne creux ?
+    Deux signes suffisent : la conversation est engagée, ou elle a déjà pris
+    des notes sur la personne. */
+export function onSeConnait(messagesDuFil: number, notes: string): boolean {
+  return messagesDuFil >= 4 || Boolean(String(notes || "").trim());
+}
+
+/** La réponse enregistrée convient-elle encore, ici, maintenant ? */
+export function figeeConvient(cle: string, seConnait: boolean): boolean {
+  return !seConnait || !PERSONNELLES.has(cle);
+}
+
 export function consigneRepertoire(): string {
   if (!REPERTOIRE_PRET) return "";
   const lignes = TOUT.map(
-    (e) => `#${e.cle} — quand on demande : ${e.formes.slice(0, 4).join(" / ")}\n    elle dit alors : « ${e.wolof} »`,
+    (e) => `${PERSONNELLES.has(e.cle) ? "✦ " : ""}#${e.cle} — quand on demande : ${e.formes.slice(0, 4).join(" / ")}\n    elle dit alors : « ${e.wolof} »`,
   );
   return `
 
@@ -482,6 +537,16 @@ MAIS SEULEMENT SI ELLE RÉPOND VRAIMENT. « Salaam, dama bëgg ab devis » n'est
 pas une salutation : c'est une demande de devis. Au moindre doute, réponds
 normalement — une réponse enregistrée servie à côté est bien pire qu'une
 phrase que tu écris toi-même.
+
+LES LIGNES MARQUÉES ✦ SONT POUR LES PREMIERS MOTS SEULEMENT. Ce sont celles
+qui parlent de la personne : comment elle va, ce qu'elle ressent, ce qu'elle
+te demande de raconter. Tant que tu ne la connais pas, la réponse enregistrée
+est la bonne — elle arrive tout de suite, dans la vraie voix. Mais dès que la
+conversation est engagée, ou que tu as des notes sur elle, tu RÉPONDS
+TOI-MÊME, avec ce que tu sais d'elle et de ce qui vient d'être dit. Une
+consolation enregistrée servie deux fois n'est plus une consolation, et
+quelqu'un qui te dit sa fatigue au bout d'une heure n'attend pas la phrase
+qu'il a déjà entendue en arrivant.
 
 ${lignes.join("\n")}
 ═══ fin de ce qui est enregistré ═══`;
