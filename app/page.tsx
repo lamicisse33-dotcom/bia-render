@@ -1095,8 +1095,32 @@ export default function Home() {
      « bon, je réponds à ta question ». Sans lui, la coupure s'entend comme
      une panne ; avec lui, elle s'entend comme quelqu'un qui a fini de
      réfléchir. C'est l'idée de Lamine, et c'est ce qui fait la différence. */
-  const finirAttente = useCallback(async (langue: Langue = "wo") => {
-    const parlait = Boolean(attenteSonRef.current);
+  /* ── LE CHAPEAU, ET QUAND IL NE FAUT SURTOUT PAS LE DIRE ─────────────────
+
+     Trouvé le 12 septembre 2026 à deux heures du matin, sur le symptôme exact
+     décrit par Lamine : « elle dit je t'entends, après elle se met à
+     réfléchir et c'est tout, elle ne dit plus rien, le micro reste bloqué sur
+     elle comme si elle parlait. »
+
+     Le chapeau — « Bon, noppi naa. Léegi ma la tontu. » — existe pour FERMER
+     une attente : il fait la jointure entre « je réfléchis » et la réponse.
+     Il a un sens quand le modèle a mis cinq secondes.
+
+     Mais une réponse du répertoire arrive en CENT MILLISECONDES. Il n'y a
+     aucune attente à fermer — et le chapeau, lui, doit d'abord être fabriqué
+     par Soynade, parce que les fichiers tout prêts de /sons/attente/ n'ont
+     jamais été déposés (vérifié le même soir : 404 sur les quatre). On
+     attendait donc huit secondes de fabrication pour annoncer une réponse
+     déjà là. Micro fermé, visage figé : BIA paraissait bloquée.
+
+     C'est mon passage de 42 à 84 réponses instantanées qui a rendu le cas
+     ordinaire : avant, la plupart des questions passaient par le modèle et
+     l'attente avait le temps de finir toute seule.
+
+     RÈGLE : on ne dit un chapeau que s'il y a eu une vraie attente à fermer.
+     Quand la réponse est déjà en main, on coupe et on répond. */
+  const finirAttente = useCallback(async (langue: Langue = "wo", avecChapeau = true) => {
+    const parlait = Boolean(attenteSonRef.current) && avecChapeau;
     stopAttenteRef.current = true;
     attenteRef.current = null;
     /* Un cas fin : la réponse arrive pendant qu'elle attend le prénom, micro
@@ -1108,12 +1132,22 @@ export default function Home() {
     couperAttente();
     if (parlait) {
       try {
-        const morceaux = await audioParole(CHAPEAU, langue);
-        const jeton = {};
-        attenteRef.current = jeton;
-        stopAttenteRef.current = false;
-        await direParole(morceaux, jeton);
-        attenteRef.current = null;
+        /* ET MÊME LÀ, IL NE RETIENT PAS LA RÉPONSE. Fabriquer le chapeau
+           demande huit secondes à Soynade tant que /sons/attente/ est vide.
+           Passé une seconde et demie, on l'abandonne et on répond : une
+           jointure qui fait attendre plus que ce qu'elle joint ne joint
+           plus rien. */
+        const morceaux = await Promise.race([
+          audioParole(CHAPEAU, langue),
+          new Promise<null>((r) => setTimeout(() => r(null), 1500)),
+        ]);
+        if (morceaux) {
+          const jeton = {};
+          attenteRef.current = jeton;
+          stopAttenteRef.current = false;
+          await direParole(morceaux, jeton);
+          attenteRef.current = null;
+        }
       } catch {}
     }
     stopAttenteRef.current = false;
@@ -1133,7 +1167,9 @@ export default function Home() {
      fraction de seconde au lieu de huit. C'est le même chemin d'affichage que
      la voix ordinaire — visage compris — pour que rien ne se voie. */
   const direSonTeutFait = useCallback(async (adresse: string, emotion?: string) => {
-    await finirAttente(langueRef.current);
+    /* SANS CHAPEAU : la réponse est déjà là, il n'y a pas d'attente à fermer.
+       C'est ce qui bloquait BIA — voir finirAttente. */
+    await finirAttente(langueRef.current, false);
     window.speechSynthesis?.cancel();
     couperSon();
     if (emotion) await jouerSouffle(emotion);
