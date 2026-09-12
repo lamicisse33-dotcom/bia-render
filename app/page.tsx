@@ -450,6 +450,10 @@ export default function Home() {
   const cacheSons = useRef<Map<string, ArrayBuffer>>(new Map());
   const dernierSon = useRef<string | null>(null);
   const transcritRef = useRef(false);
+  /* Le motif de la dernière panne d'écoute, s'il y en a eu une. Il change ce
+     que BIA DIT : « je n'ai pas entendu » n'est pas « mon oreille est en
+     panne », et confondre les deux fait crier devant un micro muet. */
+  const noteEcouteRef = useRef("");
   const dernierDitRef = useRef("");
 
   const emetteurRef = useRef<Emetteur>(EMETTEUR_VIDE);
@@ -1999,7 +2003,17 @@ export default function Home() {
 
         try {
           const r = await fetch("/api/ecouter", { method: "POST", headers: { "x-bia-code": codeRef.current }, body: forme });
-          const d = await r.json() as { texte?: string };
+          const d = await r.json() as { texte?: string; panne?: boolean; motif?: string };
+          /* SON OREILLE EST CASSÉE, CE N'EST PAS LA VOIX DE LA PERSONNE.
+             Sans ça, BIA répétait « je ne t'entends pas bien, répète » à
+             chaque phrase — et on répétait plus fort devant un micro qui ne
+             transmettait rien. Le motif exact se lit dans /api/etat. */
+          if (d.panne) {
+            setPanne(`panne : l'écoute — ${d.motif || "moteur muet"}`);
+            noteEcouteRef.current = d.motif || "moteur muet";
+          } else {
+            noteEcouteRef.current = "";
+          }
           tTranscritRef.current = Date.now();
           transcritRef.current = true;
           dernierDitRef.current = d.texte || "";
@@ -2035,13 +2049,28 @@ export default function Home() {
                machine qui n'a pas entendu doit le dire ; se taire, c'est
                paraître en panne. */
             await finirAttente(langueRef.current, false);
-            const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
-              ?.repertoire?.base_sons?.[langueRef.current] || "";
-            if (base) {
-              try { await direSonTeutFait(`${base}audio-utilisateur-incompris.wav`, "concernee"); }
-              catch { setMode("ready"); setFace("yeux_ouverts"); }
+            /* DEUX SILENCES DIFFÉRENTS, DEUX PHRASES DIFFÉRENTES.
+
+               « Je n'ai pas entendu » invite à répéter, et c'est juste quand
+               le micro a capté du vent. Mais quand c'est l'OREILLE qui est en
+               panne — clé refusée, quota épuisé — répéter ne sert à rien, et
+               le lui demander en boucle est une faute : on fait crier
+               quelqu'un devant un micro qui ne transmet rien. */
+            if (noteEcouteRef.current) {
+              const enFrancais: boolean = (langueRef.current as Langue) === "fr";
+              parlerAvecLeTelephone(enFrancais
+                ? "Mon oreille est en panne, ce n'est pas toi. Regarde l'état de BIA."
+                : "Sama nopp bi dafa yàqu, du yaw. Xoolal état bi.");
+              setMode("ready"); setFace("concernee");
             } else {
-              setMode("ready"); setFace("yeux_ouverts");
+              const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
+                ?.repertoire?.base_sons?.[langueRef.current] || "";
+              if (base) {
+                try { await direSonTeutFait(`${base}audio-utilisateur-incompris.wav`, "concernee"); }
+                catch { setMode("ready"); setFace("yeux_ouverts"); }
+              } else {
+                setMode("ready"); setFace("yeux_ouverts");
+              }
             }
           }
         } catch {
@@ -2058,7 +2087,7 @@ export default function Home() {
     } catch {
       setMode("error");
     }
-  }, [arreterEnregistrement, askBia, attendreEnParlant, finirAttente, direSonTeutFait]);
+  }, [arreterEnregistrement, askBia, attendreEnParlant, finirAttente, direSonTeutFait, parlerAvecLeTelephone]);
 
   /* L'attente a besoin de rouvrir le micro pour recevoir le prénom, mais elle
      est définie avant `ecouter`. Ce renvoi évite d'avoir à réordonner tout le
