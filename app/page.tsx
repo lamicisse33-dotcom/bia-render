@@ -3082,6 +3082,32 @@ export default function Home() {
   }, [couperSon, ouvrirUnTour]);
   taireRef.current = taire;
 
+  /* ── LA FENÊTRE DES SERVICES FERME LE MICRO ─────────────────────────────
+
+     Lamine, le 12 septembre 2026 au soir, capture à l'appui : iOS lui
+     demandait « arrêter l'enregistrement audio ? » pendant qu'il était dans
+     la fenêtre des services, un devis à l'écran, et le point orange allumé en
+     haut de son téléphone.
+
+     Le clavier fermait déjà la conversation — « sinon on transcrit les
+     touches ». Cette fenêtre-ci ne le faisait pas, et c'est le même
+     raisonnement : ici on TOUCHE, on ne parle pas. Le micro ouvert
+     enregistrait ses gestes, payait une transcription pour du silence, et
+     allumait un point orange que personne ne s'explique — sur un téléphone
+     prêté, ça ressemble à une application qui écoute en cachette.
+
+     ET LA RÈGLE EST POSÉE SUR L'ÉTAT, PAS DANS LES BOUTONS. Ma première
+     version la mettait dans `ouvrirPapier`, et l'épreuve au navigateur a
+     trouvé tout de suite qu'un autre chemin l'ouvrait aussi — « ton papier
+     est prêt, l'ouvrir ». Il y en a au moins quatre. Une règle écrite à
+     quatre endroits en manque un cinquième ; écrite ici, elle vaut pour tous
+     les chemins, ceux d'aujourd'hui et ceux de demain.
+
+     Un appui sur le micro le rouvre, comme avant. */
+  useEffect(() => {
+    if (papierOuvert && conversationRef.current) fermerConversation();
+  }, [papierOuvert, fermerConversation]);
+
   /* ── ELLE SE REMET À ÉCOUTER TOUTE SEULE ────────────────────────────────
 
      Lamine, le 12 septembre 2026 : « après sa réponse, BIA se remet
