@@ -509,6 +509,7 @@ export default function Home() {
   const annuleRef = useRef(false);
   const [annule, setAnnule] = useState(false);
   const moteursRef = useRef<{ voix: string; ecoute: string } | null>(null);
+  const jouerSouffleRef = useRef<((emotion: string, sansPrelude?: boolean) => Promise<void>) | null>(null);
   const tourRef = useRef<object | null>(null);
 
   /* ── UN TOUR ANCIEN N'ÉCRIT JAMAIS L'ÉTAT D'UN TOUR RÉCENT ──────────────
@@ -947,11 +948,27 @@ export default function Home() {
       let rendu = false;
       let secours: ReturnType<typeof setTimeout> | null = null;
       let minuteriesVisages: Array<ReturnType<typeof setTimeout>> = [];
-      const rendre = () => {
+      /* ── LE VISAGE FINIT SA DESCENTE APRÈS LE SON ────────────────────
+
+         Lamine, le 12 septembre 2026 au soir : « pendant qu'elle rit,
+         aussitôt elle devient sereine. Ce n'est pas comme ça que ça se
+         passe, ça fait bizarre. »
+
+         Il a raison, et c'était ici. À la fin du son, on effaçait les
+         minuteries de visage qui restaient — donc la DESCENTE du rire (la
+         tête qui revient, le sourire qui retombe) était annulée, et la
+         première chose qui écrivait le visage ensuite le remettait au repos
+         d'un coup. Un rire ne s'arrête pas avec son son : le visage
+         redescend après.
+
+         On laisse donc l'arc finir, et on ne rend la main qu'au plus tard
+         des deux — le son ou le visage. Ce qui suit (une réponse, une
+         question) n'écrit donc plus par-dessus un rire en cours. */
+      const rendre = (couperLesVisages = false) => {
         if (rendu) return;
         rendu = true;
         if (secours) clearTimeout(secours);
-        for (const m of minuteriesVisages) clearTimeout(m);
+        if (couperLesVisages) for (const m of minuteriesVisages) clearTimeout(m);
         fini();
       };
       ctx.decodeAudioData(octets.slice(0)).then((mémoire) => {
@@ -970,23 +987,42 @@ export default function Home() {
         }
 
         minuteriesVisages = minuteries;
+        /* La durée de l'arc de visages, pour ne pas rendre la main avant
+           qu'il soit fini. C'est la somme des images, plus rien. */
+        const arc = visages.reduce((n, [, d]) => n + d, 0);
         source.onended = () => {
           if (sourceRef.current === source) sourceRef.current = null;
-          rendre();
+          const reste = Math.max(0, arc - mémoire.duration * 1000);
+          if (reste > 0) setTimeout(() => rendre(), reste);
+          else rendre();
         };
         setMode("speaking");
         source.start();
-        secours = setTimeout(rendre, mémoire.duration * 1000 + 1000);
-      }).catch(() => rendre());
+        secours = setTimeout(() => rendre(), Math.max(mémoire.duration * 1000, arc) + 1000);
+      }).catch(() => rendre(true));
     }), [contexte]);
 
   /* Le rire part AVANT la parole, pendant que la voix se synthétise : on
      couvre ainsi l'attente du premier morceau, et l'émotion arrive d'un
      coup au lieu d'être annoncée puis jouée. Si le fichier n'est pas encore
      déposé, on ne fait rien — le visage rit en silence, comme avant. */
-  const jouerSouffle = useCallback(async (emotion: string) => {
+  const jouerSouffle = useCallback(async (emotion: string, sansPrelude = false) => {
     const souffle = souffleDe(emotion);
     if (!souffle) return;
+    /* ── ELLE COMMENCE PAR LE PETIT RIRE, PUIS ENCHAÎNE ──────────────────
+
+       Lamine : « elle doit normalement commencer par le petit rire, ensuite
+       enchaîner par le grand rire, mais le grand rire doit durer au moins
+       quatre à cinq secondes ou six secondes même pour que ça soit
+       intéressant. »
+
+       Le grand rire fait déjà 4,2 et 5,2 secondes dans les fichiers de Kha.
+       Ce qui manquait, c'est l'amorce : un rire ne part pas à pleine gorge,
+       il se retient une demi-seconde puis se lâche. Le petit rire retenu
+       vient donc devant, et les deux ensemble font près de six secondes. */
+    if (!sansPrelude && souffle.prelude) {
+      await jouerSouffleRef.current?.(souffle.prelude, true);
+    }
     const fichier = fichierDe(souffle, dernierSon.current);
     let octets = cacheSons.current.get(fichier);
     if (!octets) {
@@ -1000,6 +1036,10 @@ export default function Home() {
     dernierSon.current = fichier;
     await jouerSonAvecVisages(octets, souffle.visages);
   }, [jouerSonAvecVisages]);
+  /* Le renvoi sert à l'enchaînement : jouerSouffle s'appelle elle-même pour
+     jouer l'amorce, et une fonction ne peut pas se citer dans sa propre
+     définition. */
+  jouerSouffleRef.current = jouerSouffle;
 
   /* ── UNE PHRASE DÉJÀ ENREGISTRÉE ──────────────────────────────────────
 
@@ -4334,6 +4374,28 @@ export default function Home() {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12 2-12 2Z" /></svg>
           </button>
         </div>
+
+        {/* ── UN BOUTON FERMER EN BAS, QU'ON ATTEINT TOUJOURS ──────────────
+
+            Lamine, le 12 septembre 2026 au soir : « parfois, si on ouvre cette
+            fenêtre de discussion, on ne peut pas la fermer. Il faut fermer
+            toute l'application pour pouvoir revenir. Ce n'est pas normal. Il
+            faut mettre le bouton fermer en bas, comme ça tout le monde peut y
+            avoir accès. »
+
+            Et ça se voit sur sa capture : la croix, en haut à droite, est
+            COUPÉE par le bord de l'écran. Elle existe, elle fonctionne, et
+            elle est inatteignable — ce qui est pire qu'un bouton absent,
+            parce qu'on cherche.
+
+            Le haut d'une fenêtre peut toujours sortir de l'écran : la barre
+            du navigateur, l'encoche, une fenêtre plus petite que la page. Le
+            bas, lui, est à portée du pouce et ne se cache pas. La croix du
+            haut reste — elle sert quand elle est visible — mais elle n'est
+            plus le seul chemin. */}
+        <button className="clavier-fermer-bas" type="button" onClick={() => setClavier(false)}>
+          Fermer
+        </button>
       </section>
 
       {/* Toucher à côté referme. C'est le geste que tout le monde essaie
