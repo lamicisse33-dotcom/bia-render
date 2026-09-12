@@ -365,7 +365,7 @@ export function trouverDansRepertoire(question: string): Entree | null {
     }
   }
 
-  /* QUATRIÈME ET DERNIÈRE : une lettre d'écart, et une seule candidate. */
+  /* QUATRIÈME : une lettre d'écart, et une seule candidate. */
   const proches = new Set<Entree>();
   for (const e of TOUT) {
     for (const f of e.formes) {
@@ -376,7 +376,183 @@ export function trouverDansRepertoire(question: string): Entree | null {
       }
     }
   }
-  return proches.size === 1 ? [...proches][0] : null;
+  if (proches.size === 1) return [...proches][0];
+
+  /* ── CINQUIÈME : LE MICRO SE TROMPE D'UN MOT SUR TROIS ──────────────────
+
+     Lamine, le 12 septembre 2026 : « voilà pourquoi elle ne lit pas souvent
+     les mots enregistrés. »
+
+     Il attribuait ça aux formulations manquantes, et il avait raison en
+     partie — j'en ai ajouté cinquante-trois. Mais en cherchant, j'ai trouvé
+     une cause plus grande, et elle est écrite noir sur blanc chez
+     ElevenLabs : le wolof est dans leur catégorie « Moderate », de VINGT-CINQ
+     À CINQUANTE POUR CENT DE MOTS FAUX. Un mot sur trois ou quatre.
+
+     Or les quatre passes ci-dessus comparent des ÉGALITÉS — au son près, à
+     une lettre près. Mesuré sur les 676 formulations, en abîmant 30 % des
+     mots comme le fait un moteur de reconnaissance :
+
+         mots faux   retrouvent   se trompent   ne trouvent rien
+              0 %       99 %          1 %             0 %
+             30 %       71 %          1 %            28 %
+             50 %       50 %          1 %            49 %
+
+     UN CHIFFRE SAUTE AUX YEUX, ET C'EST CELUI DU MILIEU. Le répertoire
+     n'échoue pas en se trompant — 1 %, constant, quoi qu'on lui envoie. Il
+     échoue en SE TAISANT. Il y avait donc de la place pour tolérer davantage
+     sans rien risquer, et c'est exactement ce qui manquait.
+
+     ── COMMENT, ET POURQUOI VINGT-CINQ POUR CENT ─────────────────────────
+
+     On mesure la distance d'édition entre ce que ça sonne et chaque
+     formulation, avec un budget proportionnel à la longueur. Mesuré, à 30 %
+     de mots faux, avec la liste des dix-sept phrases qui ne DOIVENT PAS venir
+     du répertoire comme garde-fou :
+
+         budget   retrouvent   se trompent   phrases interdites attrapées
+           0 %       71 %          1 %            0 / 17
+          20 %       88 %          1 %            0 / 17
+          25 %       92 %          1 %            0 / 17
+          35 %       94 %          1 %            0 / 17
+          50 %       94 %          2 %            2 / 17   ← ça casse ici
+
+     Vingt-cinq pour cent prend 92 des 94 points possibles, et reste à la
+     MOITIÉ du chemin de la rupture. Quarante gagnerait deux points de plus
+     en divisant la marge par cinq : ça n'en vaut pas le prix, parce que le
+     prix, c'est une réponse enregistrée servie à côté — et ça, on ne le
+     rattrape pas.
+
+     ── LES TROIS VERROUS QUI TIENNENT CETTE PASSE ────────────────────────
+
+     1. LE NOMBRE DE MOTS, à un près. Une phrase de deux mots et une de six
+        ne sont pas la même, quelle que soit la distance.
+     2. SIX SIGNES AU MOINS. En dessous, tout ressemble à tout : « oui » et
+        « non » sont à deux lettres l'un de l'autre.
+     3. UNE SEULE CANDIDATE. Deux formulations à égalité, c'est qu'on ne sait
+        pas — et on préfère le dire en laissant le modèle répondre. */
+  return leMoinsLoin(dit);
+}
+
+/** La part d'un MOT qu'on accepte de voir fausse. Mesurée, pas choisie à
+    l'oreille : voir le tableau ci-dessus. */
+export const PART_TOLEREE = 0.25;
+
+/* ── LE BUDGET EST PAR MOT, ET SURTOUT PAS SUR TOUTE LA PHRASE ─────────────
+
+   J'ai d'abord écrit un budget global — un quart des signes de la phrase. Les
+   épreuves l'ont refusé en deux lignes, et elles avaient raison :
+
+       « dama begg ree »    (je veux rire)  → #je-suis-content  « dama bég »
+       « am nga ab blague »                 → #pose-moi-une-question « am nga ab laaj »
+
+   Les mots communs coûtaient ZÉRO, et toute la tolérance partait dans le seul
+   mot qui portait le sens : « ree », « blague ». Un budget global permet donc
+   d'effacer exactement le mot qu'il ne faut pas toucher.
+
+   Mot par mot, chacun avec son budget, un mot faux reste un mot faux : ses
+   voisins ne peuvent pas le payer. Et c'est aussi ce que fait le micro — il
+   se trompe PAR MOT, pas par phrase.
+
+   RIEN SOUS QUATRE LETTRES. « ab » et « ak », « ma » et « la » ne sont pas le
+   même mot, et ce sont eux qui changent le sens d'une phrase wolof. */
+function budgetDuMot(n: number): number {
+  if (n < 4) return 0;
+  return Math.max(1, Math.floor(n * PART_TOLEREE));
+}
+
+/* La distance d'édition, abandonnée dès qu'elle dépasse le budget : sur 676
+   formulations à chaque question, calculer la distance entière serait du
+   travail jeté. */
+function distanceBornee(a: string, b: string, plafond: number): number {
+  if (Math.abs(a.length - b.length) > plafond) return plafond + 1;
+  let prec = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cour = [i];
+    let mini = i;
+    for (let j = 1; j <= b.length; j++) {
+      const v = Math.min(
+        prec[j] + 1, cour[j - 1] + 1,
+        prec[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+      cour.push(v);
+      if (v < mini) mini = v;
+    }
+    if (mini > plafond) return plafond + 1;
+    prec = cour;
+  }
+  return prec[b.length];
+}
+
+/* Les deux suites de mots se correspondent-elles, à UN mot sauté près ? Rend
+   le total des écarts, ou null si ce n'est pas la même phrase.
+
+   Le mot sauté existe parce que le micro en avale : un « ma », un « ab », un
+   « la » disparaissent tout le temps. Un seul, et jamais deux — deux mots
+   manquants sur une phrase de quatre, ce n'est plus la même phrase. */
+function alignerLesMots(a: string[], b: string[]): number | null {
+  if (Math.abs(a.length - b.length) > 1) return null;
+  let i = 0, j = 0, total = 0, deja = false;
+  while (i < a.length && j < b.length) {
+    const d = distanceBornee(a[i], b[j], budgetDuMot(Math.max(a[i].length, b[j].length)));
+    if (d <= budgetDuMot(Math.max(a[i].length, b[j].length))) {
+      total += d; i++; j++; continue;
+    }
+    if (deja) return null;
+    deja = true;
+    if (a.length > b.length) { total += a[i].length; i++; }
+    else if (b.length > a.length) { total += b[j].length; j++; }
+    else return null;
+  }
+  /* ── UN MOT EN TROP N'EST PAS UN MOT EN MOINS ─────────────────────────
+
+     Et c'est l'épreuve des blagues qui me l'a appris, deux fois de suite.
+     « dama begg ree » — je veux rire — tombait sur #je-suis-content, dont la
+     formule est « dama bég ». Les deux premiers mots s'alignaient, et il
+     restait « ree » du côté de ce qu'on avait ENTENDU.
+
+     Or les deux côtés ne veulent pas dire la même chose :
+
+       — un mot qui manque du côté de la FORMULE, c'est le micro qui l'a
+         avalé. Ça arrive à chaque phrase, et on pardonne.
+       — un mot en trop du côté de ce qu'on a ENTENDU, c'est que la personne
+         a dit quelque chose de PLUS. Et ce quelque chose est justement ce qui
+         change le sens : « dama bég » dit qu'on est content, « dama begg
+         ree » demande une blague. On refuse.
+
+     Un mot avalé se pardonne ; un mot ajouté se respecte. */
+  if (i < a.length) return null;
+  if (j < b.length) {
+    if (deja) return null;
+    const reste = b.slice(j).join("");
+    if (reste.length > 3) return null;
+    total += reste.length;
+  }
+  return total;
+}
+
+function leMoinsLoin(dit: string): Entree | null {
+  if (dit.length < 6) return null;
+  const mots = dit.split(" ");
+
+  let meilleure: { entree: Entree; d: number } | null = null;
+  let egalite = false;
+
+  for (const e of TOUT) {
+    for (const f of e.formes) {
+      const forme = sonne(f);
+      if (forme.length < 6) continue;
+      const d = alignerLesMots(mots, forme.split(" "));
+      if (d === null) continue;
+
+      const r = quiRepond(f, e, true);
+      if (!r) continue;
+      if (!meilleure || d < meilleure.d) { meilleure = { entree: r, d }; egalite = false; }
+      else if (d === meilleure.d && r.cle !== meilleure.entree.cle) egalite = true;
+    }
+  }
+
+  return meilleure && !egalite ? meilleure.entree : null;
 }
 
 /* ── EN QUELLE LANGUE ON LUI PARLE ─────────────────────────────────────────
