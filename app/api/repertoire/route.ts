@@ -4,6 +4,7 @@ import { lexiqueConfig } from "@/lib/lexique";
 import { REPERTOIRE, RELU, etatRepertoire, repertoireActif } from "@/lib/repertoire";
 import { NOUVELLES, RELU_BASE } from "@/lib/base-textes";
 import { GUIDAGE, RELU_GUIDAGE } from "@/lib/guidage-textes";
+import { A_FABRIQUER, cleDe } from "@/lib/attente";
 import { synthetiser } from "@/lib/voix";
 import { noterVoix } from "@/lib/depense";
 import { noterPanne } from "@/lib/panne";
@@ -151,6 +152,12 @@ function toutCeQuiSeDit() {
        d'argent — quarante-neuf phrases coûtent 0,65 $ en tout — mais
        de sécurité : une instruction mal dite fait manquer un carrefour. */
     ...(RELU_GUIDAGE ? GUIDAGE.map((e) => ({ cle: e.cle, wolof: e.wolof, francais: e.francais })) : []),
+    /* LES DEUX PAROLES D'ATTENTE. Pas de verrou pour celles-là : leurs textes
+       sont de Lamine depuis le 9 septembre et n'ont jamais bougé. Elles
+       étaient fabriquées par Soynade à CHAQUE échange, faute d'avoir jamais
+       été déposées — huit secondes et quelques signes payés, à chaque
+       question, pour deux phrases qui ne changent jamais. */
+    ...A_FABRIQUER.map((p) => ({ cle: cleDe(p), wolof: p.wo, francais: p.fr })),
   ];
 }
 

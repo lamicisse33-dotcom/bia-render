@@ -106,12 +106,51 @@ export const CHAPEAU: Parole = {
 /** Celles qui sont vraiment dites, et qui peuvent devenir des fichiers. */
 export const A_FABRIQUER: Parole[] = [PARTIE_1, CHAPEAU];
 
+/* ── ELLES ENTRENT DANS LE SEAU, COMME LE RESTE ────────────────────────────
+
+   Lamine, le 12 septembre 2026 : « je préfère faire les cartes et tout de
+   suite, de tout ce qui est manquant, une bonne fois pour toutes. »
+
+   Il a raison, et il y avait mieux que lui faire déposer des fichiers à la
+   main : ces deux paroles-là s'enregistrent exactement comme les 84 réponses
+   et les 49 phrases de guidage — par le même bouton, dans le même seau, au
+   même tarif d'une seule fois.
+
+   POURQUOI ÇA PRESSAIT. Les fichiers de public/sons/attente/ n'ont jamais été
+   déposés — vérifié sur le serveur en ligne le 12 septembre : 404 sur les
+   quatre. Donc CHAQUE attente de CHAQUE échange partait chez Soynade : huit
+   secondes et quelques signes payés, à chaque question, pour deux phrases qui
+   ne changent jamais. C'est le pire cas possible de ce que le répertoire
+   existe pour éviter.
+
+   PARTIE_1_CONNU n'y entre pas : elle contient le prénom de la personne, elle
+   ne peut donc pas être un fichier. C'est voulu, et elle est courte exprès. */
+export const CLE_SEAU = "attente-";
+
+/** La clé du son dans le seau, pour les paroles qui peuvent en avoir une. */
+export function cleDe(p: Parole): string {
+  return CLE_SEAU + p.fichier;
+}
+
 /** Le texte à dire, dans la langue de la conversation. */
 export function dire(p: Parole, langue: Langue, nom = ""): string {
   return (langue === "fr" ? p.fr : p.wo).replace("{nom}", nom).replace(/\s+/g, " ").trim();
 }
 
-/** L'adresse du fichier tout prêt, quand il en existe un. */
+/** L'adresse du fichier tout prêt, quand il en existe un.
+
+    On regarde d'abord dans le seau — c'est là qu'il sera après le prochain
+    enregistrement — puis, à défaut, dans public/sons/attente/, où on pourrait
+    toujours en déposer un à la main. La base du seau vient du serveur au
+    démarrage (/api/etat), parce que le téléphone ne connaît pas l'adresse de
+    Supabase et n'a pas à la connaître. */
+export function fichiersPossibles(p: Parole, langue: Langue, baseDuSeau = ""): string[] {
+  return [
+    baseDuSeau ? `${baseDuSeau}${cleDe(p)}.wav` : "",
+    `/sons/attente/${p.fichier}-${langue}.mp3`,
+  ].filter(Boolean);
+}
+
 export function fichierDe(p: Parole, langue: Langue): string {
   return `/sons/attente/${p.fichier}-${langue}.mp3`;
 }

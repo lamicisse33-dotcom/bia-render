@@ -529,6 +529,13 @@ export function etatRepertoire() {
       : NOUVELLES.length,
     textes_relus_par_lamine: RELU,
     textes_nouveaux_relus: RELU_BASE,
+    /* Le dossier public des sons, donné au téléphone au démarrage. Il en a
+       besoin AVANT la première question — les paroles d'attente y vivent
+       maintenant — et il ne peut pas le deviner : l'adresse de Supabase est
+       une variable de serveur. Elle est publique en lecture (les 222 sons se
+       chargent sans aucune clé, vérifié le 11 septembre), donc la donner
+       n'ouvre rien. */
+    base_sons: { wo: baseDesSons("wo"), fr: baseDesSons("fr") },
     /* Les questions réclamées par deux réponses et que personne n'a
        tranchées. Elles ne déclenchent rien — c'est la liste à me montrer. */
     formulations_a_trancher: A_TRANCHER,

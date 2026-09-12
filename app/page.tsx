@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   A_FABRIQUER, CHAPEAU, PARTIE_1, PARTIE_1_CONNU,
-  dire, extraireNom, fichierDe as fichierDeParole,
+  dire, extraireNom, fichiersPossibles,
 } from "@/lib/attente";
 import type { Langue, Parole } from "@/lib/attente";
 import {
@@ -859,19 +859,33 @@ export default function Home() {
     const garde = attenteCache.current.get(texte);
     if (garde) return garde;
 
-    // Le fichier tout prêt, s'il existe : gratuit, instantané, d'un seul bloc.
+    /* ── LE FICHIER TOUT PRÊT : GRATUIT, INSTANTANÉ, D'UN SEUL BLOC ────────
+
+       On regarde d'abord dans le SEAU, où l'enregistrement les dépose comme
+       les 84 réponses et les 49 phrases de guidage ; puis, à défaut, dans
+       public/sons/attente/.
+
+       Pourquoi ça compte, mesuré sur le serveur en ligne le 12 septembre
+       2026 : les quatre fichiers de public/sons/attente/ n'avaient JAMAIS été
+       déposés — 404 sur les quatre. Chaque attente de chaque échange partait
+       donc chez Soynade : huit secondes et quelques signes payés, à chaque
+       question, pour deux phrases qui ne changent jamais. C'est exactement ce
+       que le répertoire existe pour éviter, et l'attente y échappait. */
     if (!p.wo.includes("{nom}")) {
-      try {
-        const f = await fetch(fichierDeParole(p, langue), { cache: "force-cache" });
-        if (f.ok) {
+      const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
+        ?.repertoire?.base_sons?.[langue] || "";
+      for (const adresse of fichiersPossibles(p, langue, base)) {
+        try {
+          const f = await fetch(adresse, { cache: "force-cache" });
+          if (!f.ok) continue;
           const octets = await f.arrayBuffer();
           if (octets.byteLength > 512) {
             const morceaux = [octets];
             attenteCache.current.set(texte, morceaux);
             return morceaux;
           }
-        }
-      } catch {}
+        } catch {}
+      }
     }
 
     /* TOUS LES MORCEAUX, PAS SEULEMENT LE PREMIER.
