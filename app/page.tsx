@@ -35,6 +35,7 @@ import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 import { lireLeRire } from "@/lib/rires";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
+import { TOUR_DE_VEILLE, TOURS_MUETS_AVANT_DE_DOUTER, silenceQuiSuffit } from "@/lib/micro";
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie } from "@/lib/ralentir";
 import Installer from "./installer";
 import Ecran from "./ecran";
@@ -1225,6 +1226,61 @@ export default function Home() {
      fabriqué et on le joue. Pas un signe facturé, et le son part en une
      fraction de seconde au lieu de huit. C'est le même chemin d'affichage que
      la voix ordinaire — visage compris — pour que rien ne se voie. */
+  /* ── UN SON DÉJÀ PAYÉ NE SE RETÉLÉCHARGE PAS ──────────────────────────────
+
+     Lamine, le 12 septembre 2026 : « même pour les messages préenregistrés
+     c'est un peu long. »
+
+     Mesuré : les fichiers du répertoire arrivent de Supabase avec l'en-tête
+     « cache-control: no-cache », et ils sont en WAV — 133 ko pour « Salaam »,
+     323 ko pour « kan nga ». Le navigateur les reprenait donc au réseau À
+     CHAQUE FOIS. Sur le wifi du Mac ça fait 250 ms ; sur un téléphone en 4G à
+     Dakar, c'est bien plus, et ça s'ajoute à tout le reste pour un fichier qui
+     ne changera jamais de sa vie.
+
+     DEUX MÉMOIRES, PARCE QU'ELLES NE SERVENT PAS AU MÊME MOMENT :
+       — celle de la page, en mémoire vive : la deuxième fois dans la même
+         conversation, le son part sans un aller-retour, instantanément ;
+       — celle du navigateur (Cache Storage) : elle survit à la fermeture de
+         l'application, donc demain matin « Salaam » part aussi vite.
+
+     Cache Storage garde ce qu'on lui donne SANS DEMANDER SON AVIS à
+     l'en-tête — c'est tout l'intérêt ici : le serveur dit « ne garde pas »,
+     et nous savons mieux que lui, parce que ces fichiers-là sont gravés.
+
+     Et si les deux mémoires sont vides ou refusées (navigation privée, place
+     épuisée), on fait ce qu'on faisait avant : on va le chercher. Une mémoire
+     qui tombe ne doit jamais rendre BIA muette. */
+  const octetsDuRepertoire = useCallback(async (adresse: string): Promise<ArrayBuffer> => {
+    const vif = cacheSons.current.get(adresse);
+    if (vif) return vif;
+
+    let boite: Cache | null = null;
+    try { boite = await caches.open("bia-sons-v1"); } catch { boite = null; }
+
+    if (boite) {
+      try {
+        const garde = await boite.match(adresse);
+        if (garde) {
+          const octets = await garde.arrayBuffer();
+          if (octets.byteLength > 1000) {
+            cacheSons.current.set(adresse, octets);
+            return octets;
+          }
+        }
+      } catch { }
+    }
+
+    const r = await fetch(adresse);
+    if (!r.ok) throw new Error("son du répertoire introuvable");
+    /* On met de côté AVANT de lire : une fois le corps consommé, il ne se
+       relit plus. */
+    if (boite) { try { await boite.put(adresse, r.clone()); } catch { } }
+    const octets = await r.arrayBuffer();
+    cacheSons.current.set(adresse, octets);
+    return octets;
+  }, []);
+
   const direSonTeutFait = useCallback(async (adresse: string, emotion?: string) => {
     /* SANS CHAPEAU : la réponse est déjà là, il n'y a pas d'attente à fermer.
        C'est ce qui bloquait BIA — voir finirAttente. */
@@ -1232,13 +1288,11 @@ export default function Home() {
     window.speechSynthesis?.cancel();
     couperSon();
     if (emotion) await jouerSouffle(emotion);
-    const r = await fetch(adresse, { cache: "force-cache" });
-    if (!r.ok) throw new Error("son du répertoire introuvable");
     setMode("speaking");
-    await jouerEtAnimer(await r.arrayBuffer());
+    await jouerEtAnimer(await octetsDuRepertoire(adresse));
     setMode("ready");
     setFace("yeux_ouverts");
-  }, [finirAttente, couperSon, jouerSouffle, jouerEtAnimer]);
+  }, [finirAttente, couperSon, jouerSouffle, jouerEtAnimer, octetsDuRepertoire]);
 
   const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse") => {
     /* PRENDRE LA PAROLE N'EST PAS COUPER LA PAROLE.
@@ -1959,6 +2013,7 @@ export default function Home() {
       const tampon = new Uint8Array(analyse.frequencyBinCount);
       let aParle = false;
       let dernierSon = 0;
+      let debutParole = 0;
       const ouverture = Date.now();
       /* Un vrai micro n'est JAMAIS parfaitement plat : même une pièce vide a
          son souffle. Une suite de 128 exacts ne veut donc pas dire « silence »,
@@ -1977,11 +2032,50 @@ export default function Home() {
         /* Deux secondes de platitude absolue : l'analyseur est mort. On ne
            peut plus se fier au son pour fermer le micro — alors on ferme au
            temps, généreusement, plutôt que de laisser la personne parler dans
-           un micro qui ne se coupera jamais. */
-        if (!analyseurMort && toursMuets > 16) analyseurMort = true;
+           un micro qui ne se coupera jamais.
 
-        if (creux > 8) { aParle = true; dernierSon = Date.now(); }
-        else if (aParle && Date.now() - dernierSon > 2000) { arreterEnregistrement(); return; }
+           TRENTE-DEUX TOURS, ET PLUS SEIZE : la veille tourne maintenant deux
+           fois plus vite (60 ms), et ce nombre-là compte des TOURS, pas des
+           secondes. Laissé à seize, il aurait déclaré l'analyseur mort au bout
+           d'une seconde — et fermé le micro au nez de quelqu'un qui réfléchit
+           avant de parler. */
+        if (!analyseurMort && toursMuets > TOURS_MUETS_AVANT_DE_DOUTER) analyseurMort = true;
+
+        /* ── COMBIEN DE SILENCE AVANT DE FERMER LE MICRO ────────────────────
+
+           Lamine, le 12 septembre 2026 : « je lui ai dit Salam, elle est
+           restée presque quatre secondes avant de réagir. C'est pas normal vu
+           que c'est déjà enregistré. »
+
+           Il a raison, et la plus grosse part de ces quatre secondes était
+           ICI. On attendait DEUX SECONDES PLEINES de silence après le dernier
+           son avant même d'arrêter d'enregistrer. « Salaam » dure une
+           demi-seconde : on passait donc quatre fois plus de temps à vérifier
+           qu'il avait fini qu'il n'en avait mis à parler. Tout le reste — la
+           transcription, la réponse, le son — venait APRÈS.
+
+           DEUX SECONDES N'ÉTAIENT PAS UNE ERREUR, C'ÉTAIT UNE PRÉCAUTION mal
+           placée. Elle protège celui qui cherche ses mots au milieu d'une
+           longue phrase ; elle punit celui qui dit un mot. Alors on regarde
+           CE QU'IL VIENT DE DIRE :
+
+             — un mot, une salutation : sept dixièmes de seconde suffisent.
+               Personne ne dit « Salaam » puis reprend son souffle.
+             — une phrase : une seconde.
+             — un récit de plus de quatre secondes : une seconde et demie,
+               parce que là, oui, on s'arrête pour réfléchir.
+
+           Et on regarde deux fois plus souvent (60 ms au lieu de 120), parce
+           qu'un tour de veille manqué, c'est un dixième de seconde de plus à
+           attendre pour rien. */
+        if (creux > 8) {
+          if (!aParle) debutParole = Date.now();
+          aParle = true;
+          dernierSon = Date.now();
+        } else if (aParle) {
+          const assez = silenceQuiSuffit(dernierSon - debutParole);
+          if (Date.now() - dernierSon > assez) { arreterEnregistrement(); return; }
+        }
 
         const depuis = Date.now() - ouverture;
         if (analyseurMort && depuis > 9000) { arreterEnregistrement(); return; }
@@ -1989,7 +2083,7 @@ export default function Home() {
            micro attend une voix aussi longtemps qu'il faut — mais deux minutes
            de micro ouvert, ce n'est plus de l'attente, c'est une panne. */
         if (depuis > 120000) arreterEnregistrement();
-      }, 120);
+      }, TOUR_DE_VEILLE);
 
       enregistreur.ondataavailable = (e) => { if (e.data.size) morceaux.push(e.data); };
       enregistreur.onstop = async () => {
