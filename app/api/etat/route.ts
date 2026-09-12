@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { voixConfig } from "@/lib/voix";
-import { ecouteConfig } from "@/lib/ecoute";
+import { ecouteConfig, resumeEcoutes } from "@/lib/ecoute";
 import { lexiqueConfig, combien, combienParApplication } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
 import { resumeAttentes, resumeLectures } from "@/lib/attentes-vues";
@@ -41,6 +41,9 @@ export async function GET() {
     pannes: pannes(),
     attentes: resumeAttentes(),
     lecture: resumeLectures(),
+    /* Ce que le moteur d'écoute a cru entendre, et combien de fois il a
+       fallu le reprendre. Voir lib/ecoute.ts. */
+    ecoutes: resumeEcoutes(),
     emotions: resumeEmotions(),
     /* CE QUE ÇA COÛTE, COMPTÉ ET NON DEVINÉ. Les signes réellement envoyés à
        Soynade, par route, et les jetons que le modèle dit avoir consommés —

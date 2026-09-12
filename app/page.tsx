@@ -353,6 +353,19 @@ export default function Home() {
      le serveur ne peut pas s'en souvenir, Render redémarre. Comme les
      blagues. */
   const dernierService = useRef("");
+  /* ── LA LANGUE DE LA CONVERSATION, D'UN TOUR À L'AUTRE ──────────────────
+
+     `langueRef` est remise à « wo » au début de CHAQUE tour, parce que la
+     phrase d'attente doit partir avant qu'on sache ce qui a été dit. Elle ne
+     peut donc pas servir d'indice au moteur d'écoute : elle vaudrait
+     toujours « wo ».
+
+     Celle-ci, elle, se souvient : elle garde la dernière langue REELLEMENT
+     reconnue, transcription ou clavier. C'est elle qu'on envoie à Scribe
+     comme indice — quelqu'un qui parle français depuis dix minutes ne se met
+     pas à parler wolof sans prévenir. Au premier mot, wolof : BIA est wolof
+     d'abord. */
+  const langueDuFil = useRef<"wo" | "fr">("wo");
 
   /* ── SON ÉCLIPSE ────────────────────────────────────────────────────────
 
@@ -1600,6 +1613,7 @@ export default function Home() {
       tTranscritRef.current = 0;
       tModeleRef.current = 0;
       langueRef.current = estWolof(clean) ? "wo" : "fr";
+      langueDuFil.current = langueRef.current;
       const jeton = {};
       attenteRef.current = jeton;
       stopAttenteRef.current = false;
@@ -2391,6 +2405,25 @@ export default function Home() {
           : "webm";
         const forme = new FormData();
         forme.append("audio", new Blob(morceaux, { type: typeReel }), `parole.${extension}`);
+        /* ── L'INDICE DE LANGUE, QUI N'ÉTAIT JAMAIS ENVOYÉ ──────────────────
+
+           Lamine, le 12 septembre 2026, capture à l'appui : « parfois mes
+           paroles sont écrites en arabe, parfois avec d'autres langues. » Sur
+           sa capture, « Salaam » était écrit « سلام », et sa demande de vidéo
+           était en bambara — « Tɛgɛnon miminuku Vivian YouTube ».
+
+           Le serveur savait recevoir cet indice depuis le premier jour :
+           /api/ecouter lit `indice_langue` et le passe à Scribe. Mais ce
+           fichier-ci ne l'envoyait PAS — vérifié, le mot n'apparaissait
+           nulle part. Le moteur devinait donc la langue à chaque phrase, et
+           le wolof de Dakar ressemble assez au bambara et à l'arabe pour
+           qu'il s'y trompe une fois sur deux.
+
+           CE N'EST PAS UN ORDRE, C'EST UN INDICE : le serveur laisse d'abord
+           Scribe deviner, et ne s'en sert que si la devinette dérape (voir
+           lib/ecoute.ts). On envoie la langue de l'échange précédent — wolof
+           au premier mot, parce que BIA est wolof d'abord. */
+        forme.append("indice_langue", langueDuFil.current);
 
         /* CE QU'ELLE VIENT D'ENTENDRE EST-IL UN PRÉNOM ?
            Entre « comment tu t'appelles ? » et la réponse, oui — et alors ce
@@ -2449,6 +2482,7 @@ export default function Home() {
           dernierDitRef.current = d.texte || "";
           if (d.texte) {
             langueRef.current = estWolof(d.texte) ? "wo" : "fr";
+            langueDuFil.current = langueRef.current;
             /* ── QUAND ON RIT, ELLE RIT — SANS PASSER PAR PERSONNE ─────────
 
                Lamine, le 12 septembre 2026 : « quand la personne rit, elle
