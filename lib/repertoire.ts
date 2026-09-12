@@ -2,6 +2,7 @@ import { lexiqueConfig } from "./lexique";
 import { REPERTOIRE, RELU } from "./repertoire-textes";
 import type { Entree } from "./repertoire-textes";
 import { NOUVELLES, RELU_BASE } from "./base-textes";
+import { FORMES_NEUVES } from "./formes-neuves";
 
 /* ── CE QU'ELLE DIT SOUVENT, PAYÉ UNE SEULE FOIS ────────────────────────────
 
@@ -175,10 +176,30 @@ const DES_NOUVELLES: Entree[] = RELU_BASE
 /* Une clé en double serait une réponse qui en cache une autre, sans bruit.
    On garde la première — celle des 42, relue le plus tôt — et l'épreuve
    tests/epreuve-deux-listes.mjs vérifie qu'il n'y en a aucune. */
-export const TOUT: Entree[] = [
+const TOUTES_LES_ENTREES: Entree[] = [
   ...(RELU ? REPERTOIRE : []),
   ...DES_NOUVELLES.filter((n) => !REPERTOIRE.some((e) => e.cle === n.cle)),
 ];
+
+/* ── ET LES FAÇONS DE LE DIRE QU'ON N'AVAIT PAS PRÉVUES ────────────────────
+
+   Lamine, le 12 septembre 2026 : « il faut plusieurs appellations pour
+   activer une réponse, parce qu'ici les gens utilisent d'autres formules…
+   voilà pourquoi elle ne lit pas souvent les mots enregistrés. »
+
+   Mesuré : sur quatre-vingt-cinq formulations vraies, cinquante-huit ne
+   déclenchaient rien. Elles partaient chez le modèle et chez la voix pour
+   une réponse déjà enregistrée et payée.
+
+   ON AJOUTE, ON N'ÉCRASE RIEN. Ses formulations passent en premier et
+   restent intactes ; les nouvelles s'ajoutent derrière, sans doublon. Vider
+   lib/formes-neuves.ts remet exactement l'état d'avant. */
+export const TOUT: Entree[] = TOUTES_LES_ENTREES.map((e) => {
+  const neuves = (FORMES_NEUVES[e.cle] || []).filter(
+    (f) => !e.formes.some((d) => normaliser(d) === normaliser(f)),
+  );
+  return neuves.length ? { ...e, formes: [...e.formes, ...neuves] } : e;
+});
 
 /** Y a-t-il de quoi répondre sans rien payer ? */
 export const REPERTOIRE_PRET = TOUT.length > 0;
