@@ -2876,10 +2876,10 @@ export default function Home() {
             {" "}
             <a href="/voix/base" className="papier-lien">Écouter les 69 nouvelles →</a>
             {" "}
-            <a href="/voix/guidage" className="papier-lien">Écouter les 45 du guidage →</a>
+            <a href="/voix/guidage" className="papier-lien">Écouter les 49 du guidage →</a>
             <br />
             Quatre pages provisoires, et pour toi seul : les phrases, les
-            nombres, les 69 nouvelles réponses, et les 45 phrases qui te
+            nombres, les 69 nouvelles réponses, et les 49 phrases qui te
             guideront sur la carte. On les retire une fois l&apos;enregistrement
             fait.
           </p>

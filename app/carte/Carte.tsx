@@ -30,10 +30,11 @@ import { GUIDAGE } from "@/lib/guidage-textes";
    l'itinéraire. Aucun aller-retour, aucun centime, et ça marche même si la
    clé de la voix meurt.
 
-   TANT QUE CES FICHIERS N'EXISTENT PAS — RELU_GUIDAGE vaut false jusqu'à ce
-   que Lamine ait écouté les quarante-cinq phrases — on retombe sur la voix
-   ordinaire. C'est lent, mais ça parle : on peut essayer la carte avant
-   d'avoir acheté un seul son.
+TANT QU'UN FICHIER MANQUE, on retombe sur la voix ordinaire. C'est lent,
+   mais ça parle : la carte a pu être essayée avant qu'un seul son soit
+   acheté. Les quarante-neuf phrases ont été corrigées par Lamine le
+   12 septembre 2026 et le verrou est levé ; elles s'enregistrent au prochain
+   appui sur « Regarder ce qui manque ».
 
    ── CE QUI EST DÉLIBÉRÉMENT ABSENT ────────────────────────────────────────
 

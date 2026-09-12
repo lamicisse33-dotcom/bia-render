@@ -146,9 +146,9 @@ function toutCeQuiSeDit() {
   return [
     ...(RELU ? REPERTOIRE.map((e) => ({ cle: e.cle, wolof: e.wolof, francais: e.francais })) : []),
     ...(RELU_BASE ? NOUVELLES.map((e) => ({ cle: e.cle, wolof: e.wolof, francais: e.francais })) : []),
-    /* LE GUIDAGE. Troisième verrou, même règle que les deux autres : rien ne
-       s'achète avant que Lamine ait écouté. Et ici ce n'est pas une question
-       d'argent — quarante-cinq phrases coûtent une dizaine de centimes — mais
+    /* LE GUIDAGE. Troisième verrou, levé le 12 septembre 2026 — Lamine a
+       corrigé les quarante-neuf dans la nuit, et trente-six ont changé. Et ici ce n'est pas une question
+       d'argent — quarante-neuf phrases coûtent 0,65 $ en tout — mais
        de sécurité : une instruction mal dite fait manquer un carrefour. */
     ...(RELU_GUIDAGE ? GUIDAGE.map((e) => ({ cle: e.cle, wolof: e.wolof, francais: e.francais })) : []),
   ];

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { GUIDAGE, GROUPES_GUIDAGE, A_REGARDER_DABORD } from "@/lib/guidage-textes";
+import { GUIDAGE, GROUPES_GUIDAGE, DOLLARS_GUIDAGE, RELU_GUIDAGE } from "@/lib/guidage-textes";
 import { REPERTOIRE } from "@/lib/repertoire-textes";
 import { NOMBRES } from "@/lib/nombres-textes";
 import { NOUVELLES } from "@/lib/base-textes";
@@ -14,13 +14,17 @@ import { DOLLAR_PAR_SIGNE, useEcoute, texteDesCorrections } from "../ecoute";
    carte, mais on peut continuer à parler avec elle. »
 
    CES PHRASES-LÀ SE JUGENT AUTREMENT QUE LES AUTRES. Une salutation qui sonne
-   un peu livresque fait sourire. « Tourné ci ndeyjoor » mal dit fait manquer
-   un carrefour à 50 km/h. C'est pour ça qu'elles ont leur page, et que le
-   verrou reste fermé jusqu'à ce qu'il les ait toutes entendues.
+   un peu livresque fait sourire. Une instruction de virage mal dite fait
+   manquer un carrefour à 50 km/h.
 
-   CELLES QUI SONT SIGNALÉES sont celles dont mon wolof me paraît le plus
-   fragile — le verbe des virages surtout. Ce n'est pas pour qu'il relise
-   moins, c'est pour qu'il commence par là s'il n'a que dix minutes.
+   IL LES A CORRIGÉES LE 12 SEPTEMBRE 2026, à une heure du matin, les
+   quarante-neuf d'un coup : trente-six ont changé. J'avais écrit « Tourné ci
+   ndeyjoor » ; il a mis « Tourne ci sa droite ». La droite et la gauche se
+   disent en français à Dakar — c'est la règle même de BIA, et c'est moi qui
+   l'avais oubliée.
+
+   La page reste ouverte pour réécouter : rien ne change tant qu'il ne renvoie
+   rien.
 
    PROVISOIRE, comme ses voisines. Le mode d'emploi du retrait est en tête de
    app/voix/page.tsx : effacer le dossier app/voix/ suffit pour les quatre. */
@@ -29,7 +33,6 @@ const CLE_CORRECTIONS = "bia-corrections-guidage";
 
 export default function PageGuidage() {
   const [copie, setCopie] = useState("");
-  const [dabord, setDabord] = useState(false);
   const { code, setCode, corrections, setCorrections, joue, etat, signes, ecouter, taire } =
     useEcoute(CLE_CORRECTIONS);
 
@@ -37,8 +40,7 @@ export default function PageGuidage() {
     corrections[cle] !== undefined ? corrections[cle] : defaut;
 
   const changees = GUIDAGE.filter((p) => texteDe(p.cle, p.wolof).trim() !== p.wolof.trim()).length;
-  const signesEnTout = GUIDAGE.reduce((n, p) => n + p.wolof.length + p.francais.length, 0);
-  const prixUneFois = (signesEnTout * DOLLAR_PAR_SIGNE).toFixed(2);
+  const prixUneFois = DOLLARS_GUIDAGE.toFixed(2);
 
   async function copierLesCorrections() {
     const lignes = GUIDAGE
@@ -55,7 +57,6 @@ export default function PageGuidage() {
   }
 
   const dollars = (signes * DOLLAR_PAR_SIGNE).toFixed(3);
-  const montrees = dabord ? GUIDAGE.filter((p) => p.douteux) : GUIDAGE;
 
   return (
     <main className="voix">
@@ -64,15 +65,22 @@ export default function PageGuidage() {
         On la retire une fois l&apos;enregistrement fait.
       </p>
       <h1>Les {GUIDAGE.length} phrases du guidage</h1>
+      {RELU_GUIDAGE ? (
+        <p className="voix-etat">
+          Tu les as corrigées le 12 septembre — le verrou est levé, elles
+          peuvent être enregistrées. Réécoute ce que tu veux : rien ne change
+          tant que tu ne me renvoies rien.
+        </p>
+      ) : null}
       <p className="voix-intro">
         Ce sont les phrases qu&apos;elle dira en te guidant. Elles doivent être
-        enregistrées d&apos;avance : fabriquer « tourné ci ndeyjoor » prend près
+        enregistrées d&apos;avance : fabriquer « Tourne ci sa droite » prend près
         de trois secondes, et à 50 km/h trois secondes font quarante mètres — le
         carrefour est déjà passé. <strong>Une instruction arrive maintenant, ou
         elle ne sert à rien.</strong>
       </p>
       <p className="voix-intro">
-        Les quarante-cinq ensemble coûtent <strong>{prixUneFois} $ une seule
+        Les {GUIDAGE.length} ensemble coûtent <strong>{prixUneFois} $ une seule
         fois</strong>, en wolof et en français. Après ça, elle guide sans
         réseau de voix, sans attente et sans clé.
       </p>
@@ -100,20 +108,8 @@ export default function PageGuidage() {
         {joue ? <> <button type="button" className="voix-pale" onClick={taire}>Arrêter</button></> : null}
       </p>
 
-      {/* ── SI TU N'AS QUE DIX MINUTES ─────────────────────────────────────
-          Mon wolof est le plus fragile sur le verbe des virages. Ce bouton
-          ne montre que celles-là. */}
-      <p className="voix-compte">
-        <button type="button" className="voix-pale" onClick={() => setDabord((v) => !v)}>
-          {dabord
-            ? `← Revenir aux ${GUIDAGE.length} phrases`
-            : `Me montrer d'abord les ${A_REGARDER_DABORD.length} dont je doute →`}
-        </button>
-        {dabord ? <> Celles-là d&apos;abord : c&apos;est là que mon wolof risque le plus d&apos;être faux.</> : null}
-      </p>
-
       {GROUPES_GUIDAGE.map((g) => {
-        const dedans = montrees.filter((p) => p.groupe === g.cle);
+        const dedans = GUIDAGE.filter((p) => p.groupe === g.cle);
         if (!dedans.length) return null;
         return (
           <section className="voix-liste" key={g.cle}>
@@ -125,7 +121,6 @@ export default function PageGuidage() {
               return (
                 <article key={p.cle} className={change ? "voix-item change" : "voix-item"}>
                   <p className="voix-quand">
-                    {p.douteux ? <b>⚠ </b> : null}
                     <b>{p.francais}</b>
                     {p.quand ? <> — {p.quand}</> : null}
                   </p>
