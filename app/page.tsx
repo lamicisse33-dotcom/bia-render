@@ -2006,8 +2006,50 @@ export default function Home() {
           if (d.texte) {
             langueRef.current = estWolof(d.texte) ? "wo" : "fr";
             void askBia(d.texte, true);
-          } else { setMode("ready"); setFace("yeux_ouverts"); }
-        } catch { setMode("error"); }
+          } else {
+            /* ── ELLE N'A RIEN ENTENDU, ET ELLE RESTAIT FIGÉE ────────────
+
+               Lamine, le 12 septembre 2026 à deux heures du matin : « elle
+               dit je t'entends, après elle se met à réfléchir et c'est tout,
+               elle ne dit plus rien, le micro reste bloqué sur elle comme si
+               elle parlait. »
+
+               C'était ici, et c'est le vrai défaut — pas le chapeau. Quand la
+               transcription revenait VIDE, on remettait le mode à « ready »
+               et rien d'autre. Or l'attente, lancée trente lignes plus haut,
+               continuait de tourner : son jeton restait en place, sa voix
+               continuait, et le micro — qui se ferme pendant qu'elle parle —
+               ne se rouvrait jamais. BIA paraissait bloquée, à jamais.
+
+               Prouvé par les compteurs du serveur, quatre minutes après le
+               redémarrage : quatre appels à Soynade, TOUS étiquetés
+               « attente », 207 signes — et pas UN SEUL étiqueté « réponse »,
+               zéro appel au modèle. L'attente parlait ; rien d'autre ne
+               partait jamais.
+
+               DEUX CHOSES MAINTENANT. On coupe l'attente — sans chapeau, il
+               n'y a pas de réponse à joindre. Et elle le DIT, avec la phrase
+               que Lamine avait écrite exactement pour ce cas et que rien
+               n'appelait : « Dégguma la bu baax. Waxaatal doucemen. » Elle
+               est déjà enregistrée, donc c'est instantané et gratuit. Une
+               machine qui n'a pas entendu doit le dire ; se taire, c'est
+               paraître en panne. */
+            await finirAttente(langueRef.current, false);
+            const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
+              ?.repertoire?.base_sons?.[langueRef.current] || "";
+            if (base) {
+              try { await direSonTeutFait(`${base}audio-utilisateur-incompris.wav`, "concernee"); }
+              catch { setMode("ready"); setFace("yeux_ouverts"); }
+            } else {
+              setMode("ready"); setFace("yeux_ouverts");
+            }
+          }
+        } catch {
+          /* Le réseau a lâché pendant la transcription : même règle. Sans ce
+             finirAttente, l'attente survivait à l'erreur et bloquait tout. */
+          await finirAttente(langueRef.current, false);
+          setMode("error");
+        }
       };
 
       enregistreur.start();
@@ -2016,7 +2058,7 @@ export default function Home() {
     } catch {
       setMode("error");
     }
-  }, [arreterEnregistrement, askBia, attendreEnParlant]);
+  }, [arreterEnregistrement, askBia, attendreEnParlant, finirAttente, direSonTeutFait]);
 
   /* L'attente a besoin de rouvrir le micro pour recevoir le prénom, mais elle
      est définie avant `ecouter`. Ce renvoi évite d'avoir à réordonner tout le
