@@ -44,6 +44,71 @@ function entetes(type?: string) {
 }
 
 const chemin = (cle: string, langue: string) => `${langue}/${cle}.wav`;
+
+/* ── LE SON DIT-IL BIEN LE TEXTE D'AUJOURD'HUI ? ────────────────────────────
+
+   Lamine, le 12 septembre 2026 au soir : « il faut vérifier est-ce que
+   vraiment elle lit le répertoire correctement, c'est-à-dire les mots
+   corrigés. »
+
+   Sa question était juste, et le trou était réel. Un son s'appelle
+   « wo/salut.wav » — par sa CLÉ, jamais par son texte. Donc quand il corrige
+   une phrase après l'avoir enregistrée :
+
+     — l'écran affiche le texte corrigé ;
+     — le son, lui, dit toujours les anciens mots ;
+     — et « rien ne manque » s'affiche, parce que le fichier existe.
+
+   Rien ne pouvait le voir, jamais. On ne refabrique pas ce qui existe — c'est
+   la règle qui évite de repayer, et elle se retournait ici contre nous.
+
+   ON GARDE DONC L'EMPREINTE DU TEXTE ENREGISTRÉ, dans le seau, à côté des
+   sons. Un texte changé ne correspond plus à son empreinte : le son passe en
+   « à refaire », et refaire ne coûte que CETTE phrase-là.
+
+   L'empreinte vit dans le seau et pas dans le dépôt, pour une raison : c'est
+   l'enregistrement qui l'écrit, au moment où il enregistre. Rien à tenir à
+   jour à la main, donc rien à oublier.
+
+   AU PREMIER PASSAGE, il n'y a pas de manifeste : on ne déclare alors RIEN à
+   refaire, et on écrit l'empreinte des textes tels qu'ils sont. C'est le seul
+   choix honnête — les 326 sons en place ont été enregistrés depuis ces
+   textes-là, et les déclarer périmés ferait repayer un dollar pour rien. */
+const MANIFESTE = "manifeste-des-textes.json";
+
+/** Une empreinte courte et stable d'un texte. Pas de la cryptographie : de
+    quoi voir qu'un texte a changé, en huit signes. */
+function empreinteDe(texte: string): string {
+  const t = String(texte || "").replace(/\s+/g, " ").trim();
+  let a = 0x811c9dc5, b = 0x01000193;
+  for (let i = 0; i < t.length; i++) {
+    a = ((a ^ t.charCodeAt(i)) * b) >>> 0;
+    b = (b + 0x9e3779b9) >>> 0;
+  }
+  return (a.toString(36) + t.length.toString(36)).slice(0, 8);
+}
+
+type Manifeste = Record<string, string>;
+
+async function lireManifeste(): Promise<Manifeste | null> {
+  try {
+    const r = await fetch(
+      `${lexiqueConfig.url}/storage/v1/object/public/${SEAU}/${MANIFESTE}?t=${Date.now()}`,
+      { cache: "no-store" },
+    );
+    if (!r.ok) return null;
+    return await r.json() as Manifeste;
+  } catch { return null; }
+}
+
+async function ecrireManifeste(m: Manifeste): Promise<void> {
+  try {
+    await deposerFichier(MANIFESTE, new TextEncoder().encode(JSON.stringify(m, null, 1)),
+      "application/json", "no-cache");
+  } catch (err) {
+    console.error("BIA — manifeste des textes non écrit :", (err as Error).message);
+  }
+}
 /* La version légère, à côté de l'original. Les deux cohabitent : le WAV est
    ce qui a été payé, le MP3 est ce qu'on télécharge. */
 const cheminMp3 = (cle: string, langue: string) => `${langue}/${cle}.mp3`;

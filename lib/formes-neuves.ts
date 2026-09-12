@@ -46,6 +46,8 @@
    n'y viennent toujours pas. Un répertoire qui se trompe une fois sur dix ne
    vaut pas d'exister. */
 
+import { FORMES_DE_PLUS } from "./formes-de-plus";
+
 export const FORMES_NEUVES: Record<string, string[]> = {
   /* Les salutations, celles qu'il signale en premier. « cc », « slt », « yo »
      s'écrivent au clavier ; « hey » et « hi » se disent aussi, à Dakar comme
@@ -186,6 +188,16 @@ export const DE_LAMINE: Record<string, string[]> = {
 };
 
 for (const [cle, formes] of Object.entries(DE_LAMINE)) {
+  FORMES_NEUVES[cle] = [...(FORMES_NEUVES[cle] || []), ...formes];
+}
+
+/* ── ET LES QUATRE DE PLUS PAR RÉPONSE ENREGISTRÉE ────────────────────────
+
+   Demandées le 12 septembre au soir : « chaque phrase, on lui trouve six ou
+   sept jusqu'à dix questions qui peuvent l'activer ». Elles vivent dans leur
+   propre fichier — lib/formes-de-plus.ts — pour qu'on voie d'un coup d'œil ce
+   qui vient de lui et ce qui vient de moi. */
+for (const [cle, formes] of Object.entries(FORMES_DE_PLUS)) {
   FORMES_NEUVES[cle] = [...(FORMES_NEUVES[cle] || []), ...formes];
 }
 
