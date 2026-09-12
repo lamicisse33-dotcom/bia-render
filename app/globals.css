@@ -426,6 +426,52 @@ button { font: inherit; touch-action: manipulation; }
 .clavier-fermer-bas:active { transform: scale(.985); background: rgba(255,255,255,.16); }
 .clavier-fermer-bas:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 
+/* ── LES DEUX BOUTONS DE JUGEMENT ──────────────────────────────────────────
+
+   « Un vert à gauche, un rouge à droite » — Lamine, le 12 septembre 2026 au
+   soir, pour juger sa prononciation en un appui pendant qu'on lui parle.
+
+   Aux deux BORDS de l'écran, et volontairement : entre les deux il y a la
+   largeur d'un écran, donc aucun risque d'appuyer sur le vert en voulant le
+   rouge. Ce sont des jugements, pas des réglages — on n'en corrige pas un
+   d'un coup de pouce mal placé. */
+.verdicts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 14px 6px;
+}
+.verdicts button {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 40px;
+  padding: 8px 15px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font: inherit; font-size: 14px;
+  cursor: pointer;
+  transition: transform .12s ease, background .16s ease;
+}
+.verdicts button:active { transform: scale(.94); }
+.verdicts button b { font-weight: 600; }
+/* Le compte, dans une pastille : c'est l'accusé de réception qui ne se lit
+   pas — on voit le chiffre monter du coin de l'œil. */
+.verdicts button i {
+  font-style: normal; font-size: 12px; font-variant-numeric: tabular-nums;
+  min-width: 20px; padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(0,0,0,.3);
+}
+.verdict-bien { background: rgba(52,168,83,.22); border-color: rgba(52,168,83,.5); color: #b7f3c6; }
+.verdict-bien:active { background: rgba(52,168,83,.34); }
+.verdict-mal { background: rgba(214,60,52,.22); border-color: rgba(214,60,52,.5); color: #ffc2bd; }
+.verdict-mal:active { background: rgba(214,60,52,.34); }
+.verdict-mot {
+  flex: 1 1 auto; text-align: center;
+  font-size: 12.5px; color: rgba(255,255,255,.62);
+}
+@media (prefers-reduced-motion: reduce) { .verdicts button:active { transform: none; } }
+
 .fil { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 2px 10px; }
 .fil-vide { margin: 6px 0; color: rgba(255,255,255,.45); font-size: 15px; text-align: center; }
 .bulle {

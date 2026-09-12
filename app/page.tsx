@@ -29,6 +29,7 @@ import {
 } from "@/lib/papiers";
 import type { PapierGarde } from "@/lib/papiers";
 import { NOMBRES } from "@/lib/nombres-textes";
+import { compterVerdicts, lireVerdicts, poserVerdict } from "@/lib/verdicts";
 import { franc, lecture, sorteEvoquee, totauxDe } from "@/lib/documents";
 import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
 import { lireMesures, noterMesure } from "@/lib/chrono";
@@ -446,6 +447,11 @@ export default function Home() {
      à ne montrer qu'à lui la page d'écoute des voix, qui dépense à chaque
      appui. La réponse ne dit que oui ou non, et ne coûte rien. */
   const [estMaitre, setEstMaitre] = useState(false);
+  /* Les verdicts du code maître : le compte s'affiche sur les boutons, et le
+     mot d'accusé de réception s'efface tout seul. */
+  const [compteVerdicts, setCompteVerdicts] = useState({ bien: 0, mal: 0, corriges: 0 });
+  const [motVerdict, setMotVerdict] = useState("");
+  const motVerdictMinuterie = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [aColler, setAColler] = useState("");
   /** Le téléphone sait-il partager ? Sur mobile, oui — et c'est ce qui ouvre WhatsApp. */
   const [partageable, setPartageable] = useState(false);
@@ -657,6 +663,9 @@ export default function Home() {
   useEffect(() => {
     try {
       const g = localStorage.getItem("bia-code"); if (g) setCode(g);
+      /* Les verdicts déjà posés sur cet appareil : le compte doit être juste
+         dès l'ouverture, sinon le premier appui paraît remettre à zéro. */
+      setCompteVerdicts(compterVerdicts(lireVerdicts()));
       /* Qui est sur cet appareil, et qui parlait la dernière fois. Sur un
          téléphone qui servait déjà, tout ce qui s'y trouve devient la case du
          premier utilisateur : on ne perd les notes de personne. */
@@ -3202,6 +3211,36 @@ export default function Home() {
      ne retape rien, on change le mot qui cloche. Et un bouton lui demande de
      la redire autrement — trois propositions, on en touche une, elle prend la
      place dans le champ. Rien n'est gardé tant qu'un humain n'a pas tranché. */
+  /* ── JUGER SA DERNIÈRE PHRASE, EN UN APPUI ──────────────────────────────
+
+     Le vert et le rouge ne demandent rien et n'interrompent rien : on juge à
+     l'oreille, en pleine conversation, et on continue de parler. Le travail
+     d'écriture — corriger ce qui est mal dit — se fait plus tard, sur la page
+     de relecture, quand il en a le temps. C'est toute la différence avec le
+     bouton « Mal dit » qui vit sous chaque bulle. */
+  const dernierDitParElle = [...history].reverse().find((m) => m.role === "bia" && m.text?.trim()) || null;
+  const derniereQuestion = (() => {
+    const i = history.findLastIndex((m) => m.role === "bia" && m.text?.trim());
+    for (let j = i - 1; j >= 0; j--) if (history[j].role === "user") return history[j].text || "";
+    return "";
+  })();
+
+  function juger(avis: "bien" | "mal") {
+    if (!dernierDitParElle?.text?.trim()) return;
+    const { liste, quoi } = poserVerdict({
+      avis,
+      dit: dernierDitParElle.text,
+      question: derniereQuestion,
+      langue: langueDuFil.current || "wo",
+      quand: Date.now(),
+    });
+    setCompteVerdicts(compterVerdicts(liste));
+    setMotVerdict(quoi === "retiré" ? "retiré"
+      : avis === "bien" ? "gardé pour l'enregistrement" : "gardé à corriger");
+    if (motVerdictMinuterie.current) clearTimeout(motVerdictMinuterie.current);
+    motVerdictMinuterie.current = setTimeout(() => setMotVerdict(""), 2200);
+  }
+
   function ouvrirCorrection(index: number) {
     taire();
     setCorrige(index);
@@ -3917,6 +3956,15 @@ export default function Home() {
                 l'autre — en oubliant que c'est d'ICI qu'il les ouvre. Une page
                 qu'on ne peut pas atteindre n'existe pas. */}
             <a href="/voix/services" className="papier-lien">Écouter les 30 des services →</a>
+            {" "}
+            {/* LA PAGE DOIT ÊTRE ATTEIGNABLE DEPUIS L'INTERFACE, et c'est une
+                leçon de lui : « où se trouve le réglage dont tu parles ? Il
+                n'y a aucun bouton paramètre sur BIA » — une page sans lien est
+                une page qui n'existe pas. */}
+            <a href="/voix/verdicts" className="papier-lien">
+              Relire ce que tu as jugé{compteVerdicts.bien + compteVerdicts.mal
+                ? ` (${compteVerdicts.bien + compteVerdicts.mal})` : ""} →
+            </a>
             <br />
             Cinq pages provisoires, et pour toi seul : les phrases, les
             nombres, les 69 nouvelles réponses, les 49 phrases qui te guideront
@@ -4165,6 +4213,37 @@ export default function Home() {
       {/* Ce qu'on lit après avoir annulé. Il ne dure que le temps de le lire :
           c'est un accusé de réception, pas un avertissement. */}
       {annule ? <p className="repris">Rien n&apos;a été envoyé. Reprends quand tu veux.</p> : null}
+
+      {/* ── LES DEUX BOUTONS DE JUGEMENT, AU CODE MAÎTRE SEUL ─────────────
+
+          Lamine, le 12 septembre 2026 au soir : « je veux deux boutons sur
+          l'écran, un vert à gauche, un rouge à droite… ces deux boutons ne
+          doivent être actifs qu'avec mon code maître, les autres testeurs ne
+          doivent pas les voir. »
+
+          Ils sont sur leur propre rangée, aux deux bords de l'écran : la
+          rangée du micro porte déjà le clavier, le micro et les papiers, et
+          y ajouter deux boutons la rendrait illisible sur un téléphone.
+
+          ILS NE PARAISSENT QUE QUAND IL Y A QUELQUE CHOSE À JUGER. Un bouton
+          qui juge le vide n'a aucun sens, et sa présence ferait croire qu'on
+          a manqué quelque chose. Le compte écrit dessus est l'accusé de
+          réception : on voit le chiffre monter, sans rien lire. */}
+      {estMaitre && dernierDitParElle ? (
+        <div className="verdicts">
+          <button className="verdict-bien" type="button"
+            onClick={() => juger("bien")}
+            aria-label="Elle l'a bien dit — à garder et à enregistrer">
+            <b>Bien dit</b>{compteVerdicts.bien ? <i>{compteVerdicts.bien}</i> : null}
+          </button>
+          {motVerdict ? <span className="verdict-mot">{motVerdict}</span> : null}
+          <button className="verdict-mal" type="button"
+            onClick={() => juger("mal")}
+            aria-label="Elle l'a mal dit — à corriger plus tard">
+            <b>Mal dit</b>{compteVerdicts.mal ? <i>{compteVerdicts.mal}</i> : null}
+          </button>
+        </div>
+      ) : null}
 
       <div className="barre">
         {/* ── LE BOUTON ROUGE ──────────────────────────────────────────────
