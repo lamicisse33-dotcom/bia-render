@@ -518,8 +518,8 @@ function detacherCherche(texte:string){
 /* Quand le moteur ne répond pas, BIA le dit — en wolof, sans détail technique
    pour le testeur. Le motif exact, lui, est journalisé et lisible dans
    /api/etat : c'est là que Lamine regarde. */
-const PANNE_MOTEUR="Sama moteur bi tontuwul léegi, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
-const PAS_DE_CLE="Sama moteur bi taxawul : kon bi ci biir amul. Wax ko KHALAM.";
+const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
+const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi .waala nga  Wax ko KHALAM.";
 
 export async function POST(request:NextRequest){
   try{
@@ -626,9 +626,9 @@ export async function POST(request:NextRequest){
     if(!verdict.ok){
       const messages={
         absent:"Duggal sa kod ngir waxtaan ak BIA.",
-        invalide:"Kod bi baaxul. Xoolaatal ko.",
+        invalide:"Kod bi baaxul. Xoolaat ko.",
         expire:"Sa kod bi jeex na waxtu wi.",
-        epuise:"Sa kod bi jeex na laaj yi ko àttan.",
+        epuise:"Sa kod bi jeex na  wital benen kod ci waa khalam",
       } as const;
       /* ── ELLE PEUT ENFIN DIRE POURQUOI ELLE NE RÉPOND PAS ──────────────
 

@@ -72,7 +72,33 @@
    les 49 du guidage — et elle a déjà évité deux fois d'enregistrer du wolof
    que je croyais juste. */
 
-export const RELU_SERVICES = false;
+/* ── LE VERROU EST LEVÉ, LE 12 SEPTEMBRE 2026 À 22 H ────────────────────────
+
+   Il a relu les trente-quatre phrases et m'a renvoyé VINGT corrections. Ce
+   n'est pas une approbation polie : il a changé « Waaw, maa ngi la yóbbu » en
+   « waw, niudém », remplacé « Waaw » par « Dacor » et « Dakcor » selon les
+   endroits, corrigé neuf fois « maa ngi ko » en « maa ngi koy », et réécrit
+   entièrement trois phrases de panne — dont celle du code épuisé, qui dit
+   maintenant quoi FAIRE (« wital benen kod ci waa khalam ») au lieu de
+   constater le problème.
+
+   C'est exactement pour ça que le verrou existait. Vingt phrases sur
+   trente-quatre auraient été enregistrées de travers, payées, et entendues
+   par tout le monde pendant des mois.
+
+   ── CE QUE LEVER LE VERROU CHANGE, DIT FRANCHEMENT ───────────────────────
+
+   À partir de maintenant, BIA SERT CES PHRASES. Tant qu'elles ne sont pas
+   enregistrées, chacune passe par le moteur de voix et se paie à l'usage.
+   Il faut donc appuyer sur « enregistrer » — 0,43 $ une fois — et après quoi
+   elles sont gratuites et instantanées pour toujours.
+
+   ── ET IL PEUT ENCORE CORRIGER ────────────────────────────────────────────
+
+   Lever le verrou ne ferme rien. Depuis ce soir, un texte corrigé après son
+   enregistrement fait passer son son en « à refaire » tout seul, et refaire ne
+   coûte que cette phrase-là. La relecture n'est plus un aller sans retour. */
+export const RELU_SERVICES = true;
 
 export type Service = {
   cle: string;
@@ -139,10 +165,10 @@ export const SERVICES: Service[] = [
      Le wolof est à vérifier à son oreille : « maa ngi ko def » est « je suis
      en train de le faire ». S'il préfère autre chose, c'est une ligne. */
   { cle: "svc-commun-1", groupe: "services", quand: "sa phrase, pour n'importe quel service",
-    wolof: "Waaw, maa ngi ko def.", francais: "D'accord, j'exécute." },
+    wolof: "Dacor", francais: "D'accord, j'exécute." },
 
   { cle: "svc-carte-1", groupe: "services", quand: "il demande à être emmené quelque part",
-    wolof: "Waaw, maa ngi la yóbbu.", francais: "D'accord, je t'emmène." },
+    wolof: "waw, niudém", francais: "D'accord, je t'emmène." },
   { cle: "svc-carte-2", groupe: "services", quand: "autre formulation",
     wolof: "Ñu dem, maa ngi seet yoon wi.", francais: "Allons-y, je cherche le chemin." },
   { cle: "svc-carte-3", groupe: "services", quand: "autre formulation",
@@ -156,18 +182,18 @@ export const SERVICES: Service[] = [
   { cle: "svc-suite-1", groupe: "services", quand: "la phrase qui suit une salutation, quelle qu'elle soit",
     wolof: "Waaw, gis naa ko.", francais: "D'accord, je vois ça." },
   { cle: "svc-suite-2", groupe: "services", quand: "autre formulation",
-    wolof: "Waaw, dégg naa la.", francais: "D'accord, je t'ai entendu." },
+    wolof: "waw, dégg naa la.", francais: "D'accord, je t'ai entendu." },
   { cle: "svc-suite-3", groupe: "services", quand: "autre formulation",
     wolof: "Baax na, maa ngi ci.", francais: "D'accord, je m'en occupe." },
 
   /* Une vidéo. L'éclipse dure 720 ms : la phrase se dit pendant qu'elle
      s'éteint, donc elle doit tenir en une seconde ou deux. */
   { cle: "svc-video-1", groupe: "services", quand: "il demande une vidéo",
-    wolof: "Waaw, maa ngi la won ko.", francais: "D'accord, je te la montre." },
+    wolof: "Dakcor, maa ngi la koy won.", francais: "D'accord, je te la montre." },
   { cle: "svc-video-2", groupe: "services", quand: "autre formulation",
-    wolof: "Xoolal, maa ngi ko ubbi.", francais: "Regarde, je l'ouvre." },
+    wolof: "Xoolal, maa ngi koy ubbi.", francais: "Regarde, je l'ouvre." },
   { cle: "svc-video-3", groupe: "services", quand: "autre formulation",
-    wolof: "Waaw, léegi.", francais: "D'accord, tout de suite." },
+    wolof: "Dacor, léegi.", francais: "D'accord, tout de suite." },
 
   /* Chercher sur Internet. Ici l'attente est réelle — le moteur met une
      seconde ou deux — et c'est exactement ce que la phrase couvre. */
@@ -176,7 +202,7 @@ export const SERVICES: Service[] = [
   { cle: "svc-cherche-2", groupe: "services", quand: "autre formulation",
     wolof: "Xaaral tuuti, maa ngi seet.", francais: "Attends un peu, je cherche." },
   { cle: "svc-cherche-3", groupe: "services", quand: "autre formulation",
-    wolof: "Maa ngi la ko gis.", francais: "Je te trouve ça." },
+    wolof: "Maa ngi koy gis.", francais: "Je te trouve ça." },
 
   /* Montrer une image qu'elle a déjà. Instantané : la phrase doit être la
      plus courte de toutes, sinon elle parle après que l'image est apparue. */
@@ -185,34 +211,34 @@ export const SERVICES: Service[] = [
   { cle: "svc-montre-2", groupe: "services", quand: "autre formulation",
     wolof: "Am, xoolal.", francais: "Tiens, regarde." },
   { cle: "svc-montre-3", groupe: "services", quand: "autre formulation",
-    wolof: "Maa ngi la won.", francais: "Je te montre." },
+    wolof: "Maa ngi lay won.", francais: "Je te montre." },
 
   /* Écrire un message ou un devis. Aujourd'hui, un fichier /sons/jecris.mp3
      est appelé ici — il n'a JAMAIS été déposé (vérifié : le dossier
      public/sons/ est vide). Elle se tait donc pendant qu'elle écrit. */
   { cle: "svc-ecrire-1", groupe: "services", quand: "il demande un message, une lettre, un devis",
-    wolof: "Waaw, maa ngi ko bind.", francais: "D'accord, je l'écris." },
+    wolof: "waw, maa ngi koy bind.", francais: "D'accord, je l'écris." },
   { cle: "svc-ecrire-2", groupe: "services", quand: "autre formulation",
     wolof: "Maa ngi tàmbali.", francais: "Je commence." },
   { cle: "svc-ecrire-3", groupe: "services", quand: "autre formulation",
-    wolof: "May ma tuuti, maa ngi ko bind.", francais: "Donne-moi un instant, je l'écris." },
+    wolof: "May ma tuuti, maa ngi koy bind.", francais: "Donne-moi un instant, je l'écris." },
 
   /* Lire un papier photographié. */
   { cle: "svc-lire-1", groupe: "services", quand: "il lui montre un papier à lire",
     wolof: "Maa ngi ko jàng.", francais: "Je le lis." },
   { cle: "svc-lire-2", groupe: "services", quand: "autre formulation",
-    wolof: "Wonal ma ko, maa ngi xool.", francais: "Montre-le-moi, je regarde." },
+    wolof: "Wonmako, ma xool.", francais: "Montre-le-moi, je regarde." },
   { cle: "svc-lire-3", groupe: "services", quand: "autre formulation",
     wolof: "Waaw, maa ngi xool.", francais: "D'accord, je regarde." },
 
   /* Ouvrir un numéro de téléphone. Elle ne passe pas l'appel : elle ouvre le
      numéro, et c'est la personne qui décide. La phrase doit le dire. */
   { cle: "svc-appel-1", groupe: "services", quand: "elle ouvre un numéro à appeler",
-    wolof: "Maa ngi la ubbil numero bi.", francais: "Je t'ouvre le numéro." },
+    wolof: "Maa ngi lay diokh numero bi.", francais: "Je t'ouvre le numéro." },
   { cle: "svc-appel-2", groupe: "services", quand: "autre formulation",
-    wolof: "Numero bi, am.", francais: "Voilà le numéro." },
+    wolof: "Jeeleel Numero bi,", francais: "Voilà le numéro." },
   { cle: "svc-appel-3", groupe: "services", quand: "autre formulation",
-    wolof: "Waaw, maa ngi ko ubbi.", francais: "D'accord, je l'ouvre." },
+    wolof: "waaw, maa ngi koy ubbi.", francais: "D'accord, je l'ouvre." },
 
   /* ── QUAND ÇA NE MARCHE PAS ────────────────────────────────────────────
 
@@ -225,19 +251,19 @@ export const SERVICES: Service[] = [
      la machine, pas avec la voix de Kha. » */
   { cle: "panne-oreille", groupe: "pannes",
     quand: "l'écoute est cassée — clé refusée, quota épuisé. Répéter ne sert à rien",
-    wolof: "Sama nopp bi dafa yàqu, du yaw. Xoolal état bi.",
+    wolof: "Sama nopp bi degul dara, Xoolal ndakh am nga code bu bax",
     francais: "Mon oreille est en panne, ce n'est pas toi. Regarde l'état de BIA." },
 
   /* Déjà dans app/api/chat/route.ts, sous le nom PANNE_MOTEUR. */
   { cle: "panne-moteur", groupe: "pannes",
     quand: "le modèle ne répond pas",
-    wolof: "Sama moteur bi tontuwul léegi, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.",
+    wolof: "Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.",
     francais: "Mon moteur ne répond pas pour l'instant, je ne peux pas te répondre correctement. Réessaie dans quelques instants, ou dis-le à KHALAM." },
 
   /* PAS_DE_CLE, même fichier. */
   { cle: "panne-sans-cle", groupe: "pannes",
     quand: "la clé du modèle manque sur le serveur",
-    wolof: "Sama moteur bi taxawul : kon bi ci biir amul. Wax ko KHALAM.",
+    wolof: "Sama moteur bi taxawna : xolal sa crédit bi .waala nga  Wax ko KHALAM.",
     francais: "Mon moteur est arrêté : la clé n'est pas là. Dis-le à KHALAM." },
 
   /* Le message de l'erreur inattendue, fin de la route du chat. */
@@ -251,7 +277,7 @@ export const SERVICES: Service[] = [
      montrer, mais elle ne montrait rien. » */
   { cle: "panne-video", groupe: "pannes",
     quand: "elle a dit qu'elle montrait une vidéo et la recherche a échoué",
-    wolof: "Waaye mënuma ubbi vidéo bi : sama recherche vidéo bi dafa dox ul léegi.",
+    wolof: "waaye mënuma ubbi vidéo bi : sama recherche vidéo bi dafa doxul.",
     francais: "Mais je n'arrive pas à ouvrir la vidéo : ma recherche de vidéos ne marche pas en ce moment." },
 
   /* ── LES QUATRE CODES, QUI NE SONT JAMAIS DITS ─────────────────────────
@@ -266,7 +292,7 @@ export const SERVICES: Service[] = [
     francais: "Entre ton code pour parler avec BIA." },
   { cle: "code-invalide", groupe: "pannes",
     quand: "le code est faux",
-    wolof: "Kod bi baaxul. Xoolaatal ko.",
+    wolof: "Kod bi baaxul. Xoolaat ko.",
     francais: "Le code n'est pas bon. Vérifie-le." },
   { cle: "code-expire", groupe: "pannes",
     quand: "le code a dépassé son temps",
@@ -274,7 +300,7 @@ export const SERVICES: Service[] = [
     francais: "Ton code a dépassé son temps." },
   { cle: "code-epuise", groupe: "pannes",
     quand: "le code a épuisé ses questions",
-    wolof: "Sa kod bi jeex na laaj yi ko àttan.",
+    wolof: "Sa kod bi jeex na  wital benen kod ci waa khalam",
     francais: "Ton code a épuisé ses questions." },
 ];
 
