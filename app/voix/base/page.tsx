@@ -66,6 +66,23 @@ export default function PageBase() {
 
   return (
     <main className="voix">
+      {/* ── LE BOUTON RETOUR ──────────────────────────────────────────────
+
+          Lamine, le 12 septembre 2026 : « il faut mettre un bouton retour
+          ici. »
+
+          Ces six pages s'ouvrent depuis l'application, mais elles ne savent
+          pas y ramener : ce sont de vraies pages web, alors on en sort par la
+          flèche du navigateur — qui, dans une application installée sur
+          l'écran d'accueil, N'EXISTE PAS. On était donc enfermé dedans, comme
+          on l'était dans la fenêtre de discussion avant le bouton « Fermer »
+          d'en bas.
+
+          C'est le même défaut que la porte qui manquait pour ENTRER, pris par
+          l'autre bout : une page où l'on entre et dont on ne sort pas n'est
+          pas finie. */}
+      <p className="voix-retour"><a href="/">← Revenir à BIA</a></p>
+
       <p className="voix-provisoire">
         Page provisoire — le temps d&apos;écouter et de corriger les 69
         nouvelles. On la retire une fois l&apos;enregistrement fait.
@@ -171,6 +188,7 @@ export default function PageBase() {
           seulement après qu&apos;on enregistre — une fois, pour toujours.
         </p>
       </div>
+      <p className="voix-retour voix-retour-bas"><a href="/">← Revenir à BIA</a></p>
     </main>
   );
 }
