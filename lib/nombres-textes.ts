@@ -33,6 +33,31 @@
    de RELU exprès — les 42 phrases sont relues, ces nombres-ci ne le sont pas
    encore, et un seul verrou pour les deux enregistrerait les nombres sans
    qu'il les ait entendus. */
+/* ── ONZE CORRECTIONS DE LAMINE, LE 12 SEPTEMBRE 2026 ──────────────────────
+
+   Il a relu la fiche et renvoyé douze lignes. Onze sont posées telles quelles
+   ci-dessous ; la douzième est en attente, et c'est expliqué à sa ligne.
+
+   LES POURCENTAGES. « pour cent » était du français posé au milieu du wolof.
+   Il écrit « ci téeméer bu nekk » — pour chaque centaine. C'est du wolof, et
+   ça se dit.
+
+   LES QUATRE OPÉRATIONS. Je les avais écrites en français à l'intérieur du
+   wolof — « plus », « moins », « multiplié par », « divisé par », « égal ».
+   Il a donné les vrais mots :
+
+       yokaci       ajouter
+       wangici      retirer
+       fulko ak     multiplier par
+       sédeléko ak  diviser par
+       mu don       cela fait
+
+   SA PONCTUATION EST GARDÉE TELLE QUELLE, points et majuscules compris. Ce
+   n'est pas de la négligence de ma part : dans un calcul lu à voix haute, un
+   point est une RESPIRATION — « fukk wangici. ñeent, Mu don. juróom-benn » se
+   dit avec les pauses d'un maître qui compte au tableau. Je ne lisse pas ça
+   sans qu'il l'ait entendu. La page /voix/nombres est là pour ça. */
+
 export const RELU_NOMBRES = false;
 
 export type Nombre = {
@@ -72,6 +97,28 @@ export const NOMBRES: Nombre[] = [
   { cle: "n-20", etiquette: "20", wolof: "ñaar-fukk", groupe: "unites" },
 
   /* ── LES DIZAINES ─────────────────────────────────────────────────────── */
+  /* ── « n-30 » ATTEND UN MOT DE LUI, ET JE NE L'AI PAS POSÉE ──────────────
+
+     Il a écrit : ñett-fukk → « Fan wer ».
+
+     Je ne l'applique pas, et voici pourquoi — en sachant qu'il est wolof et
+     que je ne le suis pas, donc que c'est peut-être moi qui me trompe.
+
+     Cette entrée est le NOMBRE trente. Elle vit dans une série que rien ne
+     casse : 40 ñeent-fukk, 50 juróom-fukk, 60 juróom-benn-fukk, 70, 80, 90 —
+     toutes bâties sur « fukk ». Et « fan wer », si je le comprends, ce sont
+     LES JOURS D'UN MOIS : une durée, pas un nombre.
+
+     Ce qui m'arrête, c'est où ce nombre est employé. Il sert à dire un
+     MONTANT : « 30 000 francs » se dit avec lui. Si trente devient « fan
+     wer », elle dira « les jours du mois mille francs ». Et la règle est
+     écrite en tête de ce fichier, de nous deux : une erreur sur un montant
+     coûte de l'argent à quelqu'un.
+
+     MON HYPOTHÈSE : il a vu « 30 » sur la page et pensé au mois — et ce qu'il
+     veut, c'est une entrée EN PLUS pour « trente jours / un mois », pas
+     remplacer le nombre. Si c'est ça, je l'ajoute et je ne touche pas à
+     celle-ci. Un mot de lui et c'est fait, dans un sens ou dans l'autre. */
   { cle: "n-30", etiquette: "30", wolof: "ñett-fukk", groupe: "dizaines" },
   { cle: "n-40", etiquette: "40", wolof: "ñeent-fukk", groupe: "dizaines" },
   { cle: "n-50", etiquette: "50", wolof: "juróom-fukk", groupe: "dizaines" },
@@ -125,22 +172,22 @@ export const NOMBRES: Nombre[] = [
   /* ── LES POURCENTAGES ─────────────────────────────────────────────────────
      18 % est là pour une raison précise : c'est la TVA, et elle apparaît sur
      chaque devis que BIA fabrique. */
-  { cle: "p-5", etiquette: "5 %", wolof: "juróom pour cent", groupe: "pourcent" },
-  { cle: "p-10", etiquette: "10 %", wolof: "fukk pour cent", groupe: "pourcent" },
-  { cle: "p-18", etiquette: "18 % (la TVA)", wolof: "fukk ak juróom-ñett pour cent", groupe: "pourcent" },
-  { cle: "p-20", etiquette: "20 %", wolof: "ñaar-fukk pour cent", groupe: "pourcent" },
-  { cle: "p-50", etiquette: "50 %", wolof: "juróom-fukk pour cent", groupe: "pourcent" },
-  { cle: "p-100", etiquette: "100 %", wolof: "téeméer pour cent", groupe: "pourcent" },
+  { cle: "p-5", etiquette: "5 %", wolof: "juróom  ci téeméer bu nekk", groupe: "pourcent" },
+  { cle: "p-10", etiquette: "10 %", wolof: "fukk ci téeméer bu nekk", groupe: "pourcent" },
+  { cle: "p-18", etiquette: "18 % (la TVA)", wolof: "fukk ak juróom-ñett ci téeméer bu nekk", groupe: "pourcent" },
+  { cle: "p-20", etiquette: "20 %", wolof: "ñaar-fukk ci téeméer bu nekk", groupe: "pourcent" },
+  { cle: "p-50", etiquette: "50 %", wolof: "juróom-fukk ci téeméer bu nekk", groupe: "pourcent" },
+  { cle: "p-100", etiquette: "100 %", wolof: "téeméer ci téeméer bu nekk", groupe: "pourcent" },
 
   /* ── LES CALCULS ──────────────────────────────────────────────────────────
      Ce ne sont pas des réponses toutes faites : ce sont les MOTS QUI RELIENT
      — plus, moins, multiplié par, divisé par, égal — entendus en situation.
      C'est sur eux qu'il faut juger, pas sur le résultat. */
-  { cle: "c-plus", etiquette: "2 + 3 = 5", wolof: "ñaar plus ñett, égal juróom", groupe: "calcul" },
-  { cle: "c-moins", etiquette: "10 − 4 = 6", wolof: "fukk moins ñeent, égal juróom-benn", groupe: "calcul" },
-  { cle: "c-fois", etiquette: "3 × 4 = 12", wolof: "ñett multiplié par ñeent, égal fukk ak ñaar", groupe: "calcul" },
-  { cle: "c-divise", etiquette: "20 ÷ 5 = 4", wolof: "ñaar-fukk divisé par juróom, égal ñeent", groupe: "calcul" },
-  { cle: "c-argent", etiquette: "15 000 + 10 000 = 25 000 F", wolof: "ñetti junni dërëm plus ñaari junni dërëm, égal juróomi junni dërëm", groupe: "calcul" },
+  { cle: "c-plus", etiquette: "2 + 3 = 5", wolof: "ñaar yokaci ñett, mu donn. juróom", groupe: "calcul" },
+  { cle: "c-moins", etiquette: "10 − 4 = 6", wolof: "fukk wangici. ñeent, Mu don. juróom-benn", groupe: "calcul" },
+  { cle: "c-fois", etiquette: "3 × 4 = 12", wolof: "ñett fulko Ak ñeent, Mu don, fukk ak ñaar", groupe: "calcul" },
+  { cle: "c-divise", etiquette: "20 ÷ 5 = 4", wolof: "ñaar-fukk sédeléko ak juróom, Mu don ñeent", groupe: "calcul" },
+  { cle: "c-argent", etiquette: "15 000 + 10 000 = 25 000 F", wolof: "ñetti junni dërëm yokaci ñaari junni dërëm, Mu don juróomi junni dërëm", groupe: "calcul" },
 ];
 
 /** Les titres de la page, dans l'ordre où on les lit. */
