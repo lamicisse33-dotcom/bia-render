@@ -502,6 +502,18 @@ export function sonDe(cle: string, langue: "wo" | "fr"): string {
   return `${lexiqueConfig.url}/storage/v1/object/public/${SEAU}/${langue}/${encodeURIComponent(cle)}.wav`;
 }
 
+/* Le dossier où vivent tous les sons d'une langue.
+
+   Le guidage en a besoin, et il ne peut pas passer par le serveur à chaque
+   fois : « tourné ci ndeyjoor » doit partir dans la demi-seconde, pas après
+   un aller-retour. Le téléphone construit donc l'adresse lui-même, et cette
+   base-là lui est donnée une fois, au calcul de l'itinéraire. Elle est
+   publique — les 222 sons se lisent sans aucune clé, vérifié le 11 septembre
+   2026 — donc la donner n'ouvre rien. */
+export function baseDesSons(langue: "wo" | "fr"): string {
+  return `${lexiqueConfig.url}/storage/v1/object/public/${SEAU}/${langue}/`;
+}
+
 export const repertoireActif = () => Boolean(lexiqueConfig.url && lexiqueConfig.cle);
 
 /** Ce que /api/etat montre : combien d'entrées, et si les textes sont relus.

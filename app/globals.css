@@ -1612,3 +1612,161 @@ button { font: inherit; touch-action: manipulation; }
   color: rgba(255,236,190,.85);
   font-size: 12.5px; line-height: 1.45;
 }
+
+/* ── LA CARTE, ET LE VISAGE QUI SE RETIRE ───────────────────────────────────
+
+   Lamine, le 11 septembre 2026 : « elle retire totalement de l'écran, elle
+   t'affiche la carte mais on peut continuer à parler avec elle, mais on ne le
+   voit pas ; elle se retire pour laisser la carte pour plus de visibilité. »
+
+   Donc : plein écran, vraiment plein. Rien de BIA à l'image sauf une pastille
+   qui bat quand elle parle — la preuve qu'elle est là, sans prendre de place.
+
+   TOUT EST GRAND. Ça se lit d'un coup d'œil, en conduisant, au soleil de
+   Dakar. Les tailles ici ne sont pas un choix graphique : une instruction
+   qu'on doit chercher est une instruction manquée. */
+.carte {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #06070a;
+}
+.carte-fond { position: absolute; inset: 0; }
+
+/* Le fond de carte est clair ; ses libellés doivent rester lisibles, on ne
+   l'assombrit donc pas. Ce sont nos panneaux à nous qui portent l'ombre. */
+.carte-manoeuvre {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px calc(16px + env(safe-area-inset-top, 0px));
+  padding-top: calc(14px + env(safe-area-inset-top, 0px));
+  background: linear-gradient(to bottom, rgba(6, 7, 10, 0.94), rgba(6, 7, 10, 0.82) 70%, rgba(6, 7, 10, 0));
+  color: #f4e7c8;
+  pointer-events: none;
+}
+.carte-fleche { font-size: 44px; line-height: 1; color: #e2b04a; }
+.carte-metres { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; }
+.carte-quoi { font-size: 17px; line-height: 1.25; }
+.carte-quoi em { opacity: 0.65; font-style: normal; }
+
+.carte-bas {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgba(6, 7, 10, 0.96), rgba(6, 7, 10, 0.8) 60%, rgba(6, 7, 10, 0));
+  color: #f4e7c8;
+  text-align: center;
+}
+.carte-ou { margin: 0 0 12px; font-size: 15px; opacity: 0.9; }
+.carte-etat { margin: 0 0 10px; font-size: 16px; color: #e2b04a; }
+.carte-avis { margin: 10px 0 0; font-size: 12px; opacity: 0.55; line-height: 1.3; }
+.carte-revenir {
+  min-height: 52px;
+  padding: 0 26px;
+  border: 1px solid rgba(226, 176, 74, 0.55);
+  border-radius: 26px;
+  background: rgba(6, 7, 10, 0.7);
+  color: #e2b04a;
+  font-size: 16px;
+  font-family: inherit;
+}
+
+/* ── LA PASTILLE : TOUT CE QUI RESTE D'ELLE ─────────────────────────────── */
+.carte-pastille {
+  position: absolute;
+  top: calc(96px + env(safe-area-inset-top, 0px));
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+.carte-rond {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: #e2b04a;
+  box-shadow: 0 0 0 0 rgba(226, 176, 74, 0.7);
+}
+.carte-mot { font-size: 11px; letter-spacing: 1.5px; color: #e2b04a; opacity: 0.8; }
+/* Elle bat SEULEMENT quand elle parle : un point qui clignote sans arrêt
+   devient du décor, et on ne le regarde plus. */
+.carte-pastille.parle .carte-rond { animation: carte-bat 1.1s ease-out infinite; }
+@keyframes carte-bat {
+  0% { box-shadow: 0 0 0 0 rgba(226, 176, 74, 0.65); }
+  100% { box-shadow: 0 0 0 22px rgba(226, 176, 74, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .carte-pastille.parle .carte-rond { animation: none; box-shadow: 0 0 0 6px rgba(226, 176, 74, 0.3); }
+}
+
+/* Si le fond de carte ne se charge pas, le guidage continue à la voix : on le
+   DIT, au lieu de laisser un écran noir. */
+.carte-sans {
+  position: absolute;
+  top: 50%; left: 18px; right: 18px;
+  transform: translateY(-50%);
+  padding: 18px;
+  border: 1px solid rgba(226, 176, 74, 0.35);
+  border-radius: 14px;
+  background: rgba(6, 7, 10, 0.9);
+  color: #f4e7c8;
+  text-align: center;
+  line-height: 1.4;
+}
+.carte-sans p { margin: 0 0 8px; }
+.carte-sans p:last-child { margin: 0; opacity: 0.8; font-size: 14px; }
+
+/* Le crédit d'OpenStreetMap doit rester visible : c'est la condition d'usage
+   de la donnée, et sans ses contributeurs il n'y aurait aucune route de Dakar
+   à calculer. MapLibre le place lui-même ; on s'assure juste qu'il se lit. */
+.carte .maplibregl-ctrl-attrib { font-size: 10px; }
+
+/* ── OÙ ON T'EMMÈNE : LA CONFIRMATION AVANT LE DÉPART ──────────────────────
+
+   Elle s'affiche par-dessus la conversation, sans la démonter. On peut
+   toujours parler à BIA pendant qu'elle est là — et c'est souvent ce qu'on
+   fera : « non, l'autre », « celui du marché ». */
+.carte-confirme {
+  position: fixed;
+  left: 16px; right: 16px;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid rgba(226, 176, 74, 0.4);
+  border-radius: 16px;
+  background: rgba(8, 9, 13, 0.96);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55);
+  max-width: 560px;
+  margin: 0 auto;
+}
+.carte-confirme-titre { margin: 0 0 4px; color: #e2b04a; font-size: 16px; }
+.carte-confirme-note { margin: 4px 0 0; font-size: 13px; line-height: 1.4; opacity: 0.7; }
+.carte-choix {
+  min-height: 50px;
+  padding: 12px 16px;
+  border: 1px solid rgba(226, 176, 74, 0.35);
+  border-radius: 12px;
+  background: rgba(226, 176, 74, 0.08);
+  color: #f4e7c8;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.35;
+  text-align: left;
+}
+/* Un résultat douteux n'est pas caché : il est MONTRÉ comme douteux. Cacher
+   reviendrait à choisir à la place de quelqu'un qui connaît Dakar mieux que
+   la base de données. */
+.carte-choix em { display: block; margin-top: 3px; font-style: normal; font-size: 13px; opacity: 0.6; }
+.carte-choix.pale { border-color: rgba(244, 231, 200, 0.18); background: transparent; opacity: 0.7; }

@@ -133,6 +133,21 @@ que tu crois savoir de toi-même.
   N'INVENTE JAMAIS UN NUMÉRO. Si tu ne l'as pas, demande-le, ou dis que tu ne
   l'as pas — un chiffre inventé fait sonner chez un inconnu. Tu ne connais pas
   le répertoire du téléphone : tu ne vois que ce qu'on t'a dit.
+- Tu GUIDES JUSQU'À UN ENDROIT. Quand quelqu'un veut aller quelque part — « yóbbu
+  ma ci Sandaga », « emmène-moi à l'université », « fan la Liberté 6 nekk » — tu
+  poses sur la PREMIÈRE ligne, à côté des autres balises :
+  [[carte:marché Sandaga]]
+  Tu écris l'endroit COMME LA PERSONNE L'A DIT, en clair. N'écris JAMAIS de
+  coordonnées, de latitude ni de longitude : tu ne sais pas où sont les
+  choses, et un chiffre inventé envoie quelqu'un dans la mer. C'est
+  l'application qui cherche l'endroit, et c'est la personne qui confirme à
+  voix haute avant qu'on démarre.
+  Ta carte s'ouvre alors en plein écran et ton visage se retire — mais tu
+  restes là, on continue à te parler, et c'est toi qui dis où tourner.
+  SI TU N'ES PAS SÛRE DE L'ENDROIT, demande un repère au lieu de deviner :
+  « à côté de quoi ? ». Les adresses n'existent pas vraiment ici, les numéros
+  de rue non plus — on se repère par ce qu'il y a autour. Et ce qui est écrit
+  dans les cartes est parfois vieux de dix ans : un commerce peut avoir fermé.
 - Et une personne peut corriger ton wolof : le bouton « Mal dit », sous chaque
   réponse. Ce qu'elle écrit fait autorité sur ta façon de parler, pour les
   fois suivantes. Dis-le quand on te demande comment t'améliorer.
@@ -402,6 +417,25 @@ function detacherVoir(texte:string){
   return {
     texte:texte.replace(new RegExp(VOIR.source,"gi"),"").replace(/\n{3,}/g,"\n\n").trim(),
     voir:m?m[1].toLowerCase():"",
+  };
+}
+
+/* ── ELLE GUIDE JUSQU'À UN ENDROIT ─────────────────────────────────────────
+   « BIA doit pouvoir guider une personne pour qu'elle se retrouve, comme
+   Google Maps, Waze… elle se retire pour laisser la carte, mais on peut
+   continuer à parler avec elle. » — Lamine, 11 septembre 2026.
+
+   La balise porte l'endroit TEL QUE LA PERSONNE L'A DIT, pas des
+   coordonnées : le modèle ne sait pas où sont les choses, et s'il inventait
+   une latitude on enverrait quelqu'un dans l'Atlantique. C'est /api/lieu qui
+   cherche, et c'est la personne qui confirme à voix haute avant qu'on
+   démarre. */
+const CARTE=/\[{1,2}\s*carte\s*[:\-—]?\s*([^\]]{2,80})\s*\]{1,2}/i;
+function detacherCarte(texte:string){
+  const m=texte.match(CARTE);
+  return {
+    texte:texte.replace(new RegExp(CARTE.source,"gi"),"").replace(/\n{3,}/g,"\n\n").trim(),
+    carte:m?m[1].replace(/\s+/g," ").trim().slice(0,80):"",
   };
 }
 
@@ -807,7 +841,8 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const {texte:sansPapier,papier}=detacherPapier(avecBalise);
     const {texte:sansAppel,appel}=detacherAppel(sansPapier);
     const {texte:sansVoir,voir}=detacherVoir(sansAppel);
-    const {texte:reply,cherche:demande}=detacherCherche(sansVoir);
+    const {texte:sansCarte,carte}=detacherCarte(sansVoir);
+    const {texte:reply,cherche:demande}=detacherCherche(sansCarte);
 
     /* La recherche part APRÈS que le modèle a fini d'écrire, pas pendant : le
        texte est déjà là, on n'attend que les images. Une demi-seconde de plus,
@@ -838,7 +873,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     if(!reply&&(papier||appel||voir||trouve)){
       oublierPanne();
       const parDefaut=papier?"Waaw, maa ngi koy defar.":(voir||trouve)?"Xool.":"Waaw.";
-      return NextResponse.json({reply:parDefaut,emotion,papier,appel,voir,trouve,source:"geste sans phrase"});
+      return NextResponse.json({reply:parDefaut,emotion,papier,appel,voir,carte,trouve,source:"geste sans phrase"});
     }
 
     if(!reply){
@@ -849,7 +884,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
-    return NextResponse.json({reply,emotion,papier,appel,voir,trouve,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
+    return NextResponse.json({reply,emotion,papier,appel,voir,carte,trouve,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message, "chat");

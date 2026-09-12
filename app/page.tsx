@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   A_FABRIQUER, CHAPEAU, PARTIE_1, PARTIE_1_CONNU,
   dire, extraireNom, fichierDe as fichierDeParole,
@@ -10,6 +11,13 @@ import {
   ajouterProfil, chargerProfils, cleEmetteur, cleFil, cleResume, garderProfils, oublierProfil,
 } from "@/lib/profils";
 import type { Profil } from "@/lib/profils";
+
+/* ── LA CARTE ───────────────────────────────────────────────────────────────
+   Chargée SEULEMENT quand elle s'ouvre. La bibliothèque de cartes pèse
+   plusieurs centaines de kilo-octets : personne ne doit la télécharger pour
+   dire bonjour à BIA. */
+import type { Lieu } from "./carte/Carte";
+const Carte = dynamic(() => import("./carte/Carte"), { ssr: false });
 import {
   chargerPapiers, garderPapier, oublierPapiers, nouvelIdPapier, titreDe,
 } from "@/lib/papiers";
@@ -282,6 +290,55 @@ export default function Home() {
      toute seule — et c'est heureux : ce qu'elle fait, c'est ouvrir le clavier
      du téléphone avec le numéro déjà écrit. La personne appuie, ou pas. */
   const [appel, setAppel] = useState<{ numero: string; nom: string } | null>(null);
+
+  /* ── LA CARTE, ET LA CONFIRMATION QUI LA PRÉCÈDE ─────────────────────────
+
+     Lamine, le 11 septembre 2026 : « BIA doit pouvoir guider une personne
+     pour qu'elle se retrouve, comme Google Maps… elle se retire pour laisser
+     la carte, mais on peut continuer à parler avec elle. »
+
+     `carte` est la destination confirmée : tant qu'elle vaut null, rien ne
+     s'ouvre. `aConfirmer` est l'étape d'avant, et elle n'est pas
+     négociable — c'est la leçon de WARI, ce commerce que la base de données
+     place encore à Ouakam dix ans après sa fermeture. On répète l'endroit, on
+     attend le « waaw », et seulement après on démarre.
+
+     LA CONVERSATION N'EST PAS DÉMONTÉE quand la carte s'ouvre : elle est
+     posée PAR-DESSUS. Le micro, l'historique, sa voix, tout continue de
+     tourner dessous. C'est ce qui fait qu'on peut lui parler sans la voir. */
+  const [carte, setCarte] = useState<Lieu | null>(null);
+  const [aConfirmer, setAConfirmer] = useState<Lieu[] | null>(null);
+  const [chercheLieu, setChercheLieu] = useState(false);
+
+  /* CHERCHER L'ENDROIT, PUIS LE FAIRE CONFIRMER.
+
+     Mesuré le 11 septembre 2026 : sur dix endroits de Dakar demandés comme un
+     Dakarois les nomme, les dix ont renvoyé quelque chose et TROIS se sont
+     trompés en silence — « Hôpital Principal » a renvoyé son parking, « Gare
+     de Thiaroye » un poste de santé, « Station Total Ouakam » une agence
+     fermée depuis dix ans.
+
+     Le danger n'est donc pas de ne pas trouver : c'est de trouver à côté sans
+     le dire. On ne démarre jamais un guidage sans que la personne ait vu et
+     approuvé où on l'emmène. */
+  const chercherLeLieu = useCallback(async (quoi: string) => {
+    setChercheLieu(true);
+    setAConfirmer(null);
+    try {
+      const r = await fetch(`/api/lieu?quoi=${encodeURIComponent(quoi)}`,
+        { headers: { "x-bia-code": codeRef.current } });
+      const d = await r.json() as { candidats?: Lieu[]; panne?: boolean };
+      const trouves = (d.candidats || []).slice(0, 3);
+      /* Rien trouvé n'est pas la même chose que le réseau qui n'a pas
+         répondu : les deux phrases n'appellent pas la même réaction. */
+      if (!trouves.length) setAConfirmer([]);
+      else setAConfirmer(trouves);
+    } catch {
+      setAConfirmer([]);
+    } finally {
+      setChercheLieu(false);
+    }
+  }, []);
   /* LES SERVICES, EN RANGÉE. Demande de Lamine, le 10 septembre 2026 : « tous
      les services vont être des boutons sur ces points ; dès que tu appuies,
      c'est seulement cette page qui s'ouvre ». Un seul service ouvert à la
@@ -1317,7 +1374,7 @@ export default function Home() {
             : ""].filter(Boolean).join("\n"),
         }),
       });
-      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; trouve?: Resultat | null; son?: string; corrige?: boolean; source?: string };
+      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; trouve?: Resultat | null; son?: string; corrige?: boolean; source?: string };
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
       /* ICI SE JOUAIT LE SILENCE.
          On coupait l'attente à l'arrivée du TEXTE. Mais la voix, elle, n'est
@@ -1354,6 +1411,11 @@ export default function Home() {
       }
       // Elle a un numéro à composer : le bouton s'allume jusqu'au tour suivant.
       if (data.appel?.numero) setAppel(data.appel);
+      /* ELLE VEUT OUVRIR LA CARTE. On ne l'ouvre pas tout de suite : on
+         cherche l'endroit, puis on le fait CONFIRMER. Le modèle n'a écrit
+         qu'un nom en clair — il ne sait pas où sont les choses, et on ne lui
+         demande surtout pas de coordonnées. */
+      if (data.carte) void chercherLeLieu(data.carte);
       setPanne(data.source && data.source.startsWith("panne") ? data.source : "");
       /* Elle a quelque chose à montrer. On ne garde que la clé du sujet : le
          fil est rangé dans la mémoire du téléphone, et des images y tiendraient
@@ -2783,10 +2845,13 @@ export default function Home() {
             <a href="/voix/nombres" className="papier-lien">Écouter les 68 nombres →</a>
             {" "}
             <a href="/voix/base" className="papier-lien">Écouter les 69 nouvelles →</a>
+            {" "}
+            <a href="/voix/guidage" className="papier-lien">Écouter les 45 du guidage →</a>
             <br />
-            Trois pages provisoires, et pour toi seul : les phrases, les
-            nombres, puis les 69 nouvelles réponses. On les retire une fois
-            l&apos;enregistrement fait.
+            Quatre pages provisoires, et pour toi seul : les phrases, les
+            nombres, les 69 nouvelles réponses, et les 45 phrases qui te
+            guideront sur la carte. On les retire une fois l&apos;enregistrement
+            fait.
           </p>
         ) : null}
 
@@ -3506,6 +3571,55 @@ export default function Home() {
       {ecran ? <Ecran titre={ecran.titre} pieces={ecran.pieces} credit={ecran.credit} onFermer={fermerEcran} /> : null}
 
       <Installer />
+
+      {/* ── OÙ ON T'EMMÈNE — LA CONFIRMATION AVANT LE DÉPART ───────────────
+          Jamais de guidage sans que la personne ait vu où elle va. C'est la
+          leçon de WARI, cette agence que les cartes placent encore à Ouakam
+          dix ans après sa fermeture : le danger n'est pas de ne pas trouver,
+          c'est de trouver à côté sans le dire. */}
+      {aConfirmer ? (
+        <div className="carte-confirme">
+          {aConfirmer.length ? (
+            <>
+              <p className="carte-confirme-titre">Je t&apos;emmène où&nbsp;?</p>
+              {aConfirmer.map((lieu) => (
+                <button key={`${lieu.lat},${lieu.lon}`} type="button" className="carte-choix"
+                  onClick={() => { setCarte(lieu); setAConfirmer(null); }}>
+                  {lieu.dit}
+                  {lieu.sur === false ? <em> — je ne suis pas sûre de celui-là</em> : null}
+                </button>
+              ))}
+              <p className="carte-confirme-note">
+                Si aucun n&apos;est le bon, dis-moi ce qu&apos;il y a autour —
+                un marché, une station, une mosquée. Ici on se repère comme ça.
+              </p>
+            </>
+          ) : (
+            <p className="carte-confirme-titre">
+              Je ne trouve pas cet endroit. Dis-moi ce qu&apos;il y a autour&nbsp;?
+            </p>
+          )}
+          <button type="button" className="carte-choix pale" onClick={() => setAConfirmer(null)}>
+            Laisse tomber
+          </button>
+        </div>
+      ) : null}
+      {chercheLieu ? <p className="carte-confirme"><span className="carte-confirme-titre">Maa ngi seet bérab bi…</span></p> : null}
+
+      {/* ── ELLE SE RETIRE, LA CARTE PREND TOUT ────────────────────────────
+          Posée PAR-DESSUS la conversation, jamais à la place : le micro,
+          l'historique et sa voix continuent de tourner dessous. C'est ce qui
+          fait qu'on peut lui parler sans la voir. */}
+      {carte ? (
+        <Carte
+          destination={carte}
+          code={code}
+          langue={langueRef.current}
+          parle={mode === "speaking"}
+          onDitTexte={(texte) => void speak(texte, "neutre", "guidage")}
+          onFermer={() => setCarte(null)}
+        />
+      ) : null}
 
       <p className="sr-only" aria-live="polite">{labels[mode]}</p>
     </main>

@@ -3,6 +3,7 @@ import { verifierCode } from "@/lib/codes";
 import { lexiqueConfig } from "@/lib/lexique";
 import { REPERTOIRE, RELU, etatRepertoire, repertoireActif } from "@/lib/repertoire";
 import { NOUVELLES, RELU_BASE } from "@/lib/base-textes";
+import { GUIDAGE, RELU_GUIDAGE } from "@/lib/guidage-textes";
 import { synthetiser } from "@/lib/voix";
 import { noterVoix } from "@/lib/depense";
 import { noterPanne } from "@/lib/panne";
@@ -145,6 +146,11 @@ function toutCeQuiSeDit() {
   return [
     ...(RELU ? REPERTOIRE.map((e) => ({ cle: e.cle, wolof: e.wolof, francais: e.francais })) : []),
     ...(RELU_BASE ? NOUVELLES.map((e) => ({ cle: e.cle, wolof: e.wolof, francais: e.francais })) : []),
+    /* LE GUIDAGE. Troisième verrou, même règle que les deux autres : rien ne
+       s'achète avant que Lamine ait écouté. Et ici ce n'est pas une question
+       d'argent — quarante-cinq phrases coûtent une dizaine de centimes — mais
+       de sécurité : une instruction mal dite fait manquer un carrefour. */
+    ...(RELU_GUIDAGE ? GUIDAGE.map((e) => ({ cle: e.cle, wolof: e.wolof, francais: e.francais })) : []),
   ];
 }
 
@@ -258,7 +264,7 @@ export async function POST(request: NextRequest) {
   if (!repertoireActif()) {
     return NextResponse.json({ erreur: "Supabase n'est pas configuré." }, { status: 400 });
   }
-  if (!RELU && !RELU_BASE) {
+  if (!RELU && !RELU_BASE && !RELU_GUIDAGE) {
     return NextResponse.json({
       erreur: "Les textes n'ont pas encore été relus. Rien n'a été enregistré, et rien n'a été payé.",
     }, { status: 409 });
