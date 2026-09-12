@@ -81,7 +81,9 @@ type Message = {
    « photo ». Lamine, le 12 septembre 2026 : « des vidéos prises sur YouTube ou
    directement sur ton téléphone ». Une chose qu'on ne voit pas n'existe pas —
    donc c'est un bouton, à côté des autres. */
-type Service = "" | "message" | "devis" | "lettre" | "photo" | "video" | "lire" | "fiche";
+/* « relire » est le seul service qui n'écrit rien : il ouvre la liste des
+   textes qui attendent l'oreille de Lamine. Il ne paraît qu'avec son code. */
+type Service = "" | "message" | "devis" | "lettre" | "photo" | "video" | "lire" | "fiche" | "relire";
 
 type Emetteur = Partie & { tva: boolean };
 const EMETTEUR_VIDE: Emetteur = {
@@ -4065,6 +4067,27 @@ export default function Home() {
       dessin: "M4 9h3.4L12 4.6v14.8L7.4 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1Zm12.5-1.6a5.6 5.6 0 0 1 0 9.2l-1.1-1.6a3.6 3.6 0 0 0 0-6l1.1-1.6Zm2.3-3.2a9.6 9.6 0 0 1 0 15.6l-1.1-1.6a7.6 7.6 0 0 0 0-12.4l1.1-1.6Z" },
     { cle: "fiche", nom: "Moi",
       dessin: "M12 12.4a4.2 4.2 0 1 0 0-8.4 4.2 4.2 0 0 0 0 8.4ZM4 20.4c0-3.6 3.6-6 8-6s8 2.4 8 6v.6H4v-.6Z" },
+    /* ── LA PORTE, ENFIN ─────────────────────────────────────────────────────
+
+       Lamine, le 12 septembre 2026 : « où est-ce que je peux les relire, je ne
+       vois pas. »
+
+       C'EST LA QUATRIÈME FOIS. Il y a dans ce fichier, écrit de ma main, ce
+       commentaire : « c'est la troisième fois qu'on construit quelque chose
+       sans laisser de porte pour y entrer : une chose qu'on ne voit pas
+       n'existe pas. » Je l'ai écrit, et j'ai recommencé.
+
+       Les six pages de relecture existaient, mais pour y arriver il fallait :
+       ouvrir la fenêtre des papiers, toucher « Moi », descendre jusqu'au
+       réglage de la voix, et trouver six liens en petit texte au milieu d'un
+       paragraphe. Personne ne devine ça, et surtout pas celui qui a autre
+       chose à faire que de chercher dans sa propre application.
+
+       Un bouton dans la rangée, comme les autres, avec le nombre de textes
+       qui attendent écrit dessus. Il ne paraît qu'avec son code maître : un
+       testeur n'a rien à relire. */
+    ...(estMaitre ? [{ cle: "relire" as Service, nom: "À relire",
+      dessin: "M5 3h9l5 5v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm8 1.8V9h4.2L13 4.8ZM7.6 12.4l1.2-1.2 1.8 1.8 3.8-3.8 1.2 1.2-5 5-3-3Z" }] : []),
   ];
 
   function vueServices() {
@@ -4079,6 +4102,65 @@ export default function Home() {
           </button>
         ))}
       </div>
+    );
+  }
+
+
+  /* ── TOUT CE QUI ATTEND SON OREILLE, EN UNE PAGE ────────────────────────────
+
+     Lamine, le 12 septembre 2026 : « où est-ce que je peux les relire, je ne
+     vois pas. »
+
+     Les six pages existaient. Ce qui manquait, c'était de pouvoir y arriver —
+     et de savoir LAQUELLE attend quoi. Ce panneau-ci répond aux deux : chaque
+     ligne dit combien de phrases, ce que ça coûtera à enregistrer une fois, et
+     si le verrou est ouvert ou fermé.
+
+     LE VERROU EST LE CŒUR DE CETTE PAGE, pas un détail technique. Fermé, BIA
+     reste muette sur ces phrases — c'est pour ça qu'il n'entend pas « d'accord,
+     j'exécute ». Ouvert, elles sont enregistrées une fois et deviennent
+     gratuites pour toujours. Il faut donc qu'il voie, d'un coup d'œil, où il
+     en est de sa relecture. */
+  function vueRelire() {
+    const listes: Array<{ ou: string; nom: string; combien: number; verrou: boolean; quoi: string }> = [
+      { ou: "/voix", nom: "Les 42 phrases", combien: 42, verrou: true,
+        quoi: "Ses réponses de tous les jours." },
+      { ou: "/voix/base", nom: "Les 69 nouvelles", combien: 69, verrou: true,
+        quoi: "Celles qu'on a ajoutées après les 42." },
+      { ou: "/voix/nombres", nom: `Les ${NOMBRES.length} nombres`, combien: NOMBRES.length, verrou: true,
+        quoi: "Compter en wolof, et l'argent en dërëm." },
+      { ou: "/voix/guidage", nom: "Les 49 du guidage", combien: 49, verrou: true,
+        quoi: "Ce qu'elle dit pour te guider sur la carte." },
+      { ou: "/voix/services", nom: "Les 34 des services", combien: 34, verrou: false,
+        quoi: "« D'accord, j'exécute », « d'accord, je vois ça », et ce qu'elle dit quand ça casse." },
+      { ou: "/voix/verdicts", nom: "Ce que tu as jugé", combien: compteVerdicts.bien + compteVerdicts.mal,
+        verrou: true, quoi: "Les boutons vert et rouge de l'écran principal." },
+    ];
+    return (
+      <>
+        <p className="papier-titre">À relire</p>
+        <p className="papier-note">
+          Rien de tout ça n&apos;est enregistré tant que tu ne l&apos;as pas
+          entendu et validé. C&apos;est voulu&nbsp;: on a déjà évité deux fois
+          d&apos;enregistrer du wolof que je croyais juste. Chaque liste
+          s&apos;enregistre une seule fois, et devient gratuite pour toujours.
+        </p>
+        <div className="relire-liste">
+          {listes.map((l) => (
+            <a key={l.ou} href={l.ou} className="relire-carte">
+              <span className="relire-nom">{l.nom}</span>
+              <span className="relire-quoi">{l.quoi}</span>
+              <span className={l.verrou ? "relire-etat relire-ouvert" : "relire-etat relire-ferme"}>
+                {l.verrou ? "relu — enregistrable" : "en attente de ta relecture"}
+              </span>
+            </a>
+          ))}
+        </div>
+        <p className="papier-note" style={{ marginTop: 16 }}>
+          Pages provisoires, et pour toi seul&nbsp;: chaque écoute coûte environ
+          deux centimes. On les retire une fois l&apos;enregistrement fait.
+        </p>
+      </>
     );
   }
 
@@ -4241,7 +4323,7 @@ export default function Home() {
                 lien aux QUATRE pages de /voix/ — qui se lisent l'une depuis
                 l'autre — en oubliant que c'est d'ICI qu'il les ouvre. Une page
                 qu'on ne peut pas atteindre n'existe pas. */}
-            <a href="/voix/services" className="papier-lien">Écouter les 30 des services →</a>
+            <a href="/voix/services" className="papier-lien">Écouter les 34 des services →</a>
             {" "}
             {/* LA PAGE DOIT ÊTRE ATTEIGNABLE DEPUIS L'INTERFACE, et c'est une
                 leçon de lui : « où se trouve le réglage dont tu parles ? Il
@@ -4254,7 +4336,7 @@ export default function Home() {
             <br />
             Cinq pages provisoires, et pour toi seul : les phrases, les
             nombres, les 69 nouvelles réponses, les 49 phrases qui te guideront
-            sur la carte, et les 30 qu&apos;elle dit en exécutant — ou quand ça
+            sur la carte, et les 34 qu&apos;elle dit en exécutant — ou quand ça
             casse. On les retire une fois l&apos;enregistrement fait.
           </p>
         ) : null}
@@ -4795,6 +4877,7 @@ export default function Home() {
           {papierErreur ? <p className="panne">⚠ {papierErreur}</p> : null}
 
           {service === "fiche" ? vueFiche() : null}
+          {service === "relire" && estMaitre ? vueRelire() : null}
           {service === "lire" ? vueLire() : null}
           {service === "photo" ? vuePhoto() : null}
           {service === "" ? vueAccueil() : null}
