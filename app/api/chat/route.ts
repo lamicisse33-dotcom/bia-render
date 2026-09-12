@@ -13,7 +13,7 @@ import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
-import { choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
+import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
 
@@ -610,6 +610,13 @@ export async function POST(request:NextRequest){
              demander /api/voix. C'est là qu'est l'économie. */
           son:sonDe(toute.cle,langue),
           source:"répertoire (gratuit)",
+          /* ── C'ÉTAIT UNE SALUTATION ────────────────────────────────────
+             Le téléphone en a besoin pour le tour SUIVANT : « dès que la
+             personne parle à nouveau, aussitôt elle doit dire d'accord, je
+             vois ça » (Lamine, 12 septembre au soir). C'est le serveur qui
+             le dit, pas le téléphone qui le devine : lui seul sait quelle
+             entrée du répertoire a répondu. */
+          salutation:SALUTATIONS.has(toute.cle),
         });
       }
     }

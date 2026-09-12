@@ -121,6 +121,18 @@ export const SERVICES: Service[] = [
   { cle: "svc-carte-3", groupe: "services", quand: "autre formulation",
     wolof: "Baax na, ñu dem.", francais: "C'est parti." },
 
+  /* ── APRÈS LA SALUTATION : LE TOUR OÙ LE SILENCE EST LE PLUS LONG ─────
+     Sa demande du 12 septembre au soir. Elle ne répond à rien : elle dit
+     « j'ai entendu » pendant qu'on fabrique la réponse. Trois formulations,
+     parce qu'une seule phrase répétée vingt fois par jour redevient une
+     machine — c'est la règle qu'il a posée pour les services. */
+  { cle: "svc-suite-1", groupe: "services", quand: "la phrase qui suit une salutation, quelle qu'elle soit",
+    wolof: "Waaw, gis naa ko.", francais: "D'accord, je vois ça." },
+  { cle: "svc-suite-2", groupe: "services", quand: "autre formulation",
+    wolof: "Waaw, dégg naa la.", francais: "D'accord, je t'ai entendu." },
+  { cle: "svc-suite-3", groupe: "services", quand: "autre formulation",
+    wolof: "Baax na, maa ngi ci.", francais: "D'accord, je m'en occupe." },
+
   /* Une vidéo. L'éclipse dure 720 ms : la phrase se dit pendant qu'elle
      s'éteint, donc elle doit tenir en une seconde ou deux. */
   { cle: "svc-video-1", groupe: "services", quand: "il demande une vidéo",
@@ -245,6 +257,33 @@ export const SERVICES: Service[] = [
    ne tient donc pas une seconde liste à jour à la main — une liste qu'on
    oublie de compléter, c'est un service qui n'a plus qu'une seule
    formulation, et personne ne s'en aperçoit. */
+/* ── LES SALUTATIONS, ET CE QUI VIENT JUSTE APRÈS ──────────────────────────
+
+   Lamine, le 12 septembre 2026 au soir : « quand on dit Salam ou bonjour,
+   n'importe quelle forme de salutation, jusqu'à ce qu'elle réponde — et si la
+   personne parle à nouveau, dès qu'elle finit de parler, aussitôt elle doit
+   dire "d'accord, je vois ça". Peu importe ce que la personne dira. »
+
+   POURQUOI C'EST LE BON ENDROIT. Une salutation, elle y répond en un dixième
+   de seconde : le son est déjà dans le téléphone. Mais la phrase SUIVANTE est
+   la vraie demande — et celle-là passe par le modèle puis par la voix : dix
+   secondes, mesurées sur son serveur. C'est donc le silence le plus long de
+   toute la conversation, et il tombe juste après le moment où elle a paru la
+   plus vive. L'écart est ce qui fait « machine ».
+
+   « D'accord, je vois ça » ne répond à rien, et c'est exactement son travail :
+   dire « j'ai entendu, je m'en occupe » pendant qu'on fabrique la réponse. Ça
+   part en un dixième de seconde, ça ne coûte rien, et ça ne se paie qu'une
+   fois — comme les accusés de service au-dessus.
+
+   CES CLÉS SONT LES SIENNES, à vérifier par lui : c'est lui qui sait ce qui
+   est une salutation à Dakar. « Naka nga def » en est une ; « bonne journée »
+   n'en est pas, c'est un adieu. */
+export const SALUTATIONS = new Set<string>([
+  "salut", "bonsoir", "ca-va", "la-famille", "quoi-de-neuf",
+  "comment-sest-passee-ta-journee", "alhamdoulilah",
+]);
+
 export function familleDe(cle: string): string {
   const m = /^svc-([a-z]+)-\d+$/.exec(cle);
   return m ? m[1] : "";

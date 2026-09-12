@@ -29,6 +29,7 @@ import {
 } from "@/lib/papiers";
 import type { PapierGarde } from "@/lib/papiers";
 import { NOMBRES } from "@/lib/nombres-textes";
+import { choisirService } from "@/lib/services-textes";
 import { compterVerdicts, lireVerdicts, poserVerdict } from "@/lib/verdicts";
 import { franc, lecture, sorteEvoquee, totauxDe } from "@/lib/documents";
 import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
@@ -449,6 +450,23 @@ export default function Home() {
   const [estMaitre, setEstMaitre] = useState(false);
   /* Les verdicts du code maître : le compte s'affiche sur les boutons, et le
      mot d'accusé de réception s'efface tout seul. */
+  /* ── ELLE VIENT DE RÉPONDRE À UNE SALUTATION ────────────────────────────
+
+     Lamine, le 12 septembre 2026 au soir : « quand on dit Salam ou bonjour,
+     n'importe quelle forme de salutation, jusqu'à ce qu'elle réponde — et si
+     la personne parle à nouveau, dès qu'elle finit de parler, aussitôt elle
+     doit dire "d'accord, je vois ça". Peu importe ce que la personne dira. »
+
+     Une salutation part en un dixième de seconde : le son est déjà là. Mais
+     la phrase SUIVANTE est la vraie demande, et celle-là coûte dix secondes
+     — mesurées sur son serveur. C'est le plus long silence de la
+     conversation, et il tombe juste après le moment où elle a paru la plus
+     vive. C'est cet écart qui fait « machine ».
+
+     Le drapeau ne vaut QUE pour le tour suivant : on le baisse dès qu'il a
+     servi. « Je vois ça » deux fois de suite ne serait plus une attention,
+     ce serait un tic. */
+  const apresSalutationRef = useRef(false);
   const [compteVerdicts, setCompteVerdicts] = useState({ bien: 0, mal: 0, corriges: 0 });
   const [motVerdict, setMotVerdict] = useState("");
   const motVerdictMinuterie = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1916,6 +1934,10 @@ export default function Home() {
       /* Une réponse du répertoire arrive avec son son déjà fabriqué : on le
          joue tel quel. Si le fichier manque — seau vidé, réseau coupé — on
          retombe sur la synthèse ordinaire plutôt que de rester muette. */
+      /* Si c'était une salutation, le tour SUIVANT commencera par « d'accord,
+         je vois ça » — quoi qu'on lui dise. Posé ici, avant de jouer le son :
+         c'est le serveur qui l'a dit, il n'y a rien à deviner. */
+      if ((data as { salutation?: boolean }).salutation) apresSalutationRef.current = true;
       if (data.son) {
         try {
           await direSonTeutFait(data.son, emotionRef.current);
@@ -2748,7 +2770,45 @@ export default function Home() {
         tTranscritRef.current = 0;
         tModeleRef.current = 0;
         langueRef.current = "wo";
-        void attendreEnParlant(jeton, langueRef.current);
+        /* ── « AUSSITÔT ELLE DOIT DIRE D'ACCORD, JE VOIS ÇA » ─────────────
+
+           Sa demande du 12 septembre au soir, et l'endroit est ici : on vient
+           de fermer le micro, la transcription n'est même pas partie. Rien
+           n'est plus tôt que ça.
+
+           Le son est déjà dans le téléphone (c'est un enregistrement du
+           répertoire) donc il part en un dixième de seconde. L'attente
+           parlée, elle, prend la suite quand l'accusé a fini — sinon les deux
+           parleraient ensemble.
+
+           Tant que les phrases de service ne sont pas enregistrées,
+           choisirService rend null et rien ne change : une phrase promise
+           sans son serait un silence. */
+        const accuseSuite = apresSalutationRef.current
+          ? choisirService("suite", dernierService.current) : null;
+        apresSalutationRef.current = false;
+        if (accuseSuite) {
+          dernierService.current = accuseSuite.cle;
+          void (async () => {
+            try {
+              /* L'ADRESSE SE CONSTRUIT ICI, PAS AVEC sonDe(). Cette fonction
+                 lit la configuration Supabase du SERVEUR : dans le
+                 téléphone, elle rendrait une adresse vide. La page a déjà le
+                 dossier des sons — /api/etat le lui donne au chargement — et
+                 c'est ce même chemin qui sert pour la salutation d'accueil. */
+              const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
+                ?.repertoire?.base_sons?.[langueDuFil.current] || "";
+              if (!base) throw new Error("dossier des sons inconnu");
+              const octets = await octetsDuRepertoire(`${base}${accuseSuite.cle}.mp3`);
+              if (estLeTour(monTour) && attenteRef.current === jeton) await jouerEtAnimer(octets);
+            } catch { /* pas de son déposé : on enchaîne sur l'attente */ }
+            if (estLeTour(monTour) && attenteRef.current === jeton) {
+              void attendreEnParlant(jeton, langueRef.current);
+            }
+          })();
+        } else {
+          void attendreEnParlant(jeton, langueRef.current);
+        }
 
         try {
           const r = await fetch("/api/ecouter", { method: "POST", headers: { "x-bia-code": codeRef.current }, body: forme });
