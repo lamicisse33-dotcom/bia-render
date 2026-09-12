@@ -6,6 +6,7 @@ import { REPERTOIRE, RELU, etatRepertoire, repertoireActif } from "@/lib/reperto
 import { NOUVELLES, RELU_BASE } from "@/lib/base-textes";
 import { GUIDAGE, RELU_GUIDAGE } from "@/lib/guidage-textes";
 import { A_FABRIQUER, cleDe } from "@/lib/attente";
+import { RELU_SERVICES, SERVICES } from "@/lib/services-textes";
 import { BLAGUES, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { synthetiser } from "@/lib/voix";
 import { noterVoix } from "@/lib/depense";
@@ -259,6 +260,19 @@ function toutCeQuiSeDit() {
        pour toujours. Leur rire, lui, est déjà dans public/sons/ — c'est la
        vraie voix de Kha, et il ne s'achète pas. */
     ...(RELU_BLAGUES ? BLAGUES.map((b) => ({ cle: b.cle, wolof: b.wolof, francais: b.francais })) : []),
+    /* ── CE QU'ELLE DIT EN EXÉCUTANT, ET QUAND ÇA CASSE ──────────────────
+
+       Lamine, le 12 septembre 2026 : « on doit enregistrer la réponse de ses
+       services afin qu'elle soit instantanée… et tout ce qui doit être
+       immédiat, qu'on le mette. »
+
+       Les accusés de réception — « d'accord, je t'emmène » — et les phrases
+       de panne. Ces dernières sont les plus utiles de toute la liste : elles
+       sont dites aujourd'hui par la voix de robot du navigateur, ou pas dites
+       du tout. Les quatre messages de code ne PEUVENT pas être prononcés
+       aujourd'hui, puisque fabriquer une voix exige justement un code
+       valide. Depuis le seau, elles se lisent sans clé. */
+    ...(RELU_SERVICES ? SERVICES.map((s) => ({ cle: s.cle, wolof: s.wolof, francais: s.francais })) : []),
   ];
 }
 
@@ -383,7 +397,7 @@ export async function POST(request: NextRequest) {
   if (!repertoireActif()) {
     return NextResponse.json({ erreur: "Supabase n'est pas configuré." }, { status: 400 });
   }
-  if (!RELU && !RELU_BASE && !RELU_GUIDAGE) {
+  if (!RELU && !RELU_BASE && !RELU_GUIDAGE && !RELU_SERVICES) {
     return NextResponse.json({
       erreur: "Les textes n'ont pas encore été relus. Rien n'a été enregistré, et rien n'a été payé.",
     }, { status: 409 });

@@ -348,6 +348,11 @@ export default function Home() {
 
      On l'envoie à chaque demande ; le serveur choisit dans le reste. */
   const blaguesDites = useRef<string[]>([]);
+  /* La dernière formulation de service qu'elle a servie. Elle repart avec la
+     question suivante pour qu'on ne serve pas deux fois de suite la même :
+     le serveur ne peut pas s'en souvenir, Render redémarre. Comme les
+     blagues. */
+  const dernierService = useRef("");
 
   /* ── SON ÉCLIPSE ────────────────────────────────────────────────────────
 
@@ -1612,13 +1617,17 @@ export default function Home() {
              le dit dans sa réponse, et c'est ce qui attache quelqu'un à une
              application. Une seule fois — après, il est dans ses notes. */
           blaguesDites: blaguesDites.current,
+          dernierService: dernierService.current,
           resume: [resumeRef.current, nouveauNomRef.current
             ? `La personne vient de te dire son prénom : ${nouveauNomRef.current}. Emploie-le une fois dans ta réponse, naturellement, sans en faire trop.`
             : ""].filter(Boolean).join("\n"),
         }),
       });
-      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; source?: string };
+      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string };
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
+      /* La formulation de service qu'elle vient de servir : on la retient
+         pour ne pas la resservir juste après. */
+      if (data.service) dernierService.current = data.service;
       /* ICI SE JOUAIT LE SILENCE.
          On coupait l'attente à l'arrivée du TEXTE. Mais la voix, elle, n'est
          pas encore fabriquée : quatre à huit secondes plus tard. BIA se
@@ -1631,7 +1640,19 @@ export default function Home() {
         setCode(null);
         setCodeErreur(data.reply);
         setMode("ready"); setFace("yeux_ouverts");
-        await finirAttente(langueRef.current);   // personne ne parlera : on rend le silence
+        await finirAttente(langueRef.current, false);
+        /* ── ET ELLE LE DIT, AVEC SA VOIX ────────────────────────────────
+
+           Un code expiré ne pouvait RIEN faire entendre : fabriquer une voix
+           demande un code valide, et c'est justement le code qui manque. On
+           lisait donc un texte à l'écran, sans un mot — et il n'y a pas
+           pire moment pour se taire que celui où quelqu'un ne comprend pas
+           pourquoi BIA ne répond plus.
+
+           Le son vient du seau public : aucune clé n'est nécessaire. Et s'il
+           n'est pas encore enregistré, on ne fait rien de plus — le texte
+           reste à l'écran, comme avant. */
+        if (data.son) { try { await direSonTeutFait(data.son, "concernee"); } catch { } }
         return;
       }
       if (!response.ok) throw new Error("BIA unavailable");
@@ -1992,19 +2013,62 @@ export default function Home() {
     return () => { vivant = false; };
   }, [code, audioParole]);
 
-  /* iPhone n'autorise le son qu'après un geste. Le premier doigt posé sur
-     l'écran, quel qu'il soit, réveille donc le contexte audio — sans rien
-     prononcer. Sans ça, un contexte fabriqué trop tôt reste endormi et BIA
-     n'a plus de voix du tout. */
+  /* ── ELLE SALUE À L'OUVERTURE, ET DIT « JE SUIS LÀ » ────────────────────
+
+     Lamine, le 12 septembre 2026 : « dès qu'on ouvre l'application elle doit
+     saluer et dire je suis là. »
+
+     RIEN À ENREGISTRER : la phrase existe déjà, payée et relue. #salut dit
+     exactement « Salaamualeekum. Maa ngi fi. » — « Bonjour. Je suis là. » Et
+     #bonsoir dit « Naka tay ? Maa ngi thi Diam ». Le choix se fait sur
+     l'heure de Dakar.
+
+     ── POURQUOI AU PREMIER TOUCHER, ET PAS À L'AFFICHAGE ──────────────────
+
+     Parce qu'aucun navigateur n'autorise le son avant un geste de la
+     personne — c'est la règle, pas un réglage, et elle est la plus stricte
+     sur iPhone. « Dès qu'on ouvre » est donc impossible à tenir : elle
+     serait muette une fois sur deux, et on croirait à une panne. Le premier
+     doigt posé sur l'écran, lui, arrive de toute façon dans la seconde. À
+     l'usage c'est le même geste ; à la différence près que ça marche.
+
+     ── ET ÇA ANNULE UNE RÈGLE, QU'IL A LUI-MÊME CHANGÉE ───────────────────
+
+     Le 9 septembre : « BIA ne parle jamais la première ». Le mot d'accueil
+     parlé avait été retiré pour ça, et il ne restait que l'écrit. Le
+     12 septembre il demande l'inverse. C'est son application ; c'est écrit
+     ici pour qu'on sache que ce n'est pas un oubli.
+
+     UNE SEULE FOIS PAR SÉANCE. On ouvre une application vingt fois par
+     jour : saluer à chaque retour de l'écran d'accueil deviendrait une
+     sonnerie. La séance, c'est cette page-ci tant qu'elle n'est pas
+     rechargée. */
+  const salueRef = useRef(false);
   useEffect(() => {
-    const reveiller = () => { contexte(); };
+    const reveiller = () => {
+      contexte();
+      if (salueRef.current || !code) return;
+      salueRef.current = true;
+      /* Elle ne coupe jamais la parole à personne : si elle est déjà en
+         train de parler ou d'écouter, on laisse tomber la salutation. */
+      if (mode !== "ready") return;
+      const h = new Date().getHours();
+      const cle = h >= 5 && h < 17 ? "salut" : "bonsoir";
+      const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
+        ?.repertoire?.base_sons?.wo || "";
+      if (!base) return;
+      /* .mp3, et octetsDuRepertoire retombe seul sur le .wav. Si rien ne
+         vient, on ne dit rien et on ne se plaint pas : un accueil raté ne
+         doit pas être la première chose qu'on voit de BIA. */
+      void direSonTeutFait(`${base}${cle}.mp3`).catch(() => { });
+    };
     window.addEventListener("pointerdown", reveiller);
     window.addEventListener("touchstart", reveiller, { passive: true });
     return () => {
       window.removeEventListener("pointerdown", reveiller);
       window.removeEventListener("touchstart", reveiller);
     };
-  }, [contexte]);
+  }, [contexte, code, mode, direSonTeutFait]);
 
   /* Le verrou du micro ne doit jamais rester coincé. Si BIA reste « en train
      de réfléchir ou de parler » au-delà de trois minutes, c'est que quelque

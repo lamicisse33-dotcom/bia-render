@@ -82,6 +82,8 @@ export default function PageBase() {
         <a href="/voix" className="voix-pale">Les {REPERTOIRE.length} phrases</a>
         {" · "}
         <a href="/voix/nombres" className="voix-pale">Les {NOMBRES.length} nombres</a>
+        {" · "}
+        <a href="/voix/services" className="voix-pale">Les services</a>
       </p>
 
       <label className="voix-code">

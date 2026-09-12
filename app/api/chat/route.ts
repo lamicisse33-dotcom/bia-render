@@ -13,6 +13,7 @@ import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
+import { choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
 
@@ -522,7 +523,7 @@ const PAS_DE_CLE="Sama moteur bi taxawul : kon bi ci biir amul. Wax ko KHALAM.";
 
 export async function POST(request:NextRequest){
   try{
-    const body=await request.json() as {message?:string;history?:Array<{role:string;text:string}>;resume?:string;blaguesDites?:string[]};
+    const body=await request.json() as {message?:string;history?:Array<{role:string;text:string}>;resume?:string;blaguesDites?:string[];dernierService?:string};
     const question=String(body.message||"").trim().slice(0,1200);
     if(!question)return NextResponse.json({reply:"Bindal walla waxal sa laaj.",source:"validation"});
 
@@ -622,7 +623,22 @@ export async function POST(request:NextRequest){
         expire:"Sa kod bi jeex na waxtu wi.",
         epuise:"Sa kod bi jeex na laaj yi ko àttan.",
       } as const;
-      return NextResponse.json({reply:messages[verdict.raison],source:"code",motif:verdict.raison},{status:401});
+      /* ── ELLE PEUT ENFIN DIRE POURQUOI ELLE NE RÉPOND PAS ──────────────
+
+         Ces quatre phrases existaient et n'étaient JAMAIS prononcées :
+         fabriquer une voix exige un code valide, et c'est le code qui manque.
+         Quelqu'un dont le code vient d'expirer n'entendait donc rien du tout,
+         et ne pouvait que conclure que BIA est cassée.
+
+         Le son, lui, vient du seau public : il se lit sans clé. C'est la
+         règle de toute cette nuit — une panne qui se tait est pire qu'une
+         panne. */
+      const dite=panneDite(`code-${verdict.raison}`);
+      return NextResponse.json({
+        reply:messages[verdict.raison],
+        ...(dite?{son:sonDe(dite.cle,"wo")}:{}),
+        source:"code",motif:verdict.raison,
+      },{status:401});
     }
 
     const apiKey=process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY;
@@ -1069,6 +1085,55 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
        Ce n'est une panne que si elle n'a NI phrase NI geste. Sinon, on lui
        prête une phrase courte et le papier s'ouvre. */
+    /* ── L'ACCUSÉ DE RÉCEPTION, DIT TOUT DE SUITE ──────────────────────────
+
+       Lamine, le 12 septembre 2026 : « quand on lui demande, amène-moi
+       quelque part sur la carte, elle doit répondre tout de suite : d'accord,
+       j'exécute… et tout ça on doit le préenregistrer pour que ce soit plus
+       instantané. »
+
+       Il a raison, et voici ce qu'on évite. Le modèle écrit « d'accord, je
+       t'emmène », puis Soynade le fabrique : deux secondes fixes plus 36 ms
+       par signe, mesuré. Elle parle donc quatre à six secondes plus tard,
+       pendant que la carte est DÉJÀ ouverte. Pour une phrase qui ne change
+       jamais.
+
+       QUAND ON REMPLACE SA PHRASE, ET QUAND ON N'Y TOUCHE PAS. Seulement si
+       elle est COURTE. Une phrase courte accompagnée d'un geste est un accusé
+       de réception, rien d'autre — on la remplace par l'enregistrement et
+       tout arrive instantanément. Mais « Sandaga, c'est le grand marché du
+       Plateau, tu y trouveras… [[carte:Sandaga]] » contient une vraie
+       réponse : la jeter pour dire « d'accord, je t'emmène » ferait perdre ce
+       qu'on venait de demander. Cent vingt signes est la frontière ; au-delà,
+       elle dit ce qu'elle a écrit, comme avant.
+
+       ET LE SON REMPLACE LE TEXTE, PAS SEULEMENT LA VOIX. Servir
+       l'enregistrement en gardant la phrase du modèle à l'écran ferait dire
+       une chose et lire une autre. On change les deux ensemble.
+
+       TANT QUE LE VERROU EST FERMÉ, choisirService rend null et rien ne
+       change : BIA continue exactement comme avant. Une phrase promise sans
+       son serait un silence. */
+    const geste={carte,film,trouve,voir,papier,appel};
+    const famille=familleDuGeste(geste);
+    const accuse=famille&&(!reply||reply.length<=120)&&!filmRate
+      ? choisirService(famille,String(body.dernierService||""))
+      : null;
+    if(accuse){
+      oublierPanne();
+      const langue=langueDe(question);
+      return NextResponse.json({
+        reply:langue==="fr"?accuse.francais:accuse.wolof,
+        emotion,papier,appel,voir,carte,film,trouve,
+        son:sonDe(accuse.cle,langue),
+        /* Le téléphone le renverra à la question suivante, pour qu'on ne
+           serve pas deux fois de suite la même formulation. Le serveur ne
+           peut pas s'en souvenir : Render redémarre. */
+        service:accuse.cle,
+        source:"service (gratuit)",
+      });
+    }
+
     if(!reply&&(papier||appel||voir||trouve||film||carte)){
       oublierPanne();
       const parDefaut=papier?"Waaw, maa ngi koy defar.":(voir||trouve||film)?"Xool.":"Waaw.";

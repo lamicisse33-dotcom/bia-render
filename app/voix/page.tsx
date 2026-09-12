@@ -94,6 +94,8 @@ export default function PageVoix() {
       <p className="voix-ailleurs">
         <a href="/voix/nombres" className="voix-pale">Les {NOMBRES.length} nombres</a>
         {" · "}
+        <a href="/voix/services" className="voix-pale">Les services</a>
+        {" · "}
         <a href="/voix/base" className="voix-pale">Les {NOUVELLES.length} nouvelles</a>
       </p>
 

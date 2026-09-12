@@ -123,6 +123,15 @@ button { font: inherit; touch-action: manipulation; }
 .microphone:disabled { opacity: .5; cursor: default; }
 .microphone:disabled:active { transform: translateX(-50%) scale(1); }
 
+/* Un filet entre deux services sur /voix/services : sans lui, vingt-et-une
+   lignes se lisent comme une seule liste et on ne voit plus qu'il y a trois
+   formulations par service. */
+.voix-item.voix-neuf {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(226, 176, 74, .22);
+}
+
 /* ── LA CONVERSATION VOCALE EST OUVERTE ──────────────────────────────────
 
    Lamine, le 12 septembre 2026 : « un premier appui ouvre la conversation
