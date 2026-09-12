@@ -108,6 +108,10 @@ export default function Carte({
   const baseSons = useRef<string>("");
   const sonEnCours = useRef<HTMLAudioElement | null>(null);
   const jeton = useRef(0);
+  /* Le fond de carte a-t-il fini de se charger, et de quoi le surveiller. */
+  const charge = useRef(false);
+  const montre = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const regard = useRef<ResizeObserver | null>(null);
 
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [chemin, setChemin] = useState<Chemin | null>(null);
@@ -192,26 +196,83 @@ export default function Carte({
       try {
         const maplibre = await import("maplibre-gl");
         if (!vivant || !boite.current) return;
+
+        /* ── LE SECOND FIL, SANS QUOI RIEN NE SE CHARGE ──────────────────
+
+           MapLibre ne dessine pas les tuiles dans la page : il ouvre un
+           second fil d'exécution qui va les chercher et les découpe. Il
+           trouve normalement ce fichier tout seul, par `import.meta.url` —
+           mais Next remplace ça, à la construction, par le chemin du DISQUE
+           de Render. MapLibre voit que ce n'est pas une adresse web, renvoie
+           une chaîne vide, et ouvre `new Worker("")` : le navigateur essaie
+           alors de faire tourner la page HTML comme du JavaScript. Ça rate
+           sans un mot — pas une tuile demandée, pas une erreur, pas
+           d'événement « load ». Juste le fond noir de .carte pendant que la
+           carte attend pour toujours.
+
+           C'est ça qu'a vu Lamine le 12 septembre 2026 : « le map n'affiche
+           pas la carte, c'est écran noir. » Vérifié dans le paquet
+           construit, à la ligne près.
+
+           Les deux fichiers sont posés dans public/maplibre/ à chaque
+           construction — voir outils/poser-le-worker.mjs. */
+        if (typeof maplibre.setWorkerUrl === "function") {
+          maplibre.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
+        }
+
         const m = new maplibre.Map({
           container: boite.current,
           style: FOND,
           center: [destination.lon, destination.lat],
           zoom: 14,
         });
+        carte.current = m as unknown as Record<string, unknown>;
         m.addControl(new maplibre.NavigationControl({ showCompass: false }), "top-left");
-        m.on("error", () => setSansCarte(true));
+        m.on("error", (e) => {
+          const quoi = e?.error?.message || "";
+          console.error("BIA — la carte :", quoi || e);
+          setSansCarte(true);
+        });
         m.on("load", () => {
+          charge.current = true;
           new maplibre.Marker({ color: "#e2b04a" })
             .setLngLat([destination.lon, destination.lat]).addTo(m);
         });
-        carte.current = m as unknown as Record<string, unknown>;
-      } catch {
+
+        /* ── UNE BOÎTE DE ZÉRO PIXEL DONNE LE MÊME ÉCRAN NOIR ────────────
+           MapLibre mesure sa boîte une fois, à l'ouverture. Si elle vaut
+           encore 0 × 0 à cet instant — une animation qui vient de finir, un
+           téléphone qui tourne — il ne demande aucune tuile et n'en
+           redemandera jamais. On le remesure donc à chaque changement de
+           taille. C'est deux lignes, et ça couvre une famille entière de
+           pannes muettes. */
+        const oeil = new ResizeObserver(() => { try { m.resize(); } catch { } });
+        if (boite.current) oeil.observe(boite.current);
+        regard.current = oeil;
+
+        /* ── ET SI ÇA SE TAIT QUAND MÊME ────────────────────────────────
+           Une panne silencieuse est pire qu'une panne : on regarde un
+           rectangle noir sans savoir s'il faut attendre. Au bout de quinze
+           secondes sans « load », on l'avoue et le guidage continue à la
+           voix — c'est lui qui compte, la carte n'est que le décor. */
+        montre.current = setTimeout(() => {
+          if (vivant && !charge.current) {
+            console.error("BIA — la carte n'a pas fini de se charger en 15 s.");
+            setSansCarte(true);
+          }
+        }, 15000);
+      } catch (err) {
+        console.error("BIA — la carte n'a pas pu s'ouvrir :", err);
         setSansCarte(true);
       }
     })();
     return () => {
       const m = carte.current as unknown as { remove?: () => void } | null;
-      vivant = false; m?.remove?.(); carte.current = null;
+      vivant = false;
+      if (montre.current) { clearTimeout(montre.current); montre.current = null; }
+      regard.current?.disconnect(); regard.current = null;
+      charge.current = false;
+      m?.remove?.(); carte.current = null;
     };
   }, [destination.lat, destination.lon]);
 
