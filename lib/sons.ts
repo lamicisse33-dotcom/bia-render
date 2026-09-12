@@ -21,6 +21,15 @@ export type Souffle = {
       se fige et elle finit de rire immobile ; trop longue, les dernières
       images ne s'affichent jamais — les minuteries tombent avec le son. */
   visages: Array<[string, number]>;
+  /* ── L'AMORCE ─────────────────────────────────────────────────────────
+
+     Lamine, le 12 septembre 2026 au soir : « elle doit normalement commencer
+     par le petit rire, ensuite enchaîner par le grand rire. »
+
+     Le son nommé ici est joué JUSTE AVANT celui-ci, d'un trait. Un rire ne
+     part pas à pleine gorge : il se retient une demi-seconde, puis il se
+     lâche. C'est cette demi-seconde qui manquait. */
+  prelude?: string;
 };
 
 export const SOUFFLES: Souffle[] = [
@@ -33,6 +42,9 @@ export const SOUFFLES: Souffle[] = [
   {
     emotion: "fourire",
     fichiers: ["/sons/fourire-1.mp3", "/sons/fourire-2.mp3"],
+    /* Le petit rire retenu vient devant : 0,5 s + 4,2 à 5,2 s, et le grand
+       rire fait enfin les six secondes qu'il voulait entendre. */
+    prelude: "malice",
     /* LE GRAND RIRE — 4,2 et 5,2 secondes. L’ancienne suite s’arrêtait au
        bout de 2,8 s : BIA riait encore deux secondes, le visage figé sur un
        sourire. Elle renverse maintenant la tête en arrière, longuement, et

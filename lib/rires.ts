@@ -95,10 +95,22 @@ export function lireLeRire(texte: string): Rire {
   return {
     rit: true,
     seulement: reste.length < 2,
-    /* Six syllabes de rire, ou une annotation doublée : ça ne se retient
-       plus. Le grand rire dure cinq secondes — on ne le sort pas pour un
-       « héhé ». */
-    emotion: compte >= 6 ? "fourire" : "rire",
+    /* ── SIX SYLLABES, C'ÉTAIT INATTEIGNABLE ─────────────────────────────
+
+       Lamine, le 12 septembre 2026 au soir : « je n'entends pas le grand
+       rire. Ça ne se déclenche jamais. »
+
+       Il ne se déclenchait pas parce qu'il fallait SIX syllabes de rire dans
+       le texte transcrit — « hahahahahaha ». Or un moteur d'écoute ne rend
+       jamais ça : quand on rit devant un micro, il écrit « haha », parfois
+       « ahah », souvent rien. Six était un seuil écrit pour du texte TAPÉ,
+       appliqué à de la parole. Le grand rire était donc mort-né.
+
+       TROIS suffisent maintenant — « hahaha », c'est-à-dire quelqu'un qui
+       rit vraiment — et une annotation du modèle suffit toujours. Deux
+       syllabes (« haha », « héhé ») gardent le rire moyen : on ne sort pas
+       six secondes de fou rire pour une politesse. */
+    emotion: annote || compte >= 3 ? "fourire" : "rire",
     reste,
   };
 }
