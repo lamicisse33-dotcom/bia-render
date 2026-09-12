@@ -114,6 +114,33 @@ export const SERVICES: Service[] = [
   /* La carte. Dite pendant que le fond de carte se charge et que l'itinéraire
      se calcule : c'est le service dont l'attente est la plus longue, donc
      celui où la phrase sert le plus. */
+  /* ── SA PHRASE, MOT POUR MOT ─────────────────────────────────────────────
+
+     Lamine, le 12 septembre 2026 : « mais je n'entends pas d'accord
+     j'exécute. »
+
+     IL NE POUVAIT PAS L'ENTENDRE, et c'était mon fait. Il avait dit, au
+     matin : « demande-lui de te montrer un endroit sur la carte, elle doit
+     répondre tout de suite : d'accord, j'exécute. Montre-moi une vidéo, elle
+     doit dire d'accord, j'exécute. » Et il avait dit aussi, plus tard, que la
+     même phrase vingt fois par jour redevient une machine.
+
+     J'ai résolu la tension tout seul, en remplaçant ses mots par vingt-quatre
+     formulations de mon invention : « je t'emmène », « c'est parti », « je te
+     la montre ». Aucune ne contenait ses mots. Sa phrase n'existait nulle
+     part dans l'application, et c'est une décision de contenu — donc la
+     sienne, pas la mienne.
+
+     Elle est donc là, et elle appartient à TOUS les services au lieu d'être
+     recopiée dans chacun : un seul enregistrement, entendu partout. Elle
+     entre dans la rotation à côté des formulations particulières — il
+     l'entend régulièrement, et pas vingt fois de suite.
+
+     Le wolof est à vérifier à son oreille : « maa ngi ko def » est « je suis
+     en train de le faire ». S'il préfère autre chose, c'est une ligne. */
+  { cle: "svc-commun-1", groupe: "services", quand: "sa phrase, pour n'importe quel service",
+    wolof: "Waaw, maa ngi ko def.", francais: "D'accord, j'exécute." },
+
   { cle: "svc-carte-1", groupe: "services", quand: "il demande à être emmené quelque part",
     wolof: "Waaw, maa ngi la yóbbu.", francais: "D'accord, je t'emmène." },
   { cle: "svc-carte-2", groupe: "services", quand: "autre formulation",
@@ -329,9 +356,23 @@ export function familleDuGeste(g: Geste): string {
    Rend null tant que le verrou est fermé : sans enregistrement, il n'y a rien
    à servir, et BIA continue comme avant. Une phrase promise sans son serait
    un silence. */
+/** La famille qui n'en est pas une : sa phrase, valable pour tout service. */
+export const FAMILLE_COMMUNE = "commun";
+
+/* ── QUELLES FAMILLES PARTAGENT SA PHRASE ─────────────────────────────────
+
+   Celles où BIA EXÉCUTE quelque chose — c'est le mot qu'il a employé. Pas
+   « suite » : celle-là répond à une salutation et il a demandé pour elle une
+   phrase précise, « d'accord, je vois ça ». Pas « lire » non plus : là elle
+   ne lance rien, elle regarde ce qu'on lui tend. */
+const QUI_EXECUTENT = new Set(["carte", "video", "cherche", "montre", "ecrire", "appel"]);
+
 export function choisirService(famille: string, dernier = ""): Service | null {
   if (!RELU_SERVICES || !famille) return null;
-  const toutes = variantesDe(famille);
+  const propres = variantesDe(famille);
+  const toutes = QUI_EXECUTENT.has(famille)
+    ? [...variantesDe(FAMILLE_COMMUNE), ...propres]
+    : propres;
   if (!toutes.length) return null;
   const libres = toutes.filter((s) => s.cle !== dernier);
   const parmi = libres.length ? libres : toutes;
