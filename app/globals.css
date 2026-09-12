@@ -435,12 +435,42 @@ button { font: inherit; touch-action: manipulation; }
    largeur d'un écran, donc aucun risque d'appuyer sur le vert en voulant le
    rouge. Ce sont des jugements, pas des réglages — on n'en corrige pas un
    d'un coup de pouce mal placé. */
+/* ── LA RANGÉE DES DEUX VERDICTS ────────────────────────────────────────────
+
+   Lamine, le 12 septembre 2026 : « les deux boutons que je t'ai demandés, je
+   ne les vois pas. »
+
+   IL Y AVAIT DEUX DÉFAUTS, ET CELUI-CI ÉTAIT LE PIRE. La rangée était en flux
+   NORMAL (`static`) dans un écran dont tout le reste est en `absolute` : le
+   portrait couvre l'écran entier, le micro et sa barre se posent par-dessus
+   avec z-index 3. Une rangée en flux normal se posait donc en HAUT de l'écran,
+   à y = 0, derrière le portrait.
+
+   Mesuré au navigateur : `elementFromPoint` au centre du bouton vert rendait
+   « avatar ». Les boutons étaient donc non seulement invisibles, mais
+   INCLIQUABLES — le portrait avalait les appuis. Même en corrigeant le code
+   maître, il aurait vu deux boutons morts.
+
+   Ils se posent maintenant comme leurs voisins : en absolu, au-dessus du
+   portrait, sur leur propre rangée juste au-dessus du micro — « un à gauche
+   verte, un rouge à droite », aux deux bords, sous le pouce.
+
+   Et ils s'effacent avec la barre quand le clavier s'ouvre : on ne juge pas
+   une prononciation en tapant. */
 .verdicts {
+  position: absolute;
+  z-index: 3;
+  left: 0; right: 0;
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 96px);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 14px 6px;
+  padding: 0 18px;
+  transition: opacity .18s ease, transform .18s ease;
+}
+.bia-presence[data-clavier="ouvert"] .verdicts {
+  opacity: 0; transform: translateY(24px); pointer-events: none;
 }
 .verdicts button {
   display: inline-flex; align-items: center; gap: 7px;
@@ -525,6 +555,8 @@ button { font: inherit; touch-action: manipulation; }
 
 @media (max-width: 600px) and (orientation: portrait) {
   .barre { bottom: max(15px, env(safe-area-inset-bottom)); }
+  /* Le micro passe à 72 px sur téléphone : la rangée se relève d'autant. */
+  .verdicts { bottom: calc(max(15px, env(safe-area-inset-bottom)) + 88px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

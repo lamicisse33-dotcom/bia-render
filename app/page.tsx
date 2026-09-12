@@ -4156,15 +4156,38 @@ export default function Home() {
     );
   }
 
-  /* On ne demande QUE quand il ouvre « Moi », et une seule fois : inutile de
-     poser la question à chaque écran à quelqu'un qui ne verra jamais ce lien. */
+  /* ── ON DEMANDE DÈS QU'ON A LE CODE, ET PLUS SEULEMENT DANS « MOI » ──────
+
+     Lamine, le 12 septembre 2026 : « les deux boutons que je t'ai demandés,
+     je ne les vois pas. »
+
+     ILS ÉTAIENT BIEN LÀ, et c'est cette ligne-ci qui les cachait. Avant,
+     j'écrivais : « on ne demande QUE quand il ouvre "Moi", inutile de poser
+     la question à chaque écran à quelqu'un qui ne verra jamais ce lien. »
+
+     C'était juste à l'époque où `estMaitre` ne commandait qu'un lien à
+     l'intérieur du panneau « Moi » : celui qui ouvre le panneau est déjà
+     dedans, la réponse arrive à temps. Mais depuis hier soir, `estMaitre`
+     commande AUSSI les deux boutons vert et rouge de l'écran principal — et
+     sur l'écran principal, `service` ne vaut jamais « fiche ». La question
+     n'était donc jamais posée, `estMaitre` restait faux, et les boutons
+     n'existaient pour personne, pas même pour lui.
+
+     Le raisonnement n'était pas faux, il a VIEILLI : la condition est restée
+     accrochée à un écran alors que ce qu'elle commande a déménagé. C'est le
+     genre de chose qu'aucune épreuve de logique ne voit, parce que le code
+     fait exactement ce qu'il dit.
+
+     Une question, une fois, dès qu'on a un code. Ça coûte un aller-retour par
+     ouverture d'application, et ça rend les deux boutons à celui qui les a
+     demandés. */
   useEffect(() => {
-    if (service !== "fiche" || !code || estMaitre) return;
+    if (!code || estMaitre) return;
     fetch("/api/codes", { headers: { "x-bia-code": code } })
       .then((r) => (r.ok ? r.json() : { maitre: false }))
       .then((d: { maitre?: boolean }) => setEstMaitre(Boolean(d.maitre)))
       .catch(() => {});
-  }, [service, code, estMaitre]);
+  }, [code, estMaitre]);
 
   function vueFiche() {
     const champ = (cle: keyof Emetteur, etiquette: string, mode?: string) => (
