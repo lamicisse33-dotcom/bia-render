@@ -10,6 +10,7 @@ import { RELU_SERVICES, SERVICES } from "@/lib/services-textes";
 import { BLAGUES, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { synthetiser } from "@/lib/voix";
 import { pourLaVoix } from "@/lib/nombres";
+import { A_REFAIRE_UNE_FOIS } from "@/lib/a-refaire";
 import { empreinteDe } from "@/lib/empreinte";
 import { noterVoix } from "@/lib/depense";
 import { noterPanne } from "@/lib/panne";
@@ -421,9 +422,23 @@ async function trier(liste: Attendu[]) {
        textes-là. Les déclarer périmés ferait repayer un dollar pour rien, et
        ce serait une accusation sans preuve. On écrit l'empreinte et on se
        taira la prochaine fois. */
-    const connue = manifeste?.[nomDuSon(a)];
-    if (manifeste && connue && connue !== empreinteDite(a)) aRefaire.push(a);
-    else enPlace.push(a);
+    const nom = nomDuSon(a);
+    const connue = manifeste?.[nom];
+    const juste = empreinteDite(a);
+    if (connue && connue !== juste) { aRefaire.push(a); return; }
+    /* ── SAUF CE QUI A CHANGÉ AVANT QUE LE MANIFESTE N'EXISTE ────────────
+
+       Deux changements sont arrivés le 12 septembre au soir, avant lui : les
+       onze corrections de Lamine aux 42 phrases, et l'adresse du site qui se
+       dit maintenant en français. Le manifeste n'avait pas de point de départ
+       pour les voir — ses corrections se seraient affichées à l'écran, BIA
+       aurait continué de dire les anciens mots, et « rien à refaire » se
+       serait affiché. C'est exactement le trou qu'il m'a demandé de boucher.
+
+       La liste se vide d'elle-même : un son n'est forcé que tant que le
+       manifeste ne porte pas déjà l'empreinte de son texte actuel. */
+    if (A_REFAIRE_UNE_FOIS.has(nom) && connue !== juste) { aRefaire.push(a); return; }
+    enPlace.push(a);
   });
   return { enPlace, aFaire, aRefaire, incertains };
 }

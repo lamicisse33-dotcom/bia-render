@@ -48,7 +48,7 @@ export const REPERTOIRE: Entree[] = [
   /* ── LES SALUTATIONS ──────────────────────────────────────────────────── */
   {
     cle: "salut",
-    wolof: "Salaamualeekum. Maa ngi fi. Lane ga soxla won ?",
+    wolof: "Salut, maa ngi ci jàmm. Lan laa mëna defal tey pour yaw ?",
     francais: "Bonjour. Je suis là. Que veux-tu ?",
     /* « NANGA DEF » A CHANGÉ DE CAMP, le 11 septembre 2026. Il était ici,
        comme salutation. Lamine l'a mis dans ses six façons de dire « ça va » —
@@ -77,7 +77,7 @@ export const REPERTOIRE: Entree[] = [
   },
   {
     cle: "bonsoir",
-    wolof: "Naka tay ? Maa ngi thi Diam",
+    wolof: "Naka tay ? Maa ngi thi Diam yaw nakk",
     francais: "Bonsoir. Je suis là.",
     /* Les six de Lamine, le 11 septembre 2026. « Naka soirée bi » et « ya ngi
        cool » sont des tournures que je n'aurais jamais écrites : c'est
@@ -96,7 +96,7 @@ export const REPERTOIRE: Entree[] = [
   },
   {
     cle: "ca-va",
-    wolof: "Maa ngi sant. Yow nag, naka nga def ?",
+    wolof: "Maa ngi sant. Yow nag, nodef ?",
     francais: "Ça va bien, merci. Et toi ?",
     /* Les six de Lamine. « Naka mbir yi » et « lu xew » ne parlent pas du
        corps ni de la santé : ils demandent où en sont les choses — c'est ça
@@ -153,7 +153,7 @@ export const REPERTOIRE: Entree[] = [
   },
   {
     cle: "bienvenue",
-    wolof: "Dalal ak jamm. Maa ngi lay xaar.",
+    wolof: "Dalal ak jamm. Maa ngi lay dégglu.",
     francais: "Bienvenue. Je t'attendais.",
     formes: [
       "dalal ak jamm",
@@ -221,7 +221,7 @@ export const REPERTOIRE: Entree[] = [
   },
   {
     cle: "oui",
-    wolof: "Waaw.",
+    wolof: "waw.",
     francais: "Oui.",
     formes: [
       "waaw",
@@ -248,7 +248,7 @@ export const REPERTOIRE: Entree[] = [
   },
   {
     cle: "attends",
-    wolof: "Waaw, maa ngi lay xaar.",
+    wolof: "waw, maa ngi lay xaar.",
     francais: "D'accord, je t'attends.",
     formes: [
       "xaar ma",
@@ -283,7 +283,7 @@ export const REPERTOIRE: Entree[] = [
   },
   {
     cle: "bonne-nuit",
-    wolof: "Fanaane ak jàmm.",
+    wolof: "Fanaanel ak jàmm.",
     francais: "Bonne nuit.",
     formes: [
       "fanaanal jamm",
@@ -328,7 +328,7 @@ export const REPERTOIRE: Entree[] = [
   /* ── QUI ELLE EST ─────────────────────────────────────────────────────── */
   {
     cle: "qui-es-tu",
-    wolof: "Man maay BIA, intelligence artificielle bu KHALAM créer Fi ci Dakar. Wolof mooy sama langue principale.",
+    wolof: "Man maay BIA, intelligence artificielle bu KHALAM créer Fi ci Sénégal Dakar. Wolof mooy sama langue principale.",
     francais: "Je suis BIA, une intelligence artificielle créée par KHALAM à Dakar. Le wolof est ma langue.",
     formes: [
       "kan nga",
@@ -425,7 +425,7 @@ export const REPERTOIRE: Entree[] = [
   },
   {
     cle: "ou-es-tu",
-    wolof: "KHALAM laa dëkk, Fi ci Dakar.",
+    wolof: "KHALAM laa dëkk, Fi ci Sénégal Dakar.",
     francais: "J'habite chez KHALAM, à Dakar.",
     formes: [
       "fan nga dekk",
@@ -459,7 +459,7 @@ export const REPERTOIRE: Entree[] = [
   /* ── CE QU'ELLE SAIT FAIRE ────────────────────────────────────────────── */
   {
     cle: "que-sais-tu-faire",
-    wolof: "Mën naa la dimbali ci lu bari : tontu say questions, bind ay messages ak ay devis, lire ay documents yi gua fotoo, ak seet ay images ak informations ci internet.",
+    wolof: "Mën naa la dimbali ci lu bari : tontu say questions, bind ay messages ak ay devis, lire ay documents yi gua fotoo, ak seet ay images ak informations ci internet. Mën naa la guider ba ci sa destination grâce à sama map bi intégré.",
     francais: "Je peux t'aider sur beaucoup de choses : répondre à tes questions, écrire des messages et des devis, lire des papiers que tu photographies, chercher des images sur Internet.",
     formes: [
       "loo men a def",
@@ -477,7 +477,7 @@ export const REPERTOIRE: Entree[] = [
   },
   {
     cle: "parles-tu-wolof",
-    wolof: "Waaw, deggna wolof mooy sama langue principale. Mën naa itam wax français, anglai ak yénén lak",
+    wolof: "waw, deggna wolof mooy sama langue principale. Mën naa itam wax français, anglai ak yénén lak",
     francais: "Oui, le wolof est ma première langue. Je parle aussi français.",
     formes: [
       "ndax degg nga wolof",
