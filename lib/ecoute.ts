@@ -9,7 +9,24 @@ export const ecouteConfig = {
   fournisseur: env.STT_PROVIDER || (env.ELEVENLABS_API_KEY ? "elevenlabs" : "navigateur"),
   elevenlabs: {
     apiKey: env.ELEVENLABS_API_KEY || "",
-    model: env.ELEVENLABS_STT_MODEL || "scribe_v1",
+    /* ── SCRIBE V2, PARCE QUE LUI ACCEPTE QU'ON LUI DONNE LES MOTS ─────────
+
+       Mesuré sur son serveur le 12 septembre 2026 : sur douze écoutes, le
+       moteur a cru entendre du français huit fois, puis de l'anglais, de
+       l'italien, du pampangan, du turc. Zéro fois le wolof. ElevenLabs range
+       le wolof dans son palier « moyen » — 25 à 50 % de mots faux — et aucun
+       réglage ne répare ça.
+
+       Mais `scribe_v2` accepte des `keyterms` : une liste de mots à
+       s'attendre à entendre. On arrête de lui demander de devenir le wolof,
+       on lui donne le vocabulaire de Lamine. Voir lib/mots-a-entendre.ts.
+
+       ELEVENLABS_STT_MODEL le remplace sans toucher au code, et si v2 est
+       refusé on retombe SEUL sur v1 (voir transcrire). */
+    model: env.ELEVENLABS_STT_MODEL || "scribe_v2",
+    /* Le moteur de repli, celui qui marchait hier : on ne reste jamais sourd
+       parce qu'un modèle neuf n'est pas ouvert sur son compte. */
+    modeleDeRepli: env.ELEVENLABS_STT_MODEL_REPLI || "scribe_v1",
   },
 };
 
@@ -97,7 +114,7 @@ const ACCEPTEES = new Set(Object.keys(CARTE));
    c'est que Scribe ne se trompe plus — ou que la reprise ne part pas. Si
    « perdues » monte, c'est que « wol » est refusé et il faudra une autre
    voie. Remis à zéro à chaque redémarrage, comme tous les compteurs. */
-const compte = { ecoutes: 0, reprises: 0, perdues: 0, langues: {} as Record<string, number> };
+const compte = { ecoutes: 0, reprises: 0, perdues: 0, repliModele: 0, mots: 0, langues: {} as Record<string, number> };
 
 export function resumeEcoutes() {
   if (!compte.ecoutes) return null;
@@ -106,17 +123,28 @@ export function resumeEcoutes() {
     reprises: compte.reprises,
     reprises_ratees: compte.perdues,
     langues_entendues: compte.langues,
+    /* Deux chiffres pour savoir si les mots donnés d'avance servent, sans
+       avoir à parler devant un téléphone : combien de mots on envoie, et
+       combien de fois le modèle neuf a été refusé. */
+    mots_donnes: compte.mots,
+    repli_sur_ancien_modele: compte.repliModele,
   };
 }
 
 async function unEssai(
   audio: Blob, nomFichier: string, imposer: string | null,
+  modele?: string, mots?: string[],
 ): Promise<{ texte: string; brute: string }> {
   const c = ecouteConfig.elevenlabs;
   const form = new FormData();
   form.append("file", audio, nomFichier || "parole.webm");
-  form.append("model_id", c.model);
+  form.append("model_id", modele || c.model);
   if (imposer) form.append("language_code", imposer);
+  /* LES MOTS QU'ON LUI DONNE D'AVANCE. Cent au plus — au-delà, chaque écoute
+     est facturée vingt secondes, et une phrase en dure trois. Le surcoût
+     annoncé est de 20 % sur la transcription, qui est la plus petite part de
+     la facture : la voix coûte vingt fois plus. */
+  if (mots && mots.length) { form.append("keyterms", JSON.stringify(mots)); compte.mots = mots.length; }
 
   const reponse = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
     method: "POST",
@@ -133,11 +161,29 @@ async function unEssai(
   };
 }
 
-export async function transcrire(audio: Blob, nomFichier: string, indice?: string | null): Promise<Ecoute> {
+export async function transcrire(
+  audio: Blob, nomFichier: string, indice?: string | null, mots?: string[],
+): Promise<Ecoute> {
   const c = ecouteConfig.elevenlabs;
   if (!c.apiKey) throw new Error("ELEVENLABS_API_KEY manquante");
 
-  const premier = await unEssai(audio, nomFichier, null);
+  /* ── ON N'EST JAMAIS SOURD PARCE QU'UN MODÈLE EST FERMÉ ────────────────
+
+     `scribe_v2` et les `keyterms` peuvent être refusés : modèle non ouvert
+     sur le compte, paramètre inconnu, offre qui ne le porte pas. Un refus ne
+     doit pas coûter l'écoute — on refait l'essai avec le modèle d'hier, sans
+     les mots, et on le NOTE pour que ça se voie au lieu de se deviner. */
+  let premier: { texte: string; brute: string };
+  try {
+    premier = await unEssai(audio, nomFichier, null, c.model, mots);
+  } catch (err) {
+    const motif = (err as Error).message;
+    const refus = /\b(400|404|422)\b/.test(motif);
+    if (!refus || c.model === c.modeleDeRepli) throw err;
+    console.error(`BIA — « ${c.model} » refusé (${motif.slice(0, 120)}) : on écoute avec « ${c.modeleDeRepli} », sans les mots donnés d'avance.`);
+    compte.repliModele++;
+    premier = await unEssai(audio, nomFichier, null, c.modeleDeRepli);
+  }
   compte.ecoutes++;
   if (premier.brute) compte.langues[premier.brute] = (compte.langues[premier.brute] || 0) + 1;
 
@@ -158,7 +204,7 @@ export async function transcrire(audio: Blob, nomFichier: string, indice?: strin
   const impose = indice === "fr" ? "fra" : "wol";
   compte.reprises++;
   try {
-    const second = await unEssai(audio, nomFichier, impose);
+    const second = await unEssai(audio, nomFichier, impose, c.model, mots);
     if (second.texte) {
       return {
         texte: second.texte,

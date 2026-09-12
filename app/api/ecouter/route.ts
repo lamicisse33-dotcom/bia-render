@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { transcrire } from "@/lib/ecoute";
+import { motsCorriges } from "@/lib/lexique";
+import { pourScribe } from "@/lib/mots-a-entendre";
 import { noterPanne } from "@/lib/panne";
 
 export async function POST(request: NextRequest) {
@@ -22,7 +24,21 @@ export async function POST(request: NextRequest) {
        refusait. Le format d'un enregistrement ne se décide pas sur le
        serveur : il se constate. */
     const nom = (fichier instanceof File && fichier.name) ? fichier.name : "parole.webm";
-    const reco = await transcrire(fichier, nom, indice);
+    /* ── LES MOTS QU'ON LUI DONNE D'AVANCE ─────────────────────────────
+
+       Sa règle du 12 septembre au soir : « les mots corrigés doivent être
+       prioritaires si leur équivalent n'existe pas sur les phrases
+       enregistrées. » Les corrections viennent de Supabase (déjà en cache
+       d'une minute) ; si elles ne répondent pas, on envoie la liste sans
+       elles plutôt que de ne rien envoyer. */
+    let mots: string[] = [];
+    try {
+      mots = pourScribe(await motsCorriges(60));
+    } catch (err) {
+      console.error("BIA — mots corrigés indisponibles :", (err as Error).message);
+      try { mots = pourScribe([]); } catch { mots = []; }
+    }
+    const reco = await transcrire(fichier, nom, indice, mots);
     return NextResponse.json(reco);
   } catch (err) {
     /* ── UNE ÉCOUTE QUI ÉCHOUE NE LAISSAIT AUCUNE TRACE ──────────────────

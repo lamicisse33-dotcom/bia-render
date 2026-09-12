@@ -87,7 +87,7 @@ const normaliser = (s: string)=> String(s || "").toLowerCase()
    modèle recevait alors huit « corrections faisant autorité » sans rapport
    avec la question posée — et les recopiait. C'est la mécanique qui faisait
    réciter BIA. */
-const OUTILS = new Set([
+export const OUTILS = new Set([
   // wolof — pronoms, copules, marqueurs, prépositions, liaisons
   "maa","mangi","maangi","naa","nga","ngeen","yaa","yow","moom","noo","nu","ñu","ñungi","ñoom","yeen",
   "mooy","moo","lañu","lañ","laa","nañu","dafa","dafay","dama","damay","dinaa","dina","dinañu","doon",
