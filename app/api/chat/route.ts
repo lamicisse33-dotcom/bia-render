@@ -133,6 +133,21 @@ que tu crois savoir de toi-même.
   N'INVENTE JAMAIS UN NUMÉRO. Si tu ne l'as pas, demande-le, ou dis que tu ne
   l'as pas — un chiffre inventé fait sonner chez un inconnu. Tu ne connais pas
   le répertoire du téléphone : tu ne vois que ce qu'on t'a dit.
+- Tu MONTRES UNE VIDÉO EN PLEIN ÉCRAN. Quand une explication se regarde mieux
+  qu'elle ne s'écoute — un geste technique, une recette, un entraînement, un
+  discours, un but — tu poses sur la PREMIÈRE ligne :
+  [[regarde:comment changer une roue]]
+  Ta vidéo s'ouvre alors en plein écran et ton visage se retire, comme pour la
+  carte. Tu ne parles pas par-dessus : on regarde, puis on reprend.
+  NE CONFONDS PAS LES DEUX FAÇONS DE MONTRER :
+  [[cherche video: …]]  ouvre un petit écran SOUS TON MENTON ; tu restes
+                        visible et tu commentes. Pour ILLUSTRER ce que tu dis.
+  [[regarde: …]]        te retire entièrement. Pour REGARDER vraiment.
+  Devant le doute, prends le petit écran : se retirer pour trois secondes
+  d'images agace, et on ne te retrouve plus.
+  La personne peut aussi ouvrir une vidéo de SON téléphone, avec le bouton
+  « Vidéo ». Celle-là ne part nulle part, tu ne la vois pas, et tu ne peux
+  rien en dire.
 - Tu GUIDES JUSQU'À UN ENDROIT. Quand quelqu'un veut aller quelque part — « yóbbu
   ma ci Sandaga », « emmène-moi à l'université », « fan la Liberté 6 nekk » — tu
   poses sur la PREMIÈRE ligne, à côté des autres balises :
@@ -447,6 +462,30 @@ function detacherCarte(texte:string){
    mettre, dans la limite du raisonnable. On accepte donc les accents et les
    espaces, et on refuse tout ce qui ressemble à une adresse — un modèle qui
    glisserait une URL ferait chercher n'importe quoi. */
+/* ── ELLE TE MET LA VIDÉO EN PLEIN ÉCRAN ───────────────────────────────────
+   « Il faut qu'elle puisse afficher des vidéos prises sur YouTube ou
+   directement sur ton téléphone, avec le même écran qu'elle affiche la
+   carte… elle se retire définitivement comme elle fait sur la carte. »
+   — Lamine, le 12 septembre 2026, à une heure du matin.
+
+   Deux façons de montrer, et elles ne servent pas la même chose :
+
+     [[cherche video: …]]  l'écran s'ouvre SOUS SON MENTON, elle reste visible
+                           et continue de commenter. Pour illustrer.
+     [[regarde: …]]        elle se RETIRE, la vidéo prend tout l'écran. Pour
+                           regarder vraiment — une explication, un tutoriel,
+                           un match.
+
+   La recherche est la même ; c'est la place qu'on lui donne qui change. */
+const REGARDE=/\[{1,2}\s*regarde\s*[:\-—]?\s*([^\]\n]{2,120})\]{1,2}/i;
+function detacherRegarde(texte:string){
+  const m=texte.match(REGARDE);
+  const nettoye=texte.replace(new RegExp(REGARDE.source,"gi"),"").replace(/\n{3,}/g,"\n\n").trim();
+  if(!m)return{texte:nettoye,regarde:""};
+  const quoi=m[1].replace(/https?:\/\/\S+/gi,"").replace(/["""«»]/g,"").replace(/\s+/g," ").trim().slice(0,120);
+  return{texte:nettoye,regarde:quoi.length>=2?quoi:""};
+}
+
 const CHERCHE=/\[{1,2}\s*cherche[\s_-]*(image|photo|video|vidéo)s?\s*[:\-—]?\s*([^\]\n]{2,120})\]{1,2}/i;
 function detacherCherche(texte:string){
   const m=texte.match(CHERCHE);
@@ -842,7 +881,8 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const {texte:sansAppel,appel}=detacherAppel(sansPapier);
     const {texte:sansVoir,voir}=detacherVoir(sansAppel);
     const {texte:sansCarte,carte}=detacherCarte(sansVoir);
-    const {texte:reply,cherche:demande}=detacherCherche(sansCarte);
+    const {texte:sansRegarde,regarde}=detacherRegarde(sansCarte);
+    const {texte:reply,cherche:demande}=detacherCherche(sansRegarde);
 
     /* La recherche part APRÈS que le modèle a fini d'écrire, pas pendant : le
        texte est déjà là, on n'attend que les images. Une demi-seconde de plus,
@@ -854,6 +894,17 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         ? await chercherVideos(demande.quoi)
         : await chercherImages(demande.quoi);
       if(pieces.length)trouve={sorte:demande.sorte,requete:demande.quoi,pieces};
+    }
+
+    /* LA VIDÉO EN PLEIN ÉCRAN. Même recherche, même quota, même cache — ce
+       qui change est la place qu'on lui donne : elle se retire, comme sur la
+       carte. On ne garde que la PREMIÈRE : plein écran, on ne choisit pas
+       dans une galerie, on regarde. */
+    let film:{video:string;titre:string;source?:string}|null=null;
+    if(regarde){
+      const pieces=await chercherVideos(regarde);
+      const un=pieces.find(p=>p.video);
+      if(un?.video)film={video:un.video,titre:un.titre||regarde,source:un.source};
     }
     /* ── UN PAPIER SANS UN MOT N'EST PAS UNE PANNE ──────────────────────────
 
@@ -870,10 +921,10 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
        Ce n'est une panne que si elle n'a NI phrase NI geste. Sinon, on lui
        prête une phrase courte et le papier s'ouvre. */
-    if(!reply&&(papier||appel||voir||trouve)){
+    if(!reply&&(papier||appel||voir||trouve||film||carte)){
       oublierPanne();
-      const parDefaut=papier?"Waaw, maa ngi koy defar.":(voir||trouve)?"Xool.":"Waaw.";
-      return NextResponse.json({reply:parDefaut,emotion,papier,appel,voir,carte,trouve,source:"geste sans phrase"});
+      const parDefaut=papier?"Waaw, maa ngi koy defar.":(voir||trouve||film)?"Xool.":"Waaw.";
+      return NextResponse.json({reply:parDefaut,emotion,papier,appel,voir,carte,film,trouve,source:"geste sans phrase"});
     }
 
     if(!reply){
@@ -884,7 +935,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
-    return NextResponse.json({reply,emotion,papier,appel,voir,carte,trouve,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
+    return NextResponse.json({reply,emotion,papier,appel,voir,carte,film,trouve,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message, "chat");

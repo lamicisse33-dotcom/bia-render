@@ -18,6 +18,12 @@ import type { Profil } from "@/lib/profils";
    dire bonjour à BIA. */
 import type { Lieu } from "./carte/Carte";
 const Carte = dynamic(() => import("./carte/Carte"), { ssr: false });
+
+/* ── LA VIDÉO PLEIN ÉCRAN ───────────────────────────────────────────────────
+   Même geste que la carte : elle se retire, la vidéo prend tout. Chargée
+   seulement à l'ouverture, comme la carte. */
+import type { Film } from "./video/Video";
+const Video = dynamic(() => import("./video/Video"), { ssr: false });
 import {
   chargerPapiers, garderPapier, oublierPapiers, nouvelIdPapier, titreDe,
 } from "@/lib/papiers";
@@ -62,7 +68,11 @@ type Message = {
    des artisans n'y sont pas assujettis, et l'afficher quand on ne l'est pas
    est une faute. */
 /* Les services que BIA rend, chacun derrière son bouton. */
-type Service = "" | "message" | "devis" | "lettre" | "photo" | "lire" | "fiche";
+/* « video » n'ouvre pas un papier : il ouvre le sélecteur du téléphone, comme
+   « photo ». Lamine, le 12 septembre 2026 : « des vidéos prises sur YouTube ou
+   directement sur ton téléphone ». Une chose qu'on ne voit pas n'existe pas —
+   donc c'est un bouton, à côté des autres. */
+type Service = "" | "message" | "devis" | "lettre" | "photo" | "video" | "lire" | "fiche";
 
 type Emetteur = Partie & { tva: boolean };
 const EMETTEUR_VIDE: Emetteur = {
@@ -309,6 +319,16 @@ export default function Home() {
   const [carte, setCarte] = useState<Lieu | null>(null);
   const [aConfirmer, setAConfirmer] = useState<Lieu[] | null>(null);
   const [chercheLieu, setChercheLieu] = useState(false);
+
+  /* ── LA VIDÉO QUI PREND TOUT L'ÉCRAN ─────────────────────────────────────
+     Lamine, le 12 septembre 2026 : « elle se retire définitivement comme elle
+     fait sur la carte ». Deux sources : YouTube, ou un fichier du téléphone —
+     et celui-là ne quitte jamais l'appareil. */
+  const [film, setFilm] = useState<Film | null>(null);
+  const fichierVideo = useRef<HTMLInputElement | null>(null);
+  /* L'adresse locale d'une vidéo choisie sur le téléphone. On la relâche à la
+     fermeture : sans ça le navigateur garde le fichier en mémoire. */
+  const adresseLocale = useRef<string>("");
 
   /* CHERCHER L'ENDROIT, PUIS LE FAIRE CONFIRMER.
 
@@ -1374,7 +1394,7 @@ export default function Home() {
             : ""].filter(Boolean).join("\n"),
         }),
       });
-      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; trouve?: Resultat | null; son?: string; corrige?: boolean; source?: string };
+      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; source?: string };
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
       /* ICI SE JOUAIT LE SILENCE.
          On coupait l'attente à l'arrivée du TEXTE. Mais la voix, elle, n'est
@@ -1416,6 +1436,11 @@ export default function Home() {
          qu'un nom en clair — il ne sait pas où sont les choses, et on ne lui
          demande surtout pas de coordonnées. */
       if (data.carte) void chercherLeLieu(data.carte);
+      /* ELLE VEUT QU'ON REGARDE. Plein écran, elle se retire — le même geste
+         que la carte, pour qu'il n'y ait qu'une chose à apprendre. */
+      if (data.film?.video) {
+        setFilm({ sorte: "youtube", video: data.film.video, titre: data.film.titre, source: data.film.source });
+      }
       setPanne(data.source && data.source.startsWith("panne") ? data.source : "");
       /* Elle a quelque chose à montrer. On ne garde que la clé du sujet : le
          fil est rangé dans la mémoire du téléphone, et des images y tiendraient
@@ -2387,6 +2412,9 @@ export default function Home() {
     setFiche(quoi === "fiche");
 
     if (quoi === "photo") { photoRef.current?.click(); return; }
+    /* La vidéo du téléphone : on ouvre le sélecteur, et le fichier est lu sur
+       place. Il ne monte nulle part. */
+    if (quoi === "video") { fichierVideo.current?.click(); setService(""); return; }
     if (quoi === "lire" || quoi === "fiche" || quoi === "") return;
 
     // message, devis, lettre
@@ -2698,6 +2726,8 @@ export default function Home() {
       dessin: "M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1.6 2L12 12.4 19.4 7H4.6Z" },
     { cle: "photo", nom: "Papier",
       dessin: "M9.4 4h5.2l1.2 2H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4.2l1.2-2Zm2.6 4.8a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2Zm0 1.9a2.7 2.7 0 1 1 0 5.4 2.7 2.7 0 0 1 0-5.4Z" },
+    { cle: "video", nom: "Vidéo",
+      dessin: "M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm6 3.6v6.8L15.6 12 10 8.6Z" },
     { cle: "lire", nom: "Lire",
       dessin: "M4 9h3.4L12 4.6v14.8L7.4 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1Zm12.5-1.6a5.6 5.6 0 0 1 0 9.2l-1.1-1.6a3.6 3.6 0 0 0 0-6l1.1-1.6Zm2.3-3.2a9.6 9.6 0 0 1 0 15.6l-1.1-1.6a7.6 7.6 0 0 0 0-12.4l1.1-1.6Z" },
     { cle: "fiche", nom: "Moi",
@@ -3606,6 +3636,21 @@ export default function Home() {
       ) : null}
       {chercheLieu ? <p className="carte-confirme"><span className="carte-confirme-titre">Maa ngi seet bérab bi…</span></p> : null}
 
+      {/* ── UNE VIDÉO DU TÉLÉPHONE ─────────────────────────────────────────
+          Une application web ne fouille pas la galerie de quelqu'un, et c'est
+          heureux : elle ouvre le sélecteur, la personne choisit, et le fichier
+          est lu SUR PLACE. Rien ne monte sur un serveur, rien ne se paie, la
+          vidéo ne quitte pas l'appareil. */}
+      <input ref={fichierVideo} type="file" accept="video/*" hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          if (adresseLocale.current) URL.revokeObjectURL(adresseLocale.current);
+          adresseLocale.current = URL.createObjectURL(f);
+          setFilm({ sorte: "fichier", url: adresseLocale.current, titre: f.name });
+          e.target.value = "";
+        }} />
+
       {/* ── ELLE SE RETIRE, LA CARTE PREND TOUT ────────────────────────────
           Posée PAR-DESSUS la conversation, jamais à la place : le micro,
           l'historique et sa voix continuent de tourner dessous. C'est ce qui
@@ -3618,6 +3663,31 @@ export default function Home() {
           parle={mode === "speaking"}
           onDitTexte={(texte) => void speak(texte, "neutre", "guidage")}
           onFermer={() => setCarte(null)}
+        />
+      ) : null}
+
+      {/* ── LA VIDÉO PREND TOUT, ELLE SE RETIRE ────────────────────────────
+          Posée par-dessus la conversation, comme la carte : le micro reste
+          ouvert, on lui parle sans la voir. */}
+      {film ? (
+        <Video
+          film={film}
+          parle={mode === "speaking"}
+          onAuMenton={film.sorte === "youtube" ? () => {
+            /* La même vidéo, mais sous son menton : elle redevient visible et
+               peut commenter. C'est l'autre moitié de ce qu'il a décrit. */
+            montrerSurEcran({
+              titre: film.titre,
+              pieces: [{ id: film.video, sorte: "video", titre: film.titre,
+                         apercu: `https://i.ytimg.com/vi/${film.video}/hqdefault.jpg`,
+                         video: film.video, source: film.source }],
+            });
+            setFilm(null);
+          } : undefined}
+          onFermer={() => {
+            if (adresseLocale.current) { URL.revokeObjectURL(adresseLocale.current); adresseLocale.current = ""; }
+            setFilm(null);
+          }}
         />
       ) : null}
 
