@@ -3750,7 +3750,23 @@ export default function Home() {
     /* La vidéo du téléphone : on ouvre le sélecteur, et le fichier est lu sur
        place. Il ne monte nulle part. */
     if (quoi === "video") { fichierVideo.current?.click(); setService(""); return; }
-    if (quoi === "lire" || quoi === "fiche" || quoi === "") return;
+    /* ── LES SERVICES QUI N'ÉCRIVENT RIEN SORTENT ICI ─────────────────────
+
+       Et « relire » en fait partie, depuis sa capture du 12 septembre à
+       21 h 26 : le bandeau rouge « il n'y a pas encore de quoi écrire »
+       s'affichait au-dessus du titre « À relire ».
+
+       CE N'ÉTAIT PAS UN DÉFAUT D'AFFICHAGE. J'ai ajouté « relire » à la
+       rangée sans l'ajouter à cette ligne, alors il tombait dans la branche
+       du dessous — celle de message, devis et lettre — et LANÇAIT LA
+       FABRICATION D'UN PAPIER. Sur un écran vide, ça n'a rien coûté et le
+       serveur a répondu « rien à écrire », d'où le bandeau. Mais au milieu
+       d'une conversation, toucher « À relire » aurait fabriqué un devis, et
+       ça se paie.
+
+       Une liste comme celle-ci est le genre d'endroit où on ajoute un nom
+       sans y penser. Elle dit donc maintenant ce qu'elle sépare. */
+    if (quoi === "lire" || quoi === "fiche" || quoi === "relire" || quoi === "") return;
 
     // message, devis, lettre
     /* Changer de service ne détruit rien : le papier de l'autre service est
