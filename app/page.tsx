@@ -1902,7 +1902,7 @@ export default function Home() {
            toucher le bouton, puis attendre encore dix secondes devant un
            écran vide. Maintenant elle écrit pendant qu'on écoute sa réponse,
            le clavier tape à côté du bouton, et ça sonne quand c'est prêt. */
-        if (!papierOccupeRef.current) void fabriquerPapier(data.papier as Sorte);
+        if (!papierOccupeRef.current) void fabriquerPapier(data.papier as Sorte, false);
         /* On ne jette PLUS le papier ouvert. Il était effacé ici, au prétexte
            qu'il datait d'avant — et c'est ce que Lamine a vu : « quand elle
            écrit un message, le prochain message le supprime. » Il reste à
@@ -3630,9 +3630,46 @@ export default function Home() {
      quittée. */
   const demandePapier = useRef(0);
 
-  const fabriquerPapier = useCallback(async (sorte: Sorte) => {
+  /* ── QUI A DEMANDÉ CE PAPIER ? ────────────────────────────────────────────
+
+     Lamine, le 12 septembre 2026, capture à l'appui : « ce bandeau rouge
+     s'affiche sans aucune raison, j'étais en train de communiquer avec BIA,
+     d'un coup la fenêtre commence à clignoter. »
+
+     IL AVAIT RAISON SUR LES DEUX MOTS : « sans aucune raison ». Il n'avait
+     rien demandé. Ce qui s'est passé, c'est que le modèle a estimé, au milieu
+     de la conversation, qu'il y avait de quoi écrire une lettre — et la page
+     s'est mise à la fabriquer AUSSITÔT, en tapant à l'écran et dans le
+     haut-parleur. C'est voulu, et c'est même une bonne idée : elle écrit
+     pendant qu'on écoute sa réponse au lieu de faire attendre dix secondes
+     devant un écran vide.
+
+     MAIS QUAND ÇA RATE, LES DEUX CAS NE SE VALENT PAS.
+
+     S'il a touché « Lettre », il attend quelque chose : un échec doit se dire,
+     en rouge, avec ce qu'on sait de la cause. Il peut réessayer.
+
+     Si c'est ELLE qui a décidé, il n'attend rien. Un bandeau rouge lui annonce
+     alors l'échec d'une chose qu'il n'a pas demandée, au milieu d'une
+     conversation qui, elle, marchait. C'est du bruit, et c'est pire que du
+     bruit : ça fait croire que l'application est cassée.
+
+     Une tentative que personne n'a demandée échoue donc EN SILENCE. Le papier
+     ne se fait pas, la frappe s'arrête, et la conversation continue. Il n'a
+     rien perdu — il n'avait rien demandé.
+
+     @param demandeParLui vrai s'il a touché un bouton ; faux si c'est le
+                          modèle qui a décidé au milieu d'une conversation. */
+  const fabriquerPapier = useCallback(async (sorte: Sorte, demandeParLui = true) => {
     const jeton = ++demandePapier.current;
     const perime = () => jeton !== demandePapier.current;
+    /* Ne rien dire, mais garder une trace : sans ça, un échec silencieux est
+       un échec invisible, et on ne saura jamais que ça rate. */
+    const echouer = (quoi: string) => {
+      if (demandeParLui) { setPapierErreur(quoi); return; }
+      console.warn(`BIA — papier « ${sorte} » proposé par elle, non fabriqué : ${quoi}`);
+      setPapierPret(null);
+    };
 
     /* ── ON MONTRE ET ON FAIT ENTENDRE QU'ELLE ÉCRIT ──────────────────────
        Demandé par Lamine le 10 septembre 2026 : entre la demande et le
@@ -3667,14 +3704,21 @@ export default function Home() {
         /* Dire LEQUEL des trois échecs, sinon on ne peut rien corriger.
            « Réessaie dans un instant » était vrai une fois sur trois et
            inutile les deux autres. */
-        setPapierErreur(
+        echouer(
           d.erreur === "rien à écrire" || d.erreur === "document vide"
             ? "Il n'y a pas encore de quoi écrire. Dis-lui d'abord ce que le papier doit dire, et pour qui — puis reviens ici."
             : d.erreur === "pas de document" || d.erreur === "document illisible"
               ? "Elle a répondu à côté. Appuie encore une fois : c'est presque toujours réglé au deuxième essai."
               : d.erreur === "code"
                 ? "Ton code n'est plus valable. Referme et rentre-le à nouveau."
-                : "Le papier n'a pas pu être fabriqué. Réessaie dans un instant.");
+                /* ── ET LE DERNIER CAS DIT ENFIN CE QU'IL SAIT ──────────────
+                   « Réessaie dans un instant » ne se corrige pas : on ne sait
+                   ni quoi réessayer, ni pourquoi. Le numéro du serveur, lui,
+                   sépare une panne passagère (502, 504 : Render dort ou le
+                   moteur a mis trop longtemps) d'un vrai refus. */
+                : r.status === 502 || r.status === 503 || r.status === 504
+                  ? `Le serveur n'a pas répondu à temps (${r.status}). Il se réveille — appuie encore une fois.`
+                  : `Le papier n'a pas pu être fabriqué (${r.status}${d.erreur ? ` : ${d.erreur}` : ""}).`);
         return;
       }
       /* ── ON LE RANGE AVANT DE L'AFFICHER ────────────────────────────────
@@ -3709,7 +3753,7 @@ export default function Home() {
       void speak(lecture(d.document, d.totaux ?? null), undefined, "document");
     } catch {
       if (perime()) return;
-      setPapierErreur("Pas de réseau. Le papier n'a pas pu être fabriqué.");
+      echouer("Pas de réseau. Le papier n'a pas pu être fabriqué.");
     } finally {
       if (!perime()) { papierOccupeRef.current = false; setPapierOccupe(false); }
       // La frappe s'arrête même si c'est une demande périmée : deux frappes
