@@ -21,6 +21,8 @@
    Et même alors, c'est le modèle qui tranche : recevoir l'outil ne l'oblige
    pas à s'en servir. On lui ouvre la porte, on ne le pousse pas dehors. */
 
+import { nombreDeLEnvironnement } from "./nombre-env";
+
 const sansAccent = (t: string) =>
   String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
@@ -100,7 +102,7 @@ export const OUTIL_RECHERCHE = (() => {
   return {
     type: "web_search_20250305",
     name: "web_search",
-    max_uses: Number(process.env.BIA_RECHERCHE_MAX || 2),
+    max_uses: nombreDeLEnvironnement(process.env.BIA_RECHERCHE_MAX, 2, "BIA_RECHERCHE_MAX"),
     ...(pays ? { user_location: { type: "approximate", country: pays } } : {}),
   };
 })();

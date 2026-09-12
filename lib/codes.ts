@@ -1,4 +1,5 @@
 import { createHmac, randomBytes } from "node:crypto";
+import { nombreDeLEnvironnement } from "./nombre-env";
 
 /* ── Codes de testeur pour BIA ─────────────────────────────────────────────
    Un code porte SA PROPRE date d'expiration, signée. Le serveur n'a donc
@@ -44,7 +45,7 @@ export function creerCode(heures: number) {
 export type Verdict = { ok: true; maitre: boolean } | { ok: false; raison: "absent" | "invalide" | "expire" | "epuise" };
 
 const compteurs = new Map<string, number>();
-const MAX_QUESTIONS = Number(process.env.BIA_MAX_QUESTIONS || 15);
+const MAX_QUESTIONS = nombreDeLEnvironnement(process.env.BIA_MAX_QUESTIONS, 15, "BIA_MAX_QUESTIONS");
 
 export function verifierCode(brut: string | null): Verdict {
   const code = (brut || "").toUpperCase().replace(/[^A-Z0-9]/g, "");

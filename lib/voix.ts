@@ -2,6 +2,8 @@
    Même adresse, mêmes réglages, mêmes noms de variables : une seule clé
    Soynade sert donc les deux applications. */
 
+import { nombreDeLEnvironnement } from "./nombre-env";
+
 const env = process.env;
 
 export const voixConfig = {
@@ -15,8 +17,8 @@ export const voixConfig = {
        doit être nette. BIA, elle, doit accueillir. Exagération basse = moins
        d'emphase ; poids CFG bas = débit plus lent. Réglable par variable
        d'environnement, et la page /reglage sert à les choisir à l'oreille. */
-    exaggeration: Number(env.SOYNADE_EXAGGERATION || 0.10),
-    temperature: Number(env.SOYNADE_TEMPERATURE || 0.35),
+    exaggeration: nombreDeLEnvironnement(env.SOYNADE_EXAGGERATION, 0.10, "SOYNADE_EXAGGERATION"),
+    temperature: nombreDeLEnvironnement(env.SOYNADE_TEMPERATURE, 0.35, "SOYNADE_TEMPERATURE"),
     /* ── LE RÉGLAGE QUI LA FAISAIT DIRE AUTRE CHOSE QUE SON TEXTE ──────────
 
        Lamine, le 12 septembre 2026 au soir, capture à l'appui : « la voix que
@@ -52,7 +54,7 @@ export const voixConfig = {
        la même phrase à 0,22 et à 0,5 pour comparer. Et si Render porte encore
        un SOYNADE_CFG_WEIGHT à 0,22, c'est LUI qui gagne — il faut l'enlever
        là-bas pour que cette valeur-ci s'applique. */
-    cfgWeight: Number(env.SOYNADE_CFG_WEIGHT || 0.5),
+    cfgWeight: nombreDeLEnvironnement(env.SOYNADE_CFG_WEIGHT, 0.5, "SOYNADE_CFG_WEIGHT"),
     /* LA VITESSE — ET CE QU'ON EN SAIT MAINTENANT.
 
        J'avais ajouté ce champ « au cas où », sans documentation. Le 11
@@ -65,7 +67,7 @@ export const voixConfig = {
        et plus rien ne compte dessus : si un jour l'API hébergée en propose un,
        SOYNADE_SPEED et SOYNADE_SPEED_FIELD l'allument sans toucher au code.
        Le ralentissement réel se fait sur le téléphone — lib/ralentir.ts. */
-    vitesse: Number(env.SOYNADE_SPEED || 1),
+    vitesse: nombreDeLEnvironnement(env.SOYNADE_SPEED, 1, "SOYNADE_SPEED"),
     vitesseField: env.SOYNADE_SPEED_FIELD || "speed",
     /* Le clonage de voix. Oolel-Voices accepte un extrait de référence et
        imite la voix qu'il y entend. L'extrait doit être joignable par une

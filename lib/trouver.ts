@@ -52,6 +52,8 @@
    chaussures. Ce que BIA rend, c'est ce qu'un moteur de recherche rend : des
    résultats, avec leur source. */
 
+import { nombreDeLEnvironnement } from "./nombre-env";
+
 /** Brave Search, pour les images. */
 const BRAVE = () => String(process.env.BRAVE_CLE || "").trim();
 /** Clé Google Cloud avec « YouTube Data API v3 » activée, pour les vidéos. */
@@ -73,8 +75,8 @@ export const CITATION_IMAGES = "Brave Search";
 
    Trente par jour pour les images : à ce rythme, le crédit mensuel de Brave
    tient le mois entier sans qu'il ait à y penser. */
-const PLAFOND_IMAGES = Number(process.env.BIA_IMAGES_JOUR || 30);
-const PLAFOND_VIDEOS = Number(process.env.BIA_VIDEOS_JOUR || 100);
+const PLAFOND_IMAGES = nombreDeLEnvironnement(process.env.BIA_IMAGES_JOUR, 30, "BIA_IMAGES_JOUR");
+const PLAFOND_VIDEOS = nombreDeLEnvironnement(process.env.BIA_VIDEOS_JOUR, 100, "BIA_VIDEOS_JOUR");
 
 const compte = { jour: "", images: 0, videos: 0 };
 

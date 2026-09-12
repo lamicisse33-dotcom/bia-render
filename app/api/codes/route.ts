@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { creerCode, verifierCode } from "@/lib/codes";
+import { nombreDeLEnvironnement } from "@/lib/nombre-env";
 
 /* ── FABRIQUER DES CODES DE TESTEUR POUR BIA ────────────────────────────────
 
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
     const heures = Math.min(Math.max(Number(body.heures) || 2, 0.25), 720);
     const nombre = Math.min(Math.max(Number(body.nombre) || 1, 1), 50);
     const codes = Array.from({ length: nombre }, () => creerCode(heures));
-    const questions = Number(process.env.BIA_MAX_QUESTIONS || 15);
+    const questions = nombreDeLEnvironnement(process.env.BIA_MAX_QUESTIONS, 15, "BIA_MAX_QUESTIONS");
 
     /* Le prénom revient tel qu'il a été tapé, nettoyé de ce qui n'a rien à
        faire dans un prénom : il finira dans le message qu'il enverra. */
