@@ -463,7 +463,14 @@ export function trouverDansRepertoire(question: string): Entree | null {
         « non » sont à deux lettres l'un de l'autre.
      3. UNE SEULE CANDIDATE. Deux formulations à égalité, c'est qu'on ne sait
         pas — et on préfère le dire en laissant le modèle répondre. */
-  return leMoinsLoin(dit);
+  const parLesMots = leMoinsLoin(dit);
+  if (parLesMots) return parLesMots;
+
+  /* SIXIÈME PASSE, LE DERNIER RECOURS : la même phrase sans ses espaces. Un
+     découpage raté — « Kanga » pour « kan nga » — ne doit pas coûter une
+     réponse déjà payée. Elle vient EN DERNIER, et seulement si tout le reste
+     a échoué : c'est la plus permissive, donc la moins prioritaire. */
+  return leMoinsLoinSansEspaces(dit);
 }
 
 /** La part d'un MOT qu'on accepte de voir fausse. Mesurée, pas choisie à
@@ -561,6 +568,142 @@ function alignerLesMots(a: string[], b: string[]): number | null {
     total += reste.length;
   }
   return total;
+}
+
+/* ── SIXIÈME PASSE : LES ESPACES NE COMPTENT PLUS ──────────────────────────
+
+   Lamine, le 12 septembre 2026 au soir : « quand on lui dit en wolof "qui
+   es-tu", elle n'utilise pas la réponse préenregistrée comme sur beaucoup
+   d'autres questions. Ça doit être automatique. »
+
+   L'entrée existe, elle est bonne, et douze formes la déclarent. Mesuré :
+
+       « kan nga »    → qui-es-tu        (elle répond en un dixième de seconde)
+       « Kanga »      → RIEN             (dix secondes, et le modèle improvise)
+       « Can nga »    → RIEN
+       « Khan nga »   → RIEN
+       « Kan gua »    → RIEN
+
+   Un mot de TROIS lettres n'a aucune tolérance — c'est la règle juste au-dessus,
+   et elle protège « ma » de « la ». Mais le wolof est fait de mots de trois
+   lettres : kan, nga, def, wax, ci, ak. Et le moteur d'écoute se trompe sur un
+   quart à la moitié des mots. Résultat : la phrase la plus simple manque sa
+   réponse déjà payée.
+
+   ── CE QU'ON FAIT, ET CE QU'ON REFUSE DE FAIRE ────────────────────────────
+
+   On ne baisse PAS la tolérance par mot : « kan nga » (qui es-tu) et « lan nga »
+   (qu'es-tu) ne doivent jamais se confondre.
+
+   On compare la phrase SANS SES ESPACES, comme une seule suite de lettres, avec
+   un budget d'une faute pour six signes. Un découpage raté — « Kanga » au lieu
+   de « kan nga » — coûte alors une faute au lieu d'être un mot inconnu de plus.
+
+   ET LA GARANTIE TIENT AU MÊME ENDROIT QUE D'HABITUDE : une seule candidate.
+   Si deux entrées sont à portée du budget, on refuse et on laisse le modèle
+   répondre. Deux phrases wolof qui se ressemblent à une lettre près ne
+   choisissent pas à la place de la personne. */
+
+/** La distance de Levenshtein, bornée : au-delà du budget on arrête. */
+function distance(a: string, b: string, budget: number): number | null {
+  if (Math.abs(a.length - b.length) > budget) return null;
+  let avant = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const ligne = [i];
+    let meilleur = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cout = a[i - 1] === b[j - 1] ? 0 : 1;
+      const v = Math.min(avant[j] + 1, ligne[j - 1] + 1, avant[j - 1] + cout);
+      ligne.push(v);
+      if (v < meilleur) meilleur = v;
+    }
+    /* Toute la ligne est au-delà du budget : la suite ne peut que monter. */
+    if (meilleur > budget) return null;
+    avant = ligne;
+  }
+  const d = avant[b.length];
+  return d <= budget ? d : null;
+}
+
+/** Une faute tolérée pour six signes — et au moins une, dès cinq signes.
+
+    CINQ, PARCE QUE « KANGA » EN FAIT CINQ. C'était son exemple, et avec un
+    plancher à six il restait refusé : « kanga » contre « kannga », une faute,
+    budget zéro. Comme cette passe ne sert que sur un découpage raté (le
+    nombre de mots doit différer), cinq signes ne confondent rien. */
+export const SIGNES_PAR_FAUTE = 6;
+export const SIGNES_MINIMUM = 5;
+
+function sansEspaces(t: string): string {
+  return t.replace(/\s+/g, "");
+}
+
+function leMoinsLoinSansEspaces(dit: string): Entree | null {
+  const compact = sansEspaces(dit);
+  if (compact.length < SIGNES_MINIMUM) return null;
+  const budget = Math.max(1, Math.floor(compact.length / SIGNES_PAR_FAUTE));
+  const combienDeMots = dit.trim().split(/\s+/).length;
+
+  let meilleure: { entree: Entree; d: number } | null = null;
+  let egalite = false;
+
+  for (const e of TOUT) {
+    for (const f of e.formes) {
+      const brute = sonne(f);
+      /* ── LE VERROU QUI M'A ARRÊTÉ, ET IL EST À SA PLACE ────────────────
+
+         Ma première version acceptait n'importe quelle phrase à une faute
+         près. Elle donnait donc ceci, trouvé en l'éprouvant :
+
+             « lan nga »  (qu'es-tu)  →  #qui-es-tu  « kan nga »
+
+         Une lettre d'écart, deux questions différentes, et une réponse
+         enregistrée servie avec aplomb à la mauvaise question. C'est
+         exactement ce qu'on refuse depuis le 11 septembre.
+
+         Cette passe ne sert donc QUE quand le nombre de mots diffère — un
+         découpage raté, « Kanga » pour « kan nga ». Ça, aucune paire de mots
+         wolof ne peut le confondre : c'est un artefact du moteur d'écoute,
+         pas une autre phrase.
+
+         Et « Can nga » pour « kan nga » ? Ce n'est pas à la correspondance de
+         le rattraper, c'est à L'OREILLE de ne pas l'écrire : on donne
+         maintenant « kan nga » à Scribe d'avance, dans les cent mots. Réparer
+         ici ce qui se répare là-bas, ce serait accepter de confondre « lan »
+         et « kan » pour toujours. */
+      if (brute.trim().split(/\s+/).length === combienDeMots) continue;
+      const forme = sansEspaces(brute);
+      if (forme.length < SIGNES_MINIMUM) continue;
+      /* ── LE DÉBUT ET LA FIN NE S'EFFACENT PAS ──────────────────────────
+
+         Mon épreuve des blagues a refusé la version précédente, et elle avait
+         raison :
+
+             « dama begg ree »  (je veux rire)  →  #je-suis-content « dama bég »
+
+         Le rapprochement phonétique réduit « ree » à « r ». Il ne restait
+         qu'une lettre au mot qui portait TOUT le sens, et une faute de budget
+         l'effaçait. C'est précisément ce que le budget par mot interdisait, et
+         ma passe le rouvrait par la porte de derrière.
+
+         On exige donc que la première et la dernière lettre survivent. Dans un
+         découpage raté, elles survivent toujours — « kanga » et « kannga »
+         commencent par k et finissent par a. Quand le dernier mot change, non.
+         C'est la fin de la phrase qui porte le sens en wolof, et c'est elle
+         qu'on protège. */
+      if (compact[0] !== forme[0]) continue;
+      if (compact[compact.length - 1] !== forme[forme.length - 1]) continue;
+      const d = distance(compact, forme, budget);
+      if (d === null) continue;
+
+      const r = quiRepond(f, e, true);
+      if (!r) continue;
+      if (!meilleure || d < meilleure.d) { meilleure = { entree: r, d }; egalite = false; }
+      else if (d === meilleure.d && r.cle !== meilleure.entree.cle) egalite = true;
+    }
+  }
+
+  return meilleure && !egalite ? meilleure.entree : null;
 }
 
 function leMoinsLoin(dit: string): Entree | null {

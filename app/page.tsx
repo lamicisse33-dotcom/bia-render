@@ -557,6 +557,30 @@ export default function Home() {
   const numeroDuTourRef = useRef(0);
   const ouvrirUnTour = useCallback(() => ++numeroDuTourRef.current, []);
   const estLeTour = useCallback((n: number) => numeroDuTourRef.current === n, []);
+
+  /* ── DEUX IDENTITÉS, PARCE QU'IL Y A DEUX CHOSES ────────────────────────
+
+     La relecture du 12 septembre au soir a trouvé ce que le numéro de tour ne
+     couvrait pas, et son raisonnement est juste :
+
+         ENREGISTREMENT → transcription → TOUR → réponse → voix
+
+     La capture du PRÉNOM est un enregistrement sans tour : elle passe par le
+     micro et la transcription, puis s'arrête là. Elle ne pouvait donc porter
+     aucun numéro de tour — et c'est exactement le chemin qui bloquait le
+     micro. Un seul numéro ne pouvait pas les couvrir tous les deux.
+
+       — le numéro d'ENREGISTREMENT protège : le MediaRecorder, son onstop, la
+         transcription, la capture du prénom, et les erreurs de réseau ;
+       — le numéro de TOUR protège : le modèle, la réponse, la voix,
+         l'attente parlée, l'interruption.
+
+     Les deux tournent ensemble quand on coupe la parole ou qu'on ferme la
+     conversation : tout ce qui était en vol meurt d'un coup. */
+  const numeroEnregistrementRef = useRef(0);
+  const nouvelEnregistrement = useCallback(() => ++numeroEnregistrementRef.current, []);
+  const estCetEnregistrement = useCallback(
+    (n: number) => numeroEnregistrementRef.current === n, []);
   const resumeRef = useRef("");
   const resumeEnCours = useRef(false);
   const emotionRef = useRef("neutre");
@@ -2437,6 +2461,19 @@ export default function Home() {
      redémarre un tour sur un flux qu'on vient d'éteindre. */
   const fermerConversation = useCallback(() => {
     conversationRef.current = false;
+    /* ── FERMER LA CONVERSATION, C'EST TUER CE QUI EST EN VOL ──────────────
+
+       La relecture du 12 septembre au soir : « il faut absolument que fermer
+       la conversation signifie : tout ce qui était en vol est mort. » Elle a
+       raison — la fonction arrêtait le micro et le flux, et laissait vivre la
+       transcription, la capture du prénom et la réponse en fabrication. Ce
+       qui revenait ensuite écrivait l'état d'une conversation fermée, et
+       rouvrait un micro que la personne venait de couper. */
+    ouvrirUnTour();
+    nouvelEnregistrement();
+    attenteRef.current = null;
+    tourRef.current = null;
+    attendLeNomRef.current = false;
     setConversation(false);
     setEntendParler(false);
     const e = enregistreurRef.current;
@@ -2445,11 +2482,17 @@ export default function Home() {
     debrancherMicroRef.current?.();
     debrancherMicroRef.current = null;
     setMode((m) => (m === "listening" ? "ready" : m));
-  }, []);
+  }, [ouvrirUnTour, nouvelEnregistrement]);
 
   const ecouter = useCallback(async () => {
+    /* CET ENREGISTREMENT-CI, ET PAS UN AUTRE. Le numéro est pris AVANT
+       d'ouvrir le micro : demander la permission peut durer une seconde, et
+       pendant cette seconde on a pu couper la parole ou fermer la
+       conversation. Ce qui revient après ne doit plus rien écrire. */
+    const idEnr = nouvelEnregistrement();
     try {
       const { flux, analyse, ctxMicro } = await micro();
+      if (!estCetEnregistrement(idEnr)) return;
       const enregistreur = new MediaRecorder(flux);
       const morceaux: Blob[] = [];
       enregistreurRef.current = enregistreur;
@@ -2597,6 +2640,9 @@ export default function Home() {
 
       enregistreur.ondataavailable = (e) => { if (e.data.size) morceaux.push(e.data); };
       enregistreur.onstop = async () => {
+        /* Cet arrêt appartient-il encore à l'enregistrement en cours ? Si on a
+           coupé la parole entre-temps, ce qui suit n'a plus rien à dire. */
+        if (!estCetEnregistrement(idEnr)) { clearInterval(veille); return; }
         clearInterval(veille);
         setEntendParler(false);
         enregistreurRef.current = null;
@@ -2726,7 +2772,19 @@ export default function Home() {
         if (attendLeNomRef.current) {
           try {
             const r = await fetch("/api/ecouter", { method: "POST", headers: { "x-bia-code": codeRef.current }, body: forme });
+            /* ── CE CHEMIN N'APPARTENAIT À AUCUN TOUR ──────────────────────
+
+               Trouvé par la relecture du 12 septembre au soir : la capture du
+               prénom passe AVANT l'ouverture du tour, donc le numéro de tour
+               ne la couvrait pas. Une capture lente qui revenait pendant le
+               tour suivant remettait `attendLeNomRef` à faux et pouvait
+               toucher l'état — celui d'un tour qui n'était pas le sien.
+
+               C'est le numéro d'ENREGISTREMENT qui la garde, et il existe
+               depuis l'instant où le micro s'est ouvert. */
+            if (!estCetEnregistrement(idEnr)) return;
             const d = await r.json() as { texte?: string };
+            if (!estCetEnregistrement(idEnr)) return;
             const nom = extraireNom(d.texte || "");
             if (nom) {
               nomRef.current = nom;
@@ -2812,7 +2870,9 @@ export default function Home() {
 
         try {
           const r = await fetch("/api/ecouter", { method: "POST", headers: { "x-bia-code": codeRef.current }, body: forme });
+          if (!estCetEnregistrement(idEnr)) return;
           const d = await r.json() as { texte?: string; panne?: boolean; motif?: string };
+          if (!estCetEnregistrement(idEnr)) return;
           /* SON OREILLE EST CASSÉE, CE N'EST PAS LA VOIX DE LA PERSONNE.
              Sans ça, BIA répétait « je ne t'entends pas bien, répète » à
              chaque phrase — et on répétait plus fort devant un micro qui ne
@@ -2926,6 +2986,17 @@ export default function Home() {
         } catch {
           /* Le réseau a lâché pendant la transcription : même règle. Sans ce
              finirAttente, l'attente survivait à l'erreur et bloquait tout. */
+          /* ── LE CATCH PASSAIT AUTOUR DE LA PROTECTION ──────────────────
+
+             La relecture du 12 septembre au soir : « setMode("error") est
+             gardé, mais finirAttente tourne avant la garde. » Elle a raison,
+             et c'est pire que le mode : finirAttente lève le jeton d'ATTENTE.
+             Une transcription du tour 12 qui échoue pendant le tour 13
+             coupait donc la parole du tour 13 — en silence.
+
+             On vérifie donc AVANT de toucher à quoi que ce soit. Une requête
+             qui échoue trop tard ne fait plus rien du tout. */
+          if (!estCetEnregistrement(idEnr) || !estLeTour(monTour)) return;
           await finirAttente(langueRef.current, false);
           if (estLeTour(monTour)) setMode("error");
         }
@@ -2937,7 +3008,7 @@ export default function Home() {
     } catch {
       setMode("error");
     }
-  }, [arreterEnregistrement, askBia, attendreEnParlant, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour]);
+  }, [arreterEnregistrement, askBia, attendreEnParlant, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour, nouvelEnregistrement, estCetEnregistrement]);
 
   /* L'attente a besoin de rouvrir le micro pour recevoir le prénom, mais elle
      est définie avant `ecouter`. Ce renvoi évite d'avoir à réordonner tout le
@@ -3056,15 +3127,21 @@ export default function Home() {
     couperSon();
     tourRef.current = null;
     attenteRef.current = null;
-    /* ── ON LUI COUPE LA PAROLE : LE TOUR EST CLOS ─────────────────────────
+    /* ── ON LUI COUPE LA PAROLE : LE TOUR ET L'ENREGISTREMENT SONT CLOS ───
 
        C'est l'endroit le plus important de la règle. Quand quelqu'un reprend
        la main, tout ce qui est en vol appartient déjà au passé : la réponse
        du modèle qui arrive, la voix en fabrication, la transcription en
        cours. En tournant le numéro du tour, ils deviennent tous périmés
        d'un coup — aucun d'eux ne pourra plus écrire l'état, et c'est le
-       nouveau tour qui décidera. */
+       nouveau tour qui décidera.
+
+       ET L'ENREGISTREMENT AVEC, depuis la relecture du 12 septembre au soir :
+       une transcription en vol, une capture de prénom en vol, appartiennent
+       elles aussi au passé. Faire tourner un seul des deux numéros laissait un
+       chemin ouvert — et c'était celui du prénom. */
     ouvrirUnTour();
+    nouvelEnregistrement();
     /* Quelqu'un vient de reprendre la main — pour corriger, pour ouvrir un
        papier, pour écrire. Il ne répond donc plus à « comment tu t'appelles ».
        Sans cette ligne, sa phrase suivante repartait dans la case du prénom
@@ -3079,7 +3156,7 @@ export default function Home() {
     // Le visage revient au repos s'il était figé sur la réflexion. Les
     // images de bouche, elles, sont remises par l'animation qui s'arrête.
     setFace((f) => (f === "pensive" ? "yeux_ouverts" : f));
-  }, [couperSon, ouvrirUnTour]);
+  }, [couperSon, ouvrirUnTour, nouvelEnregistrement]);
   taireRef.current = taire;
 
   /* ── LA FENÊTRE DES SERVICES FERME LE MICRO ─────────────────────────────
