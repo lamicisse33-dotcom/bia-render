@@ -4216,6 +4216,27 @@ export default function Home() {
             </a>
           ))}
         </div>
+        {/* ── ET LA PAGE QUI DIT POURQUOI ELLE NE RÉPOND PAS ──────────────
+
+            Lamine, le 12 septembre 2026 : « elle n'arrête pas de me dire que
+            son moteur ne répond pas, il faut vérifier ce qui se passe. »
+
+            Le serveur savait déjà — chaque refus du modèle est noté avec son
+            numéro — mais ça vivait dans une page de texte brut illisible sur
+            un téléphone. Cinquième fois de la soirée qu'une chose existe sans
+            porte pour y entrer. Elle est ici, à côté des autres, et elle ne
+            demande aucun code. */}
+        <h2 className="papier-titre" style={{ marginTop: 22 }}>Quand ça ne répond plus</h2>
+        <div className="relire-liste">
+          <a href="/etat" className="relire-carte">
+            <span className="relire-nom">L&apos;état de BIA</span>
+            <span className="relire-quoi">
+              Pourquoi son moteur ne répond pas, avec le numéro et le message
+              exacts. Ne demande aucun code.
+            </span>
+          </a>
+        </div>
+
         <p className="papier-note" style={{ marginTop: 16 }}>
           Pages provisoires, et pour toi seul&nbsp;: chaque écoute coûte environ
           deux centimes. On les retire une fois l&apos;enregistrement fait.

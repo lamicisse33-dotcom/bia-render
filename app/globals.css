@@ -2183,3 +2183,36 @@ button { font: inherit; touch-action: manipulation; }
   font-size: 14.5px;
 }
 .voix-retour a:active { background: rgba(255,255,255,.11); }
+
+/* ── LA PAGE D'ÉTAT ─────────────────────────────────────────────────────────
+
+   « Elle n'arrête pas de me dire que son moteur ne répond pas. » Le serveur
+   savait pourquoi ; personne ne pouvait le lire. Deux couleurs suffisent :
+   cassé maintenant, ou pas. Le reste est du texte. */
+.etat-bien, .etat-mal {
+  margin: 14px 0; padding: 13px 15px;
+  border: 1px solid transparent; border-radius: 14px;
+}
+.etat-bien { background: rgba(52,168,83,.14); border-color: rgba(52,168,83,.42); }
+.etat-mal  { background: rgba(214,60,52,.14); border-color: rgba(214,60,52,.42); }
+.etat-bien p, .etat-mal p { margin: 0 0 6px; }
+.etat-bien p:last-child, .etat-mal p:last-child { margin-bottom: 0; }
+/* Le message brut du serveur, tel quel : c'est lui qui dit la cause exacte,
+   et le reformuler ferait perdre le seul mot qui compte. */
+.etat-brut {
+  margin: 8px 0 0; padding: 9px 11px;
+  background: rgba(0,0,0,.32); border-radius: 9px;
+  font-size: 12px; line-height: 1.45;
+  white-space: pre-wrap; word-break: break-word;
+  color: rgba(255,255,255,.74);
+}
+.etat-liste { display: grid; gap: 8px; margin: 12px 0 4px; }
+.etat-liste p {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  margin: 0; padding-bottom: 7px;
+  border-bottom: 1px solid rgba(255,255,255,.09);
+}
+.etat-liste span { color: rgba(255,255,255,.6); font-size: 14px; }
+.etat-liste b { text-align: right; font-weight: 600; font-size: 14px; }
+.etat-oui { color: #b7f3c6; }
+.etat-non { color: #ffc2bd; }
