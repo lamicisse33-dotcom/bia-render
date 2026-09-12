@@ -3608,11 +3608,20 @@ export default function Home() {
             <a href="/voix/base" className="papier-lien">Écouter les 69 nouvelles →</a>
             {" "}
             <a href="/voix/guidage" className="papier-lien">Écouter les 49 du guidage →</a>
+            {" "}
+            {/* ── LA CINQUIÈME PAGE, QUI MANQUAIT ICI ──────────────────────
+
+                Le 12 septembre 2026, Lamine m'a envoyé la copie de cet écran :
+                quatre boutons, et pas celui des services. J'avais ajouté le
+                lien aux QUATRE pages de /voix/ — qui se lisent l'une depuis
+                l'autre — en oubliant que c'est d'ICI qu'il les ouvre. Une page
+                qu'on ne peut pas atteindre n'existe pas. */}
+            <a href="/voix/services" className="papier-lien">Écouter les 30 des services →</a>
             <br />
-            Quatre pages provisoires, et pour toi seul : les phrases, les
-            nombres, les 69 nouvelles réponses, et les 49 phrases qui te
-            guideront sur la carte. On les retire une fois l&apos;enregistrement
-            fait.
+            Cinq pages provisoires, et pour toi seul : les phrases, les
+            nombres, les 69 nouvelles réponses, les 49 phrases qui te guideront
+            sur la carte, et les 30 qu&apos;elle dit en exécutant — ou quand ça
+            casse. On les retire une fois l&apos;enregistrement fait.
           </p>
         ) : null}
 
@@ -4481,6 +4490,10 @@ type EtatRepertoire = {
   signes?: number;
   cout_dollars?: number;
   pret?: string;
+  /* Combien de sons sont encore lourds. Aucun rapport avec l'argent : ils
+     sont déjà payés, il s'agit de les recompresser. */
+  a_alleger?: number;
+  deja_legers?: number;
 };
 
 /* Quand Supabase refuse de dire si un son existe, on ne le fabrique pas et on
@@ -4509,6 +4522,13 @@ function PapierRepertoire({ code }: { code: string | null }) {
           : `Il manque ${d.manquants} son(s) sur ${d.attendus} — ${d.signes} signes, ${d.cout_dollars} $.`
             + ` ${d.en_place} sont déjà là et ne seront pas repayés.`)
         + direIncertains(d.incertains)
+        /* ── ET CE QUI RESTE LOURD ────────────────────────────────────────
+           On le dit à part, et on dit tout de suite que c'est gratuit : sans
+           ça, un chiffre de plus à côté d'un prix ressemble à une dépense. */
+        + (d.a_alleger
+          ? ` ${d.a_alleger} sont encore en WAV — six fois trop lourds à télécharger.`
+            + " Les alléger ne coûte RIEN : aucune voix n'est repayée."
+          : d.deja_legers ? ` Les ${d.deja_legers} sont déjà allégés.` : "")
       );
     } catch (e) {
       setBilan(`Le comptage n'a pas abouti : ${(e as Error).message}`);
@@ -4522,20 +4542,44 @@ function PapierRepertoire({ code }: { code: string | null }) {
   async function enregistrer() {
     if (!code) { setBilan("Il faut ton code."); return; }
     setOccupe("enregistre");
-    setBilan("Elle enregistre les phrases une à une. Ça prend une minute ou deux — ne ferme pas.");
+    setBilan(seulementAlleger
+      ? "Elle recompresse les sons déjà payés. Une minute ou deux — ne ferme pas. Aucune voix n'est rachetée."
+      : "Elle enregistre les phrases une à une. Ça prend une minute ou deux — ne ferme pas.");
     try {
       const r = await fetch("/api/repertoire", { method: "POST", headers: { "x-bia-code": code } });
       const d = await r.json() as {
         erreur?: string; enregistres?: number; deja_la?: number;
         incertains?: number; cout_dollars?: number; desormais_gratuit?: number;
         rates?: Array<{ cle: string; langue: string; motif: string }>;
+        allegement?: {
+          convertis?: number; restent?: number; deja_legers?: number;
+          avant_ko?: number; apres_ko?: number; fois_plus_petit?: number | null;
+          rates?: Array<{ ou: string; motif: string }>; erreur?: string;
+        };
       };
       if (d.erreur) { setBilan(d.erreur); return; }
       const rates = d.rates || [];
+      /* ── CE QUI VIENT DE MAIGRIR ──────────────────────────────────────────
+         On dit les kilo-octets, pas des pourcentages : « 3 200 ko devenus
+         540 » se comprend d'un coup d'œil, « −83 % » demande un calcul. Et on
+         répète que c'est gratuit, parce que c'est la seule chose qu'on ne
+         croit pas la première fois. */
+      const a = d.allegement;
+      const motAllegement = !a ? ""
+        : a.erreur ? ` ⚠ ${a.erreur}`
+        : a.convertis
+          ? ` ${a.convertis} son(s) allégés — ${a.avant_ko} ko devenus ${a.apres_ko} ko,`
+            + ` ${a.fois_plus_petit}× plus légers, et zéro dollar.`
+            + (a.restent ? ` Il en reste ${a.restent} : appuie encore.` : " Il n'en reste aucun.")
+            + (a.rates?.length ? ` ⚠ ${a.rates.length} n'ont pas pu être allégés.` : "")
+          : a.deja_legers ? ` Les ${a.deja_legers} sons étaient déjà légers.` : "";
       setBilan(
-        `${d.enregistres} phrase(s) enregistrée(s) pour ${d.cout_dollars} $.`
+        (d.enregistres
+          ? `${d.enregistres} phrase(s) enregistrée(s) pour ${d.cout_dollars} $.`
+          : "Aucune phrase à enregistrer.")
         + (d.deja_la ? ` ${d.deja_la} y étaient déjà — non repayées.` : "")
         + ` ${d.desormais_gratuit} phrases ne coûteront plus jamais rien.`
+        + motAllegement
         + direIncertains(d.incertains)
         /* Ce qui a raté reste à refaire : on repart de l'état réel du seau, pas
            d'un souvenir. Un seul appui de plus suffira. */
@@ -4552,7 +4596,25 @@ function PapierRepertoire({ code }: { code: string | null }) {
     }
   }
 
-  const resteAFaire = regarde !== null && (regarde.manquants || 0) > 0;
+  /* ── LE BOUTON QUI NE POUVAIT PLUS RIEN LANCER ──────────────────────────
+
+     Le 12 septembre 2026, la copie d'écran de Lamine : « Rien ne manque : les
+     326 sons sont en place. » Et aucun second bouton.
+
+     C'EST MON DÉFAUT, ET IL ÉTAIT COMPLET. J'avais mis la conversion en MP3
+     dans le POST — celui qui enregistre — alors que le POST n'apparaît que
+     s'il MANQUE quelque chose. Tout étant enregistré, le geste qui allège
+     n'était plus atteignable. J'avais écrit une réparation que personne ne
+     pouvait déclencher.
+
+     On regarde donc les deux : ce qui manque, ET ce qui est encore lourd. */
+  const resteAFaire = regarde !== null
+    && ((regarde.manquants || 0) > 0 || (regarde.a_alleger || 0) > 0);
+
+  /* Et le bouton doit dire la vérité sur le prix. Alléger ne coûte rien :
+     annoncer « 0 $ » ferait douter, alors on l'écrit en mots. */
+  const seulementAlleger = regarde !== null
+    && (regarde.manquants || 0) === 0 && (regarde.a_alleger || 0) > 0;
 
   return (
     <p className="papier-note" style={{ marginTop: 14 }}>
@@ -4566,8 +4628,10 @@ function PapierRepertoire({ code }: { code: string | null }) {
           <button type="button" className="papier-lien" disabled={occupe !== ""}
             onClick={() => void enregistrer()}>
             {occupe === "enregistre"
-              ? "Elle enregistre…"
-              : `Oui, enregistre — ${regarde?.cout_dollars} $`}
+              ? (seulementAlleger ? "Elle allège…" : "Elle enregistre…")
+              : seulementAlleger
+                ? `Alléger ${regarde?.a_alleger} sons — gratuit`
+                : `Oui, enregistre — ${regarde?.cout_dollars} $`}
           </button>
           {occupe === "" ? (
             <button type="button" className="papier-lien" style={{ marginLeft: 8 }}
