@@ -626,6 +626,35 @@ async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void){
   return {content:blocs.map((text)=>({type:"text",text})),usage};
 }
 
+/* ── CE QU'ON ENTEND DANS « AMENE-MOI AUX ALMADIES » ────────────────────────
+
+   Une demande de trajet se reconnait a son verbe. On prend ce qui suit, on
+   enleve les politesses, et on rend le nom du lieu — ou rien du tout si la
+   phrase ne ressemble a rien de connu. Mieux vaut ne pas ouvrir de carte que
+   d'en ouvrir une sur un mot pris au hasard.                              */
+const DEMANDES_DE_TRAJET = [
+  /(?:am[eè]ne|emm[eè]ne|conduis|accompagne|guide|d[ée]pose)[\s-]*(?:moi|nous)\s+(?:jusqu'?(?:au|aux|[àa]|a)\s+|vers\s+|sur\s+|[àa]\s+|au\s+|aux\s+|chez\s+|en\s+)?(.{2,60})$/i,
+  /(?:je\s+(?:veux|voudrais|souhaite)\s+aller|on\s+va|je\s+vais|allons)\s+(?:jusqu'?(?:au|aux|[àa]|a)\s+|vers\s+|[àa]\s+|au\s+|aux\s+|chez\s+|en\s+)?(.{2,60})$/i,
+  /(?:comment\s+(?:aller|on\s+va|je\s+fais\s+pour\s+aller))\s+(?:[àa]\s+|au\s+|aux\s+|chez\s+|vers\s+|en\s+)?(.{2,60})$/i,
+  /(?:itin[ée]raire|trajet|route|chemin)\s+(?:pour\s+|jusqu'?(?:au|aux|[àa]|a)\s+|vers\s+|[àa]\s+|au\s+|aux\s+)(.{2,60})$/i,
+];
+/* Ce qui se dit par politesse et qui n'est pas un lieu. */
+const POLITESSES = /\b(s'?il\s+te\s+pla[iî]t|s'?il\s+vous\s+pla[iî]t|stp|svp|merci|maintenant|tout\s+de\s+suite|vite)\b/gi;
+
+function lieuDemandeDans(question: string): string {
+  const propre = String(question || "").trim().replace(/[?!.;,]+\s*$/, "");
+  for (const motif of DEMANDES_DE_TRAJET) {
+    const m = propre.match(motif);
+    if (!m) continue;
+    const lieu = m[1].replace(POLITESSES, "").replace(/[?!.;,]+\s*$/, "").replace(/\s+/g, " ").trim();
+    /* Un mot vide, un « moi », un pronom : ce n'est pas une destination. */
+    if (lieu.length < 2) return "";
+    if (/^(moi|nous|toi|la|l[àa]|ici|maison|chez\s+moi)$/i.test(lieu)) return "";
+    return lieu.slice(0, 60);
+  }
+  return "";
+}
+
 async function repondre(body:Corps,code:string|null,emettre:((morceau:string)=>void)|null):Promise<Rendu>{
   try{
     const question=String(body.message||"").trim().slice(0,1200);
@@ -1143,6 +1172,27 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const {texte:sansVoir,voir}=detacherVoir(sansAppel);
     const {texte:sansCarte,carte}=detacherCarte(sansVoir);
     const {texte:sansRegarde,regarde}=detacherRegarde(sansCarte);
+    /* ── ELLE DIT « C'EST PARTI » ET RIEN NE S'OUVRE ──────────────────────
+
+       Lamine, le 14 septembre 2026 a 19h : « je lui ai demande de m'amener
+       aux Almadies, elle me dit c'est parti, mais rien ne s'affiche. »
+
+       La carte ne s'ouvre que si le modele pose sa balise. Il l'oublie
+       parfois — surtout quand sa reponse est courte, justement le cas des
+       « c'est parti » — et alors BIA promet un trajet qu'elle n'ouvre pas.
+       C'est la pire des reponses : elle a compris, elle a dit oui, et il ne
+       se passe rien.
+
+       LA DEMANDE, ELLE, EST DANS LA QUESTION. « Amene-moi aux Almadies » ne
+       laisse aucun doute, et on n'a pas besoin du modele pour l'entendre. On
+       rattrape donc la destination dans ce que la personne a dit, quand la
+       balise manque. Le modele garde la main quand il la pose ; ceci n'est
+       qu'un filet.
+
+       On ne touche pas au wolof ici : je n'ecris pas de motifs wolof de ma
+       main. Les formulations francaises couvrent ce que Lamine et ses
+       testeurs emploient ce soir, et les wolof s'ajouteront de SA main. */
+    const carteRattrapee = carte || lieuDemandeDans(question);
     const {texte:reply,cherche:demande}=detacherCherche(sansRegarde);
 
     /* La recherche part APRÈS que le modèle a fini d'écrire, pas pendant : le
@@ -1243,7 +1293,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        TANT QUE LE VERROU EST FERMÉ, choisirService rend null et rien ne
        change : BIA continue exactement comme avant. Une phrase promise sans
        son serait un silence. */
-    const geste={carte,film,trouve,voir,papier,appel};
+    const geste={carte:carteRattrapee,film,trouve,voir,papier,appel};
     const famille=familleDuGeste(geste);
     const accuse=famille&&(!reply||reply.length<=120)&&!filmRate
       ? choisirService(famille,String(body.dernierService||""))
@@ -1253,7 +1303,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       const langue=langueDe(question);
       return {corps:{
         reply:langue==="fr"?accuse.francais:accuse.wolof,
-        emotion,papier,appel,voir,carte,film,trouve,
+        emotion,papier,appel,voir,carte:carteRattrapee,film,trouve,
         son:sonDe(accuse.cle,langue,langue==="fr"?accuse.francais:accuse.wolof),
         /* Le téléphone le renverra à la question suivante, pour qu'on ne
            serve pas deux fois de suite la même formulation. Le serveur ne
@@ -1266,7 +1316,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     if(!reply&&(papier||appel||voir||trouve||film||carte)){
       oublierPanne();
       const parDefaut=papier?"Waaw, maa ngi koy defar.":(voir||trouve||film)?"Xool.":"Waaw.";
-      return {corps:{reply:parDefaut,emotion,papier,appel,voir,carte,film,trouve,source:"geste sans phrase"}};
+      return {corps:{reply:parDefaut,emotion,papier,appel,voir,carte:carteRattrapee,film,trouve,source:"geste sans phrase"}};
     }
 
     if(!reply){
@@ -1277,7 +1327,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
-    return {corps:{reply:ceQuElleDit,emotion,papier,appel,voir,carte,film,trouve,source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
+    return {corps:{reply:ceQuElleDit,emotion,papier,appel,voir,carte:carteRattrapee,film,trouve,source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message, "chat");
