@@ -156,6 +156,8 @@ export default function Carte({
   const secours = useRef(false);
   /* Ce qui a manqué, dit en clair sous la carte au lieu d'un noir muet. */
   const [motifCarte, setMotifCarte] = useState("");
+  /* Pourquoi la position manque — en français, en petit, pour celui qui répare. */
+  const [motifGps, setMotifGps] = useState("");
   const [provisoire, setProvisoire] = useState(false);
   const [ditQuelqueChose, setDitQuelqueChose] = useState(false);
 
@@ -226,12 +228,68 @@ export default function Carte({
       void dire(["pas-de-gps"]);
       return;
     }
-    const suivi = navigator.geolocation.watchPosition(
-      (p) => setPosition([p.coords.longitude, p.coords.latitude]),
-      () => { setEtat("GPS bi feeñul."); void dire(["pas-de-gps"]); },
-      { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 },
+    /* ── « GPS BI FEEÑUL » DISAIT TROIS CHOSES À LA FOIS ──────────────────
+
+       Lamine, le 14 septembre 2026 : la carte s'ouvre sur Sandaga et l'écran
+       annonce que le GPS ne répond pas. Une seule phrase couvrait trois
+       situations qui ne se réparent pas du tout pareil :
+
+         1. le téléphone REFUSE la position — il faut l'autoriser dans les
+            réglages, et aucune attente n'y changera rien ;
+         2. la position n'est pas DISPONIBLE — dedans, entre deux murs ;
+         3. le délai est DÉPASSÉ — et c'est le cas le plus fréquent, parce
+            qu'on demandait la haute précision, celle qui va chercher les
+            satellites. À l'intérieur d'une maison, elle ne vient pas.
+
+       Sur le troisième, on abandonnait au bout de quinze secondes alors que
+       la position approchée — celle des antennes et du wifi — arrive en une
+       seconde et suffit largement pour partir. On demande donc la précise, et
+       si elle ne vient pas, on se rabat sur l'approchée au lieu de renoncer.
+
+       Le motif exact s'affiche en petit, en français : il ne sert pas à celui
+       qui roule, il sert à celui qui répare. */
+    let suivi = 0;
+    let replie = false;
+
+    const perdu = (err: GeolocationPositionError) => {
+      if (err.code === 1) {
+        setEtat("GPS bi feeñul.");
+        setMotifGps("Le téléphone n'autorise pas la position. Réglages → Safari → Position.");
+        void dire(["pas-de-gps"]);
+        return;
+      }
+      /* Pas encore essayé sans la haute précision : on tente, sans rien dire.
+         Annoncer une panne qu'on est en train de réparer ne sert personne. */
+      if (!replie) {
+        replie = true;
+        setMotifGps("Position précise indisponible — je prends l'approchée.");
+        try { navigator.geolocation.clearWatch(suivi); } catch { }
+        suivi = navigator.geolocation.watchPosition(
+          (p) => { setMotifGps(""); setPosition([p.coords.longitude, p.coords.latitude]); },
+          () => {
+            setEtat("GPS bi feeñul.");
+            setMotifGps("Ni le GPS ni le réseau ne donnent la position.");
+            void dire(["pas-de-gps"]);
+          },
+          /* Approchée, patiente, et une position d'il y a une minute fait
+             parfaitement l'affaire pour savoir dans quelle rue on est. */
+          { enableHighAccuracy: false, maximumAge: 60000, timeout: 30000 },
+        );
+        return;
+      }
+      setEtat("GPS bi feeñul.");
+      setMotifGps(err.code === 2 ? "Position indisponible ici." : "Le GPS n'a pas répondu à temps.");
+      void dire(["pas-de-gps"]);
+    };
+
+    suivi = navigator.geolocation.watchPosition(
+      (p) => { setMotifGps(""); setPosition([p.coords.longitude, p.coords.latitude]); },
+      perdu,
+      /* Huit secondes, pas quinze : passé ce délai, la précise ne viendra
+         plus, et quinze secondes d'attente devant quelqu'un c'est déjà trop. */
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 8000 },
     );
-    return () => navigator.geolocation.clearWatch(suivi);
+    return () => { try { navigator.geolocation.clearWatch(suivi); } catch { } };
   }, [dire]);
 
   /* ── LE FOND DE CARTE ────────────────────────────────────────────────────
@@ -516,6 +574,7 @@ export default function Carte({
 
       <div className="carte-bas">
         {etat ? <p className="carte-etat">{etat}</p> : null}
+        {motifGps ? <p className="carte-sans-motif">{motifGps}</p> : null}
         <p className="carte-ou">
           <b>{destination.dit}</b>
           {chemin ? <> · {(chemin.metres / 1000).toFixed(1)} km</> : null}
