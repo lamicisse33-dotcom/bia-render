@@ -44,6 +44,69 @@ import { noterPanne } from "@/lib/panne";
    publique, et elle est faite pour grandir. */
 
 const NOMINATIM = process.env.CARTE_LIEUX || "https://nominatim.openstreetmap.org";
+
+/* ── POURQUOI GOOGLE PASSE DEVANT, DEPUIS LE 14 SEPTEMBRE 2026 ──────────────
+
+   Lamine : « il faut que la carte puisse montrer tout Dakar. Je lui ai
+   demandé de m'amener à Ouakam » — et BIA a répondu qu'elle ne trouvait pas
+   l'endroit. Ouakam n'est pas un lieu-dit : c'est une des communes de Dakar,
+   cent mille habitants.
+
+   La base publique ne peut pas être seule en première ligne. Elle est tenue
+   par des bénévoles, elle limite chaque adresse à une requête par seconde, et
+   elle refuse volontiers les serveurs qu'elle ne connaît pas — un refus qui
+   ressemble, vu du téléphone, à « cet endroit n'existe pas ».
+
+   La clé Google est déjà là, elle sert aux vidéos. On s'en sert donc aussi
+   pour les lieux : quelques centimes pour mille recherches, et Dakar entier
+   répond. La base publique reste derrière, comme filet — si la clé manque ou
+   si Google refuse, rien ne change par rapport à hier.
+
+   ET L'ORDRE NE BOUGE PAS POUR AUTANT : les repères de KHALAM passent
+   toujours en premier. Une liste vérifiée par quelqu'un qui vit là gagne
+   contre n'importe quelle base mondiale — c'est la leçon du 11 septembre, et
+   elle tient. */
+const GOOGLE = () => String(process.env.GOOGLE_CLE || "").trim();
+
+/* Google rend un « type » d'emplacement. ROOFTOP et RANGE_INTERPOLATED sont
+   des points précis ; APPROXIMATE est le centre d'un quartier ou d'une ville
+   — ce qui est exactement ce qu'on veut pour « amène-moi à Ouakam », mais pas
+   pour une adresse. On le dit franchement au lieu de le cacher. */
+async function chezGoogle(quoi: string): Promise<Candidat[] | null> {
+  const cle = GOOGLE();
+  if (!cle) return null;
+  /* On ancre la recherche sur Dakar : « Ouakam » seul pourrait exister
+     ailleurs, et un Dakarois ne précise jamais sa ville. */
+  const adresse = "https://maps.googleapis.com/maps/api/geocode/json"
+    + `?address=${encodeURIComponent(quoi)}`
+    + "&components=country:SN&language=fr&region=sn"
+    + `&key=${encodeURIComponent(cle)}`;
+  const r = await fetch(adresse, { cache: "no-store" });
+  if (!r.ok) throw new Error(`Google lieux ${r.status}`);
+  const d = await r.json() as {
+    status?: string;
+    results?: Array<{
+      formatted_address?: string;
+      partial_match?: boolean;
+      geometry?: { location?: { lat?: number; lng?: number }; location_type?: string };
+    }>;
+  };
+  /* ZERO_RESULTS est une vraie réponse : Google a cherché et n'a rien. On
+     rend une liste vide, et le filet public tentera sa chance. */
+  if (d.status && d.status !== "OK" && d.status !== "ZERO_RESULTS") {
+    throw new Error(`Google lieux : ${d.status}`);
+  }
+  return (d.results || []).slice(0, 4)
+    .filter((x) => x.geometry?.location?.lat != null && x.geometry?.location?.lng != null)
+    .map((x) => ({
+      dit: String(x.formatted_address || "").split(",").slice(0, 3).join(",").trim(),
+      lat: Number(x.geometry!.location!.lat),
+      lon: Number(x.geometry!.location!.lng),
+      /* Un à-peu-près assumé : Google le dit lui-même avec partial_match. */
+      sur: !x.partial_match,
+      source: "publique" as const,
+    }));
+}
 /* Nominatim demande qu'on se nomme, et c'est la moindre des politesses pour
    un service gratuit tenu par des bénévoles. */
 const QUI = "BIA/KHALAM (khalam.app) — assistante vocale wolof, Dakar";
@@ -120,7 +183,20 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  /* 2. LA RECHERCHE PUBLIQUE, et on garde plusieurs réponses. */
+  /* 2. GOOGLE, quand la clé est là. Il connaît les communes de Dakar. */
+  let pannesDeRecherche = "";
+  try {
+    const parGoogle = await chezGoogle(quoi);
+    if (parGoogle && parGoogle.length) return NextResponse.json({ candidats: parGoogle });
+  } catch (err) {
+    /* Google qui refuse n'est pas une raison de se taire : on note, et on
+       passe au filet. C'est le seul moyen de voir, depuis /api/etat, que la
+       clé est absente ou que l'API n'est pas activée. */
+    pannesDeRecherche = (err as Error).message.slice(0, 200);
+    noterPanne("recherche de lieu (Google)", pannesDeRecherche, "carte");
+  }
+
+  /* 3. LE FILET : la base publique, et on garde plusieurs réponses. */
   try {
     const adresse = `${NOMINATIM.replace(/\/$/, "")}/search`
       + `?q=${encodeURIComponent(quoi)}&format=json&limit=4&countrycodes=sn&addressdetails=1`;

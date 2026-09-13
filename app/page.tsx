@@ -347,6 +347,8 @@ export default function Home() {
      tourner dessous. C'est ce qui fait qu'on peut lui parler sans la voir. */
   const [carte, setCarte] = useState<Lieu | null>(null);
   const [aConfirmer, setAConfirmer] = useState<Lieu[] | null>(null);
+  /* Vrai quand la RECHERCHE a échoué, pas quand l'endroit est inconnu. */
+  const [lieuEnPanne, setLieuEnPanne] = useState(false);
   const [chercheLieu, setChercheLieu] = useState(false);
 
   /* ── LES BLAGUES DÉJÀ ENTENDUES ─────────────────────────────────────────
@@ -431,16 +433,28 @@ export default function Home() {
   const chercherLeLieu = useCallback(async (quoi: string) => {
     setChercheLieu(true);
     setAConfirmer(null);
+    setLieuEnPanne(false);
     try {
       const r = await fetch(`/api/lieu?quoi=${encodeURIComponent(quoi)}`,
         { headers: { "x-bia-code": codeRef.current } });
       const d = await r.json() as { candidats?: Lieu[]; panne?: boolean };
       const trouves = (d.candidats || []).slice(0, 3);
-      /* Rien trouvé n'est pas la même chose que le réseau qui n'a pas
-         répondu : les deux phrases n'appellent pas la même réaction. */
-      if (!trouves.length) setAConfirmer([]);
-      else setAConfirmer(trouves);
+      /* ── « JE NE TROUVE PAS CET ENDROIT » SUR UNE PANNE DE RÉSEAU ──────
+
+         Lamine, le 14 septembre 2026 : il demande Ouakam — une commune de
+         Dakar, cent mille habitants — et lit « je ne trouve pas cet endroit ».
+
+         Le serveur distinguait DÉJÀ les deux cas : il renvoie `panne: true`
+         quand la recherche elle-même a échoué. Cette ligne lisait le champ...
+         et n'en faisait rien. Les deux situations tombaient sur la même
+         phrase, et cette phrase accuse l'endroit au lieu d'accuser le réseau.
+
+         C'est la sixième fois cette semaine que le serveur sait et que
+         l'écran écrase. */
+      if (d.panne) setLieuEnPanne(true);
+      setAConfirmer(trouves);
     } catch {
+      setLieuEnPanne(true);
       setAConfirmer([]);
     } finally {
       setChercheLieu(false);
@@ -5448,6 +5462,11 @@ export default function Home() {
                 un marché, une station, une mosquée. Ici on se repère comme ça.
               </p>
             </>
+          ) : lieuEnPanne ? (
+            <p className="carte-confirme-titre">
+              Je n&apos;arrive pas à chercher en ce moment — le réseau ne répond
+              pas. Réessaie dans un instant&nbsp;?
+            </p>
           ) : (
             <p className="carte-confirme-titre">
               Je ne trouve pas cet endroit. Dis-moi ce qu&apos;il y a autour&nbsp;?
