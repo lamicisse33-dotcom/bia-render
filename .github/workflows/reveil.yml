@@ -1,0 +1,87 @@
+# ── EMPÊCHER BIA DE S'ENDORMIR ────────────────────────────────────────────────
+#
+# Lamine, le 13 septembre 2026 : « c'est la lenteur que je ne comprends pas. »
+#
+# LE PLUS GROS DE CETTE LENTEUR N'EST PAS DANS LE CODE. Render, en formule
+# gratuite, éteint le serveur après quinze minutes sans visite. La visite
+# suivante doit alors attendre qu'il se rallume : environ CINQUANTE SECONDES,
+# pendant lesquelles BIA ne répond à rien.
+#
+# Ça ne ressemble pas à une panne — l'écran est normal, elle réfléchit — donc
+# personne ne comprend ce qui se passe. Et c'est le cas le plus fréquent :
+# BIA sert à quelques questions par jour, donc elle dort presque toujours.
+#
+# ── CE QUE FAIT CE FICHIER ───────────────────────────────────────────────────
+#
+# Toutes les dix minutes, GitHub demande une page à BIA. Le serveur n'est donc
+# jamais inactif quinze minutes d'affilée, et ne s'éteint jamais. Quand Lamine
+# ou un testeur ouvre l'application, elle est déjà debout.
+#
+# ── CE QUE ÇA COÛTE ──────────────────────────────────────────────────────────
+#
+# Rien. Les minutes GitHub sont gratuites sur un dépôt public, et la page
+# demandée ne touche ni le modèle, ni la voix, ni la transcription : aucun
+# crédit Anthropic, aucun crédit Soynade. C'est une visite, pas une question.
+#
+# Une seule chose à savoir : le serveur tourne alors en continu, soit environ
+# 730 heures par mois sur les 750 gratuites de Render. Ça tient, mais ça ne
+# laisse pas la place à un second service gratuit qui tournerait lui aussi
+# sans dormir.
+#
+# ── ET SI ÇA S'ARRÊTE UN JOUR ────────────────────────────────────────────────
+#
+# GitHub désactive les tâches programmées d'un dépôt où personne ne pousse
+# rien pendant soixante jours. Il enverra un courriel avant. Si BIA redevient
+# lente après des semaines sans commit, c'est la première chose à regarder :
+# Actions → « Réveiller BIA » → le bouton qui la réactive.
+
+name: Réveiller BIA
+
+on:
+  schedule:
+    # Toutes les dix minutes. Render éteint après quinze : on garde une marge,
+    # parce que GitHub ne promet pas la ponctualité et retarde souvent de
+    # quelques minutes quand ses machines sont chargées.
+    - cron: "*/10 * * * *"
+  # Et un bouton, pour la réveiller à la main avant une démonstration.
+  workflow_dispatch:
+
+# Deux réveils qui se chevauchent ne servent à rien : si l'un traîne parce que
+# le serveur se rallume, le suivant attend son tour au lieu de s'empiler.
+concurrency:
+  group: reveil-bia
+  cancel-in-progress: false
+
+jobs:
+  reveiller:
+    runs-on: ubuntu-latest
+    # Un réveil froid prend une cinquantaine de secondes. Trois minutes de
+    # plafond laissent la place à ça et à un réessai, sans jamais rester
+    # accroché si Render ne répond pas du tout.
+    timeout-minutes: 3
+    steps:
+      - name: Demander une page à BIA
+        run: |
+          # --max-time 120 : on ACCEPTE d'attendre le réveil, c'est tout
+          #   l'intérêt — abandonner à dix secondes laisserait le serveur
+          #   s'éteindre pour de bon.
+          # --retry 2 : Render répond parfois 502 pendant qu'il se relève ;
+          #   ce n'est pas un échec, c'est le réveil en cours.
+          # On demande /api/etat : c'est la page la moins chère du serveur,
+          #   elle ne touche ni le modèle, ni la voix, ni la transcription.
+          code=$(curl --silent --show-error --location \
+                      --max-time 120 --retry 2 --retry-delay 15 --retry-all-errors \
+                      --output /dev/null --write-out '%{http_code}' \
+                      --user-agent 'reveil-bia (GitHub Actions)' \
+                      https://app.khalam.app/api/etat) || code="000"
+          echo "BIA a répondu : $code"
+          # On ne fait PAS échouer la tâche sur un mauvais code. Une alerte
+          # rouge toutes les dix minutes parce que Render a hoqueté une fois
+          # finirait par être ignorée — et le jour où ce serait grave,
+          # personne ne regarderait. Le journal dit ce qui s'est passé ;
+          # c'est /etat, dans l'application, qui sert à diagnostiquer.
+          if [ "$code" = "200" ]; then
+            echo "✓ le serveur est debout"
+          else
+            echo "⚠ réponse inattendue ($code) — voir « L'état de BIA » dans l'application"
+          fi
