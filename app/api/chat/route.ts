@@ -12,6 +12,7 @@ import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
+import { consigneUrgences, estUnNumeroDUrgence } from "@/lib/urgences";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
@@ -429,15 +430,32 @@ const PAPIER=/\[{1,2}\s*papier\s*[:\-—]?\s*(devis|lettre|message)\s*\]{1,2}/i;
 /* L'APPEL À PRÉPARER. Le numéro est nettoyé ici, pas ailleurs : ce qui part
    vers le téléphone doit être composable tel quel, et rien d'autre ne doit
    pouvoir s'y glisser. */
-const APPEL=/\[{1,2}\s*appel\s*[:\-—]?\s*([+0-9][0-9 .\-()]{5,24})(?:\|([^\]]{0,40}))?\s*\]{1,2}/i;
+/* ── LE BOUTON QUI NE POUVAIT PAS APPELER LES POMPIERS ──────────────────
+
+   Trouve le 13 septembre 2026, en verifiant les numeros d'urgence pour
+   Lamine — avant que ca n'ait jamais servi, et c'est la seule raison pour
+   laquelle je peux l'ecrire calmement.
+
+   Le motif exigeait SIX CHIFFRES. C'est juste pour un numero de telephone :
+   un « 12 » pose par erreur ne doit pas devenir un bouton qui compose. Mais
+   les numeros d'urgence en font DEUX A QUATRE — 17, 18, 123, 1515. La balise
+   [[appel:18]] etait donc rejetee EN SILENCE : BIA aurait dit « j'appelle
+   les pompiers », et aucun bouton ne serait paru.
+
+   On ne baisse pas le minimum pour tout le monde : on DECLARE les numeros
+   courts qui existent, et eux seuls passent. Un numero court inconnu reste
+   refuse, exactement comme avant. Voir NUMEROS_COURTS dans lib/urgences.ts. */
+const APPEL=/\[{1,2}\s*appel\s*[:\-—]?\s*([+0-9][0-9 .\-()]{1,24})(?:\|([^\]]{0,40}))?\s*\]{1,2}/i;
 function detacherAppel(texte:string){
   const m=texte.match(APPEL);
   if(!m)return{texte,appel:null as null|{numero:string;nom:string}};
   const numero=m[1].replace(/[^\d+]/g,"").slice(0,20);
   const nom=String(m[2]||"").replace(/\s+/g," ").trim().slice(0,40);
+  const chiffres=numero.replace(/\D/g,"");
+  const bon=chiffres.length>=6||estUnNumeroDUrgence(chiffres);
   return{
     texte:texte.replace(new RegExp(APPEL.source,"gi"),"").trim(),
-    appel:numero.replace(/\D/g,"").length>=6?{numero,nom}:null,
+    appel:bon?{numero,nom}:null,
   };
 }
 function detacherPapier(texte:string){
@@ -959,6 +977,13 @@ ${cosmetiques}
        elle ne dépend que des clés du serveur, donc elle ne bouge pas d'une
        question à l'autre. Le cache la garde, et elle ne coûte rien. */
     socle+=consigneTrouver();
+    /* ── LES NUMEROS D'URGENCE VONT DANS LE SOCLE ────────────────────────
+
+       Ils ne changent pas d'une question a l'autre, donc ils se relisent au
+       dixieme du prix depuis le cache. Et surtout ils doivent etre la A
+       CHAQUE QUESTION : une urgence ne s'annonce pas, elle arrive au milieu
+       d'une conversation sur autre chose. */
+    socle+=consigneUrgences();
 
     /* ── CE QUI EST DÉJÀ DIT DE SA VOIX ────────────────────────────────────
 
