@@ -36,6 +36,7 @@ type Panne = { quand: string; statut: number | string; detail: string; ou: strin
 type Etat = {
   modele?: string;
   cle_modele?: boolean;
+  cle_lieux?: boolean;
   voix?: string;
   ecoute?: string;
   lexique?: string;
@@ -196,6 +197,16 @@ export default function PageEtat() {
             <p><span>Sa voix</span><b>{etat.voix || "—"}{etat.voix_clonee ? " (voix de Kha)" : ""}</b></p>
             <p><span>Son oreille</span><b>{etat.ecoute || "—"}</b></p>
             <p><span>Sa mémoire</span><b>{etat.lexique || "—"}</b></p>
+            {/* Sans cette clé, elle ne trouve que les repères écrits à la
+                main : trois endroits sur tout Dakar. */}
+            <p>
+              <span>Sa recherche de lieux</span>
+              <b className={etat.cle_lieux ? "etat-oui" : "etat-non"}>
+                {etat.cle_lieux
+                  ? "clé Google présente"
+                  : "clé Google ABSENTE — elle ne trouvera que les trois repères écrits à la main"}
+              </b>
+            </p>
           </div>
 
           {/* ── LES DERNIÈRES PANNES ───────────────────────────────────────

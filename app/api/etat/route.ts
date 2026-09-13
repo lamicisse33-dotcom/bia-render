@@ -31,6 +31,17 @@ export async function GET() {
     ecoute: ecouteConfig.fournisseur,
     modele: process.env.BIA_LLM_MODEL || "claude-sonnet-5",
     cle_modele: Boolean(process.env.BIA_LLM_API_KEY || process.env.ANTHROPIC_API_KEY),
+    /* ── LA CLÉ DES LIEUX ─────────────────────────────────────────────────
+
+       Lamine, le 14 septembre 2026 : « le testeur demandera l'endroit de son
+       choix, que nous ne pouvons pas deviner. » Sans cette clé, BIA ne trouve
+       que les trois repères écrits à la main et répond « je n'arrive pas à
+       chercher » pour tout le reste de Dakar.
+
+       On a passé une demi-journée à se demander si elle était là. Elle se lit
+       maintenant d'un coup d'œil, comme celle du modèle. Le contenu de la clé
+       ne sort JAMAIS d'ici — seulement oui ou non. */
+    cle_lieux: Boolean(String(process.env.GOOGLE_CLE || "").trim()),
     lexique: lexiqueConfig.actif ? "supabase" : "mémoire vive (perdu au réveil)",
     lexique_entrees: entrees,
     lexique_origines: origines,
