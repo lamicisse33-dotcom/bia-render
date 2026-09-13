@@ -460,7 +460,21 @@ export const REPERTOIRE: Entree[] = [
   {
     cle: "que-sais-tu-faire",
     wolof: "Mën naa la dimbali ci lu bari : tontu say questions, bind ay messages ak ay devis, lire ay documents yi gua fotoo, ak seet ay images ak informations ci internet. Mën naa la guider ba ci sa destination grâce à sama map bi intégré.",
-    francais: "Je peux t'aider sur beaucoup de choses : répondre à tes questions, écrire des messages et des devis, lire des papiers que tu photographies, chercher des images sur Internet.",
+    /* ── IL MANQUAIT LA CARTE, ET ELLE SEULE ──────────────────────────────
+
+       Lamine, le 13 septembre 2026 : « quand elle cite ses capacités, elle
+       ne rajoute pas qu'elle peut te montrer le plan de map, elle ne rajoute
+       pas le reste. »
+
+       Le wolof, lui, le disait déjà : c'est LUI qui a ajouté « Mën naa la
+       guider ba ci sa destination grâce à sama map bi intégré » le 12
+       septembre au soir. Le français était resté à la version d'avant.
+
+       Cette phrase française n'est donc pas de mon invention : c'est sa
+       phrase wolof, dite en français. Rien n'est retiré de ce qu'il avait
+       écrit — on ajoute la carte, et « informations » à côté des images,
+       comme son wolof le dit. */
+    francais: "Je peux t'aider sur beaucoup de choses : répondre à tes questions, écrire des messages et des devis, lire des papiers que tu photographies, chercher des images et des informations sur Internet. Et je peux te guider jusqu'à ta destination, avec ma carte.",
     formes: [
       "loo men a def",
       "lan nga men a def",
@@ -473,6 +487,40 @@ export const REPERTOIRE: Entree[] = [
       "lan nga mën def",
       "comment tu peux m aider",
       "aide moi",
+      /* ── LES TOURNURES QUI PARTAIENT CHEZ LE MODÈLE ───────────────────
+
+         Lamine, le 13 septembre 2026, une heure avant sa démonstration :
+         « quand je lui ai demandé qu'est-ce que tu sais faire en wolof,
+         elle a mis au moins quatre à cinq secondes avant de répondre. »
+
+         Mesuré ici même : « que sais-tu faire » tombait bien dans le
+         répertoire — mais « QU'EST-CE QUE tu sais faire », la façon dont
+         on le dit vraiment, ne tombait nulle part. La question partait
+         donc chez le modèle : quatre secondes, et payantes, pour une
+         phrase déjà enregistrée et déjà payée.
+
+         Pire : « tu sais faire quoi ? » tombait sur « je ne sais pas ».
+         Elle répondait qu'elle ne savait pas, à qui lui demandait ce
+         qu'elle savait faire.
+
+         Rien n'est touché au texte dit ni à la façon de reconnaître : on
+         ne fait qu'ajouter les tournures manquantes. Les formes exactes
+         sont examinées AVANT les approchées — c'est ce qui reprend
+         « tu sais faire quoi » à « je ne sais pas ». */
+      "qu'est-ce que tu sais faire",
+      "qu'est-ce que tu sais faire en wolof",
+      "qu'est-ce que tu sais faire exactement",
+      "tu sais faire quoi",
+      "qu'est-ce que tu peux faire",
+      "qu'est-ce que tu peux faire pour moi",
+      "dis-moi ce que tu sais faire",
+      "quelles sont tes capacités",
+      "c'est quoi tes capacités",
+      "tes capacités",
+      "tu es capable de faire quoi",
+      "en quoi tu peux m'aider",
+      "tu peux m'aider à faire quoi",
+      "tu peux m'aider en quoi",
     ],
   },
   {

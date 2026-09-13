@@ -72,8 +72,45 @@ export const CITENT_LE_SITE = [
   "wo/contacter-khalam", "fr/contacter-khalam",
 ];
 
+/** Le français de « que sais-tu faire » a bougé le 13 septembre 2026 : il
+    disait moins que le wolof, il ne citait pas la carte. Son enregistrement
+    dit donc lui aussi les anciens mots. */
+export const CORRIGE_LE_13_SEPTEMBRE = ["fr/que-sais-tu-faire"];
+
 /** Tout ce qu'il faut refaire une fois, et une seule. */
 export const A_REFAIRE_UNE_FOIS = new Set([
   ...CORRIGES_LE_12_SEPTEMBRE,
   ...CITENT_LE_SITE,
+  ...CORRIGE_LE_13_SEPTEMBRE,
+]);
+
+/* ── QUAND LE SON NE DIT PLUS CE QUE LE TEXTE DIT ───────────────────────────
+
+   Une adresse de son ne porte pas le texte : elle porte la CLÉ. Un texte
+   corrigé après l'enregistrement s'affiche donc corrigé et se DIT comme
+   avant — c'est tout le propos de la liste ci-dessus, et c'est une dette
+   qu'on paie d'un bouton, « refaire », sur la page du répertoire.
+
+   Tant qu'elle n'est pas payée, la plupart de ces écarts sont des nuances de
+   formulation : « Waaw » devenu « waw ». Personne ne les entend, et servir
+   l'ancien son reste le bon choix — il est instantané.
+
+   MAIS PAS CELUI-LÀ. Le 12 septembre au soir, Lamine a ajouté au wolof de
+   « que sais-tu faire » une phrase ENTIÈRE, celle qui dit qu'elle sait
+   guider jusqu'à une destination. Le son, lui, énumère encore ce qu'elle
+   savait faire AVANT la carte. Ce n'est plus une nuance : c'est une capacité
+   qu'elle possède et qu'elle n'annonce pas — exactement ce qu'il a constaté
+   le 13 au soir, une heure avant de montrer BIA à des partenaires.
+
+   Pour ces clés-là, et pour elles seules, on ne sert pas l'enregistrement :
+   la voix fabrique le texte d'aujourd'hui. C'est le même moteur et la même
+   voix — les enregistrements sont eux-mêmes fabriqués par lui, puis rangés —
+   donc on ne perd que le temps de la fabrication, à peu près une seconde, et
+   seulement sur cette question-ci.
+
+   CETTE LISTE DOIT SE VIDER, pas grandir : dès que le son est refait, la
+   ligne se retire d'ici et la réponse redevient instantanée. */
+export const SONS_QUI_DISENT_AUTRE_CHOSE = new Set([
+  "wo/que-sais-tu-faire",
+  "fr/que-sais-tu-faire",
 ]);

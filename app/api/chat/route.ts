@@ -11,6 +11,7 @@ import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
+import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
@@ -169,6 +170,11 @@ que tu crois savoir de toi-même.
 - Et une personne peut corriger ton wolof : le bouton « Mal dit », sous chaque
   réponse. Ce qu'elle écrit fait autorité sur ta façon de parler, pour les
   fois suivantes. Dis-le quand on te demande comment t'améliorer.
+
+QUAND ON TE DEMANDE CE QUE TU SAIS FAIRE, NOMME-LES TOUTES — et n'oublie
+jamais la carte : beaucoup de gens ne savent pas que tu sais guider quelqu'un
+jusqu'à un endroit, et c'est souvent ce qui les décide. Une phrase par
+capacité, pas un discours ; mais qu'il n'en manque aucune.
 
 Ne promets rien au-delà de cette liste. Tu ne DÉCROCHES pas le téléphone et tu
 n'envoies rien toi-même — tu prépares, la personne appuie. Tu ne retiens pas
@@ -758,8 +764,18 @@ async function repondre(body:Corps,code:string|null,emettre:((morceau:string)=>v
           reply:fr?toute.francais:toute.wolof,
           emotion:toute.emotion||"neutre",
           /* Le son est déjà là : la page le joue directement au lieu de
-             demander /api/voix. C'est là qu'est l'économie. */
-          son:sonDe(toute.cle,langue,fr?toute.francais:toute.wolof),
+             demander /api/voix. C'est là qu'est l'économie.
+
+             SAUF QUAND IL DIT AUTRE CHOSE QUE LE TEXTE. Un son corrigé après
+             enregistrement garde son adresse et se dit comme avant. Pour la
+             poignée de clés où l'écart n'est pas une nuance mais une phrase
+             entière — « je sais te guider jusqu'à ta destination » — on
+             préfère une seconde de fabrication à une capacité tue. Voir
+             SONS_QUI_DISENT_AUTRE_CHOSE dans lib/a-refaire.ts : cette liste
+             se vide dès que les sons sont refaits. */
+          ...(SONS_QUI_DISENT_AUTRE_CHOSE.has(`${langue}/${toute.cle}`)
+            ? {}
+            : {son:sonDe(toute.cle,langue,fr?toute.francais:toute.wolof)}),
           source:"répertoire (gratuit)",
           /* ── C'ÉTAIT UNE SALUTATION ────────────────────────────────────
              Le téléphone en a besoin pour le tour SUIVANT : « dès que la
@@ -1118,6 +1134,43 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       console.error("BIA — l'outil de recherche est refusé, on répond sans :", detail.slice(0, 300));
       noterPanne("recherche refusée", detail, "chat");
       reponse = await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:300,system:consigne,messages:[...history,{role:"user",content:question}],...(emettre?{stream:true}:{})})});
+    }
+
+    /* ── « SUR CERTAINES QUESTIONS ELLE DIT QUE SON MOTEUR NE RÉPOND PAS » ──
+
+       Lamine, le 13 septembre 2026, pendant qu'il essayait BIA avant sa
+       démonstration. Certaines questions, pas toutes, et pas toujours les
+       mêmes : c'est la signature d'un refus PASSAGER, pas d'une panne.
+
+       Trois statuts se comportent ainsi et n'ont rien à voir avec BIA :
+       429 (trop de questions à la fois), 529 (le modèle est surchargé) et les
+       500-503 (un incident chez eux). Ils durent quelques centaines de
+       millisecondes. On ne les retentait pas : la première réponse était
+       « mon moteur ne répond pas », et la question suivante passait très
+       bien — ce qui donne exactement ce qu'il décrit.
+
+       ON RETENTE DONC UNE FOIS, et une seule. Une demi-seconde d'attente, ou
+       ce que le serveur demande s'il le dit lui-même (Retry-After), plafonné
+       à deux secondes : au-delà, mieux vaut la phrase de panne qu'un silence
+       qui n'en finit pas. Une seule reprise, parce que deux transformeraient
+       une vraie panne en longue attente — et parce qu'un incident qui dure
+       plus d'une seconde ne se règle pas en insistant.
+
+       Ce qui n'est PAS retenté : 400 (la requête est mauvaise, elle le
+       restera), 401 et 403 (la clé), 402 (le crédit). Les répéter ne ferait
+       que doubler l'attente avant la même phrase. La panne reste notée dans
+       les deux cas, même quand la reprise réussit — sinon /api/etat dirait
+       que tout va bien alors que le moteur a bégayé. */
+    const PASSAGERS = new Set([429, 500, 502, 503, 529]);
+    if (!reponse.ok && PASSAGERS.has(reponse.status)) {
+      const dit = Number(reponse.headers.get("retry-after") || 0);
+      const attente = Math.min(Math.max(dit * 1000 || 500, 300), 2000);
+      const detail = await reponse.clone().text().catch(() => "");
+      console.error("BIA — le modèle bégaie, on retente une fois :", reponse.status, detail.slice(0, 200));
+      noterPanne(reponse.status, `${detail.slice(0, 200)} — retenté après ${attente} ms`, "chat");
+      await new Promise((f) => setTimeout(f, attente));
+      const reprise = await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:cherche?600:300,system:consigne,messages:[...history,{role:"user",content:question}],...(cherche?{tools:[OUTIL_RECHERCHE]}:{}),...(emettre?{stream:true}:{})})});
+      if (reprise.ok) reponse = reprise;
     }
 
     if(!reponse.ok){
