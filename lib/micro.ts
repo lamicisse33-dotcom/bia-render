@@ -124,8 +124,35 @@
    Il le dit lui-même : « on va tester voir ». Ce nombre est fait pour bouger,
    et il est seul ici pour que ça coûte une ligne. */
 
+/* ── ET UNE HEURE PLUS TARD, UNE SECONDE ET DEMIE ──────────────────────────
+
+   « Est-ce qu'il ne vaut pas mieux faire une seconde trente ? Parce qu'une
+   seconde c'est trop petit. »
+
+   Oui, et pour une raison qui venait de changer sous nos pieds. Quand il a
+   choisi une seconde, le réveil de Render pesait encore CINQUANTE SECONDES :
+   dans ce contexte, gratter un demi-seconde de plus avait du sens. La tâche
+   de réveil posée dans la foulée a supprimé ces cinquante secondes — et ce
+   demi-seconde ne pèse donc presque plus rien, alors que le risque, lui, n'a
+   pas bougé.
+
+   ET CE RISQUE EST ASYMÉTRIQUE, c'est lui qui me l'a appris hier soir :
+
+     fermer trop tard  →  un demi-seconde d'attente ;
+     fermer trop tôt   →  une demi-phrase wolof part à la transcription, qui
+                          ne la transcrit pas mais la devine ; réponse à
+                          côté, question à reposer, transcription payée pour
+                          rien. Bien plus qu'un demi-seconde perdu.
+
+   Une seconde de silence arrive AU MILIEU d'une phrase — chercher un mot,
+   reprendre son souffle. Une seconde et demie, beaucoup moins souvent.
+
+   C'est le quatrième réglage de ce nombre, et le premier que je propose
+   moi-même plutôt que de le recevoir. Il reste le sien : si 1,5 s le fait
+   attendre à l'oreille, on redescend. */
+
 /** Le silence qui ferme le micro. Un seul nombre, et c'est le sien. */
-export const SILENCE_QUI_FERME = 1000;
+export const SILENCE_QUI_FERME = 1500;
 
 /** Jamais moins, quoi qu'il arrive : en dessous, on coupe la parole. */
 export const SILENCE_LE_PLUS_COURT = SILENCE_QUI_FERME;
@@ -139,7 +166,8 @@ export const PAROLE_LONGUE = 4000;
 
 /**
  * Combien de silence il faut, après le dernier son, pour considérer que la
- * personne a fini. Une seconde, quelle que soit la longueur de sa phrase.
+ * personne a fini. Une seconde et demie, quelle que soit la longueur de sa
+ * phrase.
  *
  * @param dureeDeParole combien de temps elle vient de parler, en millisecondes
  */
