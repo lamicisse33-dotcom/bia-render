@@ -29,6 +29,7 @@ import {
 } from "@/lib/papiers";
 import type { PapierGarde } from "@/lib/papiers";
 import { NOMBRES, RELU_NOMBRES } from "@/lib/nombres-textes";
+import { DIFFUSER_LE_MODELE, resteADire, teteDeLaReponse } from "@/lib/diffusion";
 import { RELU } from "@/lib/repertoire-textes";
 import { RELU_BASE } from "@/lib/base-textes";
 import { RELU_GUIDAGE } from "@/lib/guidage-textes";
@@ -1552,7 +1553,7 @@ export default function Home() {
     setFace("yeux_ouverts");
   }, [finirAttente, couperSon, jouerSouffle, jouerEtAnimer, octetsDuRepertoire]);
 
-  const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse") => {
+  const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse", suite = false) => {
     /* PRENDRE LA PAROLE N'EST PAS COUPER LA PAROLE.
 
        Ce bloc était en tête de la fonction : le son mourait à l'instant où le
@@ -1560,6 +1561,13 @@ export default function Home() {
        Il est descendu là où il a un sens — juste avant de dire le premier
        mot, une fois le son fabriqué. */
     const prendreLaParole = async () => {
+      /* ── SAUF QUAND ELLE A DÉJÀ COMMENCÉ ─────────────────────────────
+
+         `suite` veut dire : la tête de la réponse est en train d'être dite,
+         et ceci en est le reste. Prendre la parole une seconde fois
+         couperait le son qu'on vient de lancer — donc on ne fait rien, on
+         continue simplement de parler. */
+      if (suite) return;
       await finirAttente(langueRef.current);
       window.speechSynthesis?.cancel();
       couperSon();
@@ -1630,7 +1638,7 @@ export default function Home() {
       const premier = demander(0);
       const second = demander(1);
       let bloc = await premier;
-      noterAttente();          // le son est là : l'attente est finie, on la note
+      if (!suite) noterAttente();   // le son est là : l'attente est finie, on la note
       await prendreLaParole();
       if (!bloc.audio) { await parlerAvecLeTelephone(answer); return; }
       // Le rire vient maintenant : entre la dernière phrase d'attente et le
@@ -1856,9 +1864,82 @@ export default function Home() {
           resume: [resumeRef.current, nouveauNomRef.current
             ? `La personne vient de te dire son prénom : ${nouveauNomRef.current}. Emploie-le une fois dans ta réponse, naturellement, sans en faire trop.`
             : ""].filter(Boolean).join("\n"),
+          /* Le serveur ne diffuse que si on le lui demande : une vieille
+             version du téléphone continue de recevoir un seul bloc. */
+          diffuse: DIFFUSER_LE_MODELE,
         }),
       });
-      const data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string };
+
+      /* ── ELLE COMMENCE À PARLER PENDANT QU'IL ÉCRIT ─────────────────────
+
+         Lamine, le 14 septembre 2026, à quelques heures d'une démonstration :
+         « la première exigence c'est la rapidité de réaction ; s'ils la
+         trouvent lente, autant utiliser ChatGPT. »
+
+         Le texte du modèle arrive maintenant au fil de l'eau. Dès qu'il y en
+         a assez pour qu'aucune substitution ne soit plus possible côté
+         serveur — la règle exacte est dans lib/diffusion.ts — on envoie la
+         PREMIÈRE PHRASE à la voix sans attendre la suite. Sur une réponse de
+         trois phrases, elle ouvre la bouche deux à quatre secondes plus tôt.
+
+         Le serveur garde le dernier mot : sa réponse complète arrive à la
+         fin, et c'est elle qui va à l'écran, dans l'historique et dans le
+         reste de ce qui suit. On ne lui dit que ce qu'elle n'a pas déjà dit.
+
+         UNE SEULE TÊTE, PAS UN FLOT DE MORCEAUX. Le chemin d'avant sait déjà
+         enchaîner les morceaux sans couture, à la milliseconde ; le refaire
+         ici l'aurait dédoublé. Deux appels en tout : la tête, puis le reste. */
+      let teteDite = "";
+      let teteEnCours: Promise<void> | null = null;
+      let statut = response.status;
+      let data: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string };
+
+      if (response.headers.get("content-type")?.includes("text/event-stream") && response.body) {
+        const lecteur = response.body.getReader();
+        const decodeur = new TextDecoder();
+        let tampon = "", recu = "";
+        let fin: { corps: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string }; statut: number } | null = null;
+        for (;;) {
+          const { done, value } = await lecteur.read();
+          if (done) break;
+          tampon += decodeur.decode(value, { stream: true });
+          let coupe: number;
+          while ((coupe = tampon.indexOf("\n\n")) >= 0) {
+            const paquet = tampon.slice(0, coupe);
+            tampon = tampon.slice(coupe + 2);
+            const lignes = paquet.split("\n");
+            const nom = lignes.find((l) => l.startsWith("event:"))?.slice(6).trim();
+            const brut = lignes.find((l) => l.startsWith("data:"));
+            if (!brut) continue;
+            let ev: { morceau?: string; corps?: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string }; statut?: number };
+            try { ev = JSON.parse(brut.slice(5).trim()); } catch { continue; }
+            if (nom === "texte") {
+              recu += ev.morceau || "";
+              /* On ne prend la parole qu'une fois, et jamais sur un tour
+                 périmé : quelqu'un a pu lui couper la parole entre-temps. */
+              if (!teteDite && estLeTour(monTour)) {
+                const tete = teteDeLaReponse(recu);
+                if (tete) {
+                  teteDite = tete;
+                  /* La balise d'émotion est demandée en PREMIÈRE ligne : elle
+                     est donc déjà arrivée, et le souffle peut partir juste. */
+                  const marque = recu.match(/\[{1,2}\s*[ée]motion\s*[:\-—]?\s*([A-Za-zÀ-ÿ_]+)\s*\]{1,2}/i);
+                  if (marque) emotionRef.current = marque[1].toLowerCase()
+                    .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                  teteEnCours = speak(tete, emotionRef.current);
+                }
+              }
+            }
+            if (nom === "fin" && ev.corps) fin = { corps: ev.corps, statut: Number(ev.statut) || 200 };
+          }
+        }
+        if (!fin) throw new Error("BIA unavailable");
+        data = fin.corps;
+        statut = fin.statut;
+      } else {
+        data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string };
+      }
+
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
       /* ── ET SI CE N'EST PLUS SON TOUR, ELLE SE TAIT ────────────────────
 
@@ -1877,7 +1958,7 @@ export default function Home() {
          taisait donc pile au moment où il fallait tenir la conversation.
          L'attente garde la parole ; c'est speak() qui la reprendra, une fois
          le son en main. */
-      if (response.status === 401) {
+      if (statut === 401) {
         // Code refusé : on renvoie le testeur à l'écran d'entrée avec le motif.
         try { localStorage.removeItem("bia-code"); } catch {}
         setCode(null);
@@ -1898,7 +1979,7 @@ export default function Home() {
         if (data.son) { try { await direSonTeutFait(data.son, "concernee"); } catch { } }
         return;
       }
-      if (!response.ok) throw new Error("BIA unavailable");
+      if (statut >= 400) throw new Error("BIA unavailable");
       emotionRef.current = data.emotion || "neutre";
       /* Elle estime avoir de quoi écrire : c'est elle qui allume le bouton,
          et son avis vaut mieux qu'un mot-clé — elle a suivi toute la
@@ -1996,7 +2077,22 @@ export default function Home() {
          je vois ça » — quoi qu'on lui dise. Posé ici, avant de jouer le son :
          c'est le serveur qui l'a dit, il n'y a rien à deviner. */
       if ((data as { salutation?: boolean }).salutation) apresSalutationRef.current = true;
-      if (data.son) {
+      /* ── ELLE A DÉJÀ COMMENCÉ : ON NE LUI FAIT DIRE QUE LA SUITE ───────
+
+         La tête est partie pendant que le modèle écrivait. Ce qui reste, on
+         l'obtient en retirant de la réponse ce qui est déjà sorti de sa
+         bouche — et on attend qu'elle ait fini avant d'enchaîner, sinon le
+         second son couvrirait le premier.
+
+         Le son enregistré ne peut pas arriver ici : il vient d'une étiquette,
+         et une étiquette ne dépasse jamais le seuil. La garde est là quand
+         même, parce qu'un jour ce sera peut-être faux. */
+      if (teteDite && !data.son) {
+        if (teteEnCours) await teteEnCours;
+        if (!estLeTour(monTour)) return;
+        const reste = resteADire(data.reply, teteDite);
+        if (reste) void speak(reste, undefined, "réponse", true);
+      } else if (data.son) {
         try {
           await direSonTeutFait(data.son, emotionRef.current);
           /* ── ELLE RIT APRÈS LA CHUTE, PAS AVANT ────────────────────────

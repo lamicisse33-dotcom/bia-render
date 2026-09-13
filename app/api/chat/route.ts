@@ -14,6 +14,7 @@ import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive }
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
+import { DIFFUSER_LE_MODELE } from "@/lib/diffusion";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
 
@@ -521,11 +522,114 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
+type Corps={message?:string;history?:Array<{role:string;text:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean};
+type Rendu={corps:Record<string,unknown>;statut?:number};
+
+/* ── LA RÉPONSE AU FIL DE L'EAU ──────────────────────────────────────────────
+
+   Lamine, le 14 septembre 2026 : des partenaires essaient BIA ce soir, et
+   leur premier critère est la vitesse. « S'ils la trouvent lente, autant
+   utiliser ChatGPT. »
+
+   Le modèle écrivait toute sa réponse avant qu'un mot ne parte à la voix.
+   Trois phrases à dire, c'est trois phrases à écrire d'abord — deux à cinq
+   secondes de silence alors que la première était prête depuis longtemps.
+
+   Ce qui suit ne change RIEN au raisonnement : c'est la même fonction, les
+   mêmes règles, la même réponse finale. On ajoute seulement une fenêtre —
+   le texte du modèle est recopié vers le téléphone à mesure qu'il s'écrit,
+   et le téléphone décide s'il peut en dire quelque chose tout de suite. Le
+   dernier mot reste au serveur : il envoie sa réponse complète à la fin, et
+   c'est elle qui fait foi.
+
+   Sans `diffuse`, ou avec DIFFUSER_LE_MODELE à false, rien de tout ça ne
+   s'allume : la route répond d'un seul bloc, exactement comme avant.      */
 export async function POST(request:NextRequest){
+  const body=await request.json().catch(()=>({})) as Corps;
+  const code=request.headers.get("x-bia-code");
+
+  if(!DIFFUSER_LE_MODELE||!body.diffuse){
+    const r=await repondre(body,code,null);
+    return NextResponse.json(r.corps,r.statut?{status:r.statut}:undefined);
+  }
+
+  const encodeur=new TextEncoder();
+  const flux=new ReadableStream({
+    async start(canal){
+      const envoyer=(nom:string,quoi:unknown)=>{
+        try{ canal.enqueue(encodeur.encode(`event: ${nom}\ndata: ${JSON.stringify(quoi)}\n\n`)); }catch{}
+      };
+      try{
+        const r=await repondre(body,code,(morceau)=>envoyer("texte",{morceau}));
+        envoyer("fin",{corps:r.corps,statut:r.statut||200});
+      }catch(err){
+        console.error("BIA — erreur pendant la diffusion :",(err as Error).message);
+        noterPanne("exception (diffusion)",(err as Error).message,"chat");
+        envoyer("fin",{corps:{reply:"Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.",source:"Erreur sûre"},statut:400});
+      }
+      try{ canal.close(); }catch{}
+    },
+  });
+  return new Response(flux,{headers:{
+    "content-type":"text/event-stream; charset=utf-8",
+    "cache-control":"no-cache, no-transform",
+    /* Render met un proxy devant : sans ça, il garderait tout le flux en
+       réserve et le rendrait d'un coup à la fin — soit exactement ce qu'on
+       cherche à éviter. */
+    "x-accel-buffering":"no",
+  }});
+}
+
+/* ── LIRE LE MODÈLE PENDANT QU'IL ÉCRIT ──────────────────────────────────────
+
+   Anthropic renvoie alors une suite d'événements au lieu d'un seul objet.
+   On les recolle pour rendre EXACTEMENT la même forme qu'une réponse d'un
+   bloc — tout le reste de la route ne voit donc aucune différence — et au
+   passage on recopie chaque morceau de texte vers le téléphone.
+
+   Ce qui compte ici, et qui n'est pas évident : le décompte des jetons arrive
+   en DEUX temps. Ce qui entre est annoncé au début (`message_start`), ce qui
+   sort à la fin (`message_delta`). Les additionner est la seule façon que
+   /api/etat continue de dire juste ce que chaque réponse a coûté. */
+async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void){
+  const lecteur=reponse.body?.getReader();
+  if(!lecteur) return {content:[],usage:undefined};
+  const decodeur=new TextDecoder();
+  const blocs:string[]=[];
+  let reste="",usage:Record<string,unknown>={};
+  for(;;){
+    const {done,value}=await lecteur.read();
+    if(done) break;
+    reste+=decodeur.decode(value,{stream:true});
+    let coupe:number;
+    while((coupe=reste.indexOf("\n\n"))>=0){
+      const paquet=reste.slice(0,coupe); reste=reste.slice(coupe+2);
+      const ligne=paquet.split("\n").find((l)=>l.startsWith("data:"));
+      if(!ligne) continue;
+      let ev:Record<string,any>;
+      try{ ev=JSON.parse(ligne.slice(5).trim()); }catch{ continue; }
+      if(ev.type==="message_start"&&ev.message?.usage) usage={...usage,...ev.message.usage};
+      if(ev.type==="message_delta"&&ev.usage) usage={...usage,...ev.usage};
+      if(ev.type==="content_block_start"&&ev.content_block?.type==="text"){
+        blocs.push(String(ev.content_block.text||""));
+      }
+      if(ev.type==="content_block_delta"&&ev.delta?.type==="text_delta"&&ev.delta.text){
+        if(!blocs.length) blocs.push("");
+        blocs[blocs.length-1]+=ev.delta.text;
+        /* Si le téléphone a raccroché, on ne s'arrête pas pour autant : le
+           modèle est déjà payé, et la réponse complète doit finir son chemin
+           (les notes de dépense, les pannes, l'historique). */
+        try{ emettre(ev.delta.text); }catch{}
+      }
+    }
+  }
+  return {content:blocs.map((text)=>({type:"text",text})),usage};
+}
+
+async function repondre(body:Corps,code:string|null,emettre:((morceau:string)=>void)|null):Promise<Rendu>{
   try{
-    const body=await request.json() as {message?:string;history?:Array<{role:string;text:string}>;resume?:string;blaguesDites?:string[];dernierService?:string};
     const question=String(body.message||"").trim().slice(0,1200);
-    if(!question)return NextResponse.json({reply:"Bindal walla waxal sa laaj.",source:"validation"});
+    if(!question)return {corps:{reply:"Bindal walla waxal sa laaj.",source:"validation"}};
 
     /* ── LE RÉPERTOIRE, AVANT TOUT LE RESTE ──────────────────────────────────
 
@@ -564,7 +668,7 @@ export async function POST(request:NextRequest){
         const libres=BLAGUES.filter(b=>!dites.has(b.cle));
         const choix=(libres.length?libres:BLAGUES)[Math.floor(Math.random()*(libres.length||BLAGUES.length))];
         const langue=langueDe(question);
-        return NextResponse.json({
+        return {corps:{
           reply:langue==="fr"?choix.francais:choix.wolof,
           /* Le visage reste posé PENDANT la blague : c'est le rire d'après
              qui porte l'émotion, pas celui d'avant. */
@@ -576,7 +680,7 @@ export async function POST(request:NextRequest){
              temps d'en écrire d'autres. */
           toutesDites:libres.length===0,
           source:"blague (gratuite)",
-        });
+        }};
       }
     }
 
@@ -621,7 +725,7 @@ export async function POST(request:NextRequest){
            liste de neuf mots et l'absence d'accents — voir langueDe(). */
         const langue=langueDe(question);
         const fr=langue==="fr";
-        return NextResponse.json({
+        return {corps:{
           reply:fr?toute.francais:toute.wolof,
           emotion:toute.emotion||"neutre",
           /* Le son est déjà là : la page le joue directement au lieu de
@@ -635,12 +739,12 @@ export async function POST(request:NextRequest){
              le dit, pas le téléphone qui le devine : lui seul sait quelle
              entrée du répertoire a répondu. */
           salutation:SALUTATIONS.has(toute.cle),
-        });
+        }};
       }
     }
 
     // Sans ce contrôle, quiconque trouve l'adresse dépense le crédit de Lamine.
-    const verdict=verifierCode(request.headers.get("x-bia-code"));
+    const verdict=verifierCode(code);
     if(!verdict.ok){
       const messages={
         absent:"Duggal sa kod ngir waxtaan ak BIA.",
@@ -659,11 +763,11 @@ export async function POST(request:NextRequest){
          règle de toute cette nuit — une panne qui se tait est pire qu'une
          panne. */
       const dite=panneDite(`code-${verdict.raison}`);
-      return NextResponse.json({
+      return {corps:{
         reply:messages[verdict.raison],
         ...(dite?{son:sonDe(dite.cle,"wo",dite.wolof)}:{}),
         source:"code",motif:verdict.raison,
-      },{status:401});
+      },statut:401};
     }
 
     const apiKey=process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY;
@@ -671,7 +775,7 @@ export async function POST(request:NextRequest){
     if(!apiKey){
       noterPanne("clé absente","Ni BIA_LLM_API_KEY ni ANTHROPIC_API_KEY ne sont définies.", "chat");
       console.error("BIA — aucune clé de modèle n'est définie.");
-      return NextResponse.json({reply:PAS_DE_CLE,emotion:"concernee",source:"panne : clé absente"});
+      return {corps:{reply:PAS_DE_CLE,emotion:"concernee",source:"panne : clé absente"}};
     }
 
     // Douze échanges au lieu de six, et le résumé des plus anciens : c'est
@@ -900,12 +1004,12 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
            resservir serait pire que de la refaire. */
         if(seSuffitAElleMeme(question)){
           oublierPanne();
-          return NextResponse.json({
+          return {corps:{
             reply:exacte.corrigee,
             emotion:"neutre",
             corrige:true,
             source:"correction validée (gratuit)",
-          });
+          }};
         }
         variable+=`\n\nFORMULATION VALIDÉE POUR CETTE QUESTION EXACTE\nUn locuteur natif a corrigé la réponse à cette question précise. Sa formulation fait autorité sur la tienne :\n« ${exacte.corrigee} »\nReprends-la : c'est la bonne. Tu n'y touches que si le fil rend sa phrase impossible à dire ici.`;
       }else{
@@ -969,7 +1073,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
          chaque signe écrit est ensuite un signe envoyé à la voix. 300 jetons
          laissent largement la place à deux phrases ; au-delà, c'est qu'elle
          était repartie à bavarder. */
-      max_tokens: cherche?600:300,system:consigne,messages:[...history,{role:"user",content:question}],...(cherche?{tools:[OUTIL_RECHERCHE]}:{})})});
+      max_tokens: cherche?600:300,system:consigne,messages:[...history,{role:"user",content:question}],...(cherche?{tools:[OUTIL_RECHERCHE]}:{}),...(emettre?{stream:true}:{})})});
 
     /* SI L'OUTIL EST REFUSÉ, ON RÉPOND QUAND MÊME.
 
@@ -984,7 +1088,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       const detail = await reponse.clone().text().catch(() => "");
       console.error("BIA — l'outil de recherche est refusé, on répond sans :", detail.slice(0, 300));
       noterPanne("recherche refusée", detail, "chat");
-      reponse = await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:300,system:consigne,messages:[...history,{role:"user",content:question}]})});
+      reponse = await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:300,system:consigne,messages:[...history,{role:"user",content:question}],...(emettre?{stream:true}:{})})});
     }
 
     if(!reponse.ok){
@@ -992,10 +1096,10 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       // Sans ça, une clé refusée et un crédit épuisé donnaient le même silence.
       console.error("BIA — le modèle a refusé :",reponse.status,detail);
       noterPanne(reponse.status,detail, "chat");
-      return NextResponse.json({reply:PANNE_MOTEUR,emotion:"concernee",source:`panne : modèle ${reponse.status}`});
+      return {corps:{reply:PANNE_MOTEUR,emotion:"concernee",source:`panne : modèle ${reponse.status}`}};
     }
 
-    const data=await reponse.json() as {content?:Array<{type:string;text?:string}>;usage?:unknown};
+    const data=emettre?await lireLeFlux(reponse,emettre):await reponse.json() as {content?:Array<{type:string;text?:string}>;usage?:unknown};
     /* Ce n'est plus une estimation : c'est le modèle lui-même qui dit ce
        qu'il a consommé, et combien lui est revenu du cache. Ça se lit dans
        /api/etat, champ « depense ». */
@@ -1025,12 +1129,12 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
          relus — ne servait que sur une égalité parfaite. */
       const langueChoisie=langueDe(question);
       const enFr=langueChoisie==="fr";
-      return NextResponse.json({
+      return {corps:{
         reply:enFr?choisie.francais:choisie.wolof,
         emotion:choisie.emotion||"neutre",
         son:sonDe(choisie.cle,langueChoisie,langueChoisie==="fr"?choisie.francais:choisie.wolof),
         source:"répertoire (choisi par elle)",
-      });
+      }};
     }
 
     const {reply:avecBalise,emotion,balise}=detacherEmotion(complet);
@@ -1147,7 +1251,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     if(accuse){
       oublierPanne();
       const langue=langueDe(question);
-      return NextResponse.json({
+      return {corps:{
         reply:langue==="fr"?accuse.francais:accuse.wolof,
         emotion,papier,appel,voir,carte,film,trouve,
         son:sonDe(accuse.cle,langue,langue==="fr"?accuse.francais:accuse.wolof),
@@ -1156,27 +1260,27 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
            peut pas s'en souvenir : Render redémarre. */
         service:accuse.cle,
         source:"service (gratuit)",
-      });
+      }};
     }
 
     if(!reply&&(papier||appel||voir||trouve||film||carte)){
       oublierPanne();
       const parDefaut=papier?"Waaw, maa ngi koy defar.":(voir||trouve||film)?"Xool.":"Waaw.";
-      return NextResponse.json({reply:parDefaut,emotion,papier,appel,voir,carte,film,trouve,source:"geste sans phrase"});
+      return {corps:{reply:parDefaut,emotion,papier,appel,voir,carte,film,trouve,source:"geste sans phrase"}};
     }
 
     if(!reply){
       console.error("BIA — le modèle a répondu sans texte.");
       noterPanne("réponse vide","Le modèle a répondu 200 mais sans bloc de texte.", "chat");
-      return NextResponse.json({reply:PANNE_MOTEUR,emotion:"concernee",source:"panne : réponse vide"});
+      return {corps:{reply:PANNE_MOTEUR,emotion:"concernee",source:"panne : réponse vide"}};
     }
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
-    return NextResponse.json({reply:ceQuElleDit,emotion,papier,appel,voir,carte,film,trouve,source:cherche?"BIA intelligente + internet":"BIA intelligente"});
+    return {corps:{reply:ceQuElleDit,emotion,papier,appel,voir,carte,film,trouve,source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message, "chat");
-    return NextResponse.json({reply:"Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.",source:"Erreur sûre"},{status:400});
+    return {corps:{reply:"Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.",source:"Erreur sûre"},statut:400};
   }
 }
