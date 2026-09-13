@@ -58,7 +58,22 @@ export type Lieu = {
   sur?: boolean;
 };
 
-const FOND = process.env.NEXT_PUBLIC_CARTE_FOND || "https://tiles.openfreemap.org/styles/liberty";
+/* ── LE FOND VECTORIEL, QUI NE VIENT PAS À DAKAR ────────────────────────────
+
+   Mesuré avec Lamine le 14 septembre 2026, à trois heures d'une
+   démonstration. Deux adresses ouvertes à la main sur son téléphone :
+
+     tile.openstreetmap.org/12/1849/1879.png   → la presqu'île s'affiche
+     tiles.openfreemap.org/styles/liberty      → rien
+
+   Le verdict est net et il ne se devinait pas : depuis son réseau, le
+   serveur du fond vectoriel est injoignable. On avait donc passé deux jours
+   sur un écran noir dont la cause n'était ni dans le code ni dans le
+   téléphone. Une mesure de dix secondes a tranché ce que deux soirées de
+   raisonnement n'avaient pas su trancher.
+
+   L'ordre est donc inversé : les IMAGES d'abord, le vectoriel en secours. */
+const FOND_VECTORIEL = "https://tiles.openfreemap.org/styles/liberty";
 
 /* ── UN SECOND FOND, QUAND LE PREMIER NE VIENT PAS ──────────────────────────
 
@@ -81,7 +96,16 @@ const FOND = process.env.NEXT_PUBLIC_CARTE_FOND || "https://tiles.openfreemap.or
    servies par la fondation OpenStreetMap, qui demande qu'on n'en abuse pas.
    Pour un produit qui grandit, il faudra un fournisseur à nous. Pour ce soir,
    mieux vaut une carte servie par des bénévoles qu'un rectangle noir. */
-const FOND_DE_SECOURS = {
+/* Les tuiles d'images : de simples PNG, le plus vieux et le plus robuste des
+   formats de carte. Aucun fichier de style à aller chercher, aucun dessin à
+   faire — si une seule image arrive, on voit quelque chose. C'est maintenant
+   le fond PAR DÉFAUT, parce que c'est celui qui arrive.
+
+   CE N'EST PAS DÉFINITIF, et il faut l'écrire : ces tuiles sont servies par
+   la fondation OpenStreetMap, qui demande qu'on n'en abuse pas. Pour un
+   produit qui grandit il faudra un fournisseur à nous — Lamine paie déjà
+   Google, et Google sert aussi des cartes. C'est le chantier d'après. */
+const FOND_IMAGES = {
   version: 8 as const,
   sources: {
     osm: {
@@ -93,6 +117,10 @@ const FOND_DE_SECOURS = {
   },
   layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
 };
+
+/* On garde la porte ouverte : poser NEXT_PUBLIC_CARTE_FOND dans Render
+   remplace le fond par celui qu'on veut, sans toucher au code. */
+const FOND: string | typeof FOND_IMAGES = process.env.NEXT_PUBLIC_CARTE_FOND || FOND_IMAGES;
 
 /* Ce qu'on lit en bas quand on peut regarder. Jamais dit à voix haute : le
    texte affiché et le son enregistré sont deux choses séparées. */
@@ -328,7 +356,7 @@ export default function Carte({
 
         const m = new maplibre.Map({
           container: boite.current,
-          style: FOND,
+          style: FOND as unknown as string,
           center: [destination.lon, destination.lat],
           zoom: 14,
         });
@@ -341,7 +369,12 @@ export default function Carte({
           setMotifCarte(pourquoi.slice(0, 80));
           console.error("BIA — fond de carte injoignable, on passe aux images :", pourquoi);
           try {
-            m.setStyle(FOND_DE_SECOURS as unknown as string);
+            /* Le secours est maintenant l'autre fond : si les images ne
+               viennent pas, on tente le vectoriel — et inversement quand
+               quelqu'un a posé NEXT_PUBLIC_CARTE_FOND. */
+            m.setStyle((FOND === FOND_IMAGES
+              ? FOND_VECTORIEL
+              : FOND_IMAGES) as unknown as string);
             /* Le second fond a droit à sa propre montre : s'il ne vient pas
                non plus, alors seulement on avoue. */
             if (montre.current) clearTimeout(montre.current);
