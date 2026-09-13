@@ -30,6 +30,12 @@
        sous le nom « SECOURS GENDARMERIE ». Une source secondaire attribuait
        le 800 00 20 20 à un autre service : elle se trompe, et c'est
        précisément pourquoi on recoupe.
+     — 119 : le site de la HASSMAR elle-même (hassmar.gouv.sn, page MRCC) —
+       « Pour signaler tout incident en mer, veuillez contacter le MRCC au
+       numéro d'appel gratuit : 119 ». C'est LAMINE qui me l'a donné ; je ne
+       l'avais pas trouvé, et c'était une vraie lacune.
+     — 800 00 17 00 : le numéro vert de la Police nationale, annoncé par elle
+       lors de son rétablissement en septembre 2025. Lui aussi vient de lui.
      — les hôpitaux et cliniques : page consulaire de l'ambassade de France à
        Dakar. Officielle, mais ce sont des standards, pas des urgences.
 
@@ -60,7 +66,7 @@ export type Urgence = {
 
 const LE_JOUR = "13 septembre 2026";
 
-/* ── LES QUATRE QUI RÉPONDENT TOUJOURS ──────────────────────────────────────
+/* ── LES CINQ QUI RÉPONDENT TOUJOURS ────────────────────────────────────────
    Gratuits, courts, nationaux. Ce sont eux qu'on donne en premier, et ce sont
    les seuls qu'on donne quand on n'est pas sûr de ce qui se passe. */
 export const URGENCES_NATIONALES: Urgence[] = [
@@ -84,12 +90,40 @@ export const URGENCES_NATIONALES: Urgence[] = [
     quand: "hors des villes, sur les routes, là où la police n'est pas",
     source: "gendarmerie.sn, « Numéro vert : 123 ou 800 00 20 20 »", verifie: LE_JOUR,
   },
+  /* ── CELUI QUI MANQUAIT, ET C'EST LUI QUI L'A VU ────────────────────────
+
+     Lamine m'a envoyé sa propre liste le 13 septembre 2026 au soir, et elle
+     portait deux numéros que je n'avais pas trouvés. Celui-ci est le plus
+     important des deux, et son absence était une vraie lacune : au Sénégal,
+     une pirogue en difficulté n'est pas un cas d'école.
+
+     Vérifié à la source la plus officielle qui soit — le site de la HASSMAR
+     elle-même : « Pour signaler tout incident en mer, veuillez contacter le
+     MRCC au numéro d'appel gratuit : 119 ». */
+  {
+    quoi: "Secours en mer (HASSMAR)", numero: "119",
+    quand: "un accident en mer, une pirogue en difficulté, quelqu'un disparu en mer",
+    source: "hassmar.gouv.sn, page MRCC — « numéro d'appel gratuit : 119 »", verifie: LE_JOUR,
+  },
 ];
+
+/* ── LES NUMÉROS VERTS, ET POURQUOI ILS VIENNENT EN SECOND ──────────────────
+
+   Un numéro vert est un centre d'appel, pas un poste de secours : il est
+   gratuit, national, et il répond — mais il est plus long à composer, et il
+   tombe en panne comme tout le reste. Celui de la police est resté
+   injoignable un temps en 2025 avant d'être rétabli, ce qui est exactement la
+   raison d'en avoir deux plutôt qu'un.
+
+   Dans l'urgence, on donne donc TOUJOURS le court d'abord — 17, 123 — et
+   celui-ci seulement si le premier ne passe pas. */
+export const POLICE_AUTRE = "800 00 17 00";
 
 /* L'autre numéro de la gendarmerie, donné par elle sur la même page. On le
    garde en second : le 123 est plus court, et dans l'urgence chaque chiffre
    compte. */
 export const GENDARMERIE_AUTRE = "800 00 20 20";
+
 
 /* ── CE QUI N'EST PAS UNE URGENCE VITALE MAIS QUI PRESSE ────────────────── */
 export const AUTRES_SECOURS: Urgence[] = [
@@ -168,6 +202,7 @@ Voici la liste, et elle fait autorité. Tu n'en connais aucun autre.
 
 ${lignes}
   ${GENDARMERIE_AUTRE} — la gendarmerie, si le 123 ne passe pas.
+  ${POLICE_AUTRE} — la police, si le 17 ne passe pas.
 
 TU N'INVENTES JAMAIS UN NUMÉRO D'URGENCE, sous aucun prétexte. Si on te
 demande un numéro qui n'est pas dans cette liste — un hôpital, une clinique,
