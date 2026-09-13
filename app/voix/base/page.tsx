@@ -34,6 +34,7 @@ const CLE_CORRECTIONS = "bia-corrections-base";
 
 export default function PageBase() {
   const [copie, setCopie] = useState("");
+  const [aCopier, setACopier] = useState("");
   const { code, setCode, corrections, setCorrections, joue, etat, signes, ecouter, taire } =
     useEcoute(CLE_CORRECTIONS);
 
@@ -52,12 +53,15 @@ export default function PageBase() {
       const fr = texteDe(`${e.numero}-fr`, e.francais).trim();
       if (fr !== e.francais.trim()) lignes.push({ cle: `${e.numero}. ${e.cle} — français`, avant: e.francais, apres: fr });
     }
-    if (!lignes.length) { setCopie("Rien n'a été changé pour l'instant."); return; }
+    if (!lignes.length) { setACopier(""); setCopie("Rien n'a été changé pour l'instant."); return; }
+    const texte = texteDesCorrections("CORRECTIONS DE LAMINE — LES 69 NOUVELLES", lignes);
+    /* Le cadre d'abord : il doit exister même si la copie échoue. */
+    setACopier(texte);
     try {
-      await navigator.clipboard.writeText(texteDesCorrections("CORRECTIONS DE LAMINE — LES 69 NOUVELLES", lignes));
+      await navigator.clipboard.writeText(texte);
       setCopie(`${lignes.length} correction(s) copiée(s). Colle-les-moi dans la discussion.`);
     } catch {
-      setCopie("La copie a échoué. Sélectionne le texte à la main.");
+      setCopie("Le téléphone a refusé la copie. Le texte est juste en dessous : appuie dessus, « Tout sélectionner », puis « Copier ».");
     }
     setTimeout(() => setCopie(""), 6000);
   }
@@ -183,6 +187,24 @@ export default function PageBase() {
           Copier mes corrections ({changes})
         </button>
         {copie ? <p className="voix-etat">{copie}</p> : null}
+        {/* ── QUAND LE TÉLÉPHONE REFUSE LA COPIE ──────────────────────────
+
+            Lamine, le 13 septembre 2026 : « j'ai essayé de copier, mais ça ne
+            marche pas, ça n'accepte pas. » Le message de secours lui disait
+            « sélectionne le texte à la main » — un texte qui n'était affiché
+            NULLE PART. Un secours qui renvoie vers le vide n'est pas un
+            secours : ses corrections étaient prisonnières de la page.
+
+            Le texte paraît maintenant ici, que la copie ait réussi ou non, et
+            il se sélectionne d'une touche. Safari sur iPhone refuse souvent
+            l'accès au presse-papiers ; ce cadre, lui, ne dépend de rien. */}
+        {aCopier ? (
+          <textarea readOnly rows={8} value={aCopier}
+            aria-label="Tes corrections, à copier"
+            style={{ width: "100%", marginTop: 10 }}
+            onFocus={(ev) => ev.currentTarget.select()}
+            onClick={(ev) => ev.currentTarget.select()} />
+        ) : null}
         <p className="voix-intro">
           Envoie-les-moi dans la discussion : je les pose, et c&apos;est
           seulement après qu&apos;on enregistre — une fois, pour toujours.
