@@ -90,10 +90,30 @@ export function useEcoute(cleCorrections: string) {
           body: JSON.stringify({ texte: propre, partie, ou: "essai" }),
         });
         if (r.status === 401) { setEtat("Ce code n'est pas valable."); setJoue(""); return; }
-        const d = await r.json() as { parties?: number; audio?: string | null; erreur?: string };
+        const d = await r.json() as {
+          parties?: number; audio?: string | null; erreur?: string; moteur?: string;
+        };
         total = Math.max(1, Number(d.parties) || 1);
         if (!d.audio) {
-          setEtat(d.erreur ? `La voix a refusé : ${d.erreur}` : "Aucun son n'est revenu.");
+          /* ── « ELLE DIT QU'ELLE N'A RIEN REÇU » ──────────────────────────
+
+             Lamine, le 13 septembre 2026, en appuyant sur « Écouter » dans la
+             page des nombres. Ce qu'il lisait, c'était « Aucun son n'est
+             revenu » — vrai, et inutile. Ça ne dit pas POURQUOI, et les trois
+             causes possibles n'ont rien à voir entre elles : l'une se répare
+             sur Render en deux minutes, l'autre coûte de l'argent, la
+             troisième est un défaut de texte.
+
+             Le serveur, lui, SAIT laquelle c'est : il renvoie moteur
+             « navigateur » quand aucune voix n'est configurée, et un motif
+             quand Soynade a refusé. On ne lisait ni l'un ni l'autre. */
+          setEtat(
+            d.moteur === "navigateur"
+              ? "Aucune voix n'est configurée sur le serveur — la clé Soynade manque, ou elle a été refusée. Rien n'a été facturé. Ouvre « L'état de BIA » : le motif exact y est noté."
+              : d.erreur
+                ? `La voix a refusé : ${d.erreur}`
+                : "Le serveur n'a renvoyé aucun morceau pour ce texte."
+          );
           setJoue("");
           return;
         }
