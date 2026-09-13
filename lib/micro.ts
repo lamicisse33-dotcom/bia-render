@@ -596,7 +596,27 @@ export const PART_VOCALE_MINIMALE = 0.3;
    Je n'ai pas d'iPhone pour le vérifier — c'est une réparation raisonnée, pas
    mesurée, et Lamine le saura en regardant son coin d'écran. Si ça ne suffit
    pas, mettre cette ligne à false rend le comportement d'avant à l'identique. */
-export const MICRO_SUR_SON_PROPRE_CONTEXTE = true;
+/* ── REMIS À FALSE LE 14 SEPTEMBRE 2026, UNE HEURE APRÈS ────────────────────
+
+   Lamine, à trois heures de sa démonstration : « le problème du micro est
+   revenu depuis que tu as enlevé ce truc-là. C'était bien déjà. Si c'est
+   compliqué, on le laisse tel que c'était — parce que si le micro ne
+   fonctionne pas correctement, ça ne sert à rien. »
+
+   Il a raison sur les deux points. D'abord l'ordre des choses : une pastille
+   qui reste allumée est laide, un micro qui ne répond plus rend BIA inutile.
+   Ensuite le fond — je vois le défaut maintenant que je le cherche avec ses
+   yeux. Fermer le contexte de l'analyseur tue les nœuds qui en dépendent, et
+   la veille qui lisait encore le niveau de voix meurt avec, sans un mot. Le
+   micro paraît alors vivant et n'entend plus rien.
+
+   Ça se répare — il faudrait arrêter la veille AVANT de fermer le contexte,
+   et la remonter proprement au tour suivant. Mais pas aujourd'hui, et pas à
+   trois heures d'une démonstration, pour un point orange dans un coin.
+
+   La pastille reste donc allumée, et c'est écrit ici pour qu'on y revienne
+   à tête reposée. */
+export const MICRO_SUR_SON_PROPRE_CONTEXTE = false;
 
 export const ECARTER_LES_BRUITS = true;
 
