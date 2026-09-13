@@ -500,3 +500,121 @@ export const REGLAGES_DU_MICRO: MediaStreamConstraints = {
     autoGainControl: true,
   },
 };
+
+/* ═══ 5. UNE VOIX, OU UN BRUIT ? ═══════════════════════════════════════════
+
+   Lamine, le 13 septembre 2026 : « il faut qu'elle puisse distinguer les
+   bruits des ambiances. Parce que je vois que même sur les bruits elle
+   analyse, elle réfléchit. Ça crée des retards. »
+
+   IL A RAISON, ET LE DÉFAUT EST DANS CE FICHIER. Tout ce qui précède ne
+   regarde qu'une chose : LE VOLUME. Une voiture qui passe, un ventilateur,
+   une chaise qu'on traîne — tout ça est aussi fort qu'une voix. Ça franchit
+   le seuil, ça ferme un tour, ça part chez le moteur de transcription, c'est
+   PAYÉ, et BIA se met à réfléchir à un bruit de rue.
+
+   Le filtre existant (`vautLaPeine`) ne coupe que ce qui est COURT : une
+   porte qui claque. Un bruit qui dure passe entier.
+
+   ── CE QUI SÉPARE VRAIMENT UNE VOIX D'UN BRUIT ────────────────────────────
+
+   Pas la force : la RÉPARTITION DES FRÉQUENCES. Une voix humaine met presque
+   toute son énergie entre 200 et 3 500 hertz — c'est la bande du téléphone,
+   et ce n'est pas un hasard : au-delà, on ne perd presque rien de la parole.
+
+   Un moteur, un climatiseur, du vent, une porte, des pas : leur énergie est
+   en bas, sous 200 Hz — c'est le grondement qu'on sent plus qu'on n'entend.
+   Un froissement, un sifflement, de la friture : leur énergie est en haut.
+
+   On ne peut pas le voir sur le volume. On le voit tout de suite sur le
+   spectre, que l'analyseur du navigateur donne déjà — il servait jusqu'ici
+   uniquement à mesurer la force.
+
+   ── CE QUE ÇA NE SAIT PAS FAIRE, ET IL FAUT LE DIRE ───────────────────────
+
+   Une radio, une télévision, quelqu'un qui parle à côté : c'est de la voix,
+   et aucun calcul de fréquences ne dira que ce n'est pas la sienne. Ça
+   demanderait de reconnaître SA voix à lui, ce qui est un autre métier.
+
+   Ce filtre-ci s'attaque à ce qu'il décrit : les bruits et les ambiances.
+   Pas aux voix d'autrui. */
+
+/** La part de l'énergie qui est dans la bande de la voix humaine. */
+export const BANDE_BASSE = 200;
+export const BANDE_HAUTE = 3500;
+
+/* ── LE SEUIL, ET POURQUOI IL EST BAS ──────────────────────────────────────
+
+   Mesuré sur des spectres reconstruits : une voix ordinaire met 60 à 80 % de
+   son énergie dans la bande ; un grondement de moteur, 10 à 25 % ; un
+   sifflement, moins de 20 %.
+
+   On pose TRENTE POUR CENT, franchement sous la voix la plus terne. Le prix
+   d'une erreur est asymétrique, comme partout ici : jeter un bruit fait
+   gagner une transcription ; jeter une VOIX oblige à tout répéter, et c'est
+   impardonnable. On ne jette donc que ce qui est massivement hors bande.
+
+   ── ET JE DOIS DIRE CE QUE JE N'AI PAS PU VÉRIFIER ────────────────────────
+
+   Ces nombres sont mesurés sur des spectres RECONSTRUITS, pas sur du wolof
+   enregistré au micro d'un téléphone à Dakar. Le faux son de mes épreuves
+   met 86 % de son énergie au-dessus de 3 500 Hz : il ne ressemble à aucune
+   voix, et il ne prouve donc rien ici.
+
+   Ce qui pourrait me démentir : la réduction de bruit et le volume
+   automatique du téléphone déforment le spectre, et je ne sais pas dans quel
+   sens. C'est pour ça que le seuil est descendu de 0,4 à 0,3 — et que
+   l'interrupteur ci-dessous existe.
+
+   LE SYMPTÔME À GUETTER : si BIA devient sourde, qu'elle n'entend plus alors
+   qu'on lui parle normalement, c'est CE filtre. La console dit alors « bruit
+   écarté sans le transcrire » avec le pourcentage mesuré — et il suffit de
+   mettre ÉCARTER_LES_BRUITS à false pour revenir exactement à hier. */
+export const PART_VOCALE_MINIMALE = 0.3;
+
+/** Écarter les bruits sans les transcrire. Si BIA devient sourde, c'est ça :
+    `false` rend l'oreille d'avant le 13 septembre, à la ligne près. */
+export const ECARTER_LES_BRUITS = true;
+
+/**
+ * Quelle part de l'énergie entendue est dans la bande de la voix ?
+ *
+ * @param spectre  ce que rend `getByteFrequencyData` (0 à 255 par bande)
+ * @param echantillonnage la fréquence d'échantillonnage du micro (Hz)
+ * @returns entre 0 et 1 ; 0 si on n'entend rien du tout
+ */
+export function partVocale(spectre: ArrayLike<number>, echantillonnage = 48000): number {
+  const bandes = spectre.length;
+  if (!bandes) return 0;
+  /* Chaque case du spectre couvre (échantillonnage / 2) / bandes hertz. */
+  const parCase = echantillonnage / 2 / bandes;
+  let dedans = 0, total = 0;
+  for (let i = 0; i < bandes; i++) {
+    const v = spectre[i] || 0;
+    total += v;
+    const hz = (i + 0.5) * parCase;
+    if (hz >= BANDE_BASSE && hz <= BANDE_HAUTE) dedans += v;
+  }
+  return total > 0 ? dedans / total : 0;
+}
+
+/**
+ * Ce qui vient d'être entendu mérite-t-il d'être envoyé à la transcription ?
+ *
+ * Deux conditions, et les deux comptent :
+ *   — c'est assez LONG pour être une parole (l'ancien filtre, inchangé) ;
+ *   — et c'est assez DANS LA BANDE de la voix pour ne pas être un moteur.
+ *
+ * @param dureeDeParole   durée cumulée entendue, en millisecondes
+ * @param partVocaleMoyenne moyenne de partVocale() pendant qu'on entendait
+ *                          quelque chose. Passer `null` quand on n'a pas pu
+ *                          mesurer : dans le doute on ENVOIE, parce que
+ *                          perdre une vraie question coûte plus cher qu'une
+ *                          transcription de trop.
+ */
+export function vraimentUneVoix(dureeDeParole: number, partVocaleMoyenne: number | null): boolean {
+  if (!vautLaPeine(dureeDeParole)) return false;
+  if (!ECARTER_LES_BRUITS) return true;
+  if (partVocaleMoyenne === null || !Number.isFinite(partVocaleMoyenne)) return true;
+  return partVocaleMoyenne >= PART_VOCALE_MINIMALE;
+}

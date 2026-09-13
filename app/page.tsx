@@ -41,7 +41,8 @@ import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
 import {
   INTERVENTION_MAXIMALE, MICRO_LACHE_ENTRE_LES_TOURS, REGLAGES_DU_MICRO,
   SILENCE_QUI_CLÔT_LA_CONVERSATION, TENIR_POUR_COUPER, TOUR_DE_VEILLE,
-  TOURS_MUETS_AVANT_DE_DOUTER, couvreSaVoix, silenceQuiSuffit, suivreLeBruit, vautLaPeine,
+  TOURS_MUETS_AVANT_DE_DOUTER, couvreSaVoix, partVocale, silenceQuiSuffit, suivreLeBruit,
+  vautLaPeine, vraimentUneVoix,
 } from "@/lib/micro";
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie } from "@/lib/ralentir";
 import Installer from "./installer";
@@ -2554,6 +2555,12 @@ export default function Home() {
       if (!estCetEnregistrement(idEnr)) return;
       const enregistreur = new MediaRecorder(flux);
       const morceaux: Blob[] = [];
+      /* De quoi juger, à la fin, si c'était une voix ou la rue. On garde la
+         somme et le compte plutôt que la moyenne : une moyenne qu'on met à
+         jour tour par tour dérive, et celle-ci doit rester exacte. */
+      const spectre = new Uint8Array(256);
+      let partVocaleTotale = 0;
+      let mesuresVocales = 0;
       enregistreurRef.current = enregistreur;
 
       /* ── LE MICRO QUI NE SE FERMAIT PLUS APRÈS UNE CORRECTION ─────────────
@@ -2664,6 +2671,27 @@ export default function Home() {
         seuilRef.current = bruit.seuil();
 
         if (uneVoix) {
+          /* ── EST-CE UNE VOIX, OU LA RUE ? ────────────────────────────────
+
+             Lamine, le 13 septembre 2026 : « il faut qu'elle puisse
+             distinguer les bruits des ambiances. Même sur les bruits elle
+             analyse, elle réfléchit. Ça crée des retards. »
+
+             Tout ce qui précède ne regarde que LE VOLUME, et une voiture qui
+             passe est aussi forte qu'une voix. On regarde donc aussi OÙ est
+             l'énergie : une voix tient entre 200 et 3 500 Hz, un moteur
+             gronde en dessous, un sifflement siffle au-dessus. Le détail est
+             dans lib/micro.ts, avec les mesures.
+
+             On ne décide RIEN ici : on accumule pendant qu'on entend, et on
+             tranche une fois à la fin. Une syllabe peut être sourde sans que
+             la phrase entière soit un bruit. */
+          try {
+            analyse.getByteFrequencyData(spectre);
+            partVocaleTotale += partVocale(spectre, ctxMicro.sampleRate);
+            mesuresVocales++;
+          } catch { /* pas de spectre : on enverra, comme avant */ }
+
           if (!aParle) { debutParole = Date.now(); setEntendParler(true); }
           else dureeParlee += Date.now() - dernierSon;
           aParle = true;
@@ -2786,7 +2814,24 @@ export default function Home() {
            On ne dit rien, on ne montre rien : on se remet simplement à
            écouter, et personne ne s'aperçoit de rien. C'est exactement ce que
            fait une personne qui entend un bruit et continue d'écouter. */
-        if (!aParle || !morceaux.length || !vautLaPeine(dureeParlee)) {
+        /* ── ET C'EST ICI QU'ON TRANCHE ──────────────────────────────────
+
+           « Même sur les bruits elle analyse, elle réfléchit. » Le filtre de
+           durée ne coupait que ce qui est COURT — une porte. Un moteur qui
+           dure trois secondes passait entier : transcription payée, et BIA se
+           mettait à réfléchir à un bruit de rue.
+
+           Dans le doute on ENVOIE : `mesuresVocales` à zéro veut dire qu'on
+           n'a pas pu mesurer, et perdre une vraie question coûte bien plus
+           cher qu'une transcription de trop. */
+        const partVocaleMoyenne = mesuresVocales > 0 ? partVocaleTotale / mesuresVocales : null;
+        if (!aParle || !morceaux.length || !vraimentUneVoix(dureeParlee, partVocaleMoyenne)) {
+          if (aParle && partVocaleMoyenne !== null && vautLaPeine(dureeParlee)) {
+            /* Silencieux à l'écran, mais pas invisible : sans cette ligne, le
+               jour où le filtre jetterait une vraie voix, on n'aurait aucun
+               moyen de le savoir. */
+            console.warn(`BIA — bruit écarté sans le transcrire : ${Math.round(dureeParlee)} ms, ${Math.round(partVocaleMoyenne * 100)} % dans la bande de la voix`);
+          }
           setMode((m) => (m === "listening" ? "ready" : m));
           return;
         }
