@@ -109,7 +109,47 @@ async function chezGoogle(quoi: string): Promise<Candidat[] | null> {
 }
 /* Nominatim demande qu'on se nomme, et c'est la moindre des politesses pour
    un service gratuit tenu par des bénévoles. */
-const QUI = "BIA/KHALAM (khalam.app) — assistante vocale wolof, Dakar";
+/* -- LE TIRET QUI EMPECHAIT TOUTE RECHERCHE, DEUX JOURS DURANT --------------
+
+   Trouve le 14 septembre 2026 a 18h10, dans « L'etat de BIA », apres une
+   apres-midi entiere d'hypotheses :
+
+     Cannot convert argument to a ByteString because the character at
+     index 24 has a value of 8212 which is greater than 255.
+
+   Le caractere 8212, c'est le TIRET CADRATIN. Il etait ici meme, a l'index 24
+   de cette ligne. Un en-tete HTTP ne transporte que des caracteres Latin-1 ;
+   `fetch` refuse donc d'envoyer la requete et leve une exception AVANT que
+   quoi que ce soit ne parte sur le reseau.
+
+   Consequence : ni Nominatim ni Photon n'ont JAMAIS ete appeles. Le message
+   « je n'arrive pas a chercher, le reseau ne repond pas » etait exact au mot
+   pres -- sauf que le reseau n'etait pas en cause. C'etait une ponctuation.
+
+   J'ai accuse successivement : la base publique, le reseau de Dakar, le
+   serveur de Render, une tuile manquante, un deploiement en retard, la
+   politique de Nominatim envers les serveurs inconnus. Six hypotheses, toutes
+   defendables, toutes fausses. La bonne etait dans une chaine que j'avais
+   ecrite moi-meme, et elle attendait dans le journal des pannes depuis le
+   debut.
+
+   La lecon, deux fois dans la meme journee : on mesure, on ne devine pas.
+
+   On garde donc de l'ASCII pur ici, et on le rend infaillible juste dessous. */
+const QUI = nettoyerPourEnTete("BIA/KHALAM (khalam.app) - assistante vocale wolof, Dakar");
+
+/* Tout caractere au-dela de Latin-1 fait echouer la requete entiere. Plutot
+   que de compter sur ma vigilance -- elle a manque deux jours -- on filtre. */
+function nettoyerPourEnTete(texte: string): string {
+  const REMPLACE: Record<string, string> = {
+    "\u2014": "-", "\u2013": "-", "\u2018": "'", "\u2019": "'",
+    "\u201C": '"', "\u201D": '"', "\u00A0": " ", "\u2026": "...",
+  };
+  return texte
+    .replace(/[^\u0000-\u00FF]/g, (c) => REMPLACE[c] ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 /* ── LES REPÈRES DE KHALAM ──────────────────────────────────────────────────
 
