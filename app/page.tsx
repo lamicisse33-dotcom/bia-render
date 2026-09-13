@@ -1103,6 +1103,9 @@ export default function Home() {
      coup au lieu d'être annoncée puis jouée. Si le fichier n'est pas encore
      déposé, on ne fait rien — le visage rit en silence, comme avant. */
   const jouerSouffle = useCallback(async (emotion: string, sansPrelude = false) => {
+    /* Carte ouverte : pas de rire, pas de soupir, rien. Une seule voix quand
+       on conduit — la meme regle que speak() et direSonTeutFait(). */
+    if (carteOuverteRef.current) return;
     const souffle = souffleDe(emotion);
     if (!souffle) return;
     /* ── ELLE COMMENCE PAR LE PETIT RIRE, PUIS ENCHAÎNE ──────────────────
@@ -1575,6 +1578,11 @@ export default function Home() {
   }, []);
 
   const direSonTeutFait = useCallback(async (adresse: string, emotion?: string) => {
+    /* LA MEME REGLE QUE speak() : carte ouverte, BIA se tait. Une reponse
+       enregistree ne passe pas par speak(), donc elle echappait a la garde —
+       et c'est justement la reponse la plus frequente quand on demande un
+       trajet : « d'accord, je t'emmene ». */
+    if (carteOuverteRef.current) return;
     /* SANS CHAPEAU : la réponse est déjà là, il n'y a pas d'attente à fermer.
        C'est ce qui bloquait BIA — voir finirAttente. */
     await finirAttente(langueRef.current, false);
@@ -5515,6 +5523,22 @@ export default function Home() {
 
                        Le guidage prime : il dit où tourner. On se tait. */
                     taire();
+                    /* ── LA FENETRE DE 720 MILLISECONDES ──────────────────
+
+                       Lamine, le 14 septembre 2026 : « au debut, la voix de
+                       la carte et la voix de BIA parlent en meme temps. »
+
+                       Le temoin « carte ouverte » ne se levait qu'a l'arrivee
+                       de la carte — et `eclipser` prend 720 ms pour fondre
+                       l'ecran au noir avant de l'ouvrir. Pendant ces sept
+                       dixiemes de seconde, la garde etait encore baissee :
+                       une fin de reponse qui arrivait la passait, puis le
+                       guidage commencait par-dessus.
+
+                       Le temoin se leve donc MAINTENANT, au doigt qui
+                       choisit le lieu. La decision est prise a cet
+                       instant-la ; l'animation n'est qu'un habillage. */
+                    carteOuverteRef.current = true;
                     void eclipser(() => setCarte(lieu));
                   }}>
                   {lieu.dit}
