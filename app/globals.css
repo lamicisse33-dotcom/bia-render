@@ -1824,7 +1824,38 @@ button { font: inherit; touch-action: manipulation; }
   z-index: 60;
   background: #06070a;
 }
-.carte-fond { position: absolute; inset: 0; }
+/* ── LA BOÎTE DE ZÉRO PIXEL, TROUVÉE LE 14 SEPTEMBRE 2026 ────────────────────
+
+   Lamine, après quatre captures d'un écran noir : « il faut vérifier par
+   toi-même, Claude. » J'ai ouvert la carte moi-même, servi des tuiles rouges
+   vives, et regardé les pixels. Voici ce que j'ai lu :
+
+     div.carte           390 × 844   position: fixed     ← la fenêtre, correcte
+     div.carte-fond      390 × 0     position: RELATIVE  ← la boîte, invisible
+     la toile dedans     390 × 300   entièrement ROUGE   ← les tuiles étaient là
+
+   TOUT MARCHAIT. MapLibre demandait ses tuiles, les recevait, les dessinait.
+   La toile était peinte. Seule la boîte qui la porte avait une hauteur de
+   zéro — et un enfant absolu dans une boîte de zéro ne se voit pas.
+
+   POURQUOI « RELATIVE » ALORS QU'ON ÉCRIT « ABSOLUTE ». MapLibre apporte sa
+   propre feuille de style, et elle pose `.maplibregl-map { position:
+   relative }`. Elle est chargée APRÈS la nôtre, à spécificité égale — donc
+   elle gagne. Notre `inset: 0` ne dimensionnait plus rien, et il ne restait
+   aucune hauteur à un élément vide.
+
+   Deux jours d'écran noir pour ça, et aucune erreur nulle part : ni dans la
+   console, ni dans le réseau, ni dans nos propres gardes. C'est la panne la
+   plus silencieuse qu'on ait rencontrée.
+
+   LA RÉPARATION : on monte en spécificité et on dit la hauteur en clair. */
+.carte .carte-fond,
+.carte-fond.maplibregl-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
 
 /* Le fond de carte est clair ; ses libellés doivent rester lisibles, on ne
    l'assombrit donc pas. Ce sont nos panneaux à nous qui portent l'ombre. */
