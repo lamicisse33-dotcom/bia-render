@@ -106,10 +106,30 @@ export function ceQuiCloche(lecon: Lecon): string[] {
   const repond = pleines(lecon.repond);
   if (!dit.length) griefs.push("aucune façon de le lui dire — elle ne se déclenchera jamais");
   if (!repond.length) griefs.push("aucune réponse — elle n'aurait rien à dire");
-  for (const [ou, paires] of [["ce qu'on lui dit", dit], ["ce qu'elle répond", repond]] as const) {
-    for (const p of paires) {
-      if (!p.wolof.trim()) griefs.push(`${ou} : une ligne sans wolof`);
-      else if (!p.francais.trim()) griefs.push(`${ou} : « ${p.wolof.slice(0, 28)}… » n'a pas son français`);
+  /* ── UNE FAÇON DE LE DIRE N'EST PAS UNE PAIRE ──────────────────────────
+
+     J'avais exigé le wolof ET le français sur CHAQUE ligne, des deux côtés.
+     C'était appliquer sa règle — « le wolof et son français côte à côte » —
+     là où elle ne vaut pas.
+
+     Ses deux premières leçons, écrites le 13 septembre 2026 au soir, l'ont
+     montré sans discussion : son tableau « Façons de le dire » a UNE colonne,
+     son tableau « Réponses » en a DEUX. Et il a raison. « J'ai soif » et
+     « damaa mar » ne sont pas une traduction l'une de l'autre : ce sont deux
+     PORTES qui mènent à la même leçon. Exiger la seconde colonne l'aurait
+     obligé à traduire vingt déclencheurs pour rien, et aurait refusé ses
+     tournures mixtes, qui sont justement les plus vraies.
+
+     Une réponse, elle, garde ses deux colonnes, et c'est non négociable :
+     c'est ce que BIA DIT, et elle doit pouvoir le dire dans les deux langues.
+     C'est là que « par le français elle comprend » s'applique vraiment. */
+  for (const p of dit) {
+    if (!p.wolof.trim() && !p.francais.trim()) griefs.push("ce qu'on lui dit : une ligne vide");
+  }
+  for (const p of repond) {
+    if (!p.wolof.trim()) griefs.push("ce qu'elle répond : une ligne sans wolof");
+    else if (!p.francais.trim()) {
+      griefs.push(`ce qu'elle répond : « ${p.wolof.slice(0, 28)}… » n'a pas son français`);
     }
   }
   return griefs;

@@ -122,9 +122,10 @@ export default function PageLecon() {
     ? { ...l, dit: l.dit.filter((_, n) => n !== i) }
     : { ...l, repond: l.repond.filter((_, n) => n !== i) });
 
-  const pleines = (p: Paire[]) => p.filter((x) => x.wolof.trim() && x.francais.trim());
-  const facons = pleines(lecon.dit).length;
-  const reponses = pleines(lecon.repond).length;
+  /* Une façon de le dire compte dès qu'elle est écrite quelque part ; une
+     réponse ne compte que complète. Voir ceQuiCloche() dans lib/lecons.ts. */
+  const facons = lecon.dit.filter((x) => x.wolof.trim() || x.francais.trim()).length;
+  const reponses = lecon.repond.filter((x) => x.wolof.trim() && x.francais.trim()).length;
 
   /* Ce qui manque, dit en clair AVANT d'appuyer sur Valider — pour qu'il ne
      découvre pas un refus après avoir travaillé un quart d'heure. */
@@ -133,9 +134,9 @@ export default function PageLecon() {
     if (!lecon.titre.trim()) griefs.push("le nom de la leçon");
     if (!facons) griefs.push("au moins une façon de le lui dire");
     if (!reponses) griefs.push("au moins une réponse");
-    const boiteuses = [...lecon.dit, ...lecon.repond]
+    const boiteuses = lecon.repond
       .filter((p) => (p.wolof.trim() ? 0 : 1) + (p.francais.trim() ? 0 : 1) === 1).length;
-    if (boiteuses) griefs.push(`${boiteuses} ligne(s) où il manque le wolof ou le français`);
+    if (boiteuses) griefs.push(`${boiteuses} réponse(s) où il manque le wolof ou le français`);
     return griefs;
   }, [lecon, facons, reponses]);
 
@@ -194,8 +195,8 @@ export default function PageLecon() {
         <p className="lecon-titre">{titre}</p>
         <p className="lecon-aide">{aide}</p>
         <div className="lecon-entetes">
-          <span>En wolof</span>
-          <span>Ce que ça veut dire</span>
+          <span>{ou === "dit" ? "Ce qu'on entend" : "En wolof"}</span>
+          <span>{ou === "dit" ? "ou en français" : "Ce que ça veut dire"}</span>
         </div>
         {liste.map((p, i) => {
           const marque = `${ou}:${i}`;
@@ -260,7 +261,7 @@ export default function PageLecon() {
         value={lecon.titre} onChange={(e) => setLecon((l) => ({ ...l, titre: e.target.value }))} />
 
       <Lignes ou="dit" titre="Ce qu'on lui dit" vise={VISE}
-        aide={`Toutes les façons de le dire, en wolof comme en français. Tu en vises ${VISE} : c'est ce qui fait qu'elle n'a plus à deviner.`} />
+        aide={`Toutes les façons de le dire, en wolof comme en français — une par ligne, dans la langue où elle se dit. Pas besoin de traduire : ce sont des portes, pas des paires. Tu en vises ${VISE} : c'est ce qui fait qu'elle n'a plus à deviner.`} />
 
       <Lignes ou="repond" titre="Ce qu'elle répond" vise={REPONSES_VISEES}
         aide="Quatre ou cinq réponses, pour qu'elle ne dise pas la même chose à chaque fois. Écoute chacune avant de valider : une faute de wolof ne se voit pas, elle s'entend." />
