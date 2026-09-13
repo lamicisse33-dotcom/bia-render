@@ -49,7 +49,29 @@
    deux minutes. C'est la même sortie de secours que ECARTER_LES_BRUITS.   */
 
 /** Le grand interrupteur. false = le comportement d'avant, entièrement. */
-export const DIFFUSER_LE_MODELE = true;
+/* ── ÉTEINT LE 14 SEPTEMBRE 2026 À 19h15, AVANT LA DÉMONSTRATION ────────────
+
+   Lamine : « je lui ai demandé en français, elle m'a affiché les Almadies,
+   mais elle s'est mise à parler d'une manière incohérente, d'autres choses
+   même. »
+
+   La diffusion est la chose la plus récente du chemin de la parole, et c'est
+   la seule qui peut faire dire à BIA un début qui ne va pas avec sa fin :
+   elle commence une phrase sur ce que le modèle écrit, et le serveur peut
+   ensuite trancher autrement. J'ai posé une règle pour que ce soit
+   impossible — cent vingt signes avant de parler — et elle tient sur le
+   papier comme à l'épreuve. Mais quelque chose lui échappe, et je ne le
+   trouverai pas en quarante minutes.
+
+   CE QU'ON PERD : une seconde et demie sur les réponses longues.
+   CE QU'ON GARDE : qu'elle ne dise jamais une chose pour une autre devant
+   des gens qui découvrent BIA ce soir.
+
+   Le choix ne se discute pas. On rallumera quand on aura mesuré, à tête
+   reposée, avec une épreuve qui reproduit ce qu'il a entendu. Tout le code
+   de la diffusion reste en place et repasse ses épreuves : il n'y a qu'à
+   remettre `true` ici. */
+export const DIFFUSER_LE_MODELE = false;
 
 /** En dessous, le serveur peut encore remplacer toute la réponse. Voir plus
     haut : ce n'est pas une marge de confort, c'est la condition exacte. */
