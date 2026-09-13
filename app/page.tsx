@@ -1897,12 +1897,36 @@ export default function Home() {
          conversation. Le papier déjà ouvert est jeté : il date d'avant. */
       if (data.papier === "devis" || data.papier === "lettre" || data.papier === "message") {
         setPapierPret(data.papier as Sorte);
-        /* ELLE COMMENCE TOUT DE SUITE, sans attendre qu'on ouvre l'écran.
-           Avant, elle allumait un point et ne faisait rien : il fallait
-           toucher le bouton, puis attendre encore dix secondes devant un
-           écran vide. Maintenant elle écrit pendant qu'on écoute sa réponse,
-           le clavier tape à côté du bouton, et ça sonne quand c'est prêt. */
-        if (!papierOccupeRef.current) void fabriquerPapier(data.papier as Sorte, false);
+        /* ── ELLE N'ÉCRIT PLUS RIEN SANS QU'ON LE LUI DEMANDE ────────────────
+
+           Lamine, le 13 septembre 2026 : « il faut dire à BIA de ne rien
+           écrire tant qu'on ne lui demande pas vraiment. »
+
+           IL Y AVAIT ICI UN APPEL AU MODÈLE QU'IL N'AVAIT PAS DEMANDÉ. Quand
+           le modèle estimait, au milieu d'une conversation, qu'il y avait de
+           quoi écrire, la page fabriquait le papier AUSSITÔT — et fabriquer
+           un papier, c'est un second appel au modèle, avec tout l'historique
+           joint, donc le plus cher de l'application.
+
+           Mon raisonnement du 10 septembre n'était pas faux : elle écrivait
+           pendant qu'on écoutait sa réponse, au lieu de faire attendre dix
+           secondes devant un écran vide. Ce qu'il manquait, c'était le prix.
+           Chaque fois qu'elle se trompait — et elle se trompe, il l'a vu de
+           ses yeux avec le bandeau rouge d'hier soir — il payait un devis que
+           personne ne voulait. Le soir où son crédit est tombé à zéro, ce
+           n'est plus un détail de confort.
+
+           ELLE GARDE LE DROIT DE LE DIRE, ET ELLE LE PERD D'AGIR. Le bouton
+           s'allume : c'est elle qui annonce qu'elle a de quoi écrire, et son
+           avis vaut mieux qu'un mot-clé puisqu'elle a suivi la conversation.
+           Mais rien ne part tant qu'un doigt ne l'a pas touché.
+
+           Ce que ça coûte, dit franchement : une dizaine de secondes d'attente
+           après l'appui, au lieu de zéro. C'est le choix qu'il fait, et c'est
+           le sien — c'est son argent.
+
+           Si un jour le crédit n'est plus un souci, la ligne à rétablir est
+           celle-ci, et elle est la seule. */
         /* On ne jette PLUS le papier ouvert. Il était effacé ici, au prétexte
            qu'il datait d'avant — et c'est ce que Lamine a vu : « quand elle
            écrit un message, le prochain message le supprime. » Il reste à
@@ -3773,7 +3797,19 @@ export default function Home() {
     const quoi = sorte || (papier ? null : papierPret);
     if (quoi) {
       setService(quoi);
-      if (!papier && !papierOccupe) void fabriquerPapier(quoi);
+      /* ── OUVRIR LA FENÊTRE N'EST PAS DEMANDER UN PAPIER ──────────────────
+
+         Lamine, le 13 septembre 2026 : « il faut dire à BIA de ne rien écrire
+         tant qu'on ne lui demande pas VRAIMENT. »
+
+         Ici, ouvrir la fenêtre des papiers lançait la fabrication — donc le
+         plus cher des appels au modèle — alors qu'on l'ouvre aussi pour
+         relire un devis d'avant-hier. Le geste et l'intention ne sont pas le
+         même chose.
+
+         La fenêtre s'ouvre donc SUR le service qu'elle a proposé, prête, et
+         c'est le bouton « Écrire… » qui déclenche. Un doigt de plus, et pas
+         un centime dépensé par surprise. */
     } else if (papier) {
       setService(papier.doc.type);
     }
@@ -4966,6 +5002,24 @@ export default function Home() {
           {service === "message" || service === "devis" || service === "lettre" ? (
             <>
               {papierOccupe && !papier ? <p className="papier-note">BIA écrit…</p> : null}
+              {/* ── LE BOUTON QUI DEMANDE VRAIMENT ──────────────────────────
+
+                  Depuis le 13 septembre, BIA n'écrit plus rien de sa propre
+                  initiative : ni pendant qu'on lui parle, ni quand on ouvre
+                  cette fenêtre. C'est ce bouton-ci, et lui seul, qui lance
+                  l'écriture — donc l'appel au modèle, donc la dépense.
+
+                  Il ne paraît que s'il y a de quoi écrire : sans conversation
+                  derrière, il n'écrirait rien et le dirait en rouge. */}
+              {!papier && !papierOccupe && history.length > 0 ? (
+                <p className="papier-note">
+                  <button type="button" className="papier-ecrire"
+                    onClick={() => void fabriquerPapier(service as Sorte)}>
+                    {service === "devis" ? "Écrire le devis"
+                      : service === "lettre" ? "Écrire la lettre" : "Écrire le message"}
+                  </button>
+                </p>
+              ) : null}
               {/* ── ELLE DIT COMMENT LUI PARLER ────────────────────────────
                   « Quand elle est prête, elle doit te dire comment parler pour
                   que le message puisse être bien écrit. Si tu es prête pour

@@ -2216,3 +2216,21 @@ button { font: inherit; touch-action: manipulation; }
 .etat-liste b { text-align: right; font-weight: 600; font-size: 14px; }
 .etat-oui { color: #b7f3c6; }
 .etat-non { color: #ffc2bd; }
+
+/* ── LE BOUTON QUI DEMANDE VRAIMENT ─────────────────────────────────────────
+
+   « Il faut dire à BIA de ne rien écrire tant qu'on ne lui demande pas
+   vraiment. » Depuis le 13 septembre, c'est ce bouton-ci — et lui seul — qui
+   lance l'écriture d'un papier, donc l'appel au modèle, donc la dépense. Il
+   doit donc se voir comme une décision, pas comme un lien. */
+.papier-ecrire {
+  display: inline-block;
+  padding: 11px 20px;
+  border: 1px solid rgba(212,175,55,.55);
+  border-radius: 999px;
+  background: rgba(212,175,55,.16);
+  color: #E8C55A;
+  font: inherit; font-size: 15px; font-weight: 600;
+  cursor: pointer;
+}
+.papier-ecrire:active { background: rgba(212,175,55,.28); }

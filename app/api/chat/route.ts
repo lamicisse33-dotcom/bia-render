@@ -11,7 +11,7 @@ import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
-import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
+import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
 
@@ -598,7 +598,25 @@ export async function POST(request:NextRequest){
 
     if(REPERTOIRE_PRET&&repertoireActif()){
       const toute=trouverDansRepertoire(question);
-      if(toute&&figeeConvient(toute.cle,seConnait)){
+      /* ── SERVIE TANT QU'ELLE N'A PAS DÉJÀ ÉTÉ DITE ICI ──────────────────
+
+         Lamine, le 13 septembre 2026 : « parfois tu poses une question dont
+         on a enregistré la réponse, mais elle ne te sert pas la réponse. »
+
+         C'était `figeeConvient(cle, seConnait)` : dès QUATRE messages dans le
+         fil — deux échanges — les vingt-deux réponses personnelles cessaient
+         d'être servies, et repartaient chez le modèle. Plus lent, et payant,
+         pour une phrase déjà enregistrée et déjà payée. Et pour quelqu'un
+         dont BIA a des notes, c'était désactivé dès le premier mot, pour
+         toujours.
+
+         Ce n'est pas « il me connaît » qui gâche une phrase enregistrée :
+         c'est « il vient de l'entendre ». On regarde donc ce qu'elle a déjà
+         dit dans CE fil, et rien d'autre. Voir figeeEncoreBonne(). */
+      const elleADit=(body.history||[])
+        .filter(item=>item.role==="bia")
+        .map(item=>String(item.text||""));
+      if(toute&&figeeEncoreBonne(toute,elleADit)){
         /* La langue se décide sur les mots-outils employés, pas sur une
            liste de neuf mots et l'absence d'accents — voir langueDe(). */
         const langue=langueDe(question);

@@ -888,6 +888,63 @@ export function figeeConvient(cle: string, seConnait: boolean): boolean {
   return !seConnait || !PERSONNELLES.has(cle);
 }
 
+/* ── MA RÈGLE ÉTAIT TROP GROSSIÈRE, ET IL L'A SENTIE ────────────────────────
+
+   Lamine, le 13 septembre 2026 : « parfois tu poses une question dont on a
+   enregistré la réponse, mais elle ne te sert pas la réponse. »
+
+   VOILÀ POURQUOI, ET C'EST MOI. `figeeConvient` refusait les vingt-deux
+   réponses PERSONNELLES dès que `onSeConnait` était vrai — c'est-à-dire dès
+   QUATRE MESSAGES dans le fil, soit deux échanges. Passé ce cap, « naka nga
+   def » cessait d'être servi par le répertoire et repartait chez le modèle :
+   plus lent, et payant, pour une réponse déjà enregistrée et déjà payée.
+
+   Pire : `onSeConnait` est vrai AUSSI dès que BIA a des notes sur la personne.
+   Donc pour quelqu'un qu'elle connaît, ces vingt-deux réponses étaient
+   désactivées POUR TOUJOURS, dès le premier mot.
+
+   ── CE QUE JE VOULAIS PROTÉGER ÉTAIT JUSTE ────────────────────────────────
+
+   L'intention tenait : « une consolation enregistrée servie deux fois n'est
+   plus une consolation, et quelqu'un qui te dit sa fatigue au bout d'une
+   heure n'attend pas la phrase qu'il a déjà entendue en arrivant. » Ça reste
+   vrai. Mais ce n'est pas « il me connaît » qui gâche la phrase : c'est
+   « il vient de l'entendre ».
+
+   ── LA RÈGLE JUSTE : UNE FOIS PAR CONVERSATION ────────────────────────────
+
+   On regarde ce qu'elle a DÉJÀ DIT dans ce fil-ci. Si la phrase enregistrée
+   y est déjà, on laisse le modèle répondre autrement — c'est exactement le
+   cas que je voulais éviter. Sinon on sert la voix de Kha, tout de suite et
+   gratuitement, même au dixième message, même à quelqu'un qu'elle connaît.
+
+   Aucune donnée nouvelle à transporter : le fil est déjà envoyé à chaque
+   question. Ce qui change n'est pas ce qu'on sait, c'est ce qu'on en fait. */
+
+/** Cette phrase enregistrée a-t-elle déjà été dite dans cette conversation ? */
+export function dejaDitDansLeFil(entree: Entree, filDitParElle: string[]): boolean {
+  const dites = filDitParElle.map((t) => normaliser(String(t || "")));
+  for (const texte of [entree.wolof, entree.francais]) {
+    const cherche = normaliser(String(texte || ""));
+    /* Trop court pour être une signature : « waw. » se retrouverait dans
+       n'importe quelle phrase et désactiverait la réponse à tort. */
+    if (cherche.length < 12) continue;
+    if (dites.some((d) => d.includes(cherche))) return true;
+  }
+  return false;
+}
+
+/**
+ * La version fine : une réponse enregistrée est servie tant qu'elle n'a pas
+ * déjà été dite DANS CETTE CONVERSATION. Les réponses qui ne parlent pas de
+ * la personne ne sont jamais refusées — « où es-tu » a la même réponse au
+ * premier et au centième message.
+ */
+export function figeeEncoreBonne(entree: Entree, filDitParElle: string[]): boolean {
+  if (!PERSONNELLES.has(entree.cle)) return true;
+  return !dejaDitDansLeFil(entree, filDitParElle);
+}
+
 export function consigneRepertoire(): string {
   if (!REPERTOIRE_PRET) return "";
   const lignes = TOUT.map(
