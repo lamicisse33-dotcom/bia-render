@@ -4658,6 +4658,31 @@ export default function Home() {
           <span className="papier-debit-bornes"><i>Plus lentement</i><i>Plus vite</i></span>
         </label>
 
+        {/* ── LA PAGE D'APPRENTISSAGE ──────────────────────────────────────
+
+            Lamine, le 13 septembre 2026 : « je veux que moi uniquement je
+            puisse lui donner ces instructions-là, avec mon compte maître. Les
+            testeurs n'auront pas accès à cette partie. »
+
+            ELLE N'EST PAS PROVISOIRE, contrairement aux pages d'écoute
+            en dessous : c'est là qu'il apprendra le wolof à BIA pendant des
+            mois. Elle a donc sa ligne à elle, au-dessus, et elle ne part pas
+            avec les autres.
+
+            ET ELLE A SON LIEN. C'est sa leçon, apprise deux fois à mes dépens
+            — le réglage du débit puis l'appareil photo : « où se trouve le
+            réglage dont tu parles ? Il n'y a aucun bouton paramètre sur BIA. »
+            Une page qu'il faut taper à la main n'existe pas. */}
+        {estMaitre ? (
+          <p className="papier-note" style={{ marginTop: 14 }}>
+            <a href="/lecon" className="papier-lien">Apprendre à BIA →</a>
+            <br />
+            Une leçon, c&apos;est une situation : ce qu&apos;on lui dit, et les quatre ou
+            cinq réponses qu&apos;elle peut donner. Le wolof et son français côte à
+            côte. Pour toi seul.
+          </p>
+        ) : null}
+
         {/* LA PAGE D'ÉCOUTE — provisoire, et pour Lamine seul.
 
             Il a dû demander où elle se trouvait. C'est la troisième fois qu'on

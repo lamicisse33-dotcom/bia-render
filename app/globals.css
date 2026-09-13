@@ -2327,3 +2327,122 @@ button { font: inherit; touch-action: manipulation; }
   cursor: pointer;
 }
 .papier-ecrire:active { background: rgba(212,175,55,.28); }
+
+/* ── LA PAGE D'APPRENTISSAGE ────────────────────────────────────────────────
+
+   Lamine, le 13 septembre 2026 : « je veux lui expliquer tout en français. Ce
+   qu'elle a compris en wolof, je vais lui expliquer son équivalent en français
+   — ÇA DOIT ÊTRE À CÔTÉ. »
+
+   C'est une consigne de mise en page, et elle commande tout ce bloc : le wolof
+   et son français sont deux colonnes, jamais l'une sans l'autre, y compris sur
+   un téléphone de 390 pixels. Les empiler l'un sous l'autre aurait été plus
+   confortable à écrire et aurait défait ce qu'il demande — on lit une paire
+   d'un seul regard, ou on ne la lit pas.
+
+   Comme la page de correction, elle a son propre défilement : la règle du haut
+   de ce fichier (overflow: hidden) est faite pour la conversation, qui est un
+   écran fixe, et elle figerait celle-ci. */
+.lecon-page {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 22px 16px calc(60px + env(safe-area-inset-bottom));
+  color: rgba(255,255,255,.9);
+}
+.lecon-retour { margin: 0 0 10px; font-size: 13px; }
+.lecon-retour a { color: rgba(231,198,103,.8); text-decoration: none; }
+.lecon-grand { margin: 0 0 8px; font-size: 22px; color: #e7c667; }
+.lecon-titre { margin: 0 0 4px; color: #e7c667; font-size: 16px; font-weight: 600; }
+.lecon-aide { margin: 0 0 12px; color: rgba(255,255,255,.55); font-size: 13px; line-height: 1.45; }
+
+.lecon-bloc {
+  margin: 20px 0;
+  padding: 14px 12px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  background: rgba(255,255,255,.02);
+}
+
+/* Les deux colonnes. Le même gabarit sert aux en-têtes et aux lignes, pour que
+   « Ce que ça veut dire » tombe exactement au-dessus de sa colonne. */
+.lecon-entetes,
+.lecon-paire {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.lecon-entetes {
+  margin-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: rgba(231,198,103,.55);
+}
+.lecon-ligne { margin-bottom: 14px; }
+
+.lecon-case {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 11px;
+  background: rgba(0,0,0,.25);
+  color: rgba(255,255,255,.92);
+  font: inherit; font-size: 14px; line-height: 1.4;
+  resize: vertical;
+}
+/* Le français est une explication, pas une parole : il se tient un ton en
+   retrait pour qu'on voie d'un coup d'œil lequel des deux BIA va dire. */
+.lecon-case-fr { color: rgba(255,255,255,.72); background: rgba(0,0,0,.14); }
+.lecon-case:focus { outline: none; border-color: rgba(231,198,103,.55); }
+.lecon-nom { margin: 8px 0 4px; font-size: 15px; }
+
+.lecon-gestes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+.lecon-micro {
+  padding: 6px 13px;
+  border: 1px solid rgba(231,198,103,.45); border-radius: 999px;
+  background: transparent; color: #e7c667;
+  font: inherit; font-size: 12.5px; cursor: pointer;
+}
+/* Il doit voir SANS HÉSITER que le micro est ouvert : c'est lui qui décide
+   quand ça s'arrête, et un micro qu'on croit fermé enregistre le silence. */
+.lecon-micro-on {
+  background: #d4af37; color: #17130a; border-color: #d4af37;
+  animation: lecon-bat 1.4s ease-in-out infinite;
+}
+@keyframes lecon-bat {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212,175,55,.45); }
+  50%      { box-shadow: 0 0 0 7px rgba(212,175,55,0); }
+}
+@media (prefers-reduced-motion: reduce) { .lecon-micro-on { animation: none; } }
+.lecon-micro:disabled { opacity: .4; cursor: default; }
+
+.lecon-lien {
+  padding: 6px 11px;
+  border: 1px solid rgba(255,255,255,.14); border-radius: 999px;
+  background: transparent; color: rgba(255,255,255,.75);
+  font: inherit; font-size: 12.5px; cursor: pointer;
+}
+.lecon-lien:disabled { opacity: .35; cursor: default; }
+.lecon-pale { color: rgba(255,255,255,.4); border-color: rgba(255,255,255,.08); }
+
+.lecon-ajout {
+  padding: 8px 15px;
+  border: 1px dashed rgba(231,198,103,.4); border-radius: 12px;
+  background: transparent; color: rgba(231,198,103,.85);
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.lecon-compte { margin-left: 10px; font-size: 12.5px; color: rgba(255,255,255,.45); }
+
+.lecon-valider { margin: 24px 0 10px; }
+.lecon-grand-bouton {
+  padding: 13px 26px;
+  border: 0; border-radius: 999px;
+  background: #d4af37; color: #17130a;
+  font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.lecon-grand-bouton:disabled { opacity: .4; cursor: default; }
+.lecon-grand-bouton:active { transform: scale(.97); }
