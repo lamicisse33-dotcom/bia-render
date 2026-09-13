@@ -402,6 +402,18 @@ export default function Carte({
         m.on("error", (e) => {
           const quoi = e?.error?.message || String(e || "");
           console.error("BIA — la carte :", quoi);
+          /* ── ON NOTE TOUJOURS, ON DÉCIDE ENSUITE ────────────────────────
+
+             Le motif était posé à l'intérieur du basculement, donc il
+             n'existait que dans le cas où l'on basculait — et il ne
+             s'affichait que si la carte s'était déclarée morte. Deux
+             conditions pour voir une information qui sert justement à
+             comprendre pourquoi rien ne se voit.
+
+             Lamine m'a envoyé quatre captures d'un écran noir aujourd'hui,
+             et aucune ne portait la moindre trace de ce qui manquait. On
+             note d'abord, on décide après. */
+          setMotifCarte((deja) => deja || quoi.slice(0, 90));
           basculer(quoi || "le fond n'a pas répondu");
         });
         m.on("load", () => {
@@ -586,6 +598,13 @@ export default function Carte({
     <div className="carte">
       <div className="carte-fond" ref={boite} aria-label="La carte" />
 
+      {/* Le motif seul, quand la carte ne s'est pas déclarée morte mais que
+          quelque chose a tout de même manqué. C'est le seul moyen de savoir,
+          depuis un téléphone, ce qui s'est passé — il n'y a pas de console à
+          ouvrir sur un iPhone. */}
+      {motifCarte && !sansCarte ? (
+        <p className="carte-sans-motif carte-motif-seul">carte : {motifCarte}</p>
+      ) : null}
       {sansCarte ? (
         <div className="carte-sans">
           <p><b>La carte ne s&apos;affiche pas</b></p>

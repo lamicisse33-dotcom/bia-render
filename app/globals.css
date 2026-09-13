@@ -1920,6 +1920,16 @@ button { font: inherit; touch-action: manipulation; }
 /* Le motif de la panne, en petit et en gris : il sert à celui qui répare, pas
    à celui qui roule. */
 .carte-sans-motif { font-size: 12px; opacity: 0.55; font-style: italic; }
+/* Posé au-dessus du nom de la destination, discret mais lisible : il sert à
+   comprendre un écran noir depuis un téléphone, là où il n'y a pas de console
+   à ouvrir. */
+.carte-motif-seul {
+  position: absolute;
+  left: 16px; right: 16px; bottom: 96px;
+  margin: 0;
+  text-align: center;
+  color: #d6b46e;
+}
 
 /* Le crédit d'OpenStreetMap doit rester visible : c'est la condition d'usage
    de la donnée, et sans ses contributeurs il n'y aurait aucune route de Dakar
