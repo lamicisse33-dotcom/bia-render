@@ -28,8 +28,11 @@ import {
   chargerPapiers, garderPapier, oublierPapiers, nouvelIdPapier, titreDe,
 } from "@/lib/papiers";
 import type { PapierGarde } from "@/lib/papiers";
-import { NOMBRES } from "@/lib/nombres-textes";
-import { choisirService } from "@/lib/services-textes";
+import { NOMBRES, RELU_NOMBRES } from "@/lib/nombres-textes";
+import { RELU } from "@/lib/repertoire-textes";
+import { RELU_BASE } from "@/lib/base-textes";
+import { RELU_GUIDAGE } from "@/lib/guidage-textes";
+import { choisirService, RELU_SERVICES } from "@/lib/services-textes";
 import { compterVerdicts, lireVerdicts, poserVerdict } from "@/lib/verdicts";
 import { franc, lecture, sorteEvoquee, totauxDe } from "@/lib/documents";
 import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
@@ -4295,15 +4298,15 @@ export default function Home() {
      en est de sa relecture. */
   function vueRelire() {
     const listes: Array<{ ou: string; nom: string; combien: number; verrou: boolean; quoi: string }> = [
-      { ou: "/voix", nom: "Les 42 phrases", combien: 42, verrou: true,
+      { ou: "/voix", nom: "Les 42 phrases", combien: 42, verrou: RELU,
         quoi: "Ses réponses de tous les jours." },
-      { ou: "/voix/base", nom: "Les 69 nouvelles", combien: 69, verrou: true,
+      { ou: "/voix/base", nom: "Les 69 nouvelles", combien: 69, verrou: RELU_BASE,
         quoi: "Celles qu'on a ajoutées après les 42." },
-      { ou: "/voix/nombres", nom: `Les ${NOMBRES.length} nombres`, combien: NOMBRES.length, verrou: true,
+      { ou: "/voix/nombres", nom: `Les ${NOMBRES.length} nombres`, combien: NOMBRES.length, verrou: RELU_NOMBRES,
         quoi: "Compter en wolof, et l'argent en dërëm." },
-      { ou: "/voix/guidage", nom: "Les 49 du guidage", combien: 49, verrou: true,
+      { ou: "/voix/guidage", nom: "Les 49 du guidage", combien: 49, verrou: RELU_GUIDAGE,
         quoi: "Ce qu'elle dit pour te guider sur la carte." },
-      { ou: "/voix/services", nom: "Les 34 des services", combien: 34, verrou: false,
+      { ou: "/voix/services", nom: "Les 34 des services", combien: 34, verrou: RELU_SERVICES,
         quoi: "« D'accord, j'exécute », « d'accord, je vois ça », et ce qu'elle dit quand ça casse." },
       { ou: "/voix/verdicts", nom: "Ce que tu as jugé", combien: compteVerdicts.bien + compteVerdicts.mal,
         verrou: true, quoi: "Les boutons vert et rouge de l'écran principal." },

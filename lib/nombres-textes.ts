@@ -59,7 +59,17 @@
    dit avec les pauses d'un maître qui compte au tableau. Je ne lisse pas ça
    sans qu'il l'ait entendu. La page /voix/nombres est là pour ça. */
 
-export const RELU_NOMBRES = false;
+/* ── IL A RELU, LE 13 SEPTEMBRE 2026 ────────────────────────────────────────
+
+   « La fiche, elle est correcte, elle est très correcte. J'ai vérifié, c'est
+   comme ça. » Les 69 lignes sont validées de sa main, ponctuation des calculs
+   comprise — je lui avais proposé de la lisser, il a dit non.
+
+   Il les a validées EN LES LISANT, pas en les écoutant : la voix ne répondait
+   pas ce matin. Ouvrir le verrou ne dépense rien par soi-même — il faudra
+   encore qu'il appuie sur le bouton d'enregistrement. Il peut donc toujours
+   écouter chaque ligne avant, quand Soynade répondra de nouveau.           */
+export const RELU_NOMBRES = true;
 
 export type Nombre = {
   /** Le nom du fichier son, et la clé de l'entrée. */
