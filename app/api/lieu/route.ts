@@ -196,7 +196,57 @@ export async function GET(request: NextRequest) {
     noterPanne("recherche de lieu (Google)", pannesDeRecherche, "carte");
   }
 
-  /* 3. LE FILET : la base publique, et on garde plusieurs réponses. */
+  /* 3. PHOTON — GRATUIT, SANS COMPTE ET SANS CARTE ─────────────────────────
+
+     Lamine, le 14 septembre 2026 à dix-huit heures, deux heures avant de
+     montrer BIA : Google lui demande d'enregistrer une carte bancaire pour
+     activer la recherche de lieux. Sa carte est bloquée — volontairement,
+     pour se protéger d'un autre prélèvement — et une démonstration n'est pas
+     le moment de la débloquer dans l'urgence.
+
+     Photon lit les mêmes données qu'OpenStreetMap mais par un autre chemin et
+     un autre serveur : pas de clé, pas d'inscription, pas de carte. On lui
+     donne le centre de Dakar comme point d'ancrage, pour qu'« Ouakam » ne
+     ramène pas un homonyme à l'autre bout du monde, et on ne garde que le
+     Sénégal.
+
+     Il passe AVANT Nominatim parce que Nominatim refuse volontiers les
+     serveurs qu'il ne connaît pas — c'est ce qu'on a vu tout l'après-midi. */
+  try {
+    const centre = "&lat=14.72&lon=-17.45&zoom=12&location_bias_scale=0.6";
+    const chezPhoton = `https://photon.komoot.io/api/?q=${encodeURIComponent(quoi)}&lang=fr&limit=6${centre}`;
+    const r = await fetch(chezPhoton, { headers: { "user-agent": QUI }, cache: "no-store" });
+    if (!r.ok) throw new Error(`Photon ${r.status}`);
+    const d = await r.json() as {
+      features?: Array<{
+        geometry?: { coordinates?: [number, number] };
+        properties?: Record<string, string>;
+      }>;
+    };
+    const trouves: Candidat[] = (d.features || [])
+      .filter((f) => f.properties?.countrycode === "SN" && f.geometry?.coordinates)
+      .map((f) => {
+        const p = f.properties || {};
+        /* Ce qui se DIT : le nom, puis le quartier ou la ville. La suite
+           administrative ne se prononce pas. */
+        const morceaux = [p.name, p.district || p.city, p.state]
+          .filter((x, i, t) => x && t.indexOf(x) === i);
+        return {
+          dit: morceaux.slice(0, 3).join(", "),
+          lon: Number(f.geometry!.coordinates![0]),
+          lat: Number(f.geometry!.coordinates![1]),
+          sur: !SENT_LE_A_PEU_PRES.has(String(p.osm_value || "")),
+          source: "publique" as const,
+        };
+      })
+      .filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lon) && c.dit);
+    if (trouves.length) return NextResponse.json({ candidats: trouves });
+  } catch (err) {
+    pannesDeRecherche = (err as Error).message.slice(0, 200);
+    noterPanne("recherche de lieu (Photon)", pannesDeRecherche, "carte");
+  }
+
+  /* 4. LE DERNIER FILET : Nominatim. */
   try {
     const adresse = `${NOMINATIM.replace(/\/$/, "")}/search`
       + `?q=${encodeURIComponent(quoi)}&format=json&limit=4&countrycodes=sn&addressdetails=1`;
