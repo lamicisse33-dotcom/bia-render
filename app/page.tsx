@@ -328,7 +328,7 @@ export default function Home() {
      pouvoir lancer des appels ». Une application web ne compose pas un numéro
      toute seule — et c'est heureux : ce qu'elle fait, c'est ouvrir le clavier
      du téléphone avec le numéro déjà écrit. La personne appuie, ou pas. */
-  const [appel, setAppel] = useState<{ numero: string; nom: string } | null>(null);
+  const [appel, setAppel] = useState<{ numero: string; nom: string; urgence?: boolean } | null>(null);
 
   /* ── LA CARTE, ET LA CONFIRMATION QUI LA PRÉCÈDE ─────────────────────────
 
@@ -4950,9 +4950,17 @@ export default function Home() {
 
       {/* APPELER. Le numéro est déjà écrit ; il ne reste qu'à appuyer. Ce
           bouton n'apparaît que lorsqu'elle a préparé un appel, et disparaît
-          à la question suivante. */}
+          à la question suivante.
+
+          ET IL NE DISPARAÎT PLUS SOUS LES DOIGTS QUAND C'EST UN SECOURS.
+          Le bouton est masqué pendant qu'on tape — juste, il recouvrirait ce
+          qu'on écrit. Mais quelqu'un qui tape « ma mère ne respire plus » a
+          le clavier ouvert AU MOMENT EXACT où le bouton paraît. Trouvé le 13
+          septembre 2026 en cherchant à lui donner l'allure que Lamine
+          demandait ; c'est la feuille de style qui le dit, pas ce fichier —
+          voir .appeler-urgence dans globals.css. */}
       {appel ? (
-        <a className="appeler" href={`tel:${appel.numero}`}
+        <a className={appel.urgence ? "appeler appeler-urgence" : "appeler"} href={`tel:${appel.numero}`}
           onClick={() => setTimeout(() => setAppel(null), 1500)}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M6.6 10.8a15.6 15.6 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.58 3.6a1 1 0 0 1-.25 1l-2.23 2.2Z" />

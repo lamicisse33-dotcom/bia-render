@@ -2446,3 +2446,54 @@ button { font: inherit; touch-action: manipulation; }
 }
 .lecon-grand-bouton:disabled { opacity: .4; cursor: default; }
 .lecon-grand-bouton:active { transform: scale(.97); }
+
+/* ── LE BOUTON D'APPEL QUAND C'EST UN SECOURS ───────────────────────────────
+
+   Lamine, le 13 septembre 2026 : « elle doit afficher un bouton vert
+   "Appeler" et demander rapidement où tu es, si la personne est consciente,
+   quel est le danger. En cas de danger vital, elle doit proposer immédiatement
+   le numéro adapté, sans lancer une longue conversation. »
+
+   Le bouton était DÉJÀ vert — il l'est depuis le premier jour. Ce qu'il lui
+   manquait, c'est de se voir de loin et de ne pas s'en aller.
+
+   DEUX CHOSES, ET LA SECONDE EST UN DÉFAUT RÉPARÉ :
+
+     — il bat. Lentement, comme un pouls, pas comme une alarme : on doit le
+       trouver sans le chercher, pas être affolé par lui.
+
+     — IL NE DISPARAÎT PLUS QUAND LE CLAVIER EST OUVERT. La règle d'en haut
+       (.bia-presence[data-clavier="ouvert"] .appeler) le masque pendant
+       qu'on tape, et c'est juste : il recouvrirait ce qu'on écrit. Mais
+       quelqu'un qui TAPE « ma mère ne respire plus » a le clavier ouvert au
+       moment exact où le bouton paraît — et il s'effaçait sous ses doigts.
+       On le remonte alors au-dessus du clavier au lieu de l'effacer.
+
+   Il reste vert. Le rouge est la couleur du danger, pas celle du secours —
+   et c'est un bouton qui sauve, pas un bouton qui alarme. */
+.appeler-urgence {
+  padding: 14px 22px 14px 18px;
+  background: #1f7a3d;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5),
+              0 0 0 1px rgba(255,255,255,.18) inset,
+              0 0 0 0 rgba(31,122,61,.55);
+  animation: appel-arrive .3s ease both, appel-pouls 2s ease-in-out .3s infinite;
+}
+.appeler-urgence b { font-size: 16.5px; }
+@keyframes appel-pouls {
+  0%, 100% { box-shadow: 0 10px 30px rgba(0,0,0,.5),
+                         0 0 0 1px rgba(255,255,255,.18) inset,
+                         0 0 0 0 rgba(31,122,61,.5); }
+  50%      { box-shadow: 0 10px 30px rgba(0,0,0,.5),
+                         0 0 0 1px rgba(255,255,255,.18) inset,
+                         0 0 0 12px rgba(31,122,61,0); }
+}
+/* Celui-ci reste. Il remonte au-dessus du clavier, il ne s'efface pas. */
+.bia-presence[data-clavier="ouvert"] .appeler-urgence {
+  opacity: 1;
+  pointer-events: auto;
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 168px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .appeler-urgence { animation: appel-arrive .3s ease both; }
+}

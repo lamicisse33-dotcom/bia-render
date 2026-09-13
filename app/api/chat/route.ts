@@ -12,7 +12,7 @@ import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
-import { consigneUrgences, estUnNumeroDUrgence } from "@/lib/urgences";
+import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgences";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
@@ -455,7 +455,9 @@ function detacherAppel(texte:string){
   const bon=chiffres.length>=6||estUnNumeroDUrgence(chiffres);
   return{
     texte:texte.replace(new RegExp(APPEL.source,"gi"),"").trim(),
-    appel:bon?{numero,nom}:null,
+    /* `urgence` ne change rien au numero : il change le BOUTON. Voir
+       estUnSecours() et .appeler-urgence dans globals.css. */
+    appel:bon?{numero,nom,urgence:estUnSecours(chiffres)}:null,
   };
 }
 function detacherPapier(texte:string){

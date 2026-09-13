@@ -100,6 +100,21 @@ export const URGENCES_NATIONALES: Urgence[] = [
      Vérifié à la source la plus officielle qui soit — le site de la HASSMAR
      elle-même : « Pour signaler tout incident en mer, veuillez contacter le
      MRCC au numéro d'appel gratuit : 119 ». */
+  /* ── CELUI OÙ CHAQUE SECONDE COMPTE VRAIMENT ────────────────────────────
+
+     Donné par Lamine le 13 septembre 2026, vérifié sur le site du ministère
+     de la Santé — qui écrit lui-même « en cas d'intoxication, chaque seconde
+     compte ».
+
+     Il a sa place ici, avec les numéros vitaux, et pas plus bas : une
+     ingestion d'eau de Javel ou de pesticide chez un enfant ne laisse pas le
+     temps de chercher. Et il porte une consigne que BIA doit dire AVANT
+     toute autre chose — voir consigneUrgences(). */
+  {
+    quoi: "Centre antipoison", numero: "818 00 15 15",
+    quand: "quelqu'un a avalé un médicament, un produit chimique, de l'eau de Javel, un pesticide, un aliment toxique",
+    source: "sante.gouv.sn, « Prévention en cas d'intoxication »", verifie: LE_JOUR,
+  },
   {
     quoi: "Secours en mer (HASSMAR)", numero: "119",
     quand: "un accident en mer, une pirogue en difficulté, quelqu'un disparu en mer",
@@ -119,18 +134,69 @@ export const URGENCES_NATIONALES: Urgence[] = [
    celui-ci seulement si le premier ne passe pas. */
 export const POLICE_AUTRE = "800 00 17 00";
 
+/** Le second numéro du centre antipoison, donné sur la même page du
+    ministère. Un mobile : il répond quand la ligne fixe ne répond pas. */
+export const ANTIPOISON_AUTRE = "78 388 32 32";
+
 /* L'autre numéro de la gendarmerie, donné par elle sur la même page. On le
    garde en second : le 123 est plus court, et dans l'urgence chaque chiffre
    compte. */
 export const GENDARMERIE_AUTRE = "800 00 20 20";
 
 
-/* ── CE QUI N'EST PAS UNE URGENCE VITALE MAIS QUI PRESSE ────────────────── */
+/* ── CE QUI N'EST PAS VITAL DANS LA MINUTE, MAIS QUI PRESSE ─────────────────
+
+   Ces trois-là comptent, et ils ne se confondent pas avec les précédents :
+   ils écoutent, ils orientent, ils protègent — ils n'envoient pas un camion.
+
+   RÈGLE DE LAMINE, ET ELLE EST JUSTE : « le 800 805 805 apporte surtout une
+   assistance juridique et une orientation. Face à un danger IMMÉDIAT, BIA
+   doit proposer en priorité le 17 ou le 123. » Un numéro d'écoute proposé à
+   quelqu'un qu'on frappe en ce moment même, c'est une erreur qui coûte cher.
+
+   J'AVAIS MAL ATTRIBUÉ LE 116. Je l'avais noté « violences faites aux
+   femmes », relevé à un seul endroit et donc jamais dit à voix haute. C'est
+   lui qui l'a corrigé : c'est le Centre GINDDI, « Allô Enfance en danger ».
+   Vérifié depuis auprès de Child Helpline International et de l'AJS. */
 export const AUTRES_SECOURS: Urgence[] = [
   {
-    quoi: "Violences faites aux femmes", numero: "116",
-    quand: "une femme en danger chez elle",
-    source: "relevé une seule fois — À CONFIRMER avant d'être dit à voix haute", verifie: LE_JOUR,
+    quoi: "Allô Enfance en danger (Centre GINDDI)", numero: "116",
+    quand: "un enfant en danger, maltraité, disparu, ou qui a besoin d'être écouté et protégé",
+    source: "Centre GINDDI ; Child Helpline International ; AJS", verifie: LE_JOUR,
+  },
+  {
+    quoi: "Association des Juristes Sénégalaises", numero: "800 805 805",
+    quand: "une femme ou un enfant victime de violences, pour être conseillé et accompagné — mais si le danger est MAINTENANT, c'est le 17",
+    source: "femmesjuristes.org", verifie: LE_JOUR,
+  },
+  {
+    quoi: "Ministère de la Santé, numéro vert", numero: "800 00 50 50",
+    quand: "une question de santé, une orientation — pas une urgence",
+    source: "sante.gouv.sn", verifie: LE_JOUR,
+  },
+];
+
+/* ── CE QUE JE N'AI PAS PU VÉRIFIER ────────────────────────────────────────
+
+   Le COUS coordonne les alertes sanitaires COLLECTIVES — une épidémie, une
+   contamination, un événement inhabituel. Ce n'est pas un numéro pour une
+   personne blessée, et Lamine le dit lui-même : pour quelqu'un de gravement
+   malade, c'est le 1515.
+
+   Ses numéros me viennent de lui et je les garde, mais la page officielle ne
+   s'est pas laissé lire. Ils ne partent donc PAS dans ce que BIA récite : un
+   numéro que je n'ai pas vu de mes yeux ne se dit pas à voix haute. Ils
+   attendent ici qu'on les confirme. */
+export const A_CONFIRMER: Urgence[] = [
+  {
+    quoi: "COUS — alerte sanitaire", numero: "33 827 14 13",
+    quand: "une épidémie, une contamination, un événement sanitaire inhabituel",
+    source: "donné par Lamine — NON VÉRIFIÉ, ne pas dire à voix haute", verifie: "",
+  },
+  {
+    quoi: "COUS — permanence 24 h/24", numero: "76 541 92 92",
+    quand: "signalement urgent au COUS",
+    source: "donné par Lamine — NON VÉRIFIÉ, ne pas dire à voix haute", verifie: "",
   },
 ];
 
@@ -184,6 +250,29 @@ export function estUnNumeroDUrgence(numero: string): boolean {
   return NUMEROS_COURTS.has(numero.replace(/\D/g, ""));
 }
 
+/* ── LE BOUTON QUI DISPARAISSAIT QUAND ON TAPAIT ────────────────────────────
+
+   Le bouton « Appeler » est masqué pendant que le clavier est ouvert — et
+   c'est juste : il recouvrirait ce qu'on écrit.
+
+   Sauf pour un secours. Quelqu'un qui tape « ma mère ne respire plus » a le
+   clavier ouvert AU MOMENT EXACT où le bouton paraît, et il disparaissait
+   sous ses doigts. Trouvé le 13 septembre 2026 en lisant la feuille de style
+   pour donner au bouton l'allure que Lamine demandait.
+
+   On distingue donc les deux, et c'est cette liste qui tranche : tous les
+   numéros de ce fichier, courts ou longs. */
+const TOUS_LES_SECOURS: ReadonlySet<string> = new Set(
+  [...URGENCES_NATIONALES, ...AUTRES_SECOURS, GENDARMERIE_AUTRE, POLICE_AUTRE, ANTIPOISON_AUTRE]
+    .map((u) => (typeof u === "string" ? u : u.numero).replace(/\D/g, "")),
+);
+
+/** Vrai pour tout numéro de secours, court ou long : le bouton doit alors
+    rester visible clavier ouvert, et se voir de loin. */
+export function estUnSecours(numero: string): boolean {
+  return TOUS_LES_SECOURS.has(numero.replace(/\D/g, ""));
+}
+
 /* ── CE QU'ON EN DIT AU MODÈLE ──────────────────────────────────────────────
 
    Court exprès, et posé dans le SOCLE (la partie mise en cache) : ces numéros
@@ -195,6 +284,8 @@ export function estUnNumeroDUrgence(numero: string): boolean {
 export function consigneUrgences(): string {
   const lignes = URGENCES_NATIONALES
     .map((u) => `  ${u.numero} — ${u.quoi} : ${u.quand}`).join("\n");
+  const secondes = AUTRES_SECOURS
+    .map((u) => `  ${u.numero} — ${u.quoi} : ${u.quand}`).join("\n");
   return `
 
 LES NUMÉROS D'URGENCE AU SÉNÉGAL
@@ -203,6 +294,13 @@ Voici la liste, et elle fait autorité. Tu n'en connais aucun autre.
 ${lignes}
   ${GENDARMERIE_AUTRE} — la gendarmerie, si le 123 ne passe pas.
   ${POLICE_AUTRE} — la police, si le 17 ne passe pas.
+  ${ANTIPOISON_AUTRE} — le centre antipoison, si le premier ne répond pas.
+
+CEUX-LÀ ÉCOUTENT ET PROTÈGENT, MAIS N'ENVOIENT PERSONNE :
+${secondes}
+Si le danger est en train de se produire, ce n'est PAS un de ceux-là qu'on
+donne : c'est le 17 ou le 123. Un numéro d'écoute proposé à quelqu'un qu'on
+frappe en ce moment même est une faute.
 
 TU N'INVENTES JAMAIS UN NUMÉRO D'URGENCE, sous aucun prétexte. Si on te
 demande un numéro qui n'est pas dans cette liste — un hôpital, une clinique,
@@ -212,9 +310,19 @@ numéro national qui convient : il répond toujours, et il sait rediriger.
 QUAND C'EST UNE URGENCE, TU FAIS TROIS CHOSES, DANS CET ORDRE :
   1. tu poses le bouton d'appel sur la PREMIÈRE ligne, tout de suite, avant
      même de parler : [[appel:18|les pompiers]]
-  2. tu dis en une phrase courte qui va répondre — on n'écoute pas un discours
-     quand quelqu'un saigne ;
-  3. tu dis la seule chose utile en attendant : où on est, ce qu'on voit.
+  2. tu dis en une phrase courte qui va répondre ;
+  3. tu poses les questions dont il aura besoin AU BOUT DU FIL, pas pour toi :
+     « Où es-tu exactement ? » « La personne est-elle consciente ? »
+     « Qu'est-ce qui se passe ? » Celui qui décroche posera les mêmes ;
+     qu'il ait déjà la réponse fait gagner une minute.
+
+UNE SEULE À LA FOIS, ET COURTE. On n'écoute pas un discours quand quelqu'un
+saigne. Pas de conseil médical, pas de geste à faire, pas de « reste calme » :
+tu prépares l'appel, et tu laisses parler celui qui sait.
+
+SI QUELQU'UN A AVALÉ QUELQUE CHOSE, tu dis une chose de plus, et une seule :
+NE PAS LE FAIRE VOMIR sans que le médecin l'ait dit. Vomir de l'eau de Javel
+brûle deux fois.
 
 UNE MAIRIE N'A PAS DE NUMÉRO NATIONAL : chaque commune a le sien. Si on te
 demande la mairie, demande laquelle, et dis que tu n'as pas son numéro plutôt
