@@ -1,53 +1,57 @@
-# ── EMPÊCHER BIA DE S'ENDORMIR ────────────────────────────────────────────────
+# ── EMPÊCHER BIA DE S'ENDORMIR — ET POURQUOI CE FICHIER N'Y SUFFIT PAS ───────
 #
-# Lamine, le 13 septembre 2026 : « c'est la lenteur que je ne comprends pas. »
+# Lamine, le 13 septembre 2026 à 03:40 : deux écrans « SERVICE WAKING UP »
+# à une heure d'intervalle, alors que ce réveil tournait censément depuis
+# 00:56. Il ne tournait pas. Voici pourquoi, et ce qui le remplace.
 #
-# LE PLUS GROS DE CETTE LENTEUR N'EST PAS DANS LE CODE. Render, en formule
-# gratuite, éteint le serveur après quinze minutes sans visite. La visite
-# suivante doit alors attendre qu'il se rallume : environ CINQUANTE SECONDES,
-# pendant lesquelles BIA ne répond à rien.
+# ── CE QUE J'AVAIS ÉCRIT ICI HIER ÉTAIT FAUX ─────────────────────────────────
 #
-# Ça ne ressemble pas à une panne — l'écran est normal, elle réfléchit — donc
-# personne ne comprend ce qui se passe. Et c'est le cas le plus fréquent :
-# BIA sert à quelques questions par jour, donc elle dort presque toujours.
+# J'avais écrit : « les minutes GitHub sont gratuites sur un dépôt public ».
+# BIA-RENDER N'EST PAS PUBLIC. Vérifié ce matin : la page du dépôt répond 404
+# à qui n'est pas connecté, et git réclame un mot de passe pour la lire.
 #
-# ── CE QUE FAIT CE FICHIER ───────────────────────────────────────────────────
+# Sur un dépôt privé, le forfait gratuit donne 2 000 minutes d'Actions par
+# mois, et chaque exécution est comptée à la minute entamée. Un réveil toutes
+# les dix minutes, c'est 4 320 exécutions par mois : plus du double du quota.
+# Il aurait été coupé vers le milieu du mois — et il aurait emporté avec lui
+# TOUTE autre utilisation d'Actions sur le compte, sans prévenir.
 #
-# Toutes les dix minutes, GitHub demande une page à BIA. Le serveur n'est donc
-# jamais inactif quinze minutes d'affilée, et ne s'éteint jamais. Quand Lamine
-# ou un testeur ouvre l'application, elle est déjà debout.
+# C'est la forme exacte de dépense silencieuse qu'on vient de subir ailleurs.
+# Je coupe la répétition automatique.
 #
-# ── CE QUE ÇA COÛTE ──────────────────────────────────────────────────────────
+# ── ET DE TOUTE FAÇON, ELLE NE PARTAIT PAS ───────────────────────────────────
 #
-# Rien. Les minutes GitHub sont gratuites sur un dépôt public, et la page
-# demandée ne touche ni le modèle, ni la voix, ni la transcription : aucun
-# crédit Anthropic, aucun crédit Soynade. C'est une visite, pas une question.
+# Sur un dépôt privé en forfait gratuit, les tâches programmées passent en
+# dernier dans la file d'attente de GitHub : elles sont décalées de longues
+# minutes, et souvent sautées. GitHub l'écrit lui-même — « best effort ».
+# Pour tenir un serveur éveillé à quinze minutes près, « au mieux » ne suffit
+# pas. Les deux écrans de cette nuit en sont la preuve.
 #
-# Une seule chose à savoir : le serveur tourne alors en continu, soit environ
-# 730 heures par mois sur les 750 gratuites de Render. Ça tient, mais ça ne
-# laisse pas la place à un second service gratuit qui tournerait lui aussi
-# sans dormir.
+# ── CE QUI RÉVEILLE BIA MAINTENANT ───────────────────────────────────────────
 #
-# ── ET SI ÇA S'ARRÊTE UN JOUR ────────────────────────────────────────────────
+# Un service de ping extérieur, ponctuel et gratuit — cron-job.org — qui
+# demande https://app.khalam.app/api/etat toutes les cinq minutes. C'est leur
+# métier, ils sont à l'heure, et ça ne touche ni le modèle, ni la voix, ni la
+# transcription : aucun crédit Anthropic, aucun crédit Soynade.
 #
-# GitHub désactive les tâches programmées d'un dépôt où personne ne pousse
-# rien pendant soixante jours. Il enverra un courriel avant. Si BIA redevient
-# lente après des semaines sans commit, c'est la première chose à regarder :
-# Actions → « Réveiller BIA » → le bouton qui la réactive.
+# ── CE QUI RESTE DANS CE FICHIER ─────────────────────────────────────────────
+#
+# Le bouton, et rien d'autre. Actions → « Réveiller BIA » → « Run workflow »
+# la réveille à la main avant une démonstration. Une exécution manuelle de
+# temps en temps ne pèse rien sur le quota.
 
 name: Réveiller BIA
 
 on:
-  schedule:
-    # Toutes les dix minutes. Render éteint après quinze : on garde une marge,
-    # parce que GitHub ne promet pas la ponctualité et retarde souvent de
-    # quelques minutes quand ses machines sont chargées.
-    - cron: "*/10 * * * *"
-  # Et un bouton, pour la réveiller à la main avant une démonstration.
+  # PAS de « schedule » ici, et c'est volontaire — voir l'explication en tête
+  # de fichier. Si un jour bia-render devient public, ou si le compte passe à
+  # un forfait payant, on pourra remettre :
+  #   schedule:
+  #     - cron: "*/10 * * * *"
+  # Avant de le faire, vérifier les deux choses : que le dépôt est bien
+  # public, et que la tâche part vraiment (Actions → l'historique).
   workflow_dispatch:
 
-# Deux réveils qui se chevauchent ne servent à rien : si l'un traîne parce que
-# le serveur se rallume, le suivant attend son tour au lieu de s'empiler.
 concurrency:
   group: reveil-bia
   cancel-in-progress: false
@@ -55,9 +59,6 @@ concurrency:
 jobs:
   reveiller:
     runs-on: ubuntu-latest
-    # Un réveil froid prend une cinquantaine de secondes. Trois minutes de
-    # plafond laissent la place à ça et à un réessai, sans jamais rester
-    # accroché si Render ne répond pas du tout.
     timeout-minutes: 3
     steps:
       - name: Demander une page à BIA
@@ -67,19 +68,12 @@ jobs:
           #   s'éteindre pour de bon.
           # --retry 2 : Render répond parfois 502 pendant qu'il se relève ;
           #   ce n'est pas un échec, c'est le réveil en cours.
-          # On demande /api/etat : c'est la page la moins chère du serveur,
-          #   elle ne touche ni le modèle, ni la voix, ni la transcription.
           code=$(curl --silent --show-error --location \
                       --max-time 120 --retry 2 --retry-delay 15 --retry-all-errors \
                       --output /dev/null --write-out '%{http_code}' \
                       --user-agent 'reveil-bia (GitHub Actions)' \
                       https://app.khalam.app/api/etat) || code="000"
           echo "BIA a répondu : $code"
-          # On ne fait PAS échouer la tâche sur un mauvais code. Une alerte
-          # rouge toutes les dix minutes parce que Render a hoqueté une fois
-          # finirait par être ignorée — et le jour où ce serait grave,
-          # personne ne regarderait. Le journal dit ce qui s'est passé ;
-          # c'est /etat, dans l'application, qui sert à diagnostiquer.
           if [ "$code" = "200" ]; then
             echo "✓ le serveur est debout"
           else
