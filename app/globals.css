@@ -1917,6 +1917,9 @@ button { font: inherit; touch-action: manipulation; }
 }
 .carte-sans p { margin: 0 0 8px; }
 .carte-sans p:last-child { margin: 0; opacity: 0.8; font-size: 14px; }
+/* Le motif de la panne, en petit et en gris : il sert à celui qui répare, pas
+   à celui qui roule. */
+.carte-sans-motif { font-size: 12px; opacity: 0.55; font-style: italic; }
 
 /* Le crédit d'OpenStreetMap doit rester visible : c'est la condition d'usage
    de la donnée, et sans ses contributeurs il n'y aurait aucune route de Dakar

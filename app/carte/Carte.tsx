@@ -60,6 +60,40 @@ export type Lieu = {
 
 const FOND = process.env.NEXT_PUBLIC_CARTE_FOND || "https://tiles.openfreemap.org/styles/liberty";
 
+/* ── UN SECOND FOND, QUAND LE PREMIER NE VIENT PAS ──────────────────────────
+
+   Lamine, le 14 septembre 2026, à quatre heures d'une démonstration : « quand
+   je lui demande de m'amener à Sandaga, elle dit d'accord, mais il me montre
+   une carte noire. »
+
+   Le fond habituel est une carte VECTORIELLE : le téléphone télécharge un
+   fichier de style, puis des données de formes qu'il dessine lui-même. C'est
+   beau et léger, mais ça tient à un seul serveur — et si ce serveur est
+   injoignable depuis le réseau où l'on se trouve, il ne reste rien à
+   regarder. Un écran noir.
+
+   Le secours ci-dessous est une carte D'IMAGES : de simples tuiles PNG, le
+   plus vieux et le plus robuste des formats de carte. Aucun fichier de style
+   à aller chercher, aucun dessin à faire — si une seule image arrive, on voit
+   quelque chose.
+
+   CE N'EST PAS UNE SOLUTION DÉFINITIVE, et il faut l'écrire : ces tuiles sont
+   servies par la fondation OpenStreetMap, qui demande qu'on n'en abuse pas.
+   Pour un produit qui grandit, il faudra un fournisseur à nous. Pour ce soir,
+   mieux vaut une carte servie par des bénévoles qu'un rectangle noir. */
+const FOND_DE_SECOURS = {
+  version: 8 as const,
+  sources: {
+    osm: {
+      type: "raster" as const,
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      attribution: "© OpenStreetMap",
+    },
+  },
+  layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
+};
+
 /* Ce qu'on lit en bas quand on peut regarder. Jamais dit à voix haute : le
    texte affiché et le son enregistré sont deux choses séparées. */
 const EN_FRANCAIS: Record<string, string> = {
@@ -118,6 +152,10 @@ export default function Carte({
   const [etat, setEtat] = useState("Maa ngi seet yoon wi…");
   const [prochaine, setProchaine] = useState<{ cle: string; metres: number; rue: string } | null>(null);
   const [sansCarte, setSansCarte] = useState(false);
+  /* Vrai dès qu'on est passé au fond de secours : on ne bascule qu'une fois. */
+  const secours = useRef(false);
+  /* Ce qui a manqué, dit en clair sous la carte au lieu d'un noir muet. */
+  const [motifCarte, setMotifCarte] = useState("");
   const [provisoire, setProvisoire] = useState(false);
   const [ditQuelqueChose, setDitQuelqueChose] = useState(false);
 
@@ -238,10 +276,28 @@ export default function Carte({
         });
         carte.current = m as unknown as Record<string, unknown>;
         m.addControl(new maplibre.NavigationControl({ showCompass: false }), "top-left");
+        /* Une erreur ne condamne plus la carte : on essaie l'autre fond. */
+        const basculer = (pourquoi: string) => {
+          if (secours.current || !vivant) return;
+          secours.current = true;
+          setMotifCarte(pourquoi.slice(0, 80));
+          console.error("BIA — fond de carte injoignable, on passe aux images :", pourquoi);
+          try {
+            m.setStyle(FOND_DE_SECOURS as unknown as string);
+            /* Le second fond a droit à sa propre montre : s'il ne vient pas
+               non plus, alors seulement on avoue. */
+            if (montre.current) clearTimeout(montre.current);
+            montre.current = setTimeout(() => {
+              if (vivant && !charge.current) setSansCarte(true);
+            }, 6000);
+          } catch {
+            setSansCarte(true);
+          }
+        };
         m.on("error", (e) => {
-          const quoi = e?.error?.message || "";
-          console.error("BIA — la carte :", quoi || e);
-          setSansCarte(true);
+          const quoi = e?.error?.message || String(e || "");
+          console.error("BIA — la carte :", quoi);
+          basculer(quoi || "le fond n'a pas répondu");
         });
         m.on("load", () => {
           charge.current = true;
@@ -265,12 +321,14 @@ export default function Carte({
            rectangle noir sans savoir s'il faut attendre. Au bout de quinze
            secondes sans « load », on l'avoue et le guidage continue à la
            voix — c'est lui qui compte, la carte n'est que le décor. */
+        /* SIX SECONDES, PAS QUINZE. Quinze secondes de rectangle noir devant
+           quelqu'un à qui on montre l'application, c'est déjà perdu — il a eu
+           le temps de conclure que ça ne marche pas. À six secondes on tente
+           l'autre fond ; si lui non plus ne vient pas, on l'avoue et le
+           guidage continue à la voix, qui est ce qui compte vraiment. */
         montre.current = setTimeout(() => {
-          if (vivant && !charge.current) {
-            console.error("BIA — la carte n'a pas fini de se charger en 15 s.");
-            setSansCarte(true);
-          }
-        }, 15000);
+          if (vivant && !charge.current) basculer("rien n'est venu en six secondes");
+        }, 6000);
       } catch (err) {
         console.error("BIA — la carte n'a pas pu s'ouvrir :", err);
         setSansCarte(true);
@@ -427,6 +485,10 @@ export default function Carte({
         <div className="carte-sans">
           <p><b>La carte ne s&apos;affiche pas</b></p>
           <p>Le guidage continue : écoute-moi, je te dis où tourner.</p>
+          {/* Le motif, en petit. Un écran qui dit « ça ne marche pas » sans
+              dire pourquoi fait chercher pendant une heure du mauvais côté —
+              on a déjà perdu deux soirées comme ça cette semaine. */}
+          {motifCarte ? <p className="carte-sans-motif">({motifCarte})</p> : null}
         </div>
       ) : null}
 

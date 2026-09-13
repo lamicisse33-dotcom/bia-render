@@ -5452,7 +5452,24 @@ export default function Home() {
               <p className="carte-confirme-titre">Je t&apos;emmène où&nbsp;?</p>
               {aConfirmer.map((lieu) => (
                 <button key={`${lieu.lat},${lieu.lon}`} type="button" className="carte-choix"
-                  onClick={() => { setAConfirmer(null); void eclipser(() => setCarte(lieu)); }}>
+                  onClick={() => {
+                    setAConfirmer(null);
+                    /* ── DEUX VOIX EN MÊME TEMPS ──────────────────────────
+
+                       Lamine, le 14 septembre 2026 : « les deux voix se
+                       chevauchent quand la carte est affichée. »
+
+                       Ouvrir la carte ne coupait pas ce que BIA était en
+                       train de dire. Avant, ça ne s'entendait presque jamais :
+                       sa réponse était finie depuis longtemps quand on
+                       appuyait. Depuis qu'elle parle pendant que le modèle
+                       écrit, sa phrase peut encore courir — et le guidage
+                       commence par-dessus.
+
+                       Le guidage prime : il dit où tourner. On se tait. */
+                    taire();
+                    void eclipser(() => setCarte(lieu));
+                  }}>
                   {lieu.dit}
                   {lieu.sur === false ? <em> — je ne suis pas sûre de celui-là</em> : null}
                 </button>
