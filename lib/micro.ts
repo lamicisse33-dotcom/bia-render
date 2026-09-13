@@ -95,8 +95,37 @@
    qu'elle revient au repos, le micro se rouvre tout seul — donc le son
    suivant est entendu sans qu'on appuie. */
 
+/* ── ET LE 13 SEPTEMBRE, IL REDESCEND À UNE SECONDE ────────────────────────
+
+   « C'est vrai, pour les deux secondes, tu peux descendre sur une seconde. On
+   va tester voir, une seconde. »
+
+   C'est le troisième réglage de ce nombre en deux jours, et les trois étaient
+   fondés — ce n'est pas de l'indécision, c'est quelqu'un qui écoute son
+   application :
+
+     — le 12 au matin : 0,9 à 1,5 s selon la longueur, parce que « je lui ai
+       dit Salam, elle est restée presque quatre secondes avant de réagir » ;
+     — le 12 au soir : 2 s fixes, parce qu'une phrase wolof coupée en deux ne
+       se transcrit pas, elle se devine, et qu'une réponse rapide à une
+       question tronquée n'est pas une réponse rapide ;
+     — le 13 : une seconde, après avoir vu le décompte de ce qui le fait
+       attendre. Sur quatre secondes entre sa dernière syllabe et la voix de
+       Kha, ces deux-là étaient la moitié — et la seule moitié qu'il pouvait
+       décider lui-même.
+
+   CE QUE ÇA RISQUE, DIT FRANCHEMENT : une seconde de silence au milieu d'une
+   phrase — chercher un mot, reprendre son souffle — ferme le micro et envoie
+   une demi-phrase à la transcription. C'est exactement ce qui l'avait fait
+   remonter à deux secondes hier soir. S'il le réentend, on remonte ; et si
+   c'est seulement sur les longues phrases, l'échelle du matin est toujours
+   écrite plus bas, il suffit de la rebrancher.
+
+   Il le dit lui-même : « on va tester voir ». Ce nombre est fait pour bouger,
+   et il est seul ici pour que ça coûte une ligne. */
+
 /** Le silence qui ferme le micro. Un seul nombre, et c'est le sien. */
-export const SILENCE_QUI_FERME = 2000;
+export const SILENCE_QUI_FERME = 1000;
 
 /** Jamais moins, quoi qu'il arrive : en dessous, on coupe la parole. */
 export const SILENCE_LE_PLUS_COURT = SILENCE_QUI_FERME;
@@ -110,7 +139,7 @@ export const PAROLE_LONGUE = 4000;
 
 /**
  * Combien de silence il faut, après le dernier son, pour considérer que la
- * personne a fini. Deux secondes, quelle que soit la longueur de sa phrase.
+ * personne a fini. Une seconde, quelle que soit la longueur de sa phrase.
  *
  * @param dureeDeParole combien de temps elle vient de parler, en millisecondes
  */

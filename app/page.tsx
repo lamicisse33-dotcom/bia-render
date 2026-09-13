@@ -495,6 +495,10 @@ export default function Home() {
   /* De quoi débrancher l'analyseur du micro sans toucher au contexte de la
      page — qui porte toute sa voix et ne doit jamais être fermé ici. */
   const debrancherMicroRef = useRef<(() => void) | null>(null);
+  /* `adresseDuSon` est défini plus bas, avec les autres fonctions du son ; la
+     salutation d'ouverture, elle, est posée bien avant. Un ref, comme pour
+     `taire` et les veilles. */
+  const adresseDuSonRef = useRef<((cle: string, langue: "wo" | "fr") => string) | null>(null);
 
   /* ── LE MICRO RESTE OUVERT ENTRE DEUX TOURS ────────────────────────────
 
@@ -2317,13 +2321,12 @@ export default function Home() {
       if (mode !== "ready") return;
       const h = new Date().getHours();
       const cle = h >= 5 && h < 17 ? "salut" : "bonsoir";
-      const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
-        ?.repertoire?.base_sons?.wo || "";
-      if (!base) return;
       /* .mp3, et octetsDuRepertoire retombe seul sur le .wav. Si rien ne
          vient, on ne dit rien et on ne se plaint pas : un accueil raté ne
          doit pas être la première chose qu'on voit de BIA. */
-      void direSonTeutFait(`${base}${cle}.mp3`).catch(() => { });
+      const ou = adresseDuSonRef.current?.(cle, "wo") || "";
+      if (!ou) return;
+      void direSonTeutFait(ou).catch(() => { });
     };
     window.addEventListener("pointerdown", reveiller);
     window.addEventListener("touchstart", reveiller, { passive: true });
@@ -2430,6 +2433,36 @@ export default function Home() {
     }, 5600);
     return () => { clearInterval(timer); minuteries.forEach(clearTimeout); };
   }, [mode]);
+
+
+  /* ── L'ADRESSE D'UN SON ENREGISTRÉ, AVEC SON EMPREINTE ──────────────────────
+
+     Lamine, le 13 septembre 2026 : « tout doit provenir des messages déjà
+     enregistrés, parce qu'on a déjà payé pour ça. »
+
+     Quatre endroits de cette page bâtissaient cette adresse À LA MAIN — la
+     salutation d'ouverture, « d'accord je vois ça », « je n'ai pas compris »,
+     et le guidage sur la carte. Aucun ne passait par sonDe(), donc aucun ne
+     portait l'empreinte du texte.
+
+     Or les sons sont rangés dans le cache du téléphone sous une adresse
+     déclarée IMMUABLE. Ses onze corrections d'hier soir touchent « salut » et
+     « bonsoir » — précisément la salutation d'ouverture. Sans empreinte, il
+     aurait repayé l'enregistrement et entendu l'ancienne version pour
+     toujours, sans que rien ne le signale.
+
+     Un seul endroit, maintenant. Et si le serveur n'a pas envoyé la table,
+     on rend l'adresse nue : on ne se tait jamais faute d'empreinte. */
+  const adresseDuSon = useCallback((cle: string, langue: "wo" | "fr") => {
+    const rep = (moteursRef.current as {
+      repertoire?: { base_sons?: Record<string, string>; empreintes?: Record<string, string> };
+    } | null)?.repertoire;
+    const base = rep?.base_sons?.[langue] || "";
+    if (!base) return "";
+    const v = rep?.empreintes?.[`${langue}/${cle}`];
+    return `${base}${cle}.mp3${v ? `?v=${v}` : ""}`;
+  }, []);
+  adresseDuSonRef.current = adresseDuSon;
 
   const arreterEnregistrement = useCallback(() => {
     const e = enregistreurRef.current;
@@ -2922,10 +2955,9 @@ export default function Home() {
                  téléphone, elle rendrait une adresse vide. La page a déjà le
                  dossier des sons — /api/etat le lui donne au chargement — et
                  c'est ce même chemin qui sert pour la salutation d'accueil. */
-              const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
-                ?.repertoire?.base_sons?.[langueDuFil.current] || "";
-              if (!base) throw new Error("dossier des sons inconnu");
-              const octets = await octetsDuRepertoire(`${base}${accuseSuite.cle}.mp3`);
+              const ou = adresseDuSon(accuseSuite.cle, langueDuFil.current as "wo" | "fr");
+              if (!ou) throw new Error("dossier des sons inconnu");
+              const octets = await octetsDuRepertoire(ou);
               if (estLeTour(monTour) && attenteRef.current === jeton) await jouerEtAnimer(octets);
             } catch { /* pas de son déposé : on enchaîne sur l'attente */ }
             if (estLeTour(monTour) && attenteRef.current === jeton) {
@@ -3039,12 +3071,11 @@ export default function Home() {
                  le réécrit que si ce tour est encore le tour en cours. */
               if (estLeTour(monTour)) setFace("concernee");
             } else {
-              const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
-                ?.repertoire?.base_sons?.[langueRef.current] || "";
+              const base = adresseDuSon("audio-utilisateur-incompris", langueRef.current as "wo" | "fr");
               if (base) {
                 /* .mp3 : octetsDuRepertoire retombe seul sur le .wav si la
                    conversion n'est pas encore passée par cette phrase-là. */
-                try { await direSonTeutFait(`${base}audio-utilisateur-incompris.mp3`, "concernee"); }
+                try { await direSonTeutFait(base, "concernee"); }
                 catch { if (estLeTour(monTour)) { setMode("ready"); setFace("yeux_ouverts"); } }
               } else if (estLeTour(monTour)) {
                 setMode("ready"); setFace("yeux_ouverts");

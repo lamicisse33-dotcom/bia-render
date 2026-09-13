@@ -4,6 +4,7 @@ import { pourLaVoix } from "./nombres";
 import { REPERTOIRE, RELU } from "./repertoire-textes";
 import type { Entree } from "./repertoire-textes";
 import { NOUVELLES, RELU_BASE } from "./base-textes";
+import { SERVICES } from "./services-textes";
 import { FORMES_NEUVES } from "./formes-neuves";
 
 /* ── CE QU'ELLE DIT SOUVENT, PAYÉ UNE SEULE FOIS ────────────────────────────
@@ -1055,6 +1056,33 @@ export function baseDesSons(langue: "wo" | "fr"): string {
   return `${lexiqueConfig.url}/storage/v1/object/public/${SEAU}/${langue}/`;
 }
 
+/**
+ * L'empreinte du texte de chaque son, par « langue/clé ».
+ *
+ * Le téléphone s'en sert pour bâtir une adresse qui CHANGE quand le texte
+ * change — sans ça, il rejouerait éternellement la copie qu'il a en cache,
+ * même après un ré-enregistrement payé. Voir sonDe(), qui fait la même chose
+ * du côté du serveur.
+ */
+export function empreintesDesSons(): Record<string, string> {
+  const table: Record<string, string> = {};
+  /* TOUT ne contient que les réponses FIXE. Le seau, lui, porte aussi les
+     soixante-neuf nouvelles au complet et les phrases de service : elles se
+     jouent par les mêmes chemins et méritent la même protection de cache. On
+     prend donc le superset de ce qui est enregistré, pas le sous-ensemble de
+     ce qui est reconnu. */
+  const enregistrees: Array<{ cle: string; wolof: string; francais: string }> = [
+    ...TOUT, ...NOUVELLES,
+    ...SERVICES.map((x) => ({ cle: x.cle, wolof: x.wolof, francais: x.francais })),
+  ];
+  for (const e of enregistrees) {
+    for (const [langue, texte] of [["wo", e.wolof], ["fr", e.francais]] as const) {
+      if (texte?.trim()) table[`${langue}/${e.cle}`] = empreinteDe(pourLaVoix(texte, langue));
+    }
+  }
+  return table;
+}
+
 export const repertoireActif = () => Boolean(lexiqueConfig.url && lexiqueConfig.cle);
 
 /** Ce que /api/etat montre : combien d'entrées, et si les textes sont relus.
@@ -1077,6 +1105,25 @@ export function etatRepertoire() {
        chargent sans aucune clé, vérifié le 11 septembre), donc la donner
        n'ouvre rien. */
     base_sons: { wo: baseDesSons("wo"), fr: baseDesSons("fr") },
+    /* ── ET L'EMPREINTE DE CHAQUE SON, POUR QUE LE TÉLÉPHONE SUIVE ────────
+
+       Lamine, le 13 septembre 2026 : « tout doit provenir des messages déjà
+       enregistrés, parce qu'on a déjà payé pour ça ».
+
+       Quatre endroits de la page construisent l'adresse d'un son À LA MAIN à
+       partir de `base_sons` : la salutation d'ouverture, « d'accord je vois
+       ça », « je n'ai pas compris », et le guidage sur la carte. Aucun ne
+       passe par sonDe(), donc aucun ne portait l'empreinte du texte.
+
+       Or les sons vivent dans le cache du téléphone sous une adresse déclarée
+       IMMUABLE. Ses onze corrections d'hier soir touchent « salut » et
+       « bonsoir » — exactement la salutation d'ouverture. Sans ces empreintes,
+       il aurait repayé l'enregistrement et entendu l'ancienne pour toujours,
+       sans que rien ne le signale.
+
+       Cinq kilo-octets envoyés une fois au démarrage, et tous les chemins
+       deviennent justes d'un coup, y compris ceux qu'on écrira demain. */
+    empreintes: empreintesDesSons(),
     /* Les questions réclamées par deux réponses et que personne n'a
        tranchées. Elles ne déclenchent rien — c'est la liste à me montrer. */
     formulations_a_trancher: A_TRANCHER,
