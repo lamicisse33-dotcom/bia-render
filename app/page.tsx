@@ -5467,6 +5467,22 @@ type EtatRepertoire = {
   attendus?: number;
   en_place?: number;
   manquants?: number;
+  /* ── LES SONS QUI EXISTENT MAIS NE DISENT PLUS LE BON TEXTE ────────────
+
+     Lamine, le 13 septembre 2026 : « j'ai appuyé sur le bouton, mais il me
+     dit rien ne manque. »
+
+     LE SERVEUR LES COMPTAIT, L'ÉCRAN NE LES REGARDAIT PAS. J'ai ajouté
+     `a_refaire` à la réponse hier soir — les onze phrases qu'il a corrigées
+     et les quatorze qui citent le site — et j'ai oublié de l'ajouter ICI.
+     Le panneau ne lisait que `manquants` ; il n'en manquait aucun, donc il
+     annonçait « rien ne manque » sur vingt-cinq sons périmés.
+
+     C'est la même faute que trois fois cette nuit : brancher le serveur et
+     laisser l'écran derrière. Un chiffre que personne n'affiche n'existe
+     pas. */
+  a_refaire?: number;
+  detail_a_refaire?: Array<{ cle: string; langue: string; signes: number }>;
   incertains?: number;
   signes?: number;
   cout_dollars?: number;
@@ -5497,11 +5513,22 @@ function PapierRepertoire({ code }: { code: string | null }) {
       const d = await r.json() as EtatRepertoire;
       if (d.erreur) { setBilan(d.erreur); setRegarde(null); return; }
       setRegarde(d);
+      /* ── DEUX CHIFFRES, ET ILS NE VEULENT PAS DIRE LA MÊME CHOSE ──────
+         Un MANQUANT comble un silence : la phrase n'existe pas du tout.
+         Un À REFAIRE corrige une phrase qui se dit encore avec les anciens
+         mots. Les confondre, c'est afficher « rien ne manque » sur
+         vingt-cinq sons périmés — ce qu'il a vu. */
+      const aRefaire = d.a_refaire || 0;
+      const aPayer = (d.manquants || 0) + aRefaire;
       setBilan(
-        (d.manquants === 0
+        (aPayer === 0
           ? `Rien ne manque : les ${d.en_place} sons sont en place, et ils ne se paieront plus jamais.`
-          : `Il manque ${d.manquants} son(s) sur ${d.attendus} — ${d.signes} signes, ${d.cout_dollars} $.`
-            + ` ${d.en_place} sont déjà là et ne seront pas repayés.`)
+          : [
+            d.manquants ? `Il manque ${d.manquants} son(s)` : "",
+            aRefaire ? `${d.manquants ? " et " : "Il y a "}${aRefaire} à REFAIRE — leur texte a changé depuis l'enregistrement` : "",
+            ` — ${d.signes} signes, ${d.cout_dollars} $.`,
+            ` ${d.en_place} sont déjà justes et ne seront pas repayés.`,
+          ].join(""))
         + direIncertains(d.incertains)
         /* ── ET CE QUI RESTE LOURD ────────────────────────────────────────
            On le dit à part, et on dit tout de suite que c'est gratuit : sans
@@ -5588,14 +5615,23 @@ function PapierRepertoire({ code }: { code: string | null }) {
      n'était plus atteignable. J'avais écrit une réparation que personne ne
      pouvait déclencher.
 
-     On regarde donc les deux : ce qui manque, ET ce qui est encore lourd. */
+     On regarde donc les deux : ce qui manque, ET ce qui est encore lourd.
+
+     ── ET DEPUIS LE 13 SEPTEMBRE, UN TROISIÈME CAS ────────────────────────
+
+     Les sons À REFAIRE. Même piège, exactement : ils existent tous, donc
+     « manquants » vaut zéro, donc le bouton ne paraissait pas — et ses vingt-
+     cinq corrections seraient restées inaudibles derrière un écran qui dit
+     que tout va bien. Deuxième fois que ce bouton se cache tout seul. */
   const resteAFaire = regarde !== null
-    && ((regarde.manquants || 0) > 0 || (regarde.a_alleger || 0) > 0);
+    && ((regarde.manquants || 0) > 0 || (regarde.a_refaire || 0) > 0
+      || (regarde.a_alleger || 0) > 0);
 
   /* Et le bouton doit dire la vérité sur le prix. Alléger ne coûte rien :
      annoncer « 0 $ » ferait douter, alors on l'écrit en mots. */
   const seulementAlleger = regarde !== null
-    && (regarde.manquants || 0) === 0 && (regarde.a_alleger || 0) > 0;
+    && (regarde.manquants || 0) === 0 && (regarde.a_refaire || 0) === 0
+    && (regarde.a_alleger || 0) > 0;
 
   return (
     <p className="papier-note" style={{ marginTop: 14 }}>
