@@ -365,6 +365,20 @@ export default function Carte({
         /* Une erreur ne condamne plus la carte : on essaie l'autre fond. */
         const basculer = (pourquoi: string) => {
           if (secours.current || !vivant) return;
+          /* ── UNE TUILE MANQUANTE N'EST PAS UNE CARTE MORTE ─────────────
+
+             Défaut introduit par moi ce matin, et trouvé le soir même : le
+             fond d'images signale chaque tuile qui manque — un carré de mer
+             absent, un niveau de zoom pas encore rendu — et j'écoutais ces
+             signaux comme s'ils disaient que le fond entier avait échoué. Au
+             PREMIER carré manquant, on basculait donc sur le fond vectoriel,
+             celui qui justement n'arrive pas à Dakar. La carte s'affichait
+             une demi-seconde, puis redevenait noire.
+
+             La règle est simple : une fois que la carte a chargé, elle est
+             vivante. Les erreurs qui suivent ne concernent que des morceaux,
+             et on ne rebâtit pas la maison parce qu'une tuile est tombée. */
+          if (charge.current) return;
           secours.current = true;
           setMotifCarte(pourquoi.slice(0, 80));
           console.error("BIA — fond de carte injoignable, on passe aux images :", pourquoi);
