@@ -346,6 +346,23 @@ export default function Home() {
      posée PAR-DESSUS. Le micro, l'historique, sa voix, tout continue de
      tourner dessous. C'est ce qui fait qu'on peut lui parler sans la voir. */
   const [carte, setCarte] = useState<Lieu | null>(null);
+  /* ── CARTE OUVERTE : BIA SE TAIT ─────────────────────────────────────────
+
+     Règle donnée par Lamine le 14 septembre 2026 : « dès que BIA dit ok je
+     t'y amène et que la carte s'ouvre, elle doit se taire, pour faire simple.
+     On laisse les guidages continuer. À moins que tu veuilles lui poser une
+     autre question : tu appuies sur Ramène-moi pour lui parler à nouveau. »
+
+     C'est plus simple ET c'est plus sûr. En conduisant, une seule voix doit
+     exister : celle qui dit où tourner. Tout le reste — la fin d'une réponse,
+     une phrase d'attente, un accusé de réception — peut attendre qu'on soit
+     arrivé, ou que la personne referme la carte elle-même.
+
+     Un `ref` et pas seulement l'état : speak() est appelé depuis des
+     fonctions parties AVANT l'ouverture de la carte, et elles liraient une
+     valeur périmée. */
+  const carteOuverteRef = useRef(false);
+  useEffect(() => { carteOuverteRef.current = carte !== null; }, [carte]);
   const [aConfirmer, setAConfirmer] = useState<Lieu[] | null>(null);
   /* Vrai quand la RECHERCHE a échoué, pas quand l'endroit est inconnu. */
   const [lieuEnPanne, setLieuEnPanne] = useState(false);
@@ -1571,6 +1588,10 @@ export default function Home() {
   }, [finirAttente, couperSon, jouerSouffle, jouerEtAnimer, octetsDuRepertoire]);
 
   const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse", suite = false) => {
+    /* La carte est ouverte : seul le guidage a le droit de parler. Voir la
+       règle écrite près de `carteOuverteRef`. Ce qui arrive ici en retard —
+       la fin d'une réponse, une phrase d'attente — meurt sans bruit. */
+    if (carteOuverteRef.current && ou !== "guidage") return;
     /* PRENDRE LA PAROLE N'EST PAS COUPER LA PAROLE.
 
        Ce bloc était en tête de la fonction : le son mourait à l'instant où le
