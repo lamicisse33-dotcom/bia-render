@@ -43,7 +43,7 @@ import { fichierDe, souffleDe } from "@/lib/sons";
 import { lireLeRire } from "@/lib/rires";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
 import {
-  INTERVENTION_MAXIMALE, MICRO_LACHE_ENTRE_LES_TOURS, REGLAGES_DU_MICRO,
+  INTERVENTION_MAXIMALE, MICRO_LACHE_ENTRE_LES_TOURS, MICRO_SUR_SON_PROPRE_CONTEXTE, REGLAGES_DU_MICRO,
   SILENCE_QUI_CLÔT_LA_CONVERSATION, TENIR_POUR_COUPER, TOUR_DE_VEILLE,
   TOURS_MUETS_AVANT_DE_DOUTER, couvreSaVoix, partVocale, silenceQuiSuffit, suivreLeBruit,
   vautLaPeine, vraimentUneVoix,
@@ -514,6 +514,9 @@ export default function Home() {
   /* De quoi débrancher l'analyseur du micro sans toucher au contexte de la
      page — qui porte toute sa voix et ne doit jamais être fermé ici. */
   const debrancherMicroRef = useRef<(() => void) | null>(null);
+  /* Le contexte audio de l'ANALYSEUR seul — fermé avec le micro. Voir la
+     section 6 de lib/micro.ts : c'est lui, la pastille orange. */
+  const ctxMicroRef = useRef<AudioContext | null>(null);
   /* `adresseDuSon` est défini plus bas, avec les autres fonctions du son ; la
      salutation d'ouverture, elle, est posée bien avant. Un ref, comme pour
      `taire` et les veilles. */
@@ -2597,7 +2600,23 @@ export default function Home() {
      Et c'est ce qui rend possible de lui couper la parole : pour l'entendre
      pendant qu'elle parle, il faut que le micro soit ouvert à ce moment-là. */
   const micro = useCallback(async () => {
-    const ctxMicro = contexte();
+    /* La parole de BIA vit sur le contexte partagé ; on le réveille au
+       passage, parce qu'on est ici dans un geste de la personne — c'est le
+       seul moment où un téléphone accepte de débloquer le son. */
+    const ctxParole = contexte();
+    if (ctxParole.state === "suspended") { try { await ctxParole.resume(); } catch { } }
+
+    /* ── L'ANALYSEUR A SON PROPRE CONTEXTE, POUR LA PASTILLE ORANGE ──────
+       Le pourquoi est écrit en tête de lib/micro.ts, section 6. En deux
+       mots : un contexte qui a reçu une source micro garde la pastille
+       allumée sur iPhone tant qu'il n'est pas fermé, et celui de la parole
+       ne se ferme jamais. */
+    const ctxMicro = MICRO_SUR_SON_PROPRE_CONTEXTE
+      ? (ctxMicroRef.current && ctxMicroRef.current.state !== "closed"
+        ? ctxMicroRef.current
+        : (ctxMicroRef.current = new (window.AudioContext
+          || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()))
+      : ctxParole;
     if (ctxMicro.state === "suspended") { try { await ctxMicro.resume(); } catch { } }
 
     if (fluxRef.current?.active && analyseRef.current) {
@@ -2625,6 +2644,13 @@ export default function Home() {
       flux.getTracks().forEach((t) => t.stop());
       fluxRef.current = null;
       analyseRef.current = null;
+      /* Et on ferme le contexte de l'analyseur : c'est lui qui tenait la
+         pastille orange allumée après l'arrêt du flux. */
+      if (MICRO_SUR_SON_PROPRE_CONTEXTE) {
+        const c = ctxMicroRef.current;
+        ctxMicroRef.current = null;
+        if (c && c.state !== "closed") { try { void c.close(); } catch { } }
+      }
     };
     return { flux, analyse, ctxMicro };
   }, [contexte]);

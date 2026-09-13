@@ -574,6 +574,30 @@ export const PART_VOCALE_MINIMALE = 0.3;
 
 /** Écarter les bruits sans les transcrire. Si BIA devient sourde, c'est ça :
     `false` rend l'oreille d'avant le 13 septembre, à la ligne près. */
+/* ── 6. LA PASTILLE ORANGE QUI NE S'ÉTEINT PAS ──────────────────────────────
+
+   Lamine, le 14 septembre 2026 : « même si tu coupes le micro, le bouton
+   jaune à l'angle continue à s'allumer. » C'est l'indicateur d'iOS : il dit
+   qu'une application écoute. Le voir rester allumé alors qu'on vient de
+   couper, c'est ce qui fait fuir les gens — et il avait raison de le dire
+   dès le premier jour.
+
+   ON ARRÊTE POURTANT BIEN LE FLUX. `track.stop()` est appelé, et c'est
+   normalement tout ce qu'il faut. Mais l'analyseur qui écoute le niveau de
+   voix vivait sur le MÊME contexte audio que la parole de BIA — un contexte
+   qu'on ne ferme jamais, puisqu'il sert à la faire parler. Sur iPhone, un
+   contexte qui a reçu une source micro reste marqué comme tel tant qu'il
+   n'est pas fermé, et la pastille avec.
+
+   L'analyseur a donc maintenant SON PROPRE contexte, qu'on ferme en même
+   temps qu'on coupe le micro. Rien d'autre ne s'en sert : il ne fait
+   qu'écouter le niveau, la parole vit ailleurs.
+
+   Je n'ai pas d'iPhone pour le vérifier — c'est une réparation raisonnée, pas
+   mesurée, et Lamine le saura en regardant son coin d'écran. Si ça ne suffit
+   pas, mettre cette ligne à false rend le comportement d'avant à l'identique. */
+export const MICRO_SUR_SON_PROPRE_CONTEXTE = true;
+
 export const ECARTER_LES_BRUITS = true;
 
 /**
