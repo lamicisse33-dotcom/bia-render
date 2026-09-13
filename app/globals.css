@@ -1951,6 +1951,55 @@ button { font: inherit; touch-action: manipulation; }
 /* Le motif de la panne, en petit et en gris : il sert à celui qui répare, pas
    à celui qui roule. */
 .carte-sans-motif { font-size: 12px; opacity: 0.55; font-style: italic; }
+
+/* ── LES DEUX POINTS DE LA CARTE ────────────────────────────────────────────
+   L'arrivee bat, pour que l'oeil la trouve au milieu des rues ; la position
+   bat plus doucement, parce qu'elle n'est pas ce qu'on cherche — elle est ce
+   qu'on verifie. Deux couleurs franchement differentes : l'or de KHALAM pour
+   la destination, un bleu vif pour soi, comme partout ailleurs. */
+.pin-arrivee, .pin-moi {
+  position: relative;
+  width: 22px; height: 22px;
+  display: block;
+  pointer-events: none;
+}
+.pin-arrivee .pin-coeur, .pin-moi .pin-coeur {
+  position: absolute; inset: 5px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .92);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, .55);
+}
+.pin-arrivee .pin-coeur { background: #e2b04a; }
+.pin-moi .pin-coeur { background: #3b82f6; }
+
+.pin-arrivee .pin-halo, .pin-moi .pin-halo {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  transform-origin: center;
+}
+.pin-arrivee .pin-halo {
+  background: rgba(226, 176, 74, .45);
+  animation: bat-arrivee 1.5s ease-out infinite;
+}
+.pin-moi .pin-halo {
+  background: rgba(59, 130, 246, .40);
+  animation: bat-moi 2.4s ease-out infinite;
+}
+@keyframes bat-arrivee {
+  0%   { transform: scale(.6); opacity: .9; }
+  70%  { transform: scale(2.3); opacity: 0; }
+  100% { transform: scale(2.3); opacity: 0; }
+}
+@keyframes bat-moi {
+  0%   { transform: scale(.7); opacity: .7; }
+  70%  { transform: scale(1.9); opacity: 0; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+/* Un telephone regle sur « moins d'animations » ne doit pas clignoter : le
+   point reste, le halo cesse de battre. */
+@media (prefers-reduced-motion: reduce) {
+  .pin-arrivee .pin-halo, .pin-moi .pin-halo { animation: none; opacity: .35; }
+}
 /* Posé au-dessus du nom de la destination, discret mais lisible : il sert à
    comprendre un écran noir depuis un téléphone, là où il n'y a pas de console
    à ouvrir. */

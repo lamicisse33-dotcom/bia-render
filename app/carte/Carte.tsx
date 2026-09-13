@@ -174,6 +174,26 @@ export default function Carte({
   const charge = useRef(false);
   const montre = useRef<ReturnType<typeof setTimeout> | null>(null);
   const regard = useRef<ResizeObserver | null>(null);
+  /* ── DEUX POINTS SUR LA CARTE, ET UN SEUL CADRAGE ────────────────────────
+
+     Lamine, le 14 septembre 2026 : « le lieu demande doit etre marque sur la
+     carte et se mettre a clignoter. La carte doit se pointer directement sur
+     le lieu que tu as demande, et elle doit etre capable en meme temps de te
+     montrer ou tu es toi. »
+
+     Trois choses, et elles vont ensemble. Quelqu'un qui regarde une carte de
+     guidage cherche toujours les memes reperes : ou je vais, ou je suis, et
+     comment l'un mene a l'autre. L'itineraire etait trace, mais ses deux
+     bouts n'etaient pas marques — on voyait un trait dore sans savoir lequel
+     de ses bouts on etait.
+
+     LE CADRAGE NE SE FAIT QU'UNE FOIS. Ensuite c'est la position qui commande
+     la vue, parce qu'en roulant on veut voir devant soi, pas la carte
+     entiere. */
+  const marqueurArrivee = useRef<{ remove: () => void } | null>(null);
+  const marqueurMoi = useRef<{ setLngLat: (p: [number, number]) => unknown; remove: () => void } | null>(null);
+  const cadre = useRef(false);
+  const maplibreRef = useRef<typeof import("maplibre-gl") | null>(null);
 
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [chemin, setChemin] = useState<Chemin | null>(null);
@@ -320,6 +340,47 @@ export default function Carte({
     return () => { try { navigator.geolocation.clearWatch(suivi); } catch { } };
   }, [dire]);
 
+  /* ── OU JE SUIS, ET LE PREMIER CADRAGE ───────────────────────────────────
+
+     Le point bleu suit la position a chaque mesure. Et la premiere fois qu'on
+     connait les deux bouts, on cadre pour qu'ils tiennent tous les deux a
+     l'ecran : c'est la seule vue qui repond d'un coup aux deux questions
+     qu'on se pose en ouvrant une carte. Ensuite, la position reprend la main. */
+  useEffect(() => {
+    const m = carte.current as unknown as {
+      fitBounds?: (b: [[number, number], [number, number]], o?: unknown) => void;
+    } | null;
+    const maplibre = maplibreRef.current;
+    if (!m || !maplibre || !position) return;
+
+    if (!marqueurMoi.current) {
+      const moi = document.createElement("div");
+      moi.className = "pin-moi";
+      moi.setAttribute("aria-label", "Ou tu es");
+      moi.innerHTML = '<span class="pin-halo"></span><span class="pin-coeur"></span>';
+      marqueurMoi.current = new maplibre.Marker({ element: moi, anchor: "center" })
+        .setLngLat(position).addTo(m as never) as never;
+    } else {
+      marqueurMoi.current.setLngLat(position);
+    }
+
+    if (!cadre.current && m.fitBounds) {
+      cadre.current = true;
+      const ouest = Math.min(position[0], destination.lon);
+      const est = Math.max(position[0], destination.lon);
+      const sud = Math.min(position[1], destination.lat);
+      const nord = Math.max(position[1], destination.lat);
+      try {
+        m.fitBounds([[ouest, sud], [est, nord]], {
+          /* De la place en haut pour le panneau de manoeuvre, en bas pour le
+             nom de la destination : sinon un des deux points se cache dessous. */
+          padding: { top: 120, bottom: 190, left: 60, right: 60 },
+          duration: 900, maxZoom: 16,
+        });
+      } catch { }
+    }
+  }, [position, destination.lat, destination.lon]);
+
   /* ── LE FOND DE CARTE ────────────────────────────────────────────────────
      Chargé seulement ici, et seulement quand on ouvre la carte : la
      bibliothèque pèse lourd, et personne ne doit la télécharger pour dire
@@ -416,9 +477,18 @@ export default function Carte({
           setMotifCarte((deja) => deja || quoi.slice(0, 90));
           basculer(quoi || "le fond n'a pas répondu");
         });
+        maplibreRef.current = maplibre;
         m.on("load", () => {
           charge.current = true;
-          new maplibre.Marker({ color: "#e2b04a" })
+          /* L'ARRIVEE, ET SON HALO QUI BAT. Un marqueur immobile se confond
+             avec les cent autres symboles d'une carte ; celui-ci respire,
+             donc l'oeil le trouve tout de suite. Le dessin est a nous : le
+             marqueur par defaut de la bibliotheque ne sait pas battre. */
+          const pastille = document.createElement("div");
+          pastille.className = "pin-arrivee";
+          pastille.setAttribute("aria-label", "La destination");
+          pastille.innerHTML = '<span class="pin-halo"></span><span class="pin-coeur"></span>';
+          marqueurArrivee.current = new maplibre.Marker({ element: pastille, anchor: "center" })
             .setLngLat([destination.lon, destination.lat]).addTo(m);
         });
 
@@ -456,6 +526,11 @@ export default function Carte({
       vivant = false;
       if (montre.current) { clearTimeout(montre.current); montre.current = null; }
       regard.current?.disconnect(); regard.current = null;
+      try { marqueurArrivee.current?.remove(); } catch { }
+      try { marqueurMoi.current?.remove(); } catch { }
+      marqueurArrivee.current = null; marqueurMoi.current = null;
+      maplibreRef.current = null;
+      cadre.current = false;
       charge.current = false;
       m?.remove?.(); carte.current = null;
     };
