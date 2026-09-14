@@ -1,3 +1,4 @@
+import { noterEtape } from "./etapes";
 /* Parole -> texte, repris de l'Interprète.
    ElevenLabs Scribe accepte directement le webm du navigateur : pas de
    conversion, donc pas de ffmpeg à installer sur Render. Soynade, lui,
@@ -146,6 +147,11 @@ async function unEssai(
      la facture : la voix coûte vingt fois plus. */
   if (mots && mots.length) { form.append("keyterms", JSON.stringify(mots)); compte.mots = mots.length; }
 
+  /* ── LES TROIS INSTANTS DE L'ÉCOUTE ─────────────────────────────────
+     Le troisième appel extérieur, et il manquait à la mesure d'hier soir.
+     1,9 seconde pour transcrire quelques mots, c'est le PLANCHER du tour :
+     même une réponse déjà enregistrée le paie. Voir lib/etapes.ts. */
+  const partiEcoute = Date.now();
   const reponse = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
     method: "POST",
     headers: { "xi-api-key": c.apiKey },
@@ -154,7 +160,9 @@ async function unEssai(
   if (!reponse.ok) {
     throw new Error(`ElevenLabs ${reponse.status} : ${(await reponse.text()).slice(0, 400)}`);
   }
+  const premierOctetEcoute = Date.now();
   const data = await reponse.json() as { text?: string; language_code?: string };
+  noterEtape("ecoute", partiEcoute, premierOctetEcoute, Date.now(), String(data.text || "").length);
   return {
     texte: (data.text || "").trim(),
     brute: String(data.language_code || "").toLowerCase(),

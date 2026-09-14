@@ -42,7 +42,7 @@
    fil de l'eau — se décidera sur les chiffres, pas avant.                  */
 
 export type Etape = {
-  /** « modele » ou « voix ». */
+  /** « ecoute », « modele » ou « voix ». */
   quoi: string;
   /** Départ → premier octet utile. C'est le chiffre qui décide. */
   premier_ms: number;
@@ -112,7 +112,7 @@ export function resumeEtapes() {
       derniers: l.slice(-5),
     };
   };
-  return { modele: par("modele"), voix: par("voix") };
+  return { ecoute: par("ecoute"), modele: par("modele"), voix: par("voix") };
 }
 
 export function oublierEtapes() { etapes = []; }
