@@ -45,6 +45,8 @@
 export type Tentative = {
   /** Ce qui a été entendu, tel quel — c'est souvent là qu'est la surprise. */
   dit: string;
+  /** Le code maître était-il reconnu ? Sans lui, AUCUN ordre n'est pris. */
+  maitre: boolean;
   /** L'ordre reconnu (« retiens », « apprendre »…), ou null si aucun. */
   ordre: string | null;
   /** La phrase que le téléphone avait encore en main, s'il en avait une. */
@@ -64,6 +66,7 @@ let tentatives: Tentative[] = [];
 export function noterTentative(t: Omit<Tentative, "quand">) {
   tentatives = [...tentatives, {
     dit: String(t.dit || "").slice(0, 160),
+    maitre: Boolean(t.maitre),
     ordre: t.ordre ? String(t.ordre).slice(0, 20) : null,
     en_main: Boolean(t.en_main),
     signes_en_main: Math.max(0, Math.round(t.signes_en_main) || 0),
@@ -93,14 +96,42 @@ export function parleDeMemoire(texte: string): boolean {
   return RACINES.some((r) => dit.includes(r));
 }
 
+/* ── LE COMPTE QUI MANQUAIT LE PLUS ─────────────────────────────────────────
+
+   Un registre vide avait deux lectures : « il n'a rien demandé » et « rien de
+   ce qu'il a demandé n'a même été examiné, faute de code maître ». Le soir du
+   14 septembre, c'est cette ambiguïté qui a coûté la vérification : dix tours,
+   zéro ordre, et aucun moyen de dire laquelle des deux.
+
+   Deux entiers la lèvent. Ils se comptent sur TOUS les tours, pas seulement
+   sur ceux qui parlent de mémoire. */
+let passages = { avec_code_maitre: 0, sans_code_maitre: 0 };
+export function noterPassage(maitre: boolean) {
+  if (maitre) passages.avec_code_maitre++; else passages.sans_code_maitre++;
+}
+export function comptesDesPassages() { return { ...passages }; }
+
 export function resumeLecons() {
-  if (!tentatives.length) return null;
+  /* Les passages se rendent MÊME quand aucune leçon n'a été tentée : c'est
+     la ligne qui dit si le chemin était seulement ouvert. */
+  if (!tentatives.length) {
+    return passages.avec_code_maitre || passages.sans_code_maitre
+      ? { tentatives: 0, ...passages,
+          note: passages.avec_code_maitre
+            ? "aucune phrase n'a parlé de mémoire sur ces tours"
+            : "AUCUN tour n'a été reconnu comme maître — aucun ordre ne pouvait être pris" }
+      : null;
+  }
   const reconnues = tentatives.filter((t) => t.ordre);
   const ecrites = tentatives.filter((t) => t.ecrit);
   /* LA LIGNE QU'IL LIRA EN PREMIER : sur dix tentatives, combien sont
      arrivées au bout. Le reste du tableau explique les autres. */
   return {
     tentatives: tentatives.length,
+    ...passages,
+    /* Une tentative sans code maître n'est pas un ordre raté : c'est un
+       ordre jamais examiné. Les deux ne se réparent pas au même endroit. */
+    sans_le_code: tentatives.filter((t) => !t.maitre).length,
     reconnues: reconnues.length,
     ecrites: ecrites.length,
     /* CE QUI A CÉDÉ, COMPTÉ. Une phrase de maître qui parle de mémoire et
@@ -112,4 +143,7 @@ export function resumeLecons() {
   };
 }
 
-export function oublierLecons() { tentatives = []; }
+export function oublierLecons() {
+  tentatives = [];
+  passages = { avec_code_maitre: 0, sans_code_maitre: 0 };
+}

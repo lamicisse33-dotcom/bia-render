@@ -15,7 +15,7 @@ import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive }
 import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
 import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgences";
 import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
-import { noterTentative, parleDeMemoire } from "@/lib/lecons-vues";
+import { noterPassage, noterTentative, parleDeMemoire } from "@/lib/lecons-vues";
 import { SERVICES } from "@/lib/services-textes";
 import { ajouterCorrection, cequElleAAppris } from "@/lib/lexique";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
@@ -867,6 +867,32 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        moindre doute la phrase repart au modèle. Ne pas comprendre un ordre
        coûte une répétition ; en inventer un coûte un dégât. */
     const maitre=verifierCode(code);
+    /* ── LA QUESTION QUE MON REGISTRE NE SAVAIT PAS POSER ──────────────────
+
+       Le 14 septembre au soir, après ses quatre essais : `lecons_donnees`
+       était VIDE. Pas une tentative ratée, pas une phrase non reconnue —
+       rien du tout. Et `sources` ne montrait aucun « ordre du maître » sur
+       dix tours.
+
+       J'avais rangé mon mouchard À L'INTÉRIEUR du bloc réservé au maître.
+       Donc si le code maître n'était pas reconnu, l'ordre n'était pas pris
+       ET rien n'était noté : les deux causes rendaient exactement le même
+       tableau vide, et je ne pouvais pas les distinguer. Un instrument qui
+       ne distingue pas deux causes ne mesure rien.
+
+       On compte donc, sur CHAQUE tour, si le code maître a été reconnu. Une
+       ligne, aucun coût, et la prochaine soirée ne se passera pas à deviner
+       laquelle des deux c'était. */
+    noterPassage(Boolean(maitre.ok&&maitre.maitre));
+    /* Et une phrase qui parle de mémoire SANS code maître se note aussi —
+       c'est justement le cas qu'il fallait pouvoir nommer. Elle ne
+       déclenche rien, exactement comme avant. */
+    if(!(maitre.ok&&maitre.maitre)&&parleDeMemoire(question)){
+      noterTentative({dit:question,maitre:false,ordre:null,
+        en_main:Boolean(String(body.aRepeter||"").trim()),
+        signes_en_main:String(body.aRepeter||"").trim().length,ecrit:false,
+        motif:"le code maître n'était pas reconnu sur ce tour — aucun ordre n'est pris"});
+    }
     if(maitre.ok&&maitre.maitre){
       const ordre=lireLOrdre(question);
       if(ordre){
@@ -880,12 +906,12 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
               source:repete,corrigee:repete,langue:langueDe(repete),
               auteur:"maitre-vocal",application:"bia",
             });
-            noterTentative({dit:question,ordre:ordre.quoi,en_main:true,
+            noterTentative({dit:question,maitre:true,ordre:ordre.quoi,en_main:true,
               signes_en_main:repete.length,ecrit:true,motif:"rangée"});
           }catch(err){
             console.error("BIA — « retiens ça » n'a pas abouti :",(err as Error).message);
             noterPanne("retiens ça",(err as Error).message,"chat");
-            noterTentative({dit:question,ordre:ordre.quoi,en_main:true,
+            noterTentative({dit:question,maitre:true,ordre:ordre.quoi,en_main:true,
               signes_en_main:repete.length,ecrit:false,
               motif:`le rangement a refusé : ${(err as Error).message}`.slice(0,200)});
             return {corps:{reply:"Je n'ai pas pu le garder. Le rangement n'a pas répondu.",
@@ -913,7 +939,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
            tard en demandant l'inventaire. Elle le dit maintenant, tout de
            suite, et lui indique quoi faire. */
         if(ordre.quoi==="retiens"&&!repete){
-          noterTentative({dit:question,ordre:ordre.quoi,en_main:false,signes_en_main:0,
+          noterTentative({dit:question,maitre:true,ordre:ordre.quoi,en_main:false,signes_en_main:0,
             ecrit:false,motif:"le téléphone n'avait plus la phrase en main"});
           return {corps:{reply:"Je n'ai rien en main à garder, papa. Redis-moi la phrase, je la répète, et alors tu me dis « mémorise mémorise ».",
             emotion:"concernee",apprend:true,aRepeter:"",source:"ordre du maître"}};
@@ -954,7 +980,8 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
          entendue. /api/etat les rend. Rien n'est changé à ce qui se passe —
          la phrase part au modèle exactement comme avant. */
       else if(parleDeMemoire(question)){
-        noterTentative({dit:question,ordre:null,en_main:Boolean(String(body.aRepeter||"").trim()),
+        noterTentative({dit:question,maitre:true,ordre:null,
+          en_main:Boolean(String(body.aRepeter||"").trim()),
           signes_en_main:String(body.aRepeter||"").trim().length,ecrit:false,
           motif:"aucun ordre reconnu — la phrase est partie au modèle"});
       }
