@@ -329,6 +329,23 @@ export default function Home() {
      toute seule — et c'est heureux : ce qu'elle fait, c'est ouvrir le clavier
      du téléphone avec le numéro déjà écrit. La personne appuie, ou pas. */
   const [appel, setAppel] = useState<{ numero: string; nom: string; urgence?: boolean } | null>(null);
+  /* ── LE MICRO PENDANT QUE LA CARTE ARRIVE ─────────────────────────────────
+
+     Lamine, le 14 septembre 2026 : « il faut couper le micro quand la carte
+     s'affiche, pour le remettre une fois qu'elle est affichée totalement. »
+
+     Entre le doigt qui choisit le lieu et la carte enfin peinte, il se passe
+     plusieurs secondes : l'ecran fond au noir, la bibliotheque se reveille,
+     les tuiles arrivent une a une. Pendant ce temps le micro restait ouvert —
+     il ecoutait le telephone travailler, la pastille d'enregistrement restait
+     allumee, et ce qu'il attrapait la ne voulait rien dire.
+
+     On le ferme donc au doigt, et on le rouvre quand la carte previent
+     qu'elle est la. SEULEMENT S'IL ETAIT OUVERT : on ne rallume pas un micro
+     que la personne venait de couper. C'est ce temoin-ci qui s'en souvient. */
+  const microAvantLaCarte = useRef(false);
+  /* Le même témoin pour la vidéo en plein écran — voir l'effet plus bas. */
+  const microAvantLeFilm = useRef(false);
 
   /* ── LA CARTE, ET LA CONFIRMATION QUI LA PRÉCÈDE ─────────────────────────
 
@@ -363,6 +380,7 @@ export default function Home() {
      valeur périmée. */
   const carteOuverteRef = useRef(false);
   useEffect(() => { carteOuverteRef.current = carte !== null; }, [carte]);
+
   const [aConfirmer, setAConfirmer] = useState<Lieu[] | null>(null);
   /* Vrai quand la RECHERCHE a échoué, pas quand l'endroit est inconnu. */
   const [lieuEnPanne, setLieuEnPanne] = useState(false);
@@ -2711,6 +2729,43 @@ export default function Home() {
     debrancherMicroRef.current = null;
     setMode((m) => (m === "listening" ? "ready" : m));
   }, [ouvrirUnTour, nouvelEnregistrement]);
+
+  /* ── UNE VIDÉO QUI JOUE, ET LE MICRO SE TAIT ──────────────────────────────
+
+     Lamine, le 14 septembre 2026 : « quand une vidéo est en play, tu dois
+     désactiver son micro. »
+
+     C'était écrit noir sur blanc au-dessus du lecteur, et c'était mon erreur :
+     « le micro reste ouvert, on lui parle sans la voir ». Sur le papier c'est
+     séduisant ; dans une pièce, le micro entend la vidéo. Il prend le son du
+     film pour une voix, coupe l'écoute au milieu, transcrit les paroles du
+     film et les envoie au modèle comme si c'était une question. On finit par
+     répondre à la télévision.
+
+     LE PLEIN ÉCRAN SEULEMENT, et la distinction n'est pas un détail : le
+     petit écran sous son menton existe justement pour qu'elle COMMENTE ce
+     qu'on regarde, et il ne démarre jamais tout seul. Y couper le micro
+     retirerait la seule chose pour laquelle il a été fait. Le plein écran,
+     lui, veut dire « on regarde vraiment » — c'est écrit dans sa consigne
+     depuis le premier jour : « ton visage se retire, on regarde, puis on
+     reprend ».
+
+     ET IL REVIENT SEUL à la fermeture, s'il était ouvert avant. Même règle
+     que pour la carte : on ne rallume pas un micro qu'il venait de couper. */
+  useEffect(() => {
+    if (film) {
+      if (!microAvantLeFilm.current) {
+        microAvantLeFilm.current = conversationRef.current;
+        if (conversationRef.current) { taireRef.current?.(); fermerConversation(); }
+      }
+      return;
+    }
+    if (!microAvantLeFilm.current) return;
+    microAvantLeFilm.current = false;
+    conversationRef.current = true;
+    setConversation(true);
+    void ecouterRef.current?.();
+  }, [film, fermerConversation]);
 
   const ecouter = useCallback(async () => {
     /* CET ENREGISTREMENT-CI, ET PAS UN AUTRE. Le numéro est pris AVANT
@@ -5572,6 +5627,11 @@ export default function Home() {
                        choisit le lieu. La decision est prise a cet
                        instant-la ; l'animation n'est qu'un habillage. */
                     carteOuverteRef.current = true;
+                    /* LE MICRO SE TAIT LE TEMPS QUE LA CARTE ARRIVE. Voir
+                       microAvantLaCarte : il revient quand elle previent. */
+                    microAvantLaCarte.current = conversationRef.current;
+                    taire();
+                    fermerConversation();
                     void eclipser(() => setCarte(lieu));
                   }}>
                   {lieu.dit}
@@ -5627,13 +5687,25 @@ export default function Home() {
           langue={langueRef.current}
           parle={mode === "speaking"}
           onDitTexte={(texte) => void speak(texte, "neutre", "guidage")}
+          /* LA CARTE EST LA — le micro peut revenir. Elle previent aussi
+             quand elle renonce : sans ca, une carte qui ne vient jamais
+             laisserait le micro ferme pour toujours. */
+          onPrete={() => {
+            if (!microAvantLaCarte.current) return;
+            microAvantLaCarte.current = false;
+            conversationRef.current = true;
+            setConversation(true);
+            void ecouter();
+          }}
           onFermer={() => revenir(() => setCarte(null))}
         />
       ) : null}
 
       {/* ── LA VIDÉO PREND TOUT, ELLE SE RETIRE ────────────────────────────
-          Posée par-dessus la conversation, comme la carte : le micro reste
-          ouvert, on lui parle sans la voir. */}
+          Posée par-dessus la conversation, comme la carte. LE MICRO SE FERME
+          PENDANT CE TEMPS — voir l'effet sur `film` plus haut : un micro
+          ouvert devant une vidéo entend la vidéo, et finit par lui répondre.
+          Il revient tout seul à la fermeture. */}
       {film ? (
         <Video
           film={film}

@@ -152,12 +152,26 @@ const FLECHE: Record<string, string> = {
 const TEXTE_DE = new Map(GUIDAGE.map((p) => [p.cle, p]));
 
 export default function Carte({
-  destination, code, langue, onFermer, onDitTexte, parle,
+  destination, code, langue, onFermer, onDitTexte, onPrete, parle,
 }: {
   destination: Lieu;
   code: string | null;
   langue: "wo" | "fr";
   onFermer: () => void;
+  /** ── QUAND LA CARTE EST VRAIMENT LA ────────────────────────────────────
+
+      Lamine, le 14 septembre 2026 : « il faut couper le micro quand la carte
+      s'affiche, pour le remettre une fois qu'elle est affichée totalement. »
+
+      Le telephone a besoin de savoir QUAND. Pas a l'ouverture de l'ecran —
+      la carte n'est alors qu'un rectangle vide — mais quand le fond est
+      peint et les deux points poses.
+
+      ELLE PREVIENT AUSSI QUAND ELLE RENONCE, et ce n'est pas un detail : si
+      elle ne prevenait qu'en cas de reussite, une carte qui ne vient jamais
+      laisserait le micro ferme pour toujours. On previent donc dans les deux
+      cas, une seule fois. */
+  onPrete: () => void;
   /** Le repli, quand les sons ne sont pas encore enregistrés : elle le dit
       avec sa voix ordinaire. Lent, mais jamais muet. */
   onDitTexte: (texte: string) => void;
@@ -172,6 +186,14 @@ export default function Carte({
   const jeton = useRef(0);
   /* Le fond de carte a-t-il fini de se charger, et de quoi le surveiller. */
   const charge = useRef(false);
+  /* On ne previent qu'UNE fois, quoi qu'il arrive ensuite : le micro ne se
+     rouvre pas deux fois, et un basculement de fond n'est pas une arrivee. */
+  const prevenu = useRef(false);
+  const prevenirUneFois = useCallback(() => {
+    if (prevenu.current) return;
+    prevenu.current = true;
+    onPrete();
+  }, [onPrete]);
   const montre = useRef<ReturnType<typeof setTimeout> | null>(null);
   const regard = useRef<ResizeObserver | null>(null);
   /* ── DEUX POINTS SUR LA CARTE, ET UN SEUL CADRAGE ────────────────────────
@@ -296,14 +318,114 @@ export default function Carte({
 
        Le motif exact s'affiche en petit, en français : il ne sert pas à celui
        qui roule, il sert à celui qui répare. */
+    /* Huit secondes, pas quinze : passé ce délai, la précise ne viendra plus,
+       et quinze secondes d'attente devant quelqu'un c'est déjà trop. */
+    const PRECIS: PositionOptions = { enableHighAccuracy: true, maximumAge: 2000, timeout: 8000 };
+    let vivantGps = true;
+    let retour: ReturnType<typeof setTimeout> | null = null;
     let suivi = 0;
     let replie = false;
+    /* ── « QUAND TU AVANCES, ELLE RECULE » ─────────────────────────────────
+
+       Lamine, le 13 septembre 2026, en marchant dehors avec la carte ouverte.
+
+       CE QUI SE PASSAIT. Le suivi précis a un délai de huit secondes. En
+       marchant, un seul relevé qui dépasse ce délai suffit à faire basculer
+       sur le suivi APPROCHÉ — et celui-ci acceptait une position vieille
+       d'UNE MINUTE (`maximumAge: 60000`). J'avais écrit ce chiffre en pensant
+       à quelqu'un d'ARRÊTÉ : pour savoir dans quelle rue on est, une minute
+       fait l'affaire. Pour quelqu'un qui MARCHE, une position d'il y a une
+       minute est l'endroit où il ÉTAIT. Le point revient donc en arrière, à
+       chaque fois que le téléphone ressert son souvenir.
+
+       Et rien ne l'en empêchait : on posait le point à chaque relevé, sans
+       jamais regarder s'il était plus RÉCENT que le précédent, ni s'il était
+       plus juste. Une mesure par le réseau, précise à deux kilomètres près,
+       écrasait une mesure GPS précise à cinq mètres.
+
+       TROIS GARDES, ET ELLES SONT SIMPLES :
+
+         1. un relevé plus VIEUX que celui qu'on a déjà est jeté. Le temps ne
+            remonte pas ;
+         2. un relevé BEAUCOUP plus flou que le précédent est jeté aussi, tant
+            que le bon n'a pas quinze secondes — passé ce délai, mieux vaut un
+            point flou que pas de point ;
+         3. la minute de mémoire tombe à dix secondes. En marchant, dix
+            secondes valent déjà une dizaine de mètres.
+
+       Et une quatrième, à part : une seule mesure lente ne condamne plus tout
+       le trajet à l'approché. On retente le précis une minute plus tard. */
+    let derniereMesure = 0;
+    let dernierePrecision = Infinity;
+    /* Déclarée ici, au-dessus de poser() qui la remet à faux quand le GPS
+       revient : un tunnel ne dure pas, et on a le droit de le dire une fois
+       de plus s'il se reperd vraiment. */
+    let plainteDite = false;
+
+    const poser = (p: GeolocationPosition) => {
+      const quand = p.timestamp || Date.now();
+      const precision = Number.isFinite(p.coords.accuracy) ? p.coords.accuracy : 9999;
+      /* Le temps ne remonte pas. C'est la garde qui répare son défaut. */
+      if (quand < derniereMesure) return;
+      /* Un point cinq fois plus flou que le précédent ne dit rien de neuf —
+         sauf si le précédent commence à dater. */
+      const vieillit = Date.now() - derniereMesure > 15000;
+      if (!vieillit && precision > Math.max(dernierePrecision * 5, 150)) return;
+      derniereMesure = quand;
+      dernierePrecision = precision;
+      /* Le GPS est revenu : si on le reperd pour de bon plus tard, on aura le
+         droit de le dire une fois de plus. Un tunnel ne dure pas. */
+      plainteDite = false;
+      setMotifGps("");
+      setPosition([p.coords.longitude, p.coords.latitude]);
+    };
+
+    /* ── LA PLAINTE QUI TUAIT LE GUIDAGE ──────────────────────────────────
+
+       Lamine, le 14 septembre 2026, après avoir roulé pour de vrai : « durant
+       tout le trajet la carte n'a rien dit, j'ai eu beaucoup de virages, je
+       n'ai pas entendu une seule voix. »
+
+       J'ai roulé à mon tour — un vrai navigateur, un faux GPS qu'on déplace
+       de cinquante mètres toutes les six dixièmes de seconde — et le relevé
+       de ce qui est parti à la voix dit tout :
+
+         allons-y, d-300, droite, PAS-DE-GPS, d-maintenant, PAS-DE-GPS ×4,
+         presque-arrive, PAS-DE-GPS ×3, arrive
+
+       Six « pas-de-gps » AU MILIEU des instructions. Et dire() coupe
+       toujours ce qui parle avant de parler — c'est voulu, une instruction
+       périmée ne doit pas couvrir la suivante. Donc chaque plainte TUAIT
+       l'instruction en cours, une fraction de seconde après son début. Des
+       débuts de mots, puis plus rien.
+
+       LA CAUSE : le suivi précis a huit secondes pour rendre chaque relevé.
+       En roulant — un tunnel, un immeuble, un virage — il en rate un de
+       temps en temps. Ce n'est PAS « le GPS ne marche pas » : c'est un
+       relevé lent, alors que le précédent date de deux secondes.
+
+       DEUX RÈGLES, DONC :
+
+         1. tant qu'on a eu une position il y a moins de vingt secondes, on
+            ne se plaint PAS. On note le motif en petit sur l'écran, pour
+            celui qui répare, et on laisse l'instruction finir ;
+         2. et la plainte ne se dit qu'UNE fois par trajet. Répéter « je n'ai
+            pas de GPS » à quelqu'un qui conduit ne lui apprend rien la
+            deuxième fois, et l'empêche d'entendre son virage. */
+    const seplaindre = (cles: string[]) => {
+      if (Date.now() - derniereMesure < 20000) return;
+      if (plainteDite) return;
+      plainteDite = true;
+      void dire(cles);
+    };
 
     const perdu = (err: GeolocationPositionError) => {
       if (err.code === 1) {
         setEtat("GPS bi feeñul.");
         setMotifGps("Le téléphone n'autorise pas la position. Réglages → Safari → Position.");
-        void dire(["pas-de-gps"]);
+        /* Celle-là se dit tout de suite : ce n'est pas un relevé lent, c'est
+           une porte fermée, et rien ne la rouvrira sans la personne. */
+        if (!plainteDite) { plainteDite = true; void dire(["pas-de-gps"]); }
         return;
       }
       /* Pas encore essayé sans la haute précision : on tente, sans rien dire.
@@ -313,31 +435,39 @@ export default function Carte({
         setMotifGps("Position précise indisponible — je prends l'approchée.");
         try { navigator.geolocation.clearWatch(suivi); } catch { }
         suivi = navigator.geolocation.watchPosition(
-          (p) => { setMotifGps(""); setPosition([p.coords.longitude, p.coords.latitude]); },
+          poser,
           () => {
-            setEtat("GPS bi feeñul.");
             setMotifGps("Ni le GPS ni le réseau ne donnent la position.");
-            void dire(["pas-de-gps"]);
+            if (Date.now() - derniereMesure >= 20000) setEtat("GPS bi feeñul.");
+            seplaindre(["pas-de-gps"]);
           },
-          /* Approchée, patiente, et une position d'il y a une minute fait
-             parfaitement l'affaire pour savoir dans quelle rue on est. */
-          { enableHighAccuracy: false, maximumAge: 60000, timeout: 30000 },
+          /* DIX SECONDES, PAS SOIXANTE. Voir la garde plus haut : une minute
+             de mémoire, c'est l'endroit où l'on était il y a une minute. */
+          { enableHighAccuracy: false, maximumAge: 10000, timeout: 30000 },
         );
+        /* Une mesure lente ne condamne pas tout le trajet. On retente le
+           précis une minute plus tard ; s'il répond, il reprend la main. */
+        retour = setTimeout(() => {
+          if (!vivantGps) return;
+          try { navigator.geolocation.clearWatch(suivi); } catch { }
+          replie = false;
+          suivi = navigator.geolocation.watchPosition(poser, perdu, PRECIS);
+        }, 60000);
         return;
       }
-      setEtat("GPS bi feeñul.");
       setMotifGps(err.code === 2 ? "Position indisponible ici." : "Le GPS n'a pas répondu à temps.");
-      void dire(["pas-de-gps"]);
+      /* L'écran ne dit « pas de GPS » que si on n'a VRAIMENT plus rien : sinon
+         on efface une instruction pour une alerte fausse. */
+      if (Date.now() - derniereMesure >= 20000) setEtat("GPS bi feeñul.");
+      seplaindre(["pas-de-gps"]);
     };
 
-    suivi = navigator.geolocation.watchPosition(
-      (p) => { setMotifGps(""); setPosition([p.coords.longitude, p.coords.latitude]); },
-      perdu,
-      /* Huit secondes, pas quinze : passé ce délai, la précise ne viendra
-         plus, et quinze secondes d'attente devant quelqu'un c'est déjà trop. */
-      { enableHighAccuracy: true, maximumAge: 2000, timeout: 8000 },
-    );
-    return () => { try { navigator.geolocation.clearWatch(suivi); } catch { } };
+    suivi = navigator.geolocation.watchPosition(poser, perdu, PRECIS);
+    return () => {
+      vivantGps = false;
+      if (retour) clearTimeout(retour);
+      try { navigator.geolocation.clearWatch(suivi); } catch { }
+    };
   }, [dire]);
 
   /* ── OU JE SUIS, ET LE PREMIER CADRAGE ───────────────────────────────────
@@ -454,10 +584,11 @@ export default function Carte({
                non plus, alors seulement on avoue. */
             if (montre.current) clearTimeout(montre.current);
             montre.current = setTimeout(() => {
-              if (vivant && !charge.current) setSansCarte(true);
+              if (vivant && !charge.current) { setSansCarte(true); prevenirUneFois(); }
             }, 6000);
           } catch {
             setSansCarte(true);
+            prevenirUneFois();
           }
         };
         m.on("error", (e) => {
@@ -480,6 +611,9 @@ export default function Carte({
         maplibreRef.current = maplibre;
         m.on("load", () => {
           charge.current = true;
+          /* LE FOND EST PEINT. Les deux points se posent dans les lignes qui
+             suivent, sans attendre quoi que ce soit — on peut prevenir. */
+          prevenirUneFois();
           /* L'ARRIVEE, ET SON HALO QUI BAT. Un marqueur immobile se confond
              avec les cent autres symboles d'une carte ; celui-ci respire,
              donc l'oeil le trouve tout de suite. Le dessin est a nous : le
@@ -519,6 +653,7 @@ export default function Carte({
       } catch (err) {
         console.error("BIA — la carte n'a pas pu s'ouvrir :", err);
         setSansCarte(true);
+        prevenirUneFois();
       }
     })();
     return () => {
