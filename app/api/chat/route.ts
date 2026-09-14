@@ -843,6 +843,27 @@ async function repondre(body:Corps,code:string|null,emettre:((morceau:string)=>v
             son:sonDe(CLE_ACCORD,LANGUE_ACCORD,ACCUSES.retiens),
             apprend:true,aRepeter:"",retenu:repete,source:"ordre du maître"}};
         }
+        /* ── « MÉMORISE » SANS RIEN À MÉMORISER ─────────────────────────
+           Lamine, le 14 septembre 2026 au soir : « je l'ai amenée à répéter
+           correctement, je lui ai demandé de mémoriser, et quand j'ai
+           demandé de me répéter tout ce qu'elle a mémorisé, elle dit qu'elle
+           n'a pas accès à sa mémoire. »
+
+           Il y avait deux fautes, et celle-ci est la plus sournoise. Quand
+           « mémorise » arrive sans la phrase qui précède — le téléphone ne
+           l'a pas gardée, l'écoute a recommencé, la page a été rouverte —
+           on tombait dans le bloc générique en dessous : elle répondait
+           « D'accord papa », joyeusement, et N'ÉCRIVAIT RIEN.
+
+           Une machine qui accuse réception de ce qu'elle n'a pas reçu est
+           pire qu'une machine en panne : il croit son travail rangé, il
+           passe à la suite, et il ne découvre le trou qu'une heure plus
+           tard en demandant l'inventaire. Elle le dit maintenant, tout de
+           suite, et lui indique quoi faire. */
+        if(ordre.quoi==="retiens"&&!repete){
+          return {corps:{reply:"Je n'ai rien en main à garder, papa. Redis-moi la phrase, je la répète, et alors tu me dis « mémorise mémorise ».",
+            emotion:"concernee",apprend:true,aRepeter:"",source:"ordre du maître"}};
+        }
         if(ordre.quoi==="repete"&&repete){
           return {corps:{reply:repete,emotion:"neutre",apprend:Boolean(body.apprend),
             aRepeter:repete,source:"ordre du maître"}};
@@ -1175,11 +1196,17 @@ NE CONFONDS PAS avec ce qu'il t'apprend à la voix, juste en dessous : la
 version, c'est ta construction ; ce qu'il t'apprend, c'est ta mémoire.`;
 
       try{
-        const apprises=await cequElleAAppris();
+        /* ── « QU'ELLE ME RÉPÈTE TOUT CE QU'ELLE A MÉMORISÉ » ─────────────
+           Lamine, le 14 septembre 2026 au soir. Douze lignes ne suffisaient
+           pas : une séance d'apprentissage en produit facilement plus, et il
+           veut pouvoir tout relire pour vérifier son travail. Quarante
+           couvre plusieurs séances ; au-delà, c'est le modèle qui abrège. */
+        const apprises=await cequElleAAppris("maitre-vocal",40);
         variable+=apprises.length
           ?`\n\nCE QU'IL T'A APPRIS, ET QUE TU DOIS SAVOIR DIRE\nIl t'a appris ${apprises.length} chose(s) à la voix. Les plus récentes d'abord :\n`
             +apprises.map((a,i)=>`${i+1}. « ${a.texte} »${a.quand?` — ${a.quand.slice(0,10)}`:""}`).join("\n")
-            +`\nS'il te demande ce qu'il t'a appris, ce que tu as reçu, ou ce que tu as retenu : réponds avec CETTE liste, simplement, sans la réciter en entier s'il y en a beaucoup — dis combien, et cite les dernières. Ne dis JAMAIS que tu n'as rien reçu.`
+            +`\nS'il te demande ce qu'il t'a appris, ce que tu as reçu, ou ce que tu as retenu : réponds avec CETTE liste. Ne dis JAMAIS que tu n'as rien reçu, et ne dis JAMAIS que tu n'as pas accès à ta mémoire — elle est là, au-dessus, tu viens de la lire.
+S'IL DEMANDE TOUT — « répète-moi tout ce que tu as mémorisé », « relis-moi tout » — tu récites la liste ENTIÈRE, une ligne après l'autre, sans en sauter une et sans résumer. C'est ainsi qu'il vérifie son travail : en abréger une seule le forcerait à tout reprendre. S'il demande juste ce que tu as retenu, dis combien il y en a et cite les dernières.`
           :`\n\nCE QU'IL T'A APPRIS\nIl ne t'a encore rien appris à la voix — ta mémoire de ses leçons est vide. S'il te le demande, dis-le simplement, SANS en faire un échec : rien n'est cassé, il n'a simplement pas encore commencé. Et rappelle-lui en une phrase comment on fait : il dit « on apprend », il te dit une phrase, tu la répètes, et quand c'est bon il dit « mémorise mémorise ».`;
       }catch(err){
         console.error("BIA — l'inventaire de sa mémoire n'a pas répondu :",(err as Error).message);

@@ -100,7 +100,14 @@ export type Ordre = { quoi: Quoi; dit: string };
 
 /** Les mots qu'il faut redoubler. « stop » ne fait rien ; « stop stop » agit. */
 const A_DOUBLER: Array<[Quoi, string[]]> = [
-  ["apprendre", ["apprends", "apprend"]],
+  /* ── « DÉSORMAIS ÇA DOIT S'APPELER APPRENTISSAGE APPRENTISSAGE » ────────
+     Lamine, le 14 septembre 2026 au soir : « si j'ai dit apprentissage deux
+     fois, elle doit se mettre en mode apprentissage automatiquement. »
+     C'est SON mot, et c'est le bon : « apprends » est un mot qu'on emploie
+     sans y penser dans une phrase ordinaire, « apprentissage » non. On garde
+     les anciens — ne jamais retirer une de ses formulations — mais celui-ci
+     est celui qu'il emploiera. */
+  ["apprendre", ["apprentissage", "apprends", "apprend"]],
   ["encore", ["stop", "corrige", "recommence", "redis", "non"]],
   ["retiens", ["memorise", "retiens", "garde"]],
   ["fini", ["fini", "termine"]],
