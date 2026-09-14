@@ -15,6 +15,7 @@ import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive }
 import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
 import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgences";
 import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
+import { noterTentative, parleDeMemoire } from "@/lib/lecons-vues";
 import { SERVICES } from "@/lib/services-textes";
 import { ajouterCorrection, cequElleAAppris } from "@/lib/lexique";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
@@ -879,9 +880,14 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
               source:repete,corrigee:repete,langue:langueDe(repete),
               auteur:"maitre-vocal",application:"bia",
             });
+            noterTentative({dit:question,ordre:ordre.quoi,en_main:true,
+              signes_en_main:repete.length,ecrit:true,motif:"rangée"});
           }catch(err){
             console.error("BIA — « retiens ça » n'a pas abouti :",(err as Error).message);
             noterPanne("retiens ça",(err as Error).message,"chat");
+            noterTentative({dit:question,ordre:ordre.quoi,en_main:true,
+              signes_en_main:repete.length,ecrit:false,
+              motif:`le rangement a refusé : ${(err as Error).message}`.slice(0,200)});
             return {corps:{reply:"Je n'ai pas pu le garder. Le rangement n'a pas répondu.",
               emotion:"concernee",source:"ordre du maître"}};
           }
@@ -907,6 +913,8 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
            tard en demandant l'inventaire. Elle le dit maintenant, tout de
            suite, et lui indique quoi faire. */
         if(ordre.quoi==="retiens"&&!repete){
+          noterTentative({dit:question,ordre:ordre.quoi,en_main:false,signes_en_main:0,
+            ecrit:false,motif:"le téléphone n'avait plus la phrase en main"});
           return {corps:{reply:"Je n'ai rien en main à garder, papa. Redis-moi la phrase, je la répète, et alors tu me dis « mémorise mémorise ».",
             emotion:"concernee",apprend:true,aRepeter:"",source:"ordre du maître"}};
         }
@@ -930,6 +938,25 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
         if(ordre.quoi==="encore"){suite.apprend=true;suite.aRepeter="";}
         if(ordre.quoi==="oublie")suite.aRepeter="";
         return {corps:suite};
+      }
+      /* ── LA MARCHE QUI NE LAISSAIT AUCUNE TRACE ─────────────────────────
+         Un ordre reconnu se voit : elle répond « D'accord papa ». Un ordre
+         NON reconnu ne se voit pas — la phrase repart au modèle, il répond
+         aimablement, et rien ne dit que le maître venait de demander de
+         mémoriser quelque chose.
+
+         C'est cette marche-là qui explique le rangement vide : la liste est
+         FERMÉE et la comparaison EXACTE. « Mémorise » tout seul n'y est pas.
+         « Voilà, c'est bon, mémorise ça » non plus.
+
+         On ne devine plus : dès qu'une phrase de MAÎTRE parle de mémoire
+         sans déclencher d'ordre, elle est notée telle qu'elle a été
+         entendue. /api/etat les rend. Rien n'est changé à ce qui se passe —
+         la phrase part au modèle exactement comme avant. */
+      else if(parleDeMemoire(question)){
+        noterTentative({dit:question,ordre:null,en_main:Boolean(String(body.aRepeter||"").trim()),
+          signes_en_main:String(body.aRepeter||"").trim().length,ecrit:false,
+          motif:"aucun ordre reconnu — la phrase est partie au modèle"});
       }
       /* ── EN APPRENTISSAGE, ELLE RÉPÈTE, ET RIEN D'AUTRE ──────────────────
          Pas de modèle, pas de répertoire : il apprend une phrase, elle la

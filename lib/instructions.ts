@@ -197,12 +197,68 @@ export function lireLOrdre(texte: string): Ordre | null {
   const dit = normaliser(texte);
   if (!dit) return null;
   if (dit.split(" ").length > MOTS_AU_PLUS) return null;
+  const nu = sansLesBords(dit);
   for (const [quoi, formes] of [...SIENNES, ...FRANCAIS]) {
     for (const f of formes) {
-      if (dit === normaliser(f)) return { quoi, dit: texte.trim() };
+      const forme = normaliser(f);
+      if (dit === forme || (nu && nu === forme)) return { quoi, dit: texte.trim() };
     }
   }
   return null;
+}
+
+/* ── CE QU'IL Y A AUTOUR DE L'ORDRE ─────────────────────────────────────────
+
+   Le 14 septembre 2026, le rangement disait 73 lignes et « sans auteur : 73 ».
+   Pas UNE de ses leçons à la voix n'était arrivée. La liste ci-dessus n'était
+   pas en cause : la comparaison, elle, l'était.
+
+   Elle exigeait la phrase ENTIÈRE, au mot près. Or personne ne parle au mot
+   près. Entre le verbe et le point, il met ce que tout le monde met :
+
+     « voilà, mémorise ça »          « bon, retiens ça »
+     « ok mémorise ça »              « mémorise ça, hein »
+
+   Chacune de ces quatre phrases contient un ordre déjà écrit dans la liste, et
+   chacune repartait au modèle. Il entendait une réponse aimable, croyait sa
+   leçon rangée, et découvrait le trou une heure plus tard.
+
+   ON RETIRE DONC LES BORDS, ET RIEN QUE LES BORDS. Ces mots-là ne changent le
+   sens d'aucun ordre quand ils sont AUTOUR ; au milieu, ils ne sont pas
+   touchés — « mémorise bon ça » n'existe pas et ne doit rien déclencher.
+
+   ET ON N'ÉLARGIT PAS PLUS. La comparaison reste EXACTE sur ce qui reste, et
+   la limite de sept mots tient. Une phrase qui CONTIENT « retiens » sans être
+   un ordre — « je ne sais pas si tu dois retenir ça » — n'est toujours pas un
+   ordre : elle est trop longue, et ce qui l'entoure n'est pas dans cette
+   liste. Rater coûte une répétition ; inventer coûte un dégât. On rate
+   volontiers, mais plus sur « voilà ».                                     */
+const BORDS = [
+  /* Les tournures de plusieurs mots d'abord : « d accord » se retire en
+     entier, sinon « accord » resterait tout seul et ne voudrait plus rien
+     dire. */
+  "d accord", "ca y est", "s il te plait",
+  "voila", "bon", "ok", "okay", "oui", "alors", "donc", "et", "ben", "eh",
+  "hein", "la", "papa", "allez",
+];
+
+function sansLesBords(dit: string): string {
+  let reste = dit;
+  let encore = true;
+  while (encore) {
+    encore = false;
+    for (const b of BORDS) {
+      /* On ne retire jamais le dernier mot : une phrase entièrement faite de
+         bords n'est pas un ordre, c'est un acquiescement. */
+      if (reste.startsWith(`${b} `) && reste.length > b.length + 1) {
+        reste = reste.slice(b.length + 1); encore = true;
+      }
+      if (reste.endsWith(` ${b}`) && reste.length > b.length + 1) {
+        reste = reste.slice(0, -(b.length + 1)); encore = true;
+      }
+    }
+  }
+  return reste === dit ? "" : reste;
 }
 
 /* ── CE QU'ELLE RÉPOND, ET POURQUOI C'EST SI COURT ──────────────────────────

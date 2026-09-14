@@ -3,6 +3,7 @@ import { voixConfig } from "@/lib/voix";
 import { ecouteConfig, resumeEcoutes } from "@/lib/ecoute";
 import { lexiqueConfig, combien, combienParApplication, parAuteur } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
+import { resumeLecons } from "@/lib/lecons-vues";
 import { resumeAttentes, resumeLectures, resumeTours } from "@/lib/attentes-vues";
 import { resumeEtapes, dernierEssaiVoix } from "@/lib/etapes";
 import { resumeEmotions } from "@/lib/emotions-vues";
@@ -81,6 +82,11 @@ export async function GET() {
        null veut dire « je n'ai pas pu compter », pas « personne n'a rien
        posé » — la confusion entre les deux est ce qu'on répare ici. */
     lexique_auteurs: auteurs,
+    /* CE QUI ARRIVE QUAND IL LUI APPREND QUELQUE CHOSE, marche par marche.
+       Le compte par auteur dit que le rangement est vide ; celui-ci dit
+       POURQUOI — ordre non reconnu, rien en main, ou rangement qui refuse.
+       Voir lib/lecons-vues.ts. */
+    lecons_donnees: resumeLecons(),
     voix_clonee: Boolean(voixConfig.soynade.audioPrompt),
     derniere_panne: dernierePanne(),
     // L'histoire, elle, ne s'efface pas : une panne passée reste lisible même
