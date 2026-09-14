@@ -4,6 +4,7 @@ import { ecouteConfig, resumeEcoutes } from "@/lib/ecoute";
 import { lexiqueConfig, combien, combienParApplication, parAuteur } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
 import { resumeAttentes, resumeLectures, resumeTours } from "@/lib/attentes-vues";
+import { resumeEtapes } from "@/lib/etapes";
 import { resumeEmotions } from "@/lib/emotions-vues";
 import { depense } from "@/lib/depense";
 import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
@@ -92,6 +93,11 @@ export async function GET() {
        temps ». `ou_passe_le_temps` est la réponse, triée du plus gros au
        plus petit. Voir lib/tour.ts. */
     tours: resumeTours(),
+    /* LES TROIS INSTANTS DE CHAQUE APPEL EXTÉRIEUR : départ, premier octet
+       utile, fin. Sa demande du 15 septembre 2026 — savoir si les quatre
+       secondes du modèle et de la voix sont une ATTENTE ou une COULÉE.
+       `verdict` le dit en une phrase. Voir lib/etapes.ts. */
+    etapes: resumeEtapes(),
     /* Ce que le moteur d'écoute a cru entendre, et combien de fois il a
        fallu le reprendre. Voir lib/ecoute.ts. */
     ecoutes: resumeEcoutes(),

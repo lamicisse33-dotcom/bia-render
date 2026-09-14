@@ -8,6 +8,7 @@ import { chercherImages, chercherVideos, consigneTrouver, videosActives } from "
 import type { Trouve } from "@/lib/trouver";
 import { SOCLE_RELATIONS, consigneRelations, estSujetRelation } from "@/lib/relations";
 import { noterPanne, oublierPanne } from "@/lib/panne";
+import { noterEtape } from "@/lib/etapes";
 import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
@@ -685,9 +686,17 @@ export async function POST(request:NextRequest){
    en DEUX temps. Ce qui entre est annoncé au début (`message_start`), ce qui
    sort à la fin (`message_delta`). Les additionner est la seule façon que
    /api/etat continue de dire juste ce que chaque réponse a coûté. */
-async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void){
+/* ── LE PREMIER TOKEN, ET LUI SEUL ──────────────────────────────────────────
+   Lamine, le 15 septembre 2026 : « TTFT = temps avant le premier token,
+   génération = temps du premier au dernier token. […] il est absurde
+   d'attendre 3,8 secondes ».
+   On ne mesure PAS l'instant où la connexion s'ouvre : un flux répond tout de
+   suite et peut rester muet une seconde entière. C'est le premier MOT qui
+   compte. `depart` est pris avant l'appel, par l'appelant. */
+async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void,depart=0){
   const lecteur=reponse.body?.getReader();
   if(!lecteur) return {content:[],usage:undefined};
+  let premierMot=0;
   const decodeur=new TextDecoder();
   const blocs:string[]=[];
   let reste="",usage:Record<string,unknown>={};
@@ -709,6 +718,7 @@ async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void){
       }
       if(ev.type==="content_block_delta"&&ev.delta?.type==="text_delta"&&ev.delta.text){
         if(!blocs.length) blocs.push("");
+        if(!premierMot)premierMot=Date.now();
         blocs[blocs.length-1]+=ev.delta.text;
         /* Si le téléphone a raccroché, on ne s'arrête pas pour autant : le
            modèle est déjà payé, et la réponse complète doit finir son chemin
@@ -717,6 +727,7 @@ async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void){
       }
     }
   }
+  if(depart)noterEtape("modele",depart,premierMot,Date.now(),blocs.join("").length);
   return {content:blocs.map((text)=>({type:"text",text})),usage};
 }
 
@@ -1440,6 +1451,9 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       ...(variable.trim()?[{type:"text",text:variable}]:[]),
     ];
 
+    /* L'HORLOGE PART ICI, avant la connexion : voir lireLeFlux() et
+       lib/etapes.ts. Le premier token se mesure depuis ce point. */
+    const partiModele=Date.now();
     const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,/* Plafond descendu de 500 à 300 le 11 septembre 2026 : « elle doit dire
          l'essentiel puis se taire ». Ce n'est pas la consigne qui coûte cher,
          c'est ce qu'elle écrit — la sortie se paie cinq fois l'entrée, et
@@ -1509,7 +1523,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return {corps:{reply:PANNE_MOTEUR,emotion:"concernee",source:`panne : modèle ${reponse.status}`}};
     }
 
-    const data=emettre?await lireLeFlux(reponse,emettre):await reponse.json() as {content?:Array<{type:string;text?:string}>;usage?:unknown};
+    const data=emettre?await lireLeFlux(reponse,emettre,partiModele):await reponse.json() as {content?:Array<{type:string;text?:string}>;usage?:unknown};
     /* Ce n'est plus une estimation : c'est le modèle lui-même qui dit ce
        qu'il a consommé, et combien lui est revenu du cache. Ça se lit dans
        /api/etat, champ « depense ». */

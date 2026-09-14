@@ -1,3 +1,4 @@
+import { noterEtape } from "./etapes";
 /* Texte -> parole, repris de l'Interprète Français ↔ Wolof.
    Même adresse, mêmes réglages, mêmes noms de variables : une seule clé
    Soynade sert donc les deux applications. */
@@ -198,7 +199,16 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages): Pro
     body: corps(avecVitesse),
   });
 
+  /* ── LES TROIS INSTANTS DE LA VOIX ───────────────────────────────────
+     Sa demande du 15 septembre 2026 : « requête TTS envoyée / premier octet
+     audio reçu / audio complet reçu. C'est essentiel. » Il a raison : quatre
+     secondes avant le premier octet et quatre secondes à couler après ne se
+     réparent pas de la même façon. Voir lib/etapes.ts. */
+  const partiVoix = Date.now();
   let reponse = await appeler(true);
+  /* fetch() rend la main quand les en-têtes sont là — donc au premier octet
+     du corps. C'est exactement ce qu'il veut savoir. */
+  const premierOctetVoix = Date.now();
   /* Le champ de vitesse n'est peut-être pas celui-là, ou n'existe peut-être
      pas. Un refus 400 ou 422 ne doit pas rendre BIA muette : on refait
      l'appel sans, et on le note pour qu'on le voie dans les journaux. */
@@ -211,8 +221,10 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages): Pro
     const detail = (await reponse.text().catch(() => "")).slice(0, 400);
     throw new Error(`Soynade ${reponse.status} : ${detail}`);
   }
+  const octets = Buffer.from(await reponse.arrayBuffer());
+  noterEtape("voix", partiVoix, premierOctetVoix, Date.now(), texte.length);
   return {
-    audio: Buffer.from(await reponse.arrayBuffer()),
+    audio: octets,
     typeMime: "audio/wav",
     moteur: prompt ? "soynade-oolel-voices (voix clonée)" : "soynade-oolel-voices",
   };
