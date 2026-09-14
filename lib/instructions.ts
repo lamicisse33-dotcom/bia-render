@@ -78,18 +78,36 @@ const FRANCAIS: Array<[Quoi, string[]]> = [
     "on apprend", "apprends", "je vais t apprendre", "on va apprendre",
     "mode apprentissage", "repete apres moi", "repete avec moi",
   ]],
+  /* ── SES MOTS, DU 14 SEPTEMBRE 2026 ────────────────────────────────────
+
+     « Ce qui n'est pas bien, je dis STOP, je dois CORRIGER ça — elle doit
+       comprendre que c'est à corriger. Quand je dis c'est bon MÉMORISE, elle
+       doit mémoriser. Quand je dis EFFACE ÇA DE TA MÉMOIRE, elle doit
+       pouvoir effacer. »
+
+     Ce sont ces tournures-là qui comptent, parce que ce sont celles qui lui
+     viennent à la bouche. Les autres restent : on n'enlève jamais une façon
+     de dire qui marchait. */
   ["encore", [
+    "stop", "stop corrige", "corrige", "corrige ca", "non corrige",
+    "c est a corriger", "il faut corriger", "non stop",
     "non c est mal parle", "c est mal parle", "tu as mal parle", "tu parles mal",
     "ce n est pas ca", "c est pas ca", "non ce n est pas ca", "non c est pas ca",
     "tu as mal dit", "recommence", "non recommence", "redis", "non",
   ]],
   ["retiens", [
+    "c est bon memorise", "memorise", "memorise ca", "c est bon memorise ca",
+    "voila memorise", "oui memorise",
     "c est bon retiens ca", "ca c est bon retiens ca", "c est bon retiens",
     "retiens ca", "retiens", "garde ca", "c est bon garde ca",
     "voila c est bon", "oui c est ca retiens",
   ]],
   ["fini", ["on a fini", "c est fini", "arrete d apprendre", "on arrete", "fin de la lecon"]],
-  ["oublie", ["oublie ca", "oublie", "efface ca", "ne retiens pas ca", "annule ca"]],
+  ["oublie", [
+    "efface ca de ta memoire", "efface de ta memoire", "supprime", "supprime ca",
+    "efface ca", "efface", "retire ca de ta memoire",
+    "oublie ca", "oublie", "ne retiens pas ca", "annule ca",
+  ]],
   ["repete", ["repete", "redis le", "dis le encore", "repete ca"]],
   ["micro", ["coupe le micro", "ferme le micro", "arrete le micro", "coupe ton micro"]],
   ["silence", ["tais toi", "silence", "arrete de parler", "chut"]],
@@ -140,10 +158,10 @@ export function lireLOrdre(texte: string): Ordre | null {
    et elles remplaceront celles-ci. */
 export const ACCUSES: Record<Quoi, string> = {
   apprendre: "D'accord. Dis-moi, je répète.",
-  encore: "Redis-le-moi.",
-  retiens: "C'est retenu.",
+  encore: "D'accord, redis-le-moi.",
+  retiens: "C'est mémorisé.",
   fini: "D'accord, on arrête.",
-  oublie: "Oublié.",
+  oublie: "Effacé de ma mémoire.",
   repete: "",
   micro: "",
   silence: "",

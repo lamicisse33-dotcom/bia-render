@@ -412,6 +412,17 @@ export default function Home() {
      dans lib/instructions.ts, côté serveur, là où le code maître se vérifie. */
   const apprend = useRef(false);
   const aRepeter = useRef("");
+  /* ── SA VOIX, GARDÉE LE TEMPS D'UN « MÉMORISE » ──────────────────────────
+
+     Lamine, le 14 septembre 2026 : « il vaut mieux qu'elle entende ce que je
+     dis et la manière dont je le dis. »
+
+     Le son ne lui apprend pas à prononcer — le moteur de voix n'a pas
+     d'oreille, voir app/api/memoire/route.ts. Mais c'est la PREUVE de comment
+     ça se dit, et c'est le corpus. On garde donc le dernier enregistrement en
+     mémoire vive, et on ne l'envoie QUE s'il dit « mémorise ». Un son de plus
+     par tour, jamais deux, et rien ne part tant qu'il n'a pas validé. */
+  const sonDeSaVoix = useRef<{ blob: Blob; nom: string } | null>(null);
   const [enApprentissage, setEnApprentissage] = useState(false);
   /* ── LA LANGUE DE LA CONVERSATION, D'UN TOUR À L'AUTRE ──────────────────
 
@@ -2043,6 +2054,31 @@ export default function Home() {
       /* Les deux ordres qui n'ont rien à dire : ils AGISSENT. */
       if (data.ordre === "micro") { taire(); fermerConversation(); }
       if (data.ordre === "silence") taire();
+      /* ── SA VOIX PART AVEC LE TEXTE, ET SEULEMENT S'IL VALIDE ───────────
+
+         Le texte est déjà retenu par le serveur à cet instant. Le son est un
+         PLUS : s'il ne part pas, la mémoire reste juste. On ne fait donc pas
+         attendre la réponse pour lui, et on n'échoue pas dessus. */
+      if (data.retenu && sonDeSaVoix.current) {
+        const son = sonDeSaVoix.current;
+        const quoi = data.retenu;
+        void (async () => {
+          try {
+            const f = new FormData();
+            f.append("texte", quoi);
+            f.append("audio", son.blob, son.nom);
+            await fetch("/api/memoire", {
+              method: "POST", headers: { "x-bia-code": codeRef.current }, body: f,
+            });
+          } catch { /* le texte est gardé ; le son manquera, c'est tout */ }
+        })();
+      }
+      if (data.ordre === "oublie" && aRepeter.current) {
+        const quoi = aRepeter.current;
+        void fetch(`/api/memoire?texte=${encodeURIComponent(quoi)}`, {
+          method: "DELETE", headers: { "x-bia-code": codeRef.current },
+        }).catch(() => { });
+      }
       /* ICI SE JOUAIT LE SILENCE.
          On coupait l'attente à l'arrivée du TEXTE. Mais la voix, elle, n'est
          pas encore fabriquée : quatre à huit secondes plus tard. BIA se
@@ -3117,7 +3153,11 @@ export default function Home() {
           : typeReel.includes("wav") ? "wav"
           : "webm";
         const forme = new FormData();
-        forme.append("audio", new Blob(morceaux, { type: typeReel }), `parole.${extension}`);
+        const sonDit = new Blob(morceaux, { type: typeReel });
+        /* Gardé pour « mémorise ». Il écrase le précédent : c'est toujours la
+           DERNIÈRE façon de dire qui compte, celle qu'il vient de valider. */
+        sonDeSaVoix.current = { blob: sonDit, nom: `parole.${extension}` };
+        forme.append("audio", sonDit, `parole.${extension}`);
         /* ── L'INDICE DE LANGUE, QUI N'ÉTAIT JAMAIS ENVOYÉ ──────────────────
 
            Lamine, le 12 septembre 2026, capture à l'appui : « parfois mes

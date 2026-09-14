@@ -87,6 +87,48 @@ const normaliser = (s: string)=> String(s || "").toLowerCase()
    modèle recevait alors huit « corrections faisant autorité » sans rapport
    avec la question posée — et les recopiait. C'est la mécanique qui faisait
    réciter BIA. */
+/* ── EFFACER CE QU'ON LUI A APPRIS ──────────────────────────────────────────
+
+   Lamine, le 14 septembre 2026 : « quand je dis efface ça de ta mémoire, elle
+   doit pouvoir effacer. »
+
+   Une mémoire à qui on ne peut rien retirer n'est pas une mémoire, c'est un
+   dépôt. Et celle-ci sert à la langue : une tournure validée par erreur se
+   propagerait à toutes les réponses suivantes comme un exemple faisant
+   autorité — c'est justement ce qui la rend précieuse, et ce qui rend son
+   effacement indispensable.
+
+   ON N'EFFACE QUE CE QU'IL A POSÉ À LA VOIX. L'auteur est demandé
+   explicitement : les corrections faites au bouton « Mal dit », les siennes
+   comme celles d'un testeur, ne bougent pas. Effacer plus que ce qu'on
+   demande est la faute la plus coûteuse qu'une mémoire puisse commettre.
+
+   Rend le nombre de lignes retirées, pour qu'on puisse le dire à voix haute
+   plutôt que de prétendre. */
+export async function retirerCorrection(corrigee: string, auteur: string): Promise<number> {
+  const quoi = String(corrigee || "").trim();
+  if (!quoi) return 0;
+  cache = null;
+  if (!lexiqueConfig.actif) {
+    const avant = enMemoire.length;
+    for (let i = enMemoire.length - 1; i >= 0; i--) {
+      if (enMemoire[i].corrigee === quoi && enMemoire[i].auteur === auteur) enMemoire.splice(i, 1);
+    }
+    return avant - enMemoire.length;
+  }
+  const adresse = `${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}`
+    + `?corrigee=eq.${encodeURIComponent(quoi)}&auteur=eq.${encodeURIComponent(auteur)}`;
+  const r = await fetch(adresse, {
+    method: "DELETE",
+    /* « return=representation » : sans ça Supabase ne dit pas ce qu'il a
+       retiré, et on ne saurait pas si on a effacé une ligne ou zéro. */
+    headers: { ...entetes(), Prefer: "return=representation" },
+  });
+  if (!r.ok) throw new Error(`Supabase ${r.status} : ${(await r.text()).slice(0, 300)}`);
+  const parties = await r.json().catch(() => []) as unknown[];
+  return Array.isArray(parties) ? parties.length : 0;
+}
+
 export const OUTILS = new Set([
   // wolof — pronoms, copules, marqueurs, prépositions, liaisons
   "maa","mangi","maangi","naa","nga","ngeen","yaa","yow","moom","noo","nu","ñu","ñungi","ñoom","yeen",
