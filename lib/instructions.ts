@@ -250,8 +250,10 @@ export const CLE_ACCORD = "ordre-daccord";
 
 /* ── DANS QUELLE LANGUE ON VA CHERCHER LE SON ───────────────────────────────
 
-   « D'accord papa » n'a qu'un texte pour l'instant : le français. Son wolof
-   attend sa main (voir EN_ATTENTE_DE_SON_WOLOF dans lib/services-textes.ts).
+   « D'accord papa » n'a qu'un texte, le français, et c'est SA décision du 14
+   septembre 2026 : « ce n'est pas la peine de l'écrire en wolof, d'accord
+   papa ça suffit largement. » Voir SANS_WOLOF_VOULU dans
+   lib/services-textes.ts.
 
    Or la langue du son se décidait sur la langue de SA QUESTION. Donc dès
    qu'il donnait un ordre en wolof, on allait chercher « wo/ordre-daccord.mp3 »

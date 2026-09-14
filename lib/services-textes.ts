@@ -140,17 +140,27 @@ export const GROUPES_SERVICES = [
 
    Écrites par moi, à corriger par Lamine — comme les 49 du guidage, dont il a
    changé trente-six sur quarante-neuf. Le wolof est à lui. */
-/* ── CE QUI ATTEND SON WOLOF ────────────────────────────────────────────────
+/* ── CE QUI N'A PAS DE WOLOF, ET N'EN AURA PAS ──────────────────────────────
 
    Une phrase sans wolof ne se fabrique pas : la route d'enregistrement passe
    les textes vides (voir tousLesSonsAttendus). Elle n'est donc ni payée ni
-   enregistrée, et c'est le français qui part en attendant.
+   enregistrée, et c'est le français qui part.
 
-   MAIS ÇA NE DOIT PAS SE PERDRE. Un trou qui ne se signale nulle part est un
-   trou qu'on retrouve six mois plus tard. Toute clé dont le wolof est vide
-   doit être ICI, nommée, et l'épreuve le vérifie. Elle se vide au fur et à
-   mesure qu'il écrit. */
-export const EN_ATTENTE_DE_SON_WOLOF = ["ordre-daccord"];
+   CE N'EST PLUS UNE ATTENTE, C'EST UNE DÉCISION. Lamine, le 14 septembre
+   2026 : « d'accord papa, ce n'est pas la peine de l'écrire en wolof —
+   d'accord papa ça suffit largement. » Il a raison, et c'est même mieux :
+   « papa » se dit pareil dans les deux langues, la phrase est courte, et un
+   accusé de réception n'a pas besoin de changer de langue avec la question.
+   Un seul son à enregistrer au lieu de deux.
+
+   LA LISTE RESTE, ET L'ÉPREUVE AVEC ELLE. Un wolof vide qui ne serait pas
+   nommé ici resterait un trou qu'on retrouverait six mois plus tard. Ce qui
+   change, c'est le sens : ce n'est plus une dette, c'est un choix — et un
+   choix se déclare aussi. */
+export const SANS_WOLOF_VOULU = ["ordre-daccord"];
+
+/** L'ancien nom, gardé pour ne rien casser ailleurs. */
+export const EN_ATTENTE_DE_SON_WOLOF = SANS_WOLOF_VOULU;
 
 export const SERVICES: Service[] = [
   /* La carte. Dite pendant que le fond de carte se charge et que l'itinéraire
@@ -279,10 +289,11 @@ export const SERVICES: Service[] = [
      supprime supprime, coupe le micro. Une seule phrase, enregistrée une
      fois, servie instantanément et gratuitement — voir lib/instructions.ts.
 
-     LE WOLOF EST À ÉCRIRE PAR LUI. Je ne l'écris pas de ma main, et tant
-     qu'il est vide c'est le français qui part, avec la voix fabriquée. Deux
-     mots à me donner, et cette réponse devient instantanée dans les deux
-     langues. */
+     EN FRANÇAIS, ET C'EST VOULU. Lui, le 14 septembre 2026 : « ce n'est pas
+     la peine de l'écrire en wolof, d'accord papa ça suffit largement. »
+     « Papa » se dit pareil dans les deux langues, et un accusé de réception
+     n'a pas besoin de changer de langue avec la question. Un seul son à
+     enregistrer au lieu de deux. */
   { cle: "ordre-daccord", groupe: "services",
     quand: "il vient de lui donner un ordre à la voix : stop stop, mémorise mémorise, supprime supprime",
     wolof: "",
