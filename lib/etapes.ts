@@ -123,9 +123,23 @@ export function oublierEtapes() { etapes = []; }
    important à faire maintenant. » Il l'est — et il décide de tout le chantier
    suivant. Il ne doit donc pas défiler dans une réponse qu'on perd : il se
    range ici et /api/etat le rend, jusqu'au prochain essai. */
+export type MesureVoix = { signes: number; premier_ms?: number; fin_ms: number;
+  octets: number; ms_par_signe: number; motif?: string };
+export type MoteurEssaye = {
+  nom: string; absent: boolean; motif?: string;
+  resultats?: MesureVoix[];
+  plancher_ms?: number; ms_par_signe?: number; premier_octet_ms?: number; verdict?: string;
+};
 export type EssaiVoix = {
   quand: string;
-  resultats: Array<{ signes: number; fin_ms: number; octets: number; ms_par_signe: number; motif?: string }>;
+  /* Tous les moteurs dont la clé est présente, cote à cote. Sa liste du
+     15 septembre 2026 : Soynade, OpenAI, Oolel auto-hébergé. */
+  moteurs?: MoteurEssaye[];
+  /* SON CRITÈRE N°1 : « temps avant le premier audio, pas seulement le temps
+     total ». Nommé ici pour qu'il n'ait pas à comparer cinq colonnes. */
+  meilleur_avant_le_premier_audio?: string;
+  /* Le moteur qui parle AUJOURD'HUI, à plat — la page les lit déjà. */
+  resultats: MesureVoix[];
   plancher_ms: number;
   ms_par_signe: number;
   verdict: string;

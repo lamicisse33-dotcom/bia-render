@@ -29,9 +29,17 @@ type Appel = {
   appels: number; premier_octet_ms: number; complet_ms: number;
   coulee_ms: number; verdict: string; signes_median: number;
 };
+type MesureVoix = { signes: number; premier_ms?: number; fin_ms: number;
+  octets: number; ms_par_signe: number; motif?: string };
+type MoteurEssaye = {
+  nom: string; absent: boolean; motif?: string; resultats?: MesureVoix[];
+  plancher_ms?: number; ms_par_signe?: number; premier_octet_ms?: number; verdict?: string;
+};
 type Essai = {
   quand: string;
-  resultats: Array<{ signes: number; fin_ms: number; octets: number; ms_par_signe: number; motif?: string }>;
+  moteurs?: MoteurEssaye[];
+  meilleur_avant_le_premier_audio?: string;
+  resultats: MesureVoix[];
   plancher_ms: number; ms_par_signe: number; verdict: string;
 };
 type Etat = {
@@ -289,7 +297,53 @@ function EssaiSoynade({ essai, enCours, lancer }:
           s’il faut découper les phrases ou changer de moteur de voix.
         </p>
       )}
-      {essai && (
+      {essai?.moteurs?.length ? (
+        <>
+          {essai.meilleur_avant_le_premier_audio && (
+            <p style={{ margin: "0 0 12px", fontSize: 14 }}>
+              Le plus rapide avant le premier audio :{" "}
+              <b style={{ color: "#7fc48f" }}>{essai.meilleur_avant_le_premier_audio}</b>
+            </p>
+          )}
+          {essai.moteurs.map((m) => (
+            <div key={m.nom} style={{ marginBottom: 18, paddingBottom: 14,
+              borderBottom: "1px solid #241d18" }}>
+              <p style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 600 }}>
+                {m.nom}
+                {m.absent && <span style={{ fontWeight: 400, opacity: 0.55 }}> — {m.motif}</span>}
+              </p>
+              {!m.absent && (m.resultats || []).map((r) => {
+                const grand = Math.max(1, ...(m.resultats || []).map((x) => x.fin_ms));
+                const part = r.fin_ms ? Math.round(((r.premier_ms || r.fin_ms) / r.fin_ms) * 100) : 0;
+                return (
+                  <div key={r.signes} style={{ marginBottom: 7 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      fontSize: 12, marginBottom: 2, opacity: 0.8 }}>
+                      <span>{r.signes} signes</span>
+                      <span>{r.motif ? r.motif : `premier ${sec(r.premier_ms || r.fin_ms)} · total ${sec(r.fin_ms)}`}</span>
+                    </div>
+                    <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden",
+                      background: "#1a1511", width: `${Math.round((r.fin_ms / grand) * 100)}%` }}>
+                      <div style={{ width: `${part}%`, background: "#c2543f" }} />
+                      <div style={{ width: `${100 - part}%`, background: "#4f8a5b" }} />
+                    </div>
+                  </div>
+                );
+              })}
+              {!m.absent && (
+                <p style={{ margin: "8px 0 0", fontSize: 12,
+                  color: /COULE|SUIT la longueur/.test(m.verdict || "") ? "#7fc48f" : "#d79a8c" }}>
+                  {m.verdict}
+                </p>
+              )}
+            </div>
+          ))}
+          <p style={{ margin: "4px 0 0", opacity: 0.45, fontSize: 11 }}>
+            En rouge, le temps avant le premier octet audio — c’est lui qui décide.
+            En vert, ce qui coule ensuite. Essai du {new Date(essai.quand).toLocaleString("fr-FR")}
+          </p>
+        </>
+      ) : essai && (
         <>
           {essai.resultats.map((r) => (
             <div key={r.signes} style={{ marginBottom: 8 }}>

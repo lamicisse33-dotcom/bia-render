@@ -1,55 +1,60 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
-import { synthetiser } from "@/lib/voix";
+import { voixConfig } from "@/lib/voix";
 import { noterEssaiVoix } from "@/lib/etapes";
 
 /* ── LE TEST QUI DÉCIDE DU RESTE ─────────────────────────────────────────────
 
-   Lamine, le 15 septembre 2026, après avoir lu « tout arrive d'un coup » :
+   Lamine, le 15 septembre 2026 :
 
      « Il faut maintenant tester la durée de fabrication en fonction de la
-       longueur du texte. C'est capital. Demande à Claude de faire cinq appels
-       isolés à Soynade : 20, 50, 100, 200, 400 caractères. […] Ces deux
-       résultats changent complètement la décision. […] C'est, à mon avis, le
-       test le plus important à faire maintenant. »
+       longueur du texte. C'est capital. […] Si 20–50 caractères mettent encore
+       environ 3 à 4 secondes, alors je considérerais le verdict comme clair :
+       il faut tester un autre moteur vocal pour BIA. […] Le critère n°1 doit
+       être : temps avant le premier audio — pas seulement le temps total. »
 
-   IL A RAISON, ET VOICI POURQUOI CE TEST TRANCHE TOUT.
+   IL A RAISON SUR LE CRITÈRE, et c'est lui qui a dicté la forme de ce
+   fichier. Un moteur qui met quatre secondes à tout rendre d'un coup et un
+   moteur qui commence à rendre de l'audio au bout de huit cents millisecondes
+   peuvent avoir le MÊME temps total et ne pas se ressembler du tout à
+   l'oreille. On mesure donc les deux, et c'est le premier qui classe.
 
-   La voix ne coule pas : on l'a mesuré, premier octet et dernier octet
-   tombent ensemble. Il reste donc une seule question, et elle a deux réponses
-   possibles qui mènent à deux chantiers opposés :
+   ── DEUX QUESTIONS, ET ELLES SE POSENT ENSEMBLE ────────────────────────────
 
-     — SI LA DURÉE SUIT LA LONGUEUR (20 signes → 0,7 s, 400 → 4 s), alors on
-       garde Soynade et on fabrique le streaming nous-mêmes : la première
-       phrase part seule, BIA la dit pendant qu'on fabrique la suivante. Le
-       verrou des 120 signes devient alors le prochain obstacle à enlever.
+   1. EST-CE QUE LA DURÉE SUIT LA LONGUEUR ? Si oui, on garde le moteur et on
+      découpe : la première phrase part seule, BIA la dit pendant qu'on
+      fabrique la suivante. Si non, la latence est fixe et découper ne rendra
+      rien.
 
-     — SI MÊME VINGT SIGNES DEMANDENT TROIS SECONDES, il y a une latence fixe
-       incompressible, découper ne servira à rien, et la seule voie est un
-       autre moteur. Toute optimisation autour serait du temps perdu.
+   2. UN AUTRE MOTEUR FERAIT-IL MIEUX ? Sa liste : Soynade, OpenAI, et Oolel
+      auto-hébergé. On ne peut pas répondre à la première sans pouvoir
+      répondre à la seconde le même jour — sinon on décide à l'aveugle.
 
-   Découper avant de savoir, c'est risquer d'écrire une architecture entière
-   pour rien. D'où ce test, et d'où le fait qu'il passe avant tout le reste.
+   Cette route interroge donc TOUS les moteurs dont la clé est présente sur le
+   serveur, aux mêmes cinq longueurs, et les met côte à côte. Le jour où
+   Lamine pose une clé OpenAI dans Render, le même bouton compare les deux
+   sans qu'une ligne ne change.
 
-   ── POURQUOI CETTE ROUTE PLUTÔT QU'UN SCRIPT ───────────────────────────────
+   RIEN N'EST BRANCHÉ SUR BIA. Ce fichier MESURE ; il ne change pas le moteur
+   qui parle. lib/voix.ts reste seul maître de ce que BIA emploie, et il ne
+   bouge que sur sa décision à lui.
 
-   La clé de Soynade vit sur le serveur, et elle doit y rester : elle ne passe
-   ni par la conversation, ni par une ligne de commande, ni par moi. Le seul
+   ── POURQUOI UNE ROUTE, ET PAS UN SCRIPT ───────────────────────────────────
+
+   Les clés vivent sur le serveur et doivent y rester : elles ne passent ni
+   par la conversation, ni par une ligne de commande, ni par moi. Le seul
    endroit d'où l'on peut mesurer le vrai appel est donc le serveur lui-même.
-
-   Lamine appuie sur un bouton dans /vitesse, le serveur fait les cinq appels
-   avec sa propre clé, et rend les chiffres. Personne n'a rien à coller nulle
-   part.
+   Lamine appuie sur un bouton dans /vitesse, et les chiffres reviennent.
 
    ── CE QU'ON ENVOIE ────────────────────────────────────────────────────────
 
    Du français, de ma main. Pas du wolof : je n'en écris pas, et pour une
    mesure de LATENCE la langue ne change rien d'utile — c'est la longueur
-   qu'on fait varier, et elle seule.
+   qu'on fait varier, et elle seule. La comparaison de QUALITÉ wolof, elle,
+   se fera sur ses dix phrases à lui, et c'est un autre travail.
 
-   RÉSERVÉ AU CODE MAÎTRE, et pour une raison qui n'est pas la discrétion :
-   cinq synthèses se paient. Un testeur ne doit pas pouvoir ouvrir le robinet
-   en rechargeant une page.                                                 */
+   RÉSERVÉ AU CODE MAÎTRE, et pas par discrétion : ces appels se paient. Un
+   testeur ne doit pas pouvoir ouvrir le robinet en rechargeant une page.   */
 
 const PHRASE = "Je regarde ce que tu me demandes et je te réponds tout de suite, "
   + "sans attendre, parce que c'est exactement ce qu'il faut faire quand quelqu'un "
@@ -59,59 +64,156 @@ const PHRASE = "Je regarde ce que tu me demandes et je te réponds tout de suite
 
 const LONGUEURS = [20, 50, 100, 200, 400];
 
+type Mesure = { signes: number; premier_ms: number; fin_ms: number; octets: number;
+  ms_par_signe: number; motif?: string };
+
+/** Un appel, chronométré aux trois instants qu'il a nommés.
+
+    `fetch` rend la main quand les EN-TÊTES sont là — donc au premier octet du
+    corps. C'est ça, FIRST_AUDIO_BYTE, et c'est le seul moment où la
+    différence entre un moteur qui coule et un moteur qui bufférise se voit. */
+async function chronometrer(appel: () => Promise<Response>): Promise<{ premier: number; fin: number; octets: number }> {
+  const parti = Date.now();
+  const r = await appel();
+  const premier = Date.now();
+  if (!r.ok) throw new Error(`${r.status} : ${(await r.text().catch(() => "")).slice(0, 120)}`);
+  const octets = (await r.arrayBuffer()).byteLength;
+  return { premier: premier - parti, fin: Date.now() - parti, octets };
+}
+
+/* ── LES MOTEURS, ET LEURS CLÉS ─────────────────────────────────────────────
+   Chacun n'est essayé que si sa clé existe. Un moteur absent n'est pas une
+   panne : c'est une comparaison qu'on ne peut pas encore faire, et on le dit
+   au lieu de le taire. */
+type Moteur = { nom: string; pret: boolean; motif?: string; appeler: (texte: string) => Promise<Response> };
+
+function lesMoteurs(): Moteur[] {
+  const s = voixConfig.soynade;
+  const e = voixConfig.elevenlabs;
+  const cleOpenAI = process.env.OPENAI_API_KEY || process.env.OPENAI_CLE || "";
+  return [
+    {
+      nom: "soynade",
+      pret: Boolean(s.apiKey),
+      motif: s.apiKey ? "" : "SOYNADE_API_KEY absente",
+      appeler: (texte) => fetch(`${s.baseUrl.replace(/\/$/, "")}/v1/text-to-speech`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${s.apiKey}`, "content-type": "application/json", accept: "audio/wav" },
+        body: JSON.stringify({ text: texte, language: "fr", output_format: "wav", model: s.model, seed: 0 }),
+      }),
+    },
+    {
+      nom: "elevenlabs",
+      pret: Boolean(e.apiKey && (e.voiceFr || e.voiceWo)),
+      motif: e.apiKey ? (e.voiceFr || e.voiceWo ? "" : "aucune voix ElevenLabs configurée") : "ELEVENLABS_API_KEY absente",
+      appeler: (texte) => fetch(`https://api.elevenlabs.io/v1/text-to-speech/${e.voiceFr || e.voiceWo}/stream`, {
+        method: "POST",
+        headers: { "xi-api-key": e.apiKey, "content-type": "application/json", accept: "audio/mpeg" },
+        body: JSON.stringify({ text: texte, model_id: e.model }),
+      }),
+    },
+    {
+      /* Sa liste du 15 septembre : « OpenAI gpt-4o-mini-tts ». Il n'y a
+         aucune clé sur le serveur aujourd'hui — le moteur apparaîtra ici,
+         marqué « pas de clé », jusqu'au jour où il en posera une dans Render.
+         Alors le même bouton comparera les deux, sans qu'une ligne change. */
+      nom: "openai",
+      pret: Boolean(cleOpenAI),
+      motif: cleOpenAI ? "" : "OPENAI_API_KEY absente — à poser dans Render pour comparer",
+      appeler: (texte) => fetch("https://api.openai.com/v1/audio/speech", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${cleOpenAI}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          model: process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts",
+          voice: process.env.OPENAI_TTS_VOIX || "alloy",
+          input: texte,
+          /* Le format qui COULE. En wav, le service doit connaître la taille
+             avant d'écrire l'en-tête et bufférise tout : on mesurerait un
+             faux « tout d'un coup » qui ne serait qu'un choix de format. */
+          response_format: "mp3",
+        }),
+      }),
+    },
+  ];
+}
+
+/** Ce que deux points suffisent à dire : la latence fixe, et le prix du signe. */
+function lire(mesures: Mesure[]) {
+  const bons = mesures.filter((m) => m.fin_ms > 0);
+  if (bons.length < 2) return { plancher_ms: 0, ms_par_signe: 0, premier_octet_ms: 0,
+    verdict: "pas assez d'appels aboutis pour conclure" };
+  const petit = bons[0], grand = bons[bons.length - 1];
+  const parSigne = (grand.fin_ms - petit.fin_ms) / (grand.signes - petit.signes);
+  const plancher = Math.max(0, Math.round(petit.fin_ms - parSigne * petit.signes));
+  /* LE CRITÈRE N°1, SES MOTS : « temps avant le premier audio, pas seulement
+     le temps total ». On prend celui du texte le plus COURT — c'est celui
+     d'une première phrase, donc celui qu'on entendrait vraiment. */
+  const premier = petit.premier_ms || petit.fin_ms;
+  const coule = grand.fin_ms - grand.premier_ms > Math.max(300, grand.fin_ms * 0.25);
+  return {
+    plancher_ms: plancher,
+    ms_par_signe: Math.round(parSigne * 10) / 10,
+    premier_octet_ms: premier,
+    verdict: coule
+      ? `il COULE : sur 400 signes, ${grand.fin_ms - grand.premier_ms} ms arrivent après le premier octet`
+      : parSigne * 100 < 400
+        ? `latence FIXE d'environ ${(plancher / 1000).toFixed(1)} s : découper ne rendra presque rien`
+        : `la durée SUIT la longueur (${Math.round(parSigne)} ms par signe, plancher `
+          + `${(plancher / 1000).toFixed(1)} s) : découper par phrase fera parler BIA plus tôt`,
+  };
+}
+
 export async function POST(request: NextRequest) {
   const verdict = verifierCode(request.headers.get("x-bia-code"));
   if (!verdict.ok || !verdict.maitre) {
     return NextResponse.json({ erreur: "Réservé au code maître." }, { status: 401 });
   }
 
-  const resultats: Array<{ signes: number; premier_ms: number; fin_ms: number;
-    octets: number; ms_par_signe: number; motif?: string }> = [];
-
-  for (const n of LONGUEURS) {
-    const texte = PHRASE.slice(0, n);
-    const parti = Date.now();
-    try {
-      /* On passe par synthetiser(), le VRAI chemin — pas une requête écrite
-         pour l'occasion. Mesurer un chemin parallèle donnerait un chiffre
-         juste sur quelque chose que BIA n'emprunte jamais. */
-      const parole = await synthetiser(texte, "fr");
-      const fin = Date.now();
-      resultats.push({
-        signes: n,
-        /* synthetiser() note déjà ses trois instants dans lib/etapes.ts ; ce
-           qu'on rend ici est le total vu d'ici, qui suffit à répondre à la
-           question posée : est-ce que ça DÉPEND de la longueur ? */
-        premier_ms: 0,
-        fin_ms: fin - parti,
-        octets: parole?.audio.length || 0,
-        ms_par_signe: Math.round((fin - parti) / n),
-      });
-    } catch (err) {
-      resultats.push({ signes: n, premier_ms: 0, fin_ms: 0, octets: 0, ms_par_signe: 0,
-        motif: (err as Error).message.slice(0, 160) });
+  const moteurs = [];
+  for (const m of lesMoteurs()) {
+    if (!m.pret) { moteurs.push({ nom: m.nom, absent: true, motif: m.motif }); continue; }
+    const mesures: Mesure[] = [];
+    for (const n of LONGUEURS) {
+      const texte = PHRASE.slice(0, n);
+      try {
+        const { premier, fin, octets } = await chronometrer(() => m.appeler(texte));
+        mesures.push({ signes: n, premier_ms: premier, fin_ms: fin, octets,
+          ms_par_signe: Math.round(fin / n) });
+      } catch (err) {
+        mesures.push({ signes: n, premier_ms: 0, fin_ms: 0, octets: 0, ms_par_signe: 0,
+          motif: (err as Error).message.slice(0, 160) });
+      }
     }
+    moteurs.push({ nom: m.nom, absent: false, resultats: mesures, ...lire(mesures) });
   }
 
-  /* ── LA LECTURE, FAITE ICI UNE FOIS POUR TOUTES ──────────────────────────
-     Deux nombres suffisent à trancher : ce que coûte le plus court, et ce
-     que coûte chaque signe en plus. Le premier est la latence fixe ; le
-     second dit s'il y a quelque chose à gagner à découper. */
-  const bons = resultats.filter((r) => r.fin_ms > 0);
-  let plancher = 0, parSigne = 0, verdictTexte = "aucun appel n'a abouti";
-  if (bons.length >= 2) {
-    const petit = bons[0], grand = bons[bons.length - 1];
-    parSigne = (grand.fin_ms - petit.fin_ms) / (grand.signes - petit.signes);
-    plancher = Math.max(0, Math.round(petit.fin_ms - parSigne * petit.signes));
-    verdictTexte = parSigne * 100 < 400
-      ? `latence FIXE d'environ ${(plancher / 1000).toFixed(1)} s : découper ne rendra presque rien, `
-        + "il faut un autre moteur de voix"
-      : `la durée SUIT la longueur (${Math.round(parSigne)} ms par signe, plancher `
-        + `${(plancher / 1000).toFixed(1)} s) : découper par phrase fera parler BIA plus tôt`;
-  }
+  /* Le moteur le plus rapide AVANT LE PREMIER AUDIO — son critère n°1, pas le
+     temps total. Nommé ici pour qu'il n'ait pas à comparer cinq colonnes. */
+  const presents = moteurs.filter((m) => !m.absent && (m as { premier_octet_ms?: number }).premier_octet_ms);
+  const meilleur = presents.length > 1
+    ? presents.slice().sort((a, b) =>
+      ((a as { premier_octet_ms: number }).premier_octet_ms) - ((b as { premier_octet_ms: number }).premier_octet_ms))[0].nom
+    : "";
 
-  const essai = { quand: new Date().toISOString(), resultats, plancher_ms: plancher,
-    ms_par_signe: Math.round(parSigne * 10) / 10, verdict: verdictTexte };
+  const essai = {
+    quand: new Date().toISOString(),
+    moteurs,
+    meilleur_avant_le_premier_audio: meilleur,
+    /* Les champs d'avant, gardés tels quels : la page les lit déjà, et un
+       essai qui casse l'affichage ne se lirait pas. Ils portent le moteur
+       qui parle aujourd'hui. */
+    ...(() => {
+      const a = moteurs.find((m) => m.nom === voixConfig.fournisseur && !m.absent) as
+        (typeof moteurs[number] & { resultats?: Mesure[]; plancher_ms?: number;
+          ms_par_signe?: number; verdict?: string }) | undefined;
+      return {
+        resultats: a?.resultats || [],
+        plancher_ms: a?.plancher_ms || 0,
+        ms_par_signe: a?.ms_par_signe || 0,
+        verdict: a?.verdict || "le moteur qui parle aujourd'hui n'a pas répondu",
+      };
+    })(),
+  };
   noterEssaiVoix(essai);
   return NextResponse.json(essai);
 }
