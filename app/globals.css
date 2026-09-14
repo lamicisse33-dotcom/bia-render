@@ -2497,3 +2497,33 @@ button { font: inherit; touch-action: manipulation; }
 @media (prefers-reduced-motion: reduce) {
   .appeler-urgence { animation: appel-arrive .3s ease both; }
 }
+
+/* ── LE BANDEAU DE L'APPRENTISSAGE ──────────────────────────────────────────
+
+   Lamine, le 14 septembre 2026, sur la boucle d'apprentissage à la voix. Il
+   doit VOIR qu'elle apprend : sans ça il parlera dix minutes en croyant
+   qu'elle retient, ou se taira en croyant qu'elle n'écoute plus.
+
+   Discret exprès — il apprend une phrase, il ne lit pas un écran — mais il
+   porte les trois tournures qui en sortent, parce qu'on ne retient pas trois
+   commandes par cœur la première fois, encore moins en conduisant. */
+.apprend-bandeau {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: calc(max(10px, env(safe-area-inset-top)) + 8px);
+  transform: translateX(-50%);
+  max-width: min(92vw, 460px);
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid rgba(231,198,103,.45);
+  border-radius: 14px;
+  background: rgba(30,24,8,.86);
+  color: rgba(255,236,190,.92);
+  font-size: 12.5px; line-height: 1.45; text-align: center;
+}
+.apprend-bandeau b { display: block; color: #e7c667; font-size: 13.5px; }
+.apprend-bandeau i {
+  display: block; margin-top: 3px;
+  font-style: normal; font-size: 11.5px; color: rgba(255,255,255,.5);
+}

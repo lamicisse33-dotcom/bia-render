@@ -13,6 +13,8 @@ import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
 import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgences";
+import { ACCUSES, lireLOrdre } from "@/lib/instructions";
+import { ajouterCorrection } from "@/lib/lexique";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
@@ -548,7 +550,13 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
-type Corps={message?:string;history?:Array<{role:string;text:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean};
+type Corps={message?:string;history?:Array<{role:string;text:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
+  /* ── L'APPRENTISSAGE À LA VOIX ──────────────────────────────────────────
+     `apprend` : on est dans la boucle, elle répète ce qu'il dit.
+     `aRepeter` : la dernière phrase qu'elle a répétée — c'est CELLE-LÀ qu'on
+     garde quand il dit « c'est bon, retiens ça », parce que c'est celle
+     qu'il vient d'entendre. Voir lib/instructions.ts. */
+  apprend?:boolean;aRepeter?:string};
 type Rendu={corps:Record<string,unknown>;statut?:number};
 
 /* ── LA RÉPONSE AU FIL DE L'EAU ──────────────────────────────────────────────
@@ -684,6 +692,71 @@ function lieuDemandeDans(question: string): string {
 async function repondre(body:Corps,code:string|null,emettre:((morceau:string)=>void)|null):Promise<Rendu>{
   try{
     const question=String(body.message||"").trim().slice(0,1200);
+
+    /* ── CE QU'IL LUI ORDONNE, AVANT TOUT LE RESTE ─────────────────────────
+
+       Lamine, le 14 septembre 2026 : « sur mon compte, avec ma clé maître, il
+       faut que je puisse donner des instructions à BIA… je dois pouvoir lui
+       apprendre directement par vocal ».
+
+       C'est posé ICI, tout en haut, et pour trois raisons :
+
+         — un ordre ne se paie pas. Il ne part ni au modèle ni à la voix
+           fabriquée : il s'exécute, et elle répond trois mots ;
+         — il doit passer AVANT le répertoire, sinon « non » ou « répète »
+           tomberait sur une réponse enregistrée et l'ordre serait perdu ;
+         — et c'est réservé au CODE MAÎTRE. Un testeur qui dit « retiens ça »
+           ne doit rien écrire dans la mémoire de BIA.
+
+       La reconnaissance est une liste FERMÉE (lib/instructions.ts) : au
+       moindre doute la phrase repart au modèle. Ne pas comprendre un ordre
+       coûte une répétition ; en inventer un coûte un dégât. */
+    const maitre=verifierCode(code);
+    if(maitre.ok&&maitre.maitre){
+      const ordre=lireLOrdre(question);
+      if(ordre){
+        const repete=String(body.aRepeter||"").trim();
+        if(ordre.quoi==="retiens"&&repete){
+          /* CE QU'IL VIENT D'ENTENDRE, mot pour mot. Voir le commentaire de
+             lib/instructions.ts : s'il dit « c'est bon », le texte qui a
+             produit ce son EST le bon texte. */
+          try{
+            await ajouterCorrection({
+              source:repete,corrigee:repete,langue:langueDe(repete),
+              auteur:"maitre-vocal",application:"bia",
+            });
+          }catch(err){
+            console.error("BIA — « retiens ça » n'a pas abouti :",(err as Error).message);
+            noterPanne("retiens ça",(err as Error).message,"chat");
+            return {corps:{reply:"Je n'ai pas pu le garder. Le rangement n'a pas répondu.",
+              emotion:"concernee",source:"ordre du maître"}};
+          }
+          return {corps:{reply:ACCUSES.retiens,emotion:"joie",
+            apprend:true,aRepeter:"",retenu:repete,source:"ordre du maître"}};
+        }
+        if(ordre.quoi==="repete"&&repete){
+          return {corps:{reply:repete,emotion:"neutre",apprend:Boolean(body.apprend),
+            aRepeter:repete,source:"ordre du maître"}};
+        }
+        const suite:Record<string,unknown>={
+          reply:ACCUSES[ordre.quoi]||"D'accord.",emotion:"neutre",source:"ordre du maître",
+          ordre:ordre.quoi,
+        };
+        if(ordre.quoi==="apprendre")suite.apprend=true;
+        if(ordre.quoi==="fini")suite.apprend=false;
+        if(ordre.quoi==="encore"){suite.apprend=true;suite.aRepeter="";}
+        if(ordre.quoi==="oublie")suite.aRepeter="";
+        return {corps:suite};
+      }
+      /* ── EN APPRENTISSAGE, ELLE RÉPÈTE, ET RIEN D'AUTRE ──────────────────
+         Pas de modèle, pas de répertoire : il apprend une phrase, elle la
+         lui redit telle quelle pour qu'il l'entende. C'est tout le geste. */
+      if(body.apprend){
+        return {corps:{reply:question,emotion:"neutre",apprend:true,
+          aRepeter:question,source:"apprentissage"}};
+      }
+    }
+
     if(!question)return {corps:{reply:"Bindal walla waxal sa laaj.",source:"validation"}};
 
     /* ── LE RÉPERTOIRE, AVANT TOUT LE RESTE ──────────────────────────────────

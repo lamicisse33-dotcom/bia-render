@@ -400,6 +400,19 @@ export default function Home() {
      le serveur ne peut pas s'en souvenir, Render redémarre. Comme les
      blagues. */
   const dernierService = useRef("");
+  /* ── L'APPRENTISSAGE À LA VOIX ────────────────────────────────────────────
+
+     Lamine, le 14 septembre 2026 : « je prononce les choses, je continue à
+     prononcer jusqu'à ce qu'elle répète avec moi, et une fois que c'est bon,
+     je lui dis : ça c'est bon, retiens ça. »
+
+     Deux témoins, et rien de plus. `apprend` : on est dans la boucle. `aRepeter` :
+     la dernière phrase qu'elle a redite — c'est celle-là qu'on garde quand il
+     valide, parce que c'est celle qu'il vient d'ENTENDRE. Tout le reste est
+     dans lib/instructions.ts, côté serveur, là où le code maître se vérifie. */
+  const apprend = useRef(false);
+  const aRepeter = useRef("");
+  const [enApprentissage, setEnApprentissage] = useState(false);
   /* ── LA LANGUE DE LA CONVERSATION, D'UN TOUR À L'AUTRE ──────────────────
 
      `langueRef` est remise à « wo » au début de CHAQUE tour, parce que la
@@ -1925,6 +1938,10 @@ export default function Home() {
              application. Une seule fois — après, il est dans ses notes. */
           blaguesDites: blaguesDites.current,
           dernierService: dernierService.current,
+          /* Voir lib/instructions.ts : le serveur n'en tient compte que si le
+             code maître est là. */
+          apprend: apprend.current,
+          aRepeter: aRepeter.current,
           resume: [resumeRef.current, nouveauNomRef.current
             ? `La personne vient de te dire son prénom : ${nouveauNomRef.current}. Emploie-le une fois dans ta réponse, naturellement, sans en faire trop.`
             : ""].filter(Boolean).join("\n"),
@@ -1956,13 +1973,13 @@ export default function Home() {
       let teteDite = "";
       let teteEnCours: Promise<void> | null = null;
       let statut = response.status;
-      let data: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string };
+      let data: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string };
 
       if (response.headers.get("content-type")?.includes("text/event-stream") && response.body) {
         const lecteur = response.body.getReader();
         const decodeur = new TextDecoder();
         let tampon = "", recu = "";
-        let fin: { corps: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string }; statut: number } | null = null;
+        let fin: { corps: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string }; statut: number } | null = null;
         for (;;) {
           const { done, value } = await lecteur.read();
           if (done) break;
@@ -1975,7 +1992,7 @@ export default function Home() {
             const nom = lignes.find((l) => l.startsWith("event:"))?.slice(6).trim();
             const brut = lignes.find((l) => l.startsWith("data:"));
             if (!brut) continue;
-            let ev: { morceau?: string; corps?: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string }; statut?: number };
+            let ev: { morceau?: string; corps?: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string }; statut?: number };
             try { ev = JSON.parse(brut.slice(5).trim()); } catch { continue; }
             if (nom === "texte") {
               recu += ev.morceau || "";
@@ -2001,7 +2018,7 @@ export default function Home() {
         data = fin.corps;
         statut = fin.statut;
       } else {
-        data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string };
+        data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string };
       }
 
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
@@ -2016,6 +2033,16 @@ export default function Home() {
       /* La formulation de service qu'elle vient de servir : on la retient
          pour ne pas la resservir juste après. */
       if (data.service) dernierService.current = data.service;
+      /* L'APPRENTISSAGE SUIT CE QUE DIT LE SERVEUR, jamais ce que le téléphone
+         croit : lui seul a vu le code maître et lu l'ordre. */
+      if (typeof data.apprend === "boolean") {
+        apprend.current = data.apprend;
+        setEnApprentissage(data.apprend);
+      }
+      if (typeof data.aRepeter === "string") aRepeter.current = data.aRepeter;
+      /* Les deux ordres qui n'ont rien à dire : ils AGISSENT. */
+      if (data.ordre === "micro") { taire(); fermerConversation(); }
+      if (data.ordre === "silence") taire();
       /* ICI SE JOUAIT LE SILENCE.
          On coupait l'attente à l'arrivée du TEXTE. Mais la voix, elle, n'est
          pas encore fabriquée : quatre à huit secondes plus tard. BIA se
@@ -5726,6 +5753,18 @@ export default function Home() {
             setFilm(null);
           })}
         />
+      ) : null}
+
+      {/* ── ON APPREND ───────────────────────────────────────────────────
+          Il doit VOIR qu'elle est en train d'apprendre, sinon il parlera
+          pendant dix minutes en croyant qu'elle retient, ou l'inverse. Un
+          bandeau discret, et les trois phrases qui en sortent — parce qu'on
+          n'apprend pas une commande par cœur en conduisant. */}
+      {enApprentissage ? (
+        <p className="apprend-bandeau">
+          <b>On apprend</b> — dis ta phrase, elle la répète.
+          <i>« c&apos;est mal parlé » pour recommencer · « c&apos;est bon, retiens ça » pour garder · « on a fini »</i>
+        </p>
       ) : null}
 
       {temoin ? <p className="temoin-vocal" aria-hidden="true">{temoin}</p> : null}
