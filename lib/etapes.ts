@@ -116,3 +116,21 @@ export function resumeEtapes() {
 }
 
 export function oublierEtapes() { etapes = []; }
+
+/* ── L'ESSAI DE SOYNADE, GARDÉ POUR QU'ON LE RELISE ─────────────────────────
+
+   Lamine, le 15 septembre 2026 : « c'est, à mon avis, le test le plus
+   important à faire maintenant. » Il l'est — et il décide de tout le chantier
+   suivant. Il ne doit donc pas défiler dans une réponse qu'on perd : il se
+   range ici et /api/etat le rend, jusqu'au prochain essai. */
+export type EssaiVoix = {
+  quand: string;
+  resultats: Array<{ signes: number; fin_ms: number; octets: number; ms_par_signe: number; motif?: string }>;
+  plancher_ms: number;
+  ms_par_signe: number;
+  verdict: string;
+};
+
+let essaiVoix: EssaiVoix | null = null;
+export function noterEssaiVoix(e: EssaiVoix) { essaiVoix = e; }
+export function dernierEssaiVoix() { return essaiVoix; }

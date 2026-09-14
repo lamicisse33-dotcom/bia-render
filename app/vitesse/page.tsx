@@ -29,8 +29,14 @@ type Appel = {
   appels: number; premier_octet_ms: number; complet_ms: number;
   coulee_ms: number; verdict: string; signes_median: number;
 };
+type Essai = {
+  quand: string;
+  resultats: Array<{ signes: number; fin_ms: number; octets: number; ms_par_signe: number; motif?: string }>;
+  plancher_ms: number; ms_par_signe: number; verdict: string;
+};
 type Etat = {
   version?: string;
+  essai_voix?: Essai | null;
   etapes?: { ecoute: Appel | null; modele: Appel | null; voix: Appel | null } | null;
   tours?: {
     tours: number;
@@ -63,6 +69,24 @@ export default function Vitesse() {
      l'autre. Devoir tirer pour rafraîchir entre chaque tour lui ferait perdre
      le fil de ce qu'il vient de dire. */
   useEffect(() => { void relire(); const t = setInterval(relire, 5000); return () => clearInterval(t); }, [relire]);
+
+  /* ── LE BOUTON QUI TRANCHE ──────────────────────────────────────────
+     Sa demande du 15 septembre 2026 : cinq appels à Soynade, 20 / 50 / 100 /
+     200 / 400 signes. La clé vit sur le serveur et doit y rester : c'est donc
+     le serveur qui appelle, et cette page ne fait que demander. Le code
+     maître est déjà dans ce navigateur — même origine que BIA. */
+  const [enCours, setEnCours] = useState(false);
+  const lancerLEssai = useCallback(async () => {
+    let code = "";
+    try { code = localStorage.getItem("bia-code") || ""; } catch { }
+    if (!code) { setMotif("ouvre BIA une fois sur ce téléphone, puis reviens"); return; }
+    setEnCours(true);
+    try {
+      await fetch("/api/essai-voix", { method: "POST", headers: { "x-bia-code": code } });
+      await relire();
+    } catch (e) { setMotif((e as Error).message); }
+    setEnCours(false);
+  }, [relire]);
 
   const t = etat?.tours;
   const gros = t?.ou_passe_le_temps?.[0];
@@ -102,6 +126,8 @@ export default function Vitesse() {
             <Barres parts={t.ou_passe_le_temps} />
 
             <Appels e={etat?.etapes} />
+
+            <EssaiSoynade essai={etat?.essai_voix} enCours={enCours} lancer={lancerLEssai} />
 
             <Bloc titre="Quand elle doit réfléchir" g={t.reponse_du_modele} />
             <Bloc titre="Quand la réponse est déjà enregistrée" g={t.reponse_enregistree} />
@@ -202,6 +228,61 @@ function Appels({ e }: { e?: { ecoute: Appel | null; modele: Appel | null; voix:
         En rouge, le temps où rien n’arrive : il faut l’attendre. En vert, ce qui coule
         ensuite : on pourrait commencer à parler sans l’attendre.
       </p>
+    </section>
+  );
+}
+
+/* ── SOYNADE, AUX CINQ LONGUEURS ────────────────────────────────────────
+   « Si la durée dépend fortement de la longueur, alors on garde Soynade et on
+   simule nous-mêmes le streaming. Si Soynade prend toujours ~3–4 secondes
+   même pour 20 caractères, alors je ne perdrais plus de temps à optimiser
+   autour. » — Lamine, 15 septembre 2026. */
+function EssaiSoynade({ essai, enCours, lancer }:
+  { essai?: Essai | null; enCours: boolean; lancer: () => void }) {
+  const max = Math.max(1, ...(essai?.resultats || []).map((r) => r.fin_ms));
+  return (
+    <section style={{ marginBottom: 26, paddingTop: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+        <h2 style={{ font: "600 15px/1.3 system-ui", margin: 0 }}>La voix, aux cinq longueurs</h2>
+        <button onClick={lancer} disabled={enCours} style={{
+          font: "500 13px/1 system-ui", padding: "9px 14px", borderRadius: 8,
+          border: "1px solid #3a2f26", background: enCours ? "#1a1511" : "#e8b25f",
+          color: enCours ? "#8a7a68" : "#1a1108", cursor: enCours ? "default" : "pointer" }}>
+          {enCours ? "en cours…" : essai ? "recommencer" : "lancer l’essai"}
+        </button>
+      </div>
+      {!essai && (
+        <p style={{ margin: 0, opacity: 0.6, fontSize: 13 }}>
+          Cinq appels à Soynade — 20, 50, 100, 200 et 400 signes. C’est ce test qui dit
+          s’il faut découper les phrases ou changer de moteur de voix.
+        </p>
+      )}
+      {essai && (
+        <>
+          {essai.resultats.map((r) => (
+            <div key={r.signes} style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 3 }}>
+                <span style={{ opacity: 0.85 }}>{r.signes} signes</span>
+                <span style={{ opacity: 0.6 }}>
+                  {r.motif ? r.motif : `${sec(r.fin_ms)} · ${r.ms_par_signe} ms/signe`}
+                </span>
+              </div>
+              <div style={{ height: 8, background: "#1a1511", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${Math.round((r.fin_ms / max) * 100)}%`,
+                  background: "#e8b25f", borderRadius: 4 }} />
+              </div>
+            </div>
+          ))}
+          <p style={{ margin: "10px 0 0", fontSize: 13,
+            color: /SUIT la longueur/.test(essai.verdict) ? "#7fc48f" : "#d79a8c" }}>
+            {essai.verdict}
+          </p>
+          <p style={{ margin: "4px 0 0", opacity: 0.45, fontSize: 11 }}>
+            essai du {new Date(essai.quand).toLocaleString("fr-FR")}
+          </p>
+        </>
+      )}
     </section>
   );
 }

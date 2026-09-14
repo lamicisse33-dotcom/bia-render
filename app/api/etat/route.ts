@@ -4,7 +4,7 @@ import { ecouteConfig, resumeEcoutes } from "@/lib/ecoute";
 import { lexiqueConfig, combien, combienParApplication, parAuteur } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
 import { resumeAttentes, resumeLectures, resumeTours } from "@/lib/attentes-vues";
-import { resumeEtapes } from "@/lib/etapes";
+import { resumeEtapes, dernierEssaiVoix } from "@/lib/etapes";
 import { resumeEmotions } from "@/lib/emotions-vues";
 import { depense } from "@/lib/depense";
 import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
@@ -98,6 +98,10 @@ export async function GET() {
        secondes du modèle et de la voix sont une ATTENTE ou une COULÉE.
        `verdict` le dit en une phrase. Voir lib/etapes.ts. */
     etapes: resumeEtapes(),
+    /* L'ESSAI DE SOYNADE aux cinq longueurs — le test qui décide si on
+       découpe par phrase ou si on change de moteur. Lancé depuis /vitesse,
+       gardé ici jusqu'au suivant. Voir app/api/essai-voix/route.ts. */
+    essai_voix: dernierEssaiVoix(),
     /* Ce que le moteur d'écoute a cru entendre, et combien de fois il a
        fallu le reprendre. Voir lib/ecoute.ts. */
     ecoutes: resumeEcoutes(),

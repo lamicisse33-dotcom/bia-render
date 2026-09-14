@@ -155,12 +155,11 @@
 export const SILENCE_QUI_FERME = 1500;
 
 /** Jamais moins, quoi qu'il arrive : en dessous, on coupe la parole. */
-export const SILENCE_LE_PLUS_COURT = SILENCE_QUI_FERME;
+export const SILENCE_LE_PLUS_COURT = 900;
 
-/* Les deux paliers de l'échelle du matin. Ils ne décident plus rien — son
-   nombre vaut pour toutes les longueurs de parole — mais ils restent nommés
-   ici : le jour où il redemandera une fermeture plus vive après un mot seul,
-   c'est cette fonction-là qu'on rouvre, et l'échelle est déjà écrite. */
+/* Les deux paliers de l'échelle. Ils décident de nouveau depuis le
+   15 septembre 2026 : voir silenceQuiSuffit() juste en dessous. Le jour
+   prévu est arrivé — c'est le tableau de /vitesse qui l'a amené. */
 export const PAROLE_COURTE = 1200;
 export const PAROLE_LONGUE = 4000;
 
@@ -172,7 +171,26 @@ export const PAROLE_LONGUE = 4000;
  * @param dureeDeParole combien de temps elle vient de parler, en millisecondes
  */
 export function silenceQuiSuffit(dureeDeParole: number): number {
-  void dureeDeParole;
+  /* ── L'ÉCHELLE ROUVERTE, ET C'EST LUI QUI L'A CHIFFRÉE ────────────────
+
+     Lamine, le 15 septembre 2026, devant le tableau qui affichait 1536 ms à
+     chaque tour :
+
+       « Je ne mettrais pas 700 ms partout. Je réactiverais l'adaptatif de
+         façon prudente : moins de 1200 → 900, moins de 4000 → 1200, sinon
+         1500. Cela peut récupérer environ 300 à 600 ms sans trop augmenter
+         le risque de couper quelqu'un. »
+
+     C'est le bon raisonnement, et c'est le sien. Le danger n'est pas le même
+     selon la longueur : après « Salam », il n'y a rien à couper — la phrase
+     est finie. Après une longue intervention, une seconde de silence est
+     souvent une respiration au milieu, et fermer là envoie une demi-phrase
+     wolof à la transcription, qui la devine au lieu de la lire.
+
+     Le plancher reste à 900 ms. En dessous, on coupe la parole — et une
+     question reposée coûte bien plus que les millisecondes gagnées. */
+  if (dureeDeParole < PAROLE_COURTE) return 900;
+  if (dureeDeParole < PAROLE_LONGUE) return 1200;
   return SILENCE_QUI_FERME;
 }
 
