@@ -1875,7 +1875,13 @@ export default function Home() {
           const r = await fetch("/api/voix", {
             method: "POST",
             headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-            body: JSON.stringify({ texte: answer, partie, ou, langue: langueDite }),
+            /* `tete` : la PREMIERE phrase d'une réponse, celle qu'on attend
+               pour ouvrir la bouche. Le reste se fabrique pendant qu'elle
+               parle et personne ne l'attend — mélanger les deux dans une
+               médiane donnait 4,6 s pour une phrase qui en coûte 1,9. Voir
+               synthetiser() dans lib/voix.ts. */
+            body: JSON.stringify({ texte: answer, partie, ou, langue: langueDite,
+              tete: !suite && partie === 0 }),
           });
           if (r.ok) return await r.json() as { parties: number; audio: string | null; type_mime?: string };
           dernier = String(r.status);

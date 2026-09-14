@@ -51,7 +51,8 @@ type Etat = {
   version?: string;
   lecture?: Lecture | null;
   essai_voix?: Essai | null;
-  etapes?: { ecoute: Appel | null; modele: Appel | null; voix: Appel | null } | null;
+  etapes?: { ecoute: Appel | null; modele: Appel | null;
+    voix_tete: Appel | null; voix: Appel | null } | null;
   tours?: {
     tours: number;
     ou_passe_le_temps: Part[];
@@ -280,8 +281,9 @@ export default function Vitesse() {
    suit : les quatre secondes du modèle et de la voix, est-ce qu'on les
    ATTEND avant le premier octet, ou est-ce qu'elles COULENT après ? Dans le
    premier cas il n'y a rien à gagner. Dans le second, il y a tout. */
-function Appels({ e }: { e?: { ecoute: Appel | null; modele: Appel | null; voix: Appel | null } | null }) {
-  if (!e || (!e.ecoute && !e.modele && !e.voix)) return null;
+function Appels({ e }: { e?: { ecoute: Appel | null; modele: Appel | null;
+  voix_tete: Appel | null; voix: Appel | null } | null }) {
+  if (!e || (!e.ecoute && !e.modele && !e.voix && !e.voix_tete)) return null;
   const un = (titre: string, a: Appel | null) => {
     if (!a) return null;
     const part = a.complet_ms ? Math.round((a.premier_octet_ms / a.complet_ms) * 100) : 0;
@@ -314,7 +316,8 @@ function Appels({ e }: { e?: { ecoute: Appel | null; modele: Appel | null; voix:
       </h2>
       {un("La transcription — avant le texte", e.ecoute)}
       {un("Le modèle — avant le premier mot", e.modele)}
-      {un("La voix — avant le premier octet audio", e.voix)}
+      {un("La voix — la PREMIÈRE phrase, celle qu'on attend", e.voix_tete)}
+      {un("La voix — la suite, pendant qu'elle parle", e.voix)}
       <p style={{ margin: 0, opacity: 0.45, fontSize: 11 }}>
         En rouge, le temps où rien n’arrive : il faut l’attendre. En vert, ce qui coule
         ensuite : on pourrait commencer à parler sans l’attendre.

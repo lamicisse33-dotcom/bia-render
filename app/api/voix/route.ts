@@ -18,6 +18,12 @@ export async function POST(request: NextRequest) {
       texte?: string; partie?: number; langue?: string; ou?: string;
       exaggeration?: number; temperature?: number; cfgWeight?: number; vitesse?: number;
       audioPrompt?: string | null;
+      /* Le telephone dit s'il s'agit de la PREMIERE phrase — celle qu'on
+         attend pour ouvrir la bouche — ou de la suite, fabriquee pendant
+         qu'elle parle. Voir synthetiser() dans lib/voix.ts : melanger les
+         deux dans une mediane donne un chiffre qui ne decrit ni l'un ni
+         l'autre. */
+      tete?: boolean;
     };
     /* LES NOMBRES PASSENT EN LETTRES AVANT TOUT LE RESTE. Le moteur de voix
        épelle « 300 000 » chiffre par chiffre — « 3.0.0.0 » — parce qu'il ne
@@ -54,7 +60,7 @@ export async function POST(request: NextRequest) {
       cfgWeight: body.cfgWeight,
       vitesse: body.vitesse,
       audioPrompt: body.audioPrompt,
-    });
+    }, body.tete && partie === 0 ? "voix-tete" : "voix");
     if (!parole) {
       /* Aucun fournisseur de voix n'est configuré : le téléphone lira
          lui-même. Ce n'est pas une panne, mais il faut pouvoir le VOIR —

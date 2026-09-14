@@ -164,7 +164,7 @@ export type Parole = { audio: Buffer; typeMime: string; moteur: string };
 const borne = (v: number | undefined, defaut: number) =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(Math.max(v, 0), 2) : defaut;
 
-async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages): Promise<Parole> {
+async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages, etiquette = "voix"): Promise<Parole> {
   const c = voixConfig.soynade;
   if (!c.apiKey) throw new Error("SOYNADE_API_KEY manquante");
 
@@ -222,7 +222,7 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages): Pro
     throw new Error(`Soynade ${reponse.status} : ${detail}`);
   }
   const octets = Buffer.from(await reponse.arrayBuffer());
-  noterEtape("voix", partiVoix, premierOctetVoix, Date.now(), texte.length);
+  noterEtape(etiquette, partiVoix, premierOctetVoix, Date.now(), texte.length);
   return {
     audio: octets,
     typeMime: "audio/wav",
@@ -245,10 +245,25 @@ async function viaElevenLabs(texte: string, langue: "wo" | "fr"): Promise<Parole
   return { audio: Buffer.from(await reponse.arrayBuffer()), typeMime: "audio/mpeg", moteur: "elevenlabs" };
 }
 
-export async function synthetiser(texte: string, langue: "wo" | "fr", r?: Reglages): Promise<Parole | null> {
+/* ── DEUX APPELS DE VOIX QUI N'ONT RIEN A VOIR ─────────────────────────────
+
+   Les dix tours du 15 septembre au soir ont rendu un chiffre impossible : la
+   voix mesuree a 4,6 s de moyenne, alors que l'essai dit qu'une premiere
+   phrase de trente-trois signes coute 1,9 s.
+
+   LES DEUX NE PARLENT PAS DE LA MEME CHOSE. Sur cinq tours, il y a eu SEIZE
+   appels a la voix : la PREMIERE PHRASE, celle qu'on attend pour ouvrir la
+   bouche — et TOUT LE RESTE de la reponse, fabrique pendant qu'elle parle et
+   que personne n'attend. Mediane sur les seize : un chiffre qui ne decrit ni
+   l'un ni l'autre, et qui laisse croire que le decoupage n'a rien donne.
+
+   L'etiquette les separe. Seule la premiere phrase est une attente ; le reste
+   est du travail de fond, et il peut durer sans que ca se sente. */
+export async function synthetiser(texte: string, langue: "wo" | "fr", r?: Reglages,
+                                  etiquette = "voix"): Promise<Parole | null> {
   if (!texte.trim()) return null;
   switch (voixConfig.fournisseur) {
-    case "soynade": return viaSoynade(texte, langue, r);
+    case "soynade": return viaSoynade(texte, langue, r, etiquette);
     case "elevenlabs": return viaElevenLabs(texte, langue);
     default: return null; // le téléphone lit lui-même
   }

@@ -119,7 +119,14 @@ export function resumeEtapes() {
       derniers: l.slice(-5),
     };
   };
-  return { ecoute: par("ecoute"), modele: par("modele"), voix: par("voix") };
+  return {
+    ecoute: par("ecoute"),
+    modele: par("modele"),
+    /* LA PREMIÈRE PHRASE — la seule qu'on attend vraiment. */
+    voix_tete: par("voix-tete"),
+    /* Et tout le reste, fabriqué pendant qu'elle parle. */
+    voix: par("voix"),
+  };
 }
 
 export function oublierEtapes() { etapes = []; }
