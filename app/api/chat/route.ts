@@ -118,6 +118,13 @@ que tu crois savoir de toi-même.
   message à envoyer sur WhatsApp ou par SMS, un devis avec ses prix et ses
   totaux, une lettre. La personne les retrouve dans la fenêtre à droite du
   micro, elle peut les corriger, en faire un PDF ou les envoyer.
+  SEULEMENT QUAND ON TE LE DEMANDE, et jamais de toi-même. Lamine, le 14
+  septembre 2026 : « pendant que j'étais en train de parler avec elle, elle
+  s'est mise à écrire, ce n'est pas normal. » Quelqu'un qui raconte un
+  problème d'argent ne demande pas un devis ; quelqu'un qui parle de son
+  cousin ne demande pas une lettre. Un papier qui s'ouvre tout seul recouvre
+  l'écran et coupe la conversation. Dans le doute, tu réponds avec des mots,
+  et tu PROPOSES : « tu veux que je te l'écrive ? »
 - Tu LIS un papier photographié : une convocation, une ordonnance, une
   facture, une capture d'écran. On la prend en photo, tu dis ce que c'est et
   tu la racontes en wolof à voix haute.
@@ -681,13 +688,58 @@ async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void){
    phrase ne ressemble a rien de connu. Mieux vaut ne pas ouvrir de carte que
    d'en ouvrir une sur un mot pris au hasard.                              */
 const DEMANDES_DE_TRAJET = [
+  /* « Amène-moi… » : le verbe est sans ambiguïté, la préposition peut manquer.
+     « Amène-moi Sandaga » se dit. */
   /(?:am[eè]ne|emm[eè]ne|conduis|accompagne|guide|d[ée]pose)[\s-]*(?:moi|nous)\s+(?:jusqu'?(?:au|aux|[àa]|a)\s+|vers\s+|sur\s+|[àa]\s+|au\s+|aux\s+|chez\s+|en\s+)?(.{2,60})$/i,
-  /(?:je\s+(?:veux|voudrais|souhaite)\s+aller|on\s+va|je\s+vais|allons)\s+(?:jusqu'?(?:au|aux|[àa]|a)\s+|vers\s+|[àa]\s+|au\s+|aux\s+|chez\s+|en\s+)?(.{2,60})$/i,
+  /* ── ET ICI LA PRÉPOSITION EST OBLIGATOIRE ──────────────────────────────
+
+     Lamine, le 14 septembre 2026 : « pendant que je parlais avec elle, il y
+     a un moment où elle m'a affiché la carte. »
+
+     C'ÉTAIT MOI. « Je vais », « on va », « allons » sont les mots les plus
+     ordinaires de la langue, et je les avais écrits avec une préposition
+     FACULTATIVE. Essayé après coup, et c'est édifiant :
+
+       « on va apprendre »            → carte vers « apprendre »
+       « je vais te dire quelque chose » → carte vers « te dire quelque chose »
+       « je vais bien merci »         → carte vers « bien »
+       « on va voir ce que ça donne » → carte vers « voir ce que ça donne »
+
+     Il venait justement de lui dire « on apprend » et « on va apprendre ».
+
+     La préposition est donc EXIGÉE pour cette famille-là : on ne va pas
+     quelque part sans dire « à », « au », « chez », « vers ». Ce qu'on perd,
+     c'est « je vais Ouakam » — que personne ne dit. Ce qu'on gagne, c'est que
+     parler ne déclenche plus rien. */
+  /(?:je\s+(?:veux|voudrais|souhaite)\s+aller|on\s+va|je\s+vais|allons)\s+(?:jusqu'?(?:au|aux|[àa]|a)\s+|vers\s+|[àa]\s+|au\s+|aux\s+|chez\s+)(.{2,60})$/i,
   /(?:comment\s+(?:aller|on\s+va|je\s+fais\s+pour\s+aller))\s+(?:[àa]\s+|au\s+|aux\s+|chez\s+|vers\s+|en\s+)?(.{2,60})$/i,
   /(?:itin[ée]raire|trajet|route|chemin)\s+(?:pour\s+|jusqu'?(?:au|aux|[àa]|a)\s+|vers\s+|[àa]\s+|au\s+|aux\s+)(.{2,60})$/i,
 ];
 /* Ce qui se dit par politesse et qui n'est pas un lieu. */
 const POLITESSES = /\b(s'?il\s+te\s+pla[iî]t|s'?il\s+vous\s+pla[iî]t|stp|svp|merci|maintenant|tout\s+de\s+suite|vite)\b/gi;
+
+/* ── ET CE QUI NE COMMENCE PAS UN NOM DE LIEU ───────────────────────────────
+
+   Même avec la préposition exigée, « amène-moi ça » ou « conduis-moi vers la
+   sortie de ce problème » peuvent passer. Un lieu ne commence pas par un
+   pronom ni par un verbe : ces mots-là, en tête, disqualifient la phrase.
+
+   ON PRÉFÈRE TOUJOURS NE RIEN OUVRIR. Une carte qui ne s'ouvre pas se
+   redemande en trois mots ; une carte qui s'ouvre au milieu d'une phrase
+   coupe la conversation, fait taire BIA, et il faut sortir de l'écran pour
+   reprendre. Les deux erreurs ne coûtent pas le même prix. */
+/* L'ARTICLE FAIT PARTIE DU NOM, pas de la faute. « La corniche », « le
+   Plateau », « les Almadies » sont des lieux ; c'est le mot d'APRÈS qu'il faut
+   regarder. On l'enlève donc avant de juger, et on le garde dans ce qu'on
+   rend — le nom d'un lieu se dit avec son article. */
+const ARTICLES = /^(le|la|les|l'|un|une|des|du|au|aux|ce|cette|ces|mon|ma|mes|ton|ta|tes|son|sa|ses)\s+/i;
+
+const PAS_UN_LIEU = new Set([
+  "te", "me", "lui", "leur", "vous", "nous", "y", "en", "ca", "cela", "ceci",
+  "dire", "parler", "voir", "faire", "savoir", "apprendre", "commencer", "essayer",
+  "continuer", "arreter", "bien", "mal", "mieux", "doucement", "vite", "tout",
+  "rien", "quelque", "toi", "moi", "soi",
+]);
 
 function lieuDemandeDans(question: string): string {
   const propre = String(question || "").trim().replace(/[?!.;,]+\s*$/, "");
@@ -698,6 +750,9 @@ function lieuDemandeDans(question: string): string {
     /* Un mot vide, un « moi », un pronom : ce n'est pas une destination. */
     if (lieu.length < 2) return "";
     if (/^(moi|nous|toi|la|l[àa]|ici|maison|chez\s+moi)$/i.test(lieu)) return "";
+    const premier = lieu.replace(ARTICLES, "").split(/[\s']/)[0].toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "");
+    if (PAS_UN_LIEU.has(premier)) return "";
     return lieu.slice(0, 60);
   }
   return "";
