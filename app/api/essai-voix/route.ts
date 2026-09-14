@@ -191,8 +191,25 @@ const PLANCHER_TENABLE = 1500;
 
 function lire(mesures: Mesure[]) {
   const bons = mesures.filter((m) => m.fin_ms > 0);
-  if (bons.length < 2) return { plancher_ms: 0, ms_par_signe: 0, premier_octet_ms: 0,
-    verdict: "pas assez d'appels aboutis pour conclure" };
+  if (bons.length < 2) {
+    /* ── DIRE POURQUOI, PAS SEULEMENT QUE ─────────────────────────────────
+       Le 15 septembre 2026, ElevenLabs a rendu cinq fois « 401 : the API key
+       you used is missing the permission » — et la page affichait dessous
+       « pas assez d'appels aboutis pour conclure », en vert, comme si de
+       rien n'était. La cause était pourtant écrite en toutes lettres dans
+       la réponse : cette clé sert à TRANSCRIRE, et n'a pas le droit de
+       fabriquer de la voix. Ça ne se répare pas dans le code, ça se coche
+       dans le compte — encore faut-il le dire. */
+    const premier = mesures.find((m) => m.motif)?.motif || "";
+    const refuse = /401|403|unauthorized|missing the permission/i.test(premier);
+    return { plancher_ms: 0, ms_par_signe: 0, premier_octet_ms: 0, une_phrase_ms: 0, coule: false,
+      verdict: refuse
+        ? "la clé existe mais n'a pas le droit de fabriquer de la voix — c'est une permission "
+          + "à cocher dans le compte du fournisseur, pas une ligne à changer ici"
+        : premier
+          ? `le moteur a refusé : ${premier.slice(0, 120)}`
+          : "pas assez d'appels aboutis pour conclure" };
+  }
   const petit = bons[0], grand = bons[bons.length - 1];
   /* ── LA DROITE PAR MOINDRES CARRÉS, PAS PAR LES DEUX BOUTS ──────────────
      Prendre le plus court et le plus long laissait TOUTE la mesure dépendre

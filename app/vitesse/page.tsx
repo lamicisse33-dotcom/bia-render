@@ -313,7 +313,18 @@ function EssaiSoynade({ essai, enCours, lancer }:
                 {m.nom}
                 {m.absent && <span style={{ fontWeight: 400, opacity: 0.55 }}> — {m.motif}</span>}
               </p>
-              {!m.absent && (m.resultats || []).map((r) => {
+              {/* ── UNE ERREUR RÉPÉTÉE NE SE LIT PAS CINQ FOIS ──────────
+                  Cinq lignes identiques de quatre-vingts signes chacune
+                  noyaient le reste du tableau. Quand toutes les prises ont
+                  échoué de la même façon, on le dit UNE fois. */}
+              {!m.absent && (m.resultats || []).every((r) => r.motif) && (
+                <p style={{ margin: "0 0 6px", fontSize: 12, opacity: 0.7 }}>
+                  {(m.resultats || []).length} appels refusés —{" "}
+                  {((m.resultats || [])[0]?.motif || "").slice(0, 110)}
+                </p>
+              )}
+              {!m.absent && !(m.resultats || []).every((r) => r.motif)
+                && (m.resultats || []).map((r) => {
                 const grand = Math.max(1, ...(m.resultats || []).map((x) => x.fin_ms));
                 const part = r.fin_ms ? Math.round(((r.premier_ms || r.fin_ms) / r.fin_ms) * 100) : 0;
                 return (
@@ -333,7 +344,11 @@ function EssaiSoynade({ essai, enCours, lancer }:
               })}
               {!m.absent && (
                 <p style={{ margin: "8px 0 0", fontSize: 12,
-                  color: /PLANCHER/.test(m.verdict || "") ? "#d79a8c" : "#7fc48f" }}>
+                  /* Vert seulement quand il y a une bonne nouvelle. Un moteur
+                     refusé ou un plancher trop haut ne s'annonce pas en vert :
+                     c'est ce que faisait la page, et ça se lisait de travers. */
+                  color: /PLANCHER|refus|permission|pas assez/.test(m.verdict || "")
+                    ? "#d79a8c" : "#7fc48f" }}>
                   {m.verdict}
                 </p>
               )}
