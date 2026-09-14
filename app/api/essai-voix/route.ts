@@ -64,8 +64,23 @@ const PHRASE = "Je regarde ce que tu me demandes et je te réponds tout de suite
 
 const LONGUEURS = [20, 50, 100, 200, 400];
 
+/* ── TROIS FOIS CHAQUE LONGUEUR ─────────────────────────────────────────────
+
+   Le premier essai, le 15 septembre 2026, a rendu ceci :
+     20 signes → 3,4 s      50 signes → 2,6 s      100 signes → 3,5 s
+   Cinquante signes plus RAPIDES que vingt : c'est du bruit, pas une mesure.
+   Un appel isolé porte la gigue du réseau, l'état de la file d'attente chez
+   le fournisseur, et le hasard. Sur ces chiffres-là on allait décider s'il
+   faut changer de moteur de voix — et une décision pareille ne se prend pas
+   sur un seul tirage.
+
+   Trois fois chaque longueur, et on garde la MÉDIANE. Quinze appels au lieu
+   de cinq : ça se paie, mais bien moins cher qu'une semaine passée sur le
+   mauvais chantier. */
+const REPRISES = 3;
+
 type Mesure = { signes: number; premier_ms: number; fin_ms: number; octets: number;
-  ms_par_signe: number; motif?: string };
+  ms_par_signe: number; prises?: number; motif?: string };
 
 /** Un appel, chronométré aux trois instants qu'il a nommés.
 
@@ -138,28 +153,70 @@ function lesMoteurs(): Moteur[] {
 }
 
 /** Ce que deux points suffisent à dire : la latence fixe, et le prix du signe. */
+/* Ce qu'on juge conversationnel. Au-delà, il n'y a pas de découpage qui
+   sauve : même « waaw » coûterait ce prix-là, et Lamine l'a dit avant la
+   mesure — « si 20–50 caractères demandent environ 3 à 4 secondes, Soynade
+   a une latence fixe trop élevée pour une conversation temps réel ». */
+const PLANCHER_TENABLE = 1500;
+
 function lire(mesures: Mesure[]) {
   const bons = mesures.filter((m) => m.fin_ms > 0);
   if (bons.length < 2) return { plancher_ms: 0, ms_par_signe: 0, premier_octet_ms: 0,
     verdict: "pas assez d'appels aboutis pour conclure" };
   const petit = bons[0], grand = bons[bons.length - 1];
-  const parSigne = (grand.fin_ms - petit.fin_ms) / (grand.signes - petit.signes);
-  const plancher = Math.max(0, Math.round(petit.fin_ms - parSigne * petit.signes));
+  /* ── LA DROITE PAR MOINDRES CARRÉS, PAS PAR LES DEUX BOUTS ──────────────
+     Prendre le plus court et le plus long laissait TOUTE la mesure dépendre
+     de deux appels — dont le plus court, qui est justement le plus bruité.
+     Sur les chiffres du 15 septembre, les deux méthodes donnaient 3,0 s et
+     2,1 s de plancher : un écart d'une seconde sur le nombre qui décide. */
+  const n = bons.length;
+  const sx = bons.reduce((a, m) => a + m.signes, 0);
+  const sy = bons.reduce((a, m) => a + m.fin_ms, 0);
+  const sxx = bons.reduce((a, m) => a + m.signes * m.signes, 0);
+  const sxy = bons.reduce((a, m) => a + m.signes * m.fin_ms, 0);
+  const denom = n * sxx - sx * sx;
+  const parSigne = denom ? (n * sxy - sx * sy) / denom : 0;
+  const plancher = Math.max(0, Math.round((sy - parSigne * sx) / n));
   /* LE CRITÈRE N°1, SES MOTS : « temps avant le premier audio, pas seulement
      le temps total ». On prend celui du texte le plus COURT — c'est celui
      d'une première phrase, donc celui qu'on entendrait vraiment. */
   const premier = petit.premier_ms || petit.fin_ms;
   const coule = grand.fin_ms - grand.premier_ms > Math.max(300, grand.fin_ms * 0.25);
+  /* Une première phrase fait une quarantaine de signes. C'est CE prix-là que
+     BIA paierait si on découpait — pas la pente, pas le plancher : la somme
+     des deux, dite en une fois. */
+  const unePhrase = Math.round(plancher + parSigne * 40);
+
+  /* ── LE VERDICT, ET CE QU'IL AVAIT DE FAUX ──────────────────────────────
+
+     La première version ne regardait que la PENTE : « la durée suit la
+     longueur, donc découper fera parler BIA plus tôt ». C'était vrai, et
+     c'était trompeur. Sur les chiffres du 15 septembre la pente est bien
+     réelle — 21 ms par signe — mais le PLANCHER est de deux secondes, et
+     aucun découpage ne descend sous un plancher. On aurait découpé, gagné
+     une seconde et demie sur les longues réponses, et conclu qu'on avait
+     réglé la lenteur alors que « waaw » coûterait encore trois secondes.
+
+     C'est le plancher qui décide, et le seuil est le sien. */
+  const verdict = plancher > PLANCHER_TENABLE
+    ? `PLANCHER de ${(plancher / 1000).toFixed(1)} s : même une phrase minuscule le paie, et aucun `
+      + `découpage ne passe dessous. Une première phrase coûterait ${(unePhrase / 1000).toFixed(1)} s. `
+      + `Découper reste utile sur les longues réponses (${Math.round(parSigne)} ms par signe), mais pour `
+      + `une vraie conversation il faut un autre moteur.`
+    : parSigne * 100 < 400
+      ? `latence fixe basse (${(plancher / 1000).toFixed(1)} s) et peu sensible à la longueur : `
+        + "rien à gagner à découper, et rien à réparer ici"
+      : `plancher tenable (${(plancher / 1000).toFixed(1)} s) et la durée suit la longueur `
+        + `(${Math.round(parSigne)} ms par signe) : découper par phrase fera parler BIA plus tôt, `
+        + `une première phrase à ${(unePhrase / 1000).toFixed(1)} s`;
+
   return {
     plancher_ms: plancher,
     ms_par_signe: Math.round(parSigne * 10) / 10,
     premier_octet_ms: premier,
-    verdict: coule
-      ? `il COULE : sur 400 signes, ${grand.fin_ms - grand.premier_ms} ms arrivent après le premier octet`
-      : parSigne * 100 < 400
-        ? `latence FIXE d'environ ${(plancher / 1000).toFixed(1)} s : découper ne rendra presque rien`
-        : `la durée SUIT la longueur (${Math.round(parSigne)} ms par signe, plancher `
-          + `${(plancher / 1000).toFixed(1)} s) : découper par phrase fera parler BIA plus tôt`,
+    une_phrase_ms: unePhrase,
+    coule,
+    verdict,
   };
 }
 
@@ -175,14 +232,23 @@ export async function POST(request: NextRequest) {
     const mesures: Mesure[] = [];
     for (const n of LONGUEURS) {
       const texte = PHRASE.slice(0, n);
-      try {
-        const { premier, fin, octets } = await chronometrer(() => m.appeler(texte));
-        mesures.push({ signes: n, premier_ms: premier, fin_ms: fin, octets,
-          ms_par_signe: Math.round(fin / n) });
-      } catch (err) {
-        mesures.push({ signes: n, premier_ms: 0, fin_ms: 0, octets: 0, ms_par_signe: 0,
-          motif: (err as Error).message.slice(0, 160) });
+      const prises: Array<{ premier: number; fin: number; octets: number }> = [];
+      let motif = "";
+      for (let i = 0; i < REPRISES; i++) {
+        try { prises.push(await chronometrer(() => m.appeler(texte))); }
+        catch (err) { motif = (err as Error).message.slice(0, 160); }
       }
+      if (!prises.length) {
+        mesures.push({ signes: n, premier_ms: 0, fin_ms: 0, octets: 0, ms_par_signe: 0, motif });
+        continue;
+      }
+      /* La médiane des trois — voir REPRISES. Un appel malchanceux ne doit
+         pas décider s'il faut changer de moteur de voix. */
+      const med = (v: number[]) => { const t = [...v].sort((a, b) => a - b); return t[Math.floor(t.length / 2)]; };
+      const fin = med(prises.map((p) => p.fin));
+      mesures.push({ signes: n, premier_ms: med(prises.map((p) => p.premier)), fin_ms: fin,
+        octets: med(prises.map((p) => p.octets)), ms_par_signe: Math.round(fin / n),
+        prises: prises.length, ...(motif ? { motif } : {}) });
     }
     moteurs.push({ nom: m.nom, absent: false, resultats: mesures, ...lire(mesures) });
   }

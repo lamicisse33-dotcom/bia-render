@@ -30,10 +30,11 @@ type Appel = {
   coulee_ms: number; verdict: string; signes_median: number;
 };
 type MesureVoix = { signes: number; premier_ms?: number; fin_ms: number;
-  octets: number; ms_par_signe: number; motif?: string };
+  octets: number; ms_par_signe: number; prises?: number; motif?: string };
 type MoteurEssaye = {
   nom: string; absent: boolean; motif?: string; resultats?: MesureVoix[];
-  plancher_ms?: number; ms_par_signe?: number; premier_octet_ms?: number; verdict?: string;
+  plancher_ms?: number; ms_par_signe?: number; premier_octet_ms?: number;
+  une_phrase_ms?: number; coule?: boolean; verdict?: string;
 };
 type Essai = {
   quand: string;
@@ -332,7 +333,7 @@ function EssaiSoynade({ essai, enCours, lancer }:
               })}
               {!m.absent && (
                 <p style={{ margin: "8px 0 0", fontSize: 12,
-                  color: /COULE|SUIT la longueur/.test(m.verdict || "") ? "#7fc48f" : "#d79a8c" }}>
+                  color: /PLANCHER/.test(m.verdict || "") ? "#d79a8c" : "#7fc48f" }}>
                   {m.verdict}
                 </p>
               )}

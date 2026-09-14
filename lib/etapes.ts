@@ -124,11 +124,12 @@ export function oublierEtapes() { etapes = []; }
    suivant. Il ne doit donc pas défiler dans une réponse qu'on perd : il se
    range ici et /api/etat le rend, jusqu'au prochain essai. */
 export type MesureVoix = { signes: number; premier_ms?: number; fin_ms: number;
-  octets: number; ms_par_signe: number; motif?: string };
+  octets: number; ms_par_signe: number; prises?: number; motif?: string };
 export type MoteurEssaye = {
   nom: string; absent: boolean; motif?: string;
   resultats?: MesureVoix[];
-  plancher_ms?: number; ms_par_signe?: number; premier_octet_ms?: number; verdict?: string;
+  plancher_ms?: number; ms_par_signe?: number; premier_octet_ms?: number;
+  une_phrase_ms?: number; coule?: boolean; verdict?: string;
 };
 export type EssaiVoix = {
   quand: string;
