@@ -13,7 +13,8 @@ import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
 import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgences";
-import { ACCUSES, CLE_ACCORD, lireLOrdre } from "@/lib/instructions";
+import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
+import { SERVICES } from "@/lib/services-textes";
 import { ajouterCorrection } from "@/lib/lexique";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
@@ -559,6 +560,11 @@ type Corps={message?:string;history?:Array<{role:string;text:string}>;resume?:st
   apprend?:boolean;aRepeter?:string};
 type Rendu={corps:Record<string,unknown>;statut?:number};
 
+/* La langue du son de « d'accord papa » : celle qui a un texte, pas celle où
+   il a parlé. Voir langueDeLAccord() dans lib/instructions.ts. Calculé une
+   fois au chargement — la liste ne change pas en cours de route. */
+const LANGUE_ACCORD=langueDeLAccord(SERVICES.find(s=>s.cle===CLE_ACCORD)?.wolof||"");
+
 /* ── LA RÉPONSE AU FIL DE L'EAU ──────────────────────────────────────────────
 
    Lamine, le 14 septembre 2026 : des partenaires essaient BIA ce soir, et
@@ -732,7 +738,7 @@ async function repondre(body:Corps,code:string|null,emettre:((morceau:string)=>v
               emotion:"concernee",source:"ordre du maître"}};
           }
           return {corps:{reply:ACCUSES.retiens,emotion:"joie",
-            son:sonDe(CLE_ACCORD,langueDe(question),ACCUSES.retiens),
+            son:sonDe(CLE_ACCORD,LANGUE_ACCORD,ACCUSES.retiens),
             apprend:true,aRepeter:"",retenu:repete,source:"ordre du maître"}};
         }
         if(ordre.quoi==="repete"&&repete){
@@ -748,7 +754,7 @@ async function repondre(body:Corps,code:string|null,emettre:((morceau:string)=>v
         const suite:Record<string,unknown>={
           reply:ditOui||"D'accord.",emotion:"neutre",source:"ordre du maître",
           ordre:ordre.quoi,
-          ...(ditOui?{son:sonDe(CLE_ACCORD,langueDe(question),ditOui)}:{}),
+          ...(ditOui?{son:sonDe(CLE_ACCORD,LANGUE_ACCORD,ditOui)}:{}),
         };
         if(ordre.quoi==="apprendre")suite.apprend=true;
         if(ordre.quoi==="fini")suite.apprend=false;

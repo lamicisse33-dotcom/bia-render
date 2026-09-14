@@ -247,3 +247,22 @@ export const ACCUSES: Record<Quoi, string> = {
    Le texte vit dans lib/services-textes.ts sous cette clé, pour être
    enregistré avec les autres, au même passage et au même bouton.           */
 export const CLE_ACCORD = "ordre-daccord";
+
+/* ── DANS QUELLE LANGUE ON VA CHERCHER LE SON ───────────────────────────────
+
+   « D'accord papa » n'a qu'un texte pour l'instant : le français. Son wolof
+   attend sa main (voir EN_ATTENTE_DE_SON_WOLOF dans lib/services-textes.ts).
+
+   Or la langue du son se décidait sur la langue de SA QUESTION. Donc dès
+   qu'il donnait un ordre en wolof, on allait chercher « wo/ordre-daccord.mp3 »
+   — un fichier qui n'existe pas, parce qu'un texte vide ne s'enregistre pas —
+   et le téléphone retombait sur la voix fabriquée. Une seconde d'attente et
+   deux centimes, à chaque ordre, pour une phrase qu'on venait justement
+   d'enregistrer pour qu'elle soit instantanée.
+
+   ON VA DONC CHERCHER LE SON DANS LA LANGUE QUI A UN TEXTE, pas dans celle où
+   il a parlé. Le jour où il écrit le wolof, cette fonction rend « wo » toute
+   seule, et rien d'autre ne bouge. */
+export function langueDeLAccord(wolofEcrit: string): "wo" | "fr" {
+  return wolofEcrit.trim() ? "wo" : "fr";
+}
