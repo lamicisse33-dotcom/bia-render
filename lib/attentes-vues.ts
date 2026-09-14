@@ -115,3 +115,80 @@ export function resumeLectures() {
     dernieres: lectures.slice(-5),
   };
 }
+
+/* ── LE TOUR COMPLET, BOUT À BOUT ───────────────────────────────────────────
+
+   Lamine, le 15 septembre 2026 : « on veut mesurer précisément où est-ce
+   qu'on perd du temps […] On mesure d'abord. Et après, on décidera. »
+
+   Les `Vue` ci-dessus commencent au micro coupé et s'arrêtent quand le son
+   est en main. Les deux bouts qu'il RESSENT — la queue de silence avant que
+   le micro se ferme, et le démarrage réel du son — n'y étaient pas. Voir
+   lib/tour.ts pour les cinq bornes et les deux pièges (l'attente qui parle
+   avant la réponse, et les sources qui ne coûtent pas la même chose).
+
+   ON GARDE PLUS LONG QUE LES AUTRES : soixante tours. Il en fera dix d'un
+   coup pour voir, puis d'autres plus tard ; quarante effaceraient les
+   premiers avant qu'on ait comparé. */
+import type { Tour } from "./tour";
+import { ouPasseLeTemps, aPayeLeModele } from "./tour";
+
+const TOURS_GARDES = 60;
+let tours: Tour[] = [];
+
+export function noterTour(t: Partial<Tour>) {
+  const entier = (n: unknown) => {
+    const x = Math.round(Number(n));
+    return Number.isFinite(x) && x >= 0 && x < 600000 ? x : 0;
+  };
+  const vecu = entier(t.vecu_ms);
+  /* Un tour sans total vécu ne décrit rien : on ne le range pas. Mieux vaut
+     neuf tours justes que dix dont un fantôme tire la médiane. */
+  if (!vecu) return;
+  tours = [...tours, {
+    voie: (t.voie === "ecrit" ? "ecrit" : "parole") as Tour["voie"],
+    source: String(t.source || "inconnue").slice(0, 60),
+    attente: Boolean(t.attente),
+    queue_ms: entier(t.queue_ms),
+    transcription_ms: entier(t.transcription_ms),
+    modele_ms: entier(t.modele_ms),
+    voix_ms: entier(t.voix_ms),
+    demarrage_ms: entier(t.demarrage_ms),
+    vecu_ms: vecu,
+    quand: Date.now(),
+  }].slice(-TOURS_GARDES);
+}
+
+/** Ce que /api/etat rend — et ce qu'on lira pour répondre à sa question. */
+export function resumeTours() {
+  if (!tours.length) return null;
+  const parole = tours.filter((t) => t.voie === "parole");
+  /* SÉPARÉS, JAMAIS MÉLANGÉS. Une réponse enregistrée arrive en cent
+     millisecondes ; une réponse du modèle demande le modèle puis la voix. La
+     moyenne des deux ne décrirait aucun des deux cas. */
+  const avecModele = parole.filter((t) => aPayeLeModele(t.source));
+  const sansModele = parole.filter((t) => !aPayeLeModele(t.source));
+  const groupe = (l: Tour[]) => l.length ? {
+    tours: l.length,
+    vecu_ms: mediane(l.map((t) => t.vecu_ms)),
+    queue_ms: mediane(l.map((t) => t.queue_ms)),
+    transcription_ms: mediane(l.map((t) => t.transcription_ms)),
+    modele_ms: mediane(l.map((t) => t.modele_ms)),
+    voix_ms: mediane(l.map((t) => t.voix_ms)),
+    demarrage_ms: mediane(l.map((t) => t.demarrage_ms)),
+  } : null;
+  return {
+    tours: tours.length,
+    /* La réponse à sa question, en clair, sans calcul mental à faire. */
+    ou_passe_le_temps: ouPasseLeTemps(avecModele.length ? avecModele : parole),
+    reponse_du_modele: groupe(avecModele),
+    reponse_enregistree: groupe(sansModele),
+    avec_phrase_dattente: parole.filter((t) => t.attente).length,
+    sources: parole.reduce((c: Record<string, number>, t) => {
+      c[t.source] = (c[t.source] || 0) + 1; return c;
+    }, {}),
+    derniers: tours.slice(-10),
+  };
+}
+
+export function oublierTours() { tours = []; }

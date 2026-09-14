@@ -38,6 +38,7 @@ import { compterVerdicts, lireVerdicts, poserVerdict } from "@/lib/verdicts";
 import { franc, lecture, sorteEvoquee, totauxDe } from "@/lib/documents";
 import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
 import { lireMesures, noterMesure } from "@/lib/chrono";
+import { finir as finirLeTour, poser as poserBorne, tourVide, type Bornes } from "@/lib/tour";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 import { lireLeRire } from "@/lib/rires";
@@ -724,6 +725,17 @@ export default function Home() {
      durée remplit ce temps-là. Quatre repères suffisent — le départ, la fin
      de la transcription, la fin du modèle, et l'arrivée du son. */
   const mesuresRef = useRef<Mesure[]>([]);
+  /* ── LES CINQ BORNES D'UN TOUR DE VOIX ────────────────────────────────
+
+     Lamine, le 15 septembre 2026 : « on veut mesurer précisément où est-ce
+     qu'on perd du temps […] sans changer le comportement pour l'instant ».
+
+     Les trois mesures d'en dessous (departAttente / tTranscrit / tModele)
+     commencent au micro coupé et s'arrêtent quand le son est EN MAIN. Les
+     deux bouts qu'il RESSENT n'y sont pas : la queue de silence avant que le
+     micro se ferme, et le démarrage réel du haut-parleur. Celle-ci les
+     ajoute. Elle ne fait que poser des dates — voir lib/tour.ts. */
+  const bornesRef = useRef<Bornes>(tourVide());
   const departAttenteRef = useRef(0);
   const tTranscritRef = useRef(0);
   const tModeleRef = useRef(0);
@@ -1056,7 +1068,36 @@ export default function Home() {
      jamais, et tout ce qui attendait la fin de cette phrase attendait pour
      toujours. BIA s'est tue à cause de ça. Un secours calé sur la durée du
      morceau garantit qu'on repart, même si le son n'est pas sorti. */
-  const jouerEtAnimer = useCallback((octets: ArrayBuffer) => new Promise<number>((fini) => {
+  /* ── LE TOUR, ENVOYÉ QUAND LE SON SORT VRAIMENT ────────────────────────
+
+     Appelée à l'instant de la première syllabe de la VRAIE réponse, et là
+     seulement. Une attente qui parle, un accusé de réception, une transition
+     : aucun ne l'appelle — sinon le tour se fermerait avant que la réponse
+     n'existe, et on mesurerait deux secondes là où il en a attendu neuf.
+
+     Elle ne change rien à ce que BIA fait. Elle soustrait des dates et les
+     poste. Si on la retirait, le comportement serait identique — c'est la
+     consigne de Lamine : « sans changer le comportement pour l'instant ». */
+  const envoyerLeTour = useCallback((quandLaSyllabeSort = Date.now()) => {
+    const bornes = bornesRef.current;
+    poserBorne(bornes, "syllabe", quandLaSyllabeSort);
+    const tour = finirLeTour(bornes);
+    /* Le tour est refermé QUOI QU'IL ARRIVE : sans ça, la réponse suivante
+       hériterait des bornes de celle-ci et rendrait une durée inventée. */
+    bornesRef.current = tourVide(bornes.voie);
+    if (!tour) return;
+    void fetch("/api/mesure", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "tour", ...tour }),
+    }).catch(() => {});
+  }, []);
+
+  /* `estLaReponse` : voir envoyerLeTour(). Cette fonction joue AUSSI des
+     accusés de réception et des transitions, qui sortent du haut-parleur
+     AVANT la réponse. Les compter comme « première syllabe » ferait croire à
+     un tour de deux secondes là où il en a duré neuf. */
+  const jouerEtAnimer = useCallback((octets: ArrayBuffer, estLaReponse = false) => new Promise<number>((fini) => {
     const ctx = contexte();
     let rendu = false;
     let secours: ReturnType<typeof setTimeout> | null = null;
@@ -1110,11 +1151,12 @@ export default function Home() {
       };
       setMode("speaking");
       source.start();
+      if (estLaReponse) envoyerLeTour();
       // Le filet : la durée du morceau, plus une seconde de marge.
       secours = setTimeout(() => rendre(duree), duree + 1000);
       animationRef.current = requestAnimationFrame(suivre);
     }).catch(() => rendre(0));
-  }), [contexte]);
+  }), [contexte, envoyerLeTour]);
 
   /* La voix du navigateur : béquille, gardée pour le cas où Oolel ne répond
      pas. Elle ne sait pas dire le wolof, d'où la réécriture phonétique — et
@@ -1438,6 +1480,10 @@ export default function Home() {
           rendre(fin);
         };
         attenteSonRef.current = { source, volume };
+        /* Notée, pas comptée : l'attente ne raccourcit pas le tour, elle le
+           rend supportable. Savoir lesquels en ont eu une explique pourquoi
+           deux tours de neuf secondes ne se ressemblent pas. */
+        bornesRef.current.attente = true;
         setMode("speaking");
         source.start(depart);
         animationRef.current = requestAnimationFrame(suivre);
@@ -1760,7 +1806,7 @@ export default function Home() {
     couperSon();
     if (emotion) await jouerSouffle(emotion);
     setMode("speaking");
-    await jouerEtAnimer(await octetsDuRepertoire(adresse));
+    await jouerEtAnimer(await octetsDuRepertoire(adresse), true);
     setMode("ready");
     setFace("yeux_ouverts");
   }, [finirAttente, couperSon, jouerSouffle, jouerEtAnimer, octetsDuRepertoire]);
@@ -1855,6 +1901,7 @@ export default function Home() {
       const second = demander(1);
       let bloc = await premier;
       if (!suite) noterAttente();   // le son est là : l'attente est finie, on la note
+      if (ou === "réponse") poserBorne(bornesRef.current, "enMain");
       await prendreLaParole();
       if (!bloc.audio) { await parlerAvecLeTelephone(answer); return; }
       // Le rire vient maintenant : entre la dernière phrase d'attente et le
@@ -1919,6 +1966,7 @@ export default function Home() {
          depuis ailleurs que le téléphone. */
       const coutures: number[] = [];
       const debutTotal = Date.now();
+      let premiereSyllabeFaite = suite;   // la tête parle déjà : ce n'est plus la première
 
       const programmer = async (octets: ArrayBuffer) => {
         const brut = await ctx.decodeAudioData(octets.slice(0));
@@ -1932,6 +1980,17 @@ export default function Home() {
         const debut = Math.max(ctx.currentTime + 0.06, quand);
         if (quand > 0) coutures.push(Math.round((debut - quand) * 1000));
         source.start(debut);
+        /* LA BORNE FINALE, et c'est la seule qui compte pour lui : l'instant
+           où le son sort vraiment. `debut` est dans l'horloge du son, qui ne
+           compte pas comme celle du monde — on la ramène en ajoutant l'écart
+           entre les deux. Et seulement au PREMIER morceau : les suivants sont
+           déjà en train de parler. */
+        if (!premiereSyllabeFaite) {
+          premiereSyllabeFaite = true;
+          if (ou === "réponse") {
+            envoyerLeTour(Date.now() + Math.round((debut - ctx.currentTime) * 1000));
+          }
+        }
         sourcesRef.current.add(source);
         source.onended = () => { sourcesRef.current.delete(source); };
         quand = debut + mémoire.duration;
@@ -2057,6 +2116,11 @@ export default function Home() {
       voieRef.current = "ecrit";
       tTranscritRef.current = 0;
       tModeleRef.current = 0;
+      /* Tapée : il n'y a ni queue de silence ni transcription. Le tour part
+         du moment où il appuie sur Entrée, et `queue_ms` vaudra zéro — ce
+         qui est la vérité, pas un trou dans la mesure. */
+      bornesRef.current = tourVide("ecrit");
+      poserBorne(bornesRef.current, "micro");
       langueRef.current = estWolof(clean) ? "wo" : "fr";
       langueDuFil.current = langueRef.current;
       const jeton = {};
@@ -2161,6 +2225,7 @@ export default function Home() {
       }
 
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
+      poserBorne(bornesRef.current, "modele");
       /* ── ET SI CE N'EST PLUS SON TOUR, ELLE SE TAIT ────────────────────
 
          La réponse du modèle peut arriver après qu'on lui a coupé la parole,
@@ -2297,6 +2362,11 @@ export default function Home() {
         void eclipser(() => setFilm({ sorte: "youtube", video: f.video, titre: f.titre, source: f.source }));
       }
       setPanne(data.source && data.source.startsWith("panne") ? data.source : "");
+      /* D'OÙ VIENT LA RÉPONSE. Une phrase du répertoire arrive avec son son
+         déjà fabriqué ; une réponse du modèle demande le modèle PUIS la voix.
+         Mélanger les deux dans une médiane donnerait un chiffre qui ne décrit
+         aucun des deux cas. */
+      if (data.source) bornesRef.current.source = data.source;
       /* Elle a quelque chose à montrer. On ne garde que la clé du sujet : le
          fil est rangé dans la mémoire du téléphone, et des images y tiendraient
          trois échanges avant de la remplir. */
@@ -3116,7 +3186,16 @@ export default function Home() {
              l'impression qu'elle suit. */
           setEntendParler(false);
           const assez = silenceQuiSuffit(dernierSon - debutParole);
-          if (Date.now() - dernierSon > assez) { arreterEnregistrement(); return; }
+          if (Date.now() - dernierSon > assez) {
+            /* LA BORNE QUE PERSONNE NE COMPTAIT. `dernierSon` est l'instant
+               où il a vraiment fini de parler ; le micro, lui, ne se ferme
+               qu'une seconde et demie plus tard. Cette attente-là est à nous,
+               pas à BIA — et elle est présente à chaque tour. */
+            poserBorne(bornesRef.current, "parole", dernierSon);
+            poserBorne(bornesRef.current, "micro");
+            arreterEnregistrement();
+            return;
+          }
         }
 
         if (analyseurMort && depuis > 9000) { arreterEnregistrement(); return; }
@@ -3452,6 +3531,7 @@ export default function Home() {
             noteEcouteRef.current = "";
           }
           tTranscritRef.current = Date.now();
+          poserBorne(bornesRef.current, "ecoute");
           transcritRef.current = true;
           dernierDitRef.current = d.texte || "";
           if (d.texte) {
@@ -3564,6 +3644,11 @@ export default function Home() {
         }
       };
 
+      /* Le tour de mesure repart ICI, à l'ouverture du micro — pas à sa
+         fermeture. Les deux premières bornes (sa dernière syllabe à lui, la
+         coupure du micro) se posent entre les deux : remettre à zéro plus
+         tard les effacerait. */
+      bornesRef.current = tourVide("parole");
       enregistreur.start();
       setMode("listening");
       setFace("ecoute");

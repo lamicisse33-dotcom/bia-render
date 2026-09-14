@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { noterVue, noterLecture } from "@/lib/attentes-vues";
+import { noterVue, noterLecture, noterTour } from "@/lib/attentes-vues";
 
 /* Le téléphone dit combien de temps il a attendu. Rien d'autre.
 
@@ -9,9 +9,12 @@ import { noterVue, noterLecture } from "@/lib/attentes-vues";
 export async function POST(requete: Request) {
   try {
     const corps = await requete.json();
-    // Deux mesures passent par ici : l'attente avant qu'elle parle, et les
-    // coutures pendant qu'elle parle.
+    /* TROIS mesures passent par ici : l'attente avant qu'elle parle, les
+       coutures pendant qu'elle parle, et — depuis le 15 septembre 2026 — le
+       tour complet bout à bout, des deux bouts qu'il ressent. Voir
+       lib/tour.ts. */
     if (corps && corps.type === "lecture") noterLecture(corps);
+    else if (corps && corps.type === "tour") noterTour(corps);
     else noterVue(corps);
   } catch {}
   return NextResponse.json({ ok: true });

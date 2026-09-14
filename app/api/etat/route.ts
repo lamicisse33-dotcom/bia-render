@@ -3,7 +3,7 @@ import { voixConfig } from "@/lib/voix";
 import { ecouteConfig, resumeEcoutes } from "@/lib/ecoute";
 import { lexiqueConfig, combien, combienParApplication, parAuteur } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
-import { resumeAttentes, resumeLectures } from "@/lib/attentes-vues";
+import { resumeAttentes, resumeLectures, resumeTours } from "@/lib/attentes-vues";
 import { resumeEmotions } from "@/lib/emotions-vues";
 import { depense } from "@/lib/depense";
 import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
@@ -87,6 +87,11 @@ export async function GET() {
     pannes: pannes(),
     attentes: resumeAttentes(),
     lecture: resumeLectures(),
+    /* LE TOUR COMPLET, des deux bouts qu'il ressent. Sa demande du
+       15 septembre 2026 : « mesurer précisément où est-ce qu'on perd du
+       temps ». `ou_passe_le_temps` est la réponse, triée du plus gros au
+       plus petit. Voir lib/tour.ts. */
+    tours: resumeTours(),
     /* Ce que le moteur d'écoute a cru entendre, et combien de fois il a
        fallu le reprendre. Voir lib/ecoute.ts. */
     ecoutes: resumeEcoutes(),
