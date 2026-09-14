@@ -78,12 +78,21 @@ export type Bornes = {
   source: string;
   /** Une phrase d'attente a-t-elle parlé pendant ce tour ? */
   attente: boolean;
+  /** A-t-elle parlé sur la TÊTE de la réponse, avant que le modèle ait fini ?
+      Sa deuxième question du 15 septembre au soir : « combien de réponses
+      partent avant la fin complète du modèle ». C'est la mesure du chantier
+      qu'on vient de faire — sans elle, on aurait dix tours et aucune preuve. */
+  surLaTete: boolean;
 };
 
 export type Tour = {
   voie: "parole" | "ecrit";
   source: string;
   attente: boolean;
+  /** Elle a commencé à parler AVANT que le modèle ait fini d'écrire. Sa
+      deuxième question du 15 septembre au soir — et la seule preuve que le
+      chantier du verrou des 120 signes a servi. */
+  surLaTete: boolean;
   /** Il a fini de parler → le micro se ferme. Le seuil de silence. */
   queue_ms: number;
   /** Micro fermé → transcription revenue. */
@@ -103,7 +112,7 @@ export type Tour = {
 
 export function tourVide(voie: "parole" | "ecrit" = "parole"): Bornes {
   return { voie, parole: 0, micro: 0, ecoute: 0, modele: 0, enMain: 0, syllabe: 0,
-    source: "", attente: false };
+    source: "", attente: false, surLaTete: false };
 }
 
 /* Une borne ne se pose qu'UNE FOIS. Un tour peut repasser par le même point —
@@ -178,6 +187,7 @@ export function finir(b: Bornes, quand = Date.now()): Tour | null {
     voie: b.voie,
     source: b.source || "inconnue",
     attente: b.attente,
+    surLaTete: b.surLaTete,
     ...morceaux,
     /* Le temps qu'aucune borne n'a couvert. Zéro quand tout est mesuré ;
        non nul quand un chemin ne pose pas toutes ses bornes — la voix du

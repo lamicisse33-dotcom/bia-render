@@ -43,8 +43,13 @@ type Essai = {
   resultats: MesureVoix[];
   plancher_ms: number; ms_par_signe: number; verdict: string;
 };
+type Lecture = {
+  reponses: number; en_plusieurs_morceaux: number;
+  couture_max_ms: number; couture_mediane_ms: number;
+};
 type Etat = {
   version?: string;
+  lecture?: Lecture | null;
   essai_voix?: Essai | null;
   etapes?: { ecoute: Appel | null; modele: Appel | null; voix: Appel | null } | null;
   tours?: {
@@ -53,6 +58,7 @@ type Etat = {
     reponse_du_modele: Groupe | null;
     reponse_enregistree: Groupe | null;
     avec_phrase_dattente: number;
+    partis_avant_la_fin: number;
     sources: Record<string, number>;
     derniers: Tour[];
   } | null;
@@ -147,14 +153,45 @@ export default function Vitesse() {
 
         {t && (
           <>
+            {/* ── LE CHIFFRE QUI DONNE LA SENSATION DE VITESSE ──────────
+                Lamine, le 15 septembre 2026 au soir : « l'objectif à
+                surveiller désormais n'est plus seulement le temps total, mais
+                FIN DE PAROLE UTILISATEUR → PREMIÈRE SYLLABE DE BIA. C'est ce
+                chiffre qui donne la sensation de vitesse. »
+                Il était enfoui dans un bloc plus bas. Il passe en tête. */}
+            {t.reponse_du_modele && (
+              <section style={{ background: "#1a1511", border: "1px solid #2e2620",
+                borderRadius: 14, padding: "18px 16px", marginBottom: 14 }}>
+                <p style={{ margin: 0, opacity: 0.6, fontSize: 13 }}>
+                  De ta dernière syllabe à la première d’elle
+                </p>
+                <p style={{ margin: "6px 0 2px", font: "600 34px/1.1 system-ui", color: "#e8b25f" }}>
+                  {sec(t.reponse_du_modele.vecu_ms)}
+                </p>
+                <p style={{ margin: 0, fontSize: 14, opacity: 0.75 }}>
+                  quand elle doit réfléchir · {t.reponse_du_modele.tours} tour(s)
+                  {t.reponse_enregistree
+                    ? ` — et ${sec(t.reponse_enregistree.vecu_ms)} sur une réponse déjà enregistrée`
+                    : ""}
+                </p>
+                <p style={{ margin: "10px 0 0", fontSize: 13,
+                  color: t.partis_avant_la_fin > 0 ? "#7fc48f" : "#d79a8c" }}>
+                  {t.partis_avant_la_fin > 0
+                    ? `${t.partis_avant_la_fin} réponse(s) sur ${t.tours} sont parties AVANT la fin du modèle`
+                    : "aucune réponse n’est partie avant la fin du modèle — la diffusion ne sert pas encore"}
+                </p>
+                <Coutures l={etat?.lecture} />
+              </section>
+            )}
+
             {gros && (
               <section style={{ background: "#1a1511", border: "1px solid #2e2620",
-                borderRadius: 14, padding: "18px 16px", marginBottom: 22 }}>
+                borderRadius: 14, padding: "14px 16px", marginBottom: 22 }}>
                 <p style={{ margin: 0, opacity: 0.6, fontSize: 13 }}>Le plus gros morceau</p>
-                <p style={{ margin: "6px 0 2px", font: "600 26px/1.2 system-ui", color: "#e8b25f" }}>
+                <p style={{ margin: "4px 0 2px", font: "600 22px/1.2 system-ui", color: "#e8b25f" }}>
                   {gros.quoi}
                 </p>
-                <p style={{ margin: 0, fontSize: 15, opacity: 0.8 }}>
+                <p style={{ margin: 0, fontSize: 14, opacity: 0.8 }}>
                   {sec(gros.ms)} — {gros.part} % de l’attente
                 </p>
               </section>
@@ -385,6 +422,26 @@ function EssaiSoynade({ essai, enCours, lancer }:
         </>
       )}
     </section>
+  );
+}
+
+/* ── LA PROCHAINE LIMITE POSSIBLE ───────────────────────────────────────
+   Lamine, le 15 septembre 2026 au soir : « la prochaine limite possible n'est
+   plus forcément le temps de calcul, mais la couture audio entre les
+   morceaux. » Il a raison : maintenant qu'elle parle avant d'avoir tout
+   fabriqué, un morceau qui n'arrive pas à temps s'entend comme un trou. Le
+   téléphone mesure déjà ce trou ; il n'était affiché nulle part. */
+function Coutures({ l }: { l?: Lecture | null }) {
+  if (!l || !l.reponses) return null;
+  const mauvais = l.couture_max_ms > 120;
+  return (
+    <p style={{ margin: "6px 0 0", fontSize: 13, color: mauvais ? "#d79a8c" : "#7fc48f" }}>
+      {l.en_plusieurs_morceaux === 0
+        ? "aucune réponse dite en plusieurs morceaux — pas encore de couture à craindre"
+        : mauvais
+          ? `trou audible entre deux morceaux : jusqu’à ${l.couture_max_ms} ms (médiane ${l.couture_mediane_ms} ms)`
+          : `aucun trou audible : ${l.couture_max_ms} ms au pire sur ${l.en_plusieurs_morceaux} réponse(s) en plusieurs morceaux`}
+    </p>
   );
 }
 

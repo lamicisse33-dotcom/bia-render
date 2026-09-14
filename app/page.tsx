@@ -2225,6 +2225,12 @@ export default function Home() {
                      montré. Ici, c'est le bon instant : le modèle a écrit
                      assez pour qu'elle ouvre la bouche. */
                   poserBorne(bornesRef.current, "modele");
+                  /* ELLE PART SUR LA TÊTE : le modèle écrit encore. C'est le
+                     chantier du 15 septembre au soir, et sa deuxième question
+                     — « combien de réponses partent avant la fin complète du
+                     modèle ». Sans cette ligne on ferait dix tours sans
+                     pouvoir y répondre. */
+                  bornesRef.current.surLaTete = true;
                   teteEnCours = speak(tete, emotionRef.current);
                 }
               }

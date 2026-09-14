@@ -149,6 +149,7 @@ export function noterTour(t: Partial<Tour>) {
     voie: (t.voie === "ecrit" ? "ecrit" : "parole") as Tour["voie"],
     source: String(t.source || "inconnue").slice(0, 60),
     attente: Boolean(t.attente),
+    surLaTete: Boolean(t.surLaTete),
     queue_ms: entier(t.queue_ms),
     transcription_ms: entier(t.transcription_ms),
     modele_ms: entier(t.modele_ms),
@@ -186,6 +187,10 @@ export function resumeTours() {
     reponse_du_modele: groupe(avecModele),
     reponse_enregistree: groupe(sansModele),
     avec_phrase_dattente: parole.filter((t) => t.attente).length,
+    /* SA DEUXIÈME QUESTION : « combien de réponses partent avant la fin
+       complète du modèle ». C'est la seule preuve que le chantier du
+       15 septembre a servi. */
+    partis_avant_la_fin: parole.filter((t) => t.surLaTete).length,
     sources: parole.reduce((c: Record<string, number>, t) => {
       c[t.source] = (c[t.source] || 0) + 1; return c;
     }, {}),
