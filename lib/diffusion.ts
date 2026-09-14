@@ -222,13 +222,35 @@ export function teteDeLaReponse(recu: string): string {
   /* Sous le seuil, le serveur a encore le droit de tout remplacer. */
   if (propre.length <= SIGNES_AVANT_DE_PARLER) return "";
 
-  /* On coupe à la DERNIÈRE fin de phrase complète — jamais sur celle qui
-     s'écrit encore, parce qu'une phrase dite à moitié s'entend. */
-  const coupes: number[] = [];
-  for (const m of propre.matchAll(FIN_DE_PHRASE)) coupes.push(m.index + m[0].length);
-  if (!coupes.length) return "";
-  const tete = propre.slice(0, coupes[coupes.length - 1]).trim();
-  return tete.length >= MORCEAU_MINIMAL ? tete : "";
+  /* ── LA PREMIÈRE PHRASE QUI TIENNE, PAS LA DERNIÈRE ────────────────────
+
+     Lamine, le 15 septembre 2026 au soir, après les dix tours : la diffusion
+     se déclenchait bien — quatre réponses sur cinq partaient avant la fin du
+     modèle — et le total n'avait PAS bougé. La voix coûtait encore 3,8 s.
+
+     LA CAUSE ÉTAIT ICI, sur un seul mot : on coupait à la DERNIÈRE fin de
+     phrase reçue. Or le modèle n'écrit pas signe par signe : Anthropic envoie
+     des paquets de plusieurs dizaines de signes. Il suffit qu'UN paquet
+     apporte trois phrases pour que la tête les prenne toutes les trois.
+
+     Mesuré, avec les chiffres de Soynade (1,22 s + 22 ms par signe) :
+       tête de 98 signes (trois phrases d'un paquet)  →  3,4 s
+       tête de 33 signes (la première seule)          →  1,9 s
+     Une seconde et demie perdue sur chaque tour, en attendant d'avoir de
+     quoi dire trois phrases alors qu'une seule suffisait pour commencer.
+
+     ON PREND DONC LA PREMIÈRE FIN DE PHRASE QUI DONNE ASSEZ. C'est toujours
+     une phrase COMPLÈTE — rien n'est dit à moitié, la garde d'origine tient
+     — mais c'est la plus courte qui vaille l'aller-retour. Le reste part au
+     morceau suivant, qui se fabrique PENDANT qu'elle dit celle-ci.
+
+     Le « jamais celle qui s'écrit encore » du commentaire d'origine reste
+     vrai et reste la règle : on ne coupe que sur une fin de phrase vue. */
+  for (const m of propre.matchAll(FIN_DE_PHRASE)) {
+    const tete = propre.slice(0, m.index + m[0].length).trim();
+    if (tete.length >= MORCEAU_MINIMAL) return tete;
+  }
+  return "";
 }
 
 /**

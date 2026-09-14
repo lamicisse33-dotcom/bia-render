@@ -106,6 +106,20 @@ export default function Vitesse() {
   const t = etat?.tours;
   const gros = t?.ou_passe_le_temps?.[0];
 
+  /* ── LES TROIS SECONDES QUI N'APPARTENAIENT À PERSONNE ─────────────────
+
+     Les dix tours du 15 septembre au soir : la « transcription » coûte 3,4 s
+     dans le tour — mais l'appel à ElevenLabs, lui, ne met que 0,9 s. Presque
+     trois secondes se passent AILLEURS, et la page les mettait sur le dos du
+     moteur de transcription qui n'y est pour rien.
+
+     C'est l'envoi du son : le clip enregistré part du téléphone jusqu'à
+     Render, à Francfort. On le nomme, parce qu'un morceau qu'on ne nomme pas
+     ne se répare jamais. */
+  const envoiDuSon = t?.reponse_du_modele && etat?.etapes?.ecoute
+    ? Math.max(0, t.reponse_du_modele.transcription_ms - etat.etapes.ecoute.complet_ms)
+    : 0;
+
   return (
     /* ── POURQUOI CETTE PAGE NE DEFILAIT PAS ──────────────────────────────
 
@@ -202,7 +216,7 @@ export default function Vitesse() {
                 CHERCHER se met en haut ; ce qu'on vient LIRE peut attendre. */}
             <EssaiSoynade essai={etat?.essai_voix} enCours={enCours} lancer={lancerLEssai} />
 
-            <Barres parts={t.ou_passe_le_temps} />
+            <Barres parts={t.ou_passe_le_temps} envoi={envoiDuSon} />
 
             <Appels e={etat?.etapes} />
 
@@ -445,11 +459,21 @@ function Coutures({ l }: { l?: Lecture | null }) {
   );
 }
 
-function Barres({ parts }: { parts: Part[] }) {
-  const max = Math.max(1, ...parts.map((p) => p.ms));
+function Barres({ parts, envoi = 0 }: { parts: Part[]; envoi?: number }) {
+  /* L'envoi du son n'est pas une borne : c'est une SOUSTRACTION entre ce que
+     le tour a compté et ce que l'appel a vraiment duré. On le montre à part,
+     et on retire son poids de la transcription pour ne pas le compter deux
+     fois. Voir `envoiDuSon` plus haut. */
+  const detaillees = envoi > 200
+    ? parts.flatMap((p) => /transcription/.test(p.quoi)
+      ? [{ quoi: "l’envoi de ta voix au serveur", ms: envoi, part: 0 },
+         { quoi: "la transcription elle-même", ms: Math.max(0, p.ms - envoi), part: 0 }]
+      : [p]).sort((a, b) => b.ms - a.ms)
+    : parts;
+  const max = Math.max(1, ...detaillees.map((p) => p.ms));
   return (
     <div style={{ marginBottom: 24 }}>
-      {parts.map((p) => (
+      {detaillees.map((p) => (
         <div key={p.quoi} style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 3 }}>
             <span style={{ opacity: 0.85 }}>{p.quoi}</span>

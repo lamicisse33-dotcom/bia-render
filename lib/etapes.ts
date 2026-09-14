@@ -100,7 +100,14 @@ export function resumeEtapes() {
       appels: l.length,
       premier_octet_ms: premier,
       complet_ms: fin,
-      coulee_ms: mediane(l.map((e) => e.coulee_ms)),
+      /* LA COULÉE SE DÉDUIT DES DEUX MÉDIANES, elle ne se médiane pas
+         elle-même : sinon la page affichait « puis 0,4 s qui coulent » et le
+         verdict juste en dessous disait « 2307 ms à reprendre ». Deux
+         chiffres qui se contredisent à trois lignes d'écart, et le lecteur
+         ne sait plus lequel croire. */
+      /* Sans premier octet mesuré, il n'y a pas de coulée à annoncer — pas
+         une coulée égale au total, qui ferait croire que tout est immédiat. */
+      coulee_ms: premier ? Math.max(0, fin - premier) : 0,
       /* LA PHRASE QUI RÉPOND À SA QUESTION, écrite une fois pour toutes ici
          plutôt que relue à chaque fois dans les chiffres. */
       verdict: !premier
