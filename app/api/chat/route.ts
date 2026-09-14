@@ -560,6 +560,14 @@ type Corps={message?:string;history?:Array<{role:string;text:string}>;resume?:st
   apprend?:boolean;aRepeter?:string};
 type Rendu={corps:Record<string,unknown>;statut?:number};
 
+/* ── SUR QUOI ELLE TOURNE, ET DEPUIS QUAND ─────────────────────────────────
+   Calculé une fois au chargement : la version ne change qu'au redéploiement,
+   et l'heure de démarrage EST l'heure du déploiement. C'est ce qui permet à
+   Lamine de vérifier depuis son téléphone qu'un envoi est bien arrivé. */
+const VERSION=(process.env.RENDER_GIT_COMMIT||"").slice(0,12)||"locale";
+const DEPUIS=new Date().toLocaleString("fr-FR",{timeZone:"Africa/Dakar",
+  day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"});
+
 /* La langue du son de « d'accord papa » : celle qui a un texte, pas celle où
    il a parlé. Voir langueDeLAccord() dans lib/instructions.ts. Calculé une
    fois au chargement — la liste ne change pas en cours de route. */
@@ -1028,13 +1036,41 @@ de ta construction ne sert qu'à ça.`;
          n'avoir rien reçu. « Je ne sais pas » et « on ne m'a rien appris »
          sont deux réponses différentes, et les confondre l'enverrait
          réapprendre ce qu'elle sait déjà. */
+      /* ── DEUX CHOSES S'APPELLENT « INSTRUCTIONS », ET ELLE LES CONFOND ──
+
+         Lamine, le 14 septembre 2026 : « je viens de lui demander si elle a
+         reçu de nouvelles instructions, elle dit qu'elle n'a rien reçu. »
+
+         J'avais lu sa question comme portant sur ce qu'il lui APPREND à la
+         voix. Mais quand il demande ça, il veut souvent savoir autre chose :
+         est-ce que la NOUVELLE VERSION est arrivée chez elle ? Est-ce que ce
+         qu'on a construit ce matin est en place ?
+
+         Ce sont deux mémoires différentes et elle ne connaissait ni l'une ni
+         l'autre. Elle répondait donc « rien reçu » aux deux — la réponse la
+         plus décourageante possible pour quelqu'un qui vient de passer la
+         nuit à la construire.
+
+         ELLE SAIT MAINTENANT SUR QUOI ELLE TOURNE, et depuis quand. C'est la
+         seule façon pour lui de vérifier, depuis son téléphone et sans rien
+         ouvrir, qu'un déploiement est bien arrivé. */
+      variable+=`\n\nSUR QUELLE VERSION TU TOURNES
+Tu tournes sur la version « ${VERSION} », en place depuis ${DEPUIS}.
+S'il te demande si tu as reçu une mise à jour, une nouvelle version, ou si ce
+qu'il a envoyé est arrivé : dis-lui CE NUMÉRO et CETTE HEURE. C'est la seule
+chose que tu saches de sûr là-dessus — tu ne connais pas la liste de ce qui a
+changé, et tu ne l'inventes pas. S'il veut savoir ce qui a changé, dis-lui de
+demander à Claude.
+NE CONFONDS PAS avec ce qu'il t'apprend à la voix, juste en dessous : la
+version, c'est ta construction ; ce qu'il t'apprend, c'est ta mémoire.`;
+
       try{
         const apprises=await cequElleAAppris();
         variable+=apprises.length
           ?`\n\nCE QU'IL T'A APPRIS, ET QUE TU DOIS SAVOIR DIRE\nIl t'a appris ${apprises.length} chose(s) à la voix. Les plus récentes d'abord :\n`
             +apprises.map((a,i)=>`${i+1}. « ${a.texte} »${a.quand?` — ${a.quand.slice(0,10)}`:""}`).join("\n")
             +`\nS'il te demande ce qu'il t'a appris, ce que tu as reçu, ou ce que tu as retenu : réponds avec CETTE liste, simplement, sans la réciter en entier s'il y en a beaucoup — dis combien, et cite les dernières. Ne dis JAMAIS que tu n'as rien reçu.`
-          :`\n\nCE QU'IL T'A APPRIS\nIl ne t'a encore rien appris à la voix. S'il te le demande, dis-le simplement : sa mémoire est vide pour l'instant, et tu attends qu'il t'apprenne.`;
+          :`\n\nCE QU'IL T'A APPRIS\nIl ne t'a encore rien appris à la voix — ta mémoire de ses leçons est vide. S'il te le demande, dis-le simplement, SANS en faire un échec : rien n'est cassé, il n'a simplement pas encore commencé. Et rappelle-lui en une phrase comment on fait : il dit « on apprend », il te dit une phrase, tu la répètes, et quand c'est bon il dit « mémorise mémorise ».`;
       }catch(err){
         console.error("BIA — l'inventaire de sa mémoire n'a pas répondu :",(err as Error).message);
         noterPanne("inventaire de la mémoire",(err as Error).message,"chat");
