@@ -13,8 +13,9 @@
 
    ── CE QUE CE FICHIER EST ─────────────────────────────────────────────────
 
-   Jusqu'ici, les nombres wolof de BIA étaient une LISTE : 68 lignes écrites à
-   la main, et tout ce qui n'y figurait pas se disait en français. 37 400 F
+   Jusqu'ici, les nombres wolof de BIA étaient une LISTE : une soixantaine de
+   lignes à la main, et tout ce qui n'y figurait pas se disait en français.
+   37 400 F
    n'était pas dans la liste, donc il se disait « trente-sept mille quatre
    cents ».
 
@@ -69,6 +70,21 @@ export const UNITES = [
 ] as const;
 
 export const DIX = "fukk";
+
+/** TRENTE EST IRRÉGULIER, et c'est lui qui me l'a appris le 12 septembre :
+
+      « 30 en wolof, si tu parles de nombre, chiffre 30 veut dire "Fan wer".
+        Mais si tu parles d'argent, 30 F veut dire 6 dërëm, juróom-benn. »
+
+    J'avais déduit « ñett-fukk » de la série des dizaines — 40 ñeent-fukk,
+    50 juróom-fukk — et une déduction n'est pas une observation. Trente ne
+    suit pas la série, comme « onze » ne se dit pas « dix-un » en français.
+
+    Et si ça ne met aucun prix en danger, c'est pour la raison qu'il donne
+    dans la même phrase : l'argent se divise par cinq avant d'être dit, donc
+    un montant ne prononce jamais trente. Sauf 150 F, qui font trente dërëm —
+    et ce cas-là est tenu en « propose » exprès. */
+export const TRENTE = "fan wer";
 export const CENT = "téeméer";
 export const MILLE = "junni";
 export const MILLION = "million";
@@ -108,7 +124,7 @@ function sousCent(n: number): string {
   if (n < 10) return UNITES[n];
   const d = Math.floor(n / 10);
   const u = n % 10;
-  const dizaine = d === 1 ? DIX : `${UNITES[d]}-${DIX}`;
+  const dizaine = d === 1 ? DIX : d === 3 ? TRENTE : `${UNITES[d]}-${DIX}`;
   return u ? `${dizaine} ak ${UNITES[u]}` : dizaine;
 }
 
@@ -174,6 +190,37 @@ export function enDeremWolof(francs: number): string | null {
   if (derem > SUR_SON_TERRAIN) return null;
   const dit = enWolof(derem);
   return dit ? `${liaison(dit)} ${DEREM}` : null;
+}
+
+/* ── « QUAND TU PARLES D'ARGENT, IL FAUT TOUJOURS DIRE DËRËM » ─────────────
+
+   Lamine, le 15 septembre 2026 au matin, en validant son exemple des sacs de
+   riz : « il faut juste préciser que si tu parles argent ou si tu parles le
+   nombre simple. Quand tu parles d'argent, il faut TOUJOURS dire dërëm. »
+
+   CE QUE ÇA INTERDIT, ET POURQUOI C'EST GRAVE. Un montant dit sans le mot
+   dërëm n'est pas seulement mal dit : il est FAUX de cinq fois. « juróom-ñaar »
+   pour 35 F s'entend « sept » — sept francs, pas sept dërëm. Celui qui écoute
+   n'a aucun moyen de savoir lequel des deux on lui annonce, et il paiera
+   l'un pour l'autre. Le mot dërëm n'est pas une politesse de la langue,
+   c'est l'unité ; l'enlever, c'est dire un nombre sans dire de quoi.
+
+   L'INVERSE EST VRAI AUSSI, et c'est l'autre moitié de sa phrase : un nombre
+   simple ne doit JAMAIS porter dërëm. « fan weri dërëm » pour trente sacs de
+   riz en ferait cent cinquante.
+
+   COMMENT ON S'EN ASSURE. enDeremWolof() est le SEUL chemin par lequel un
+   montant sort de ce fichier, et il ne rend jamais rien sans le mot — il
+   préfère rendre null, et le prix se dira en français. La garantie est
+   éprouvée sur toute la plage dans epreuve-wolof-nombres.ts : pas un montant
+   composable ne sort sans son dërëm, et pas un nombre simple ne le porte. */
+export const OBLIGATION_DEREM =
+  "Un montant ne se dit JAMAIS sans le mot dërëm ; un nombre simple ne le porte JAMAIS.";
+
+/** Est-ce que ce qui va être prononcé respecte sa règle ? Le dernier verrou
+    avant la voix, pour les appelants qui composent une phrase à la main. */
+export function direCommeDeLArgent(dit: string): boolean {
+  return dit.trim().endsWith(DEREM);
 }
 
 /** Et le chemin inverse, pour vérifier : combien de francs vaut ce qu'on
@@ -250,7 +297,10 @@ export const MOTIFS: Record<string, { quoi: string; exemple: number; argent?: bo
   dix: { quoi: "dix", exemple: 10 },
   "dix-ak-unite": { quoi: "de onze à dix-neuf — dix, puis l'unité", exemple: 18 },
   dizaine: { quoi: "les dizaines rondes, bâties sur fukk", exemple: 40 },
-  "dizaine-ak-unite": { quoi: "une dizaine PLUS une unité", exemple: 37 },
+  "dizaine-ak-unite": { quoi: "une dizaine PLUS une unité", exemple: 47 },
+  trente: { quoi: "trente tout seul — l'irrégulier, « Fan wer »", exemple: 30 },
+  "trente-liaison": { quoi: "trente devant un mot : « fan weri million »", exemple: 30_000_000 },
+  "trente-ak-unite": { quoi: "trente PLUS une unité", exemple: 35 },
   cent: { quoi: "cent, sans « benn » devant", exemple: 100 },
   centaines: { quoi: "plusieurs centaines, avec le « i » de liaison", exemple: 400 },
   "cent-ak-reste": { quoi: "des centaines PLUS un reste", exemple: 250 },
@@ -270,7 +320,10 @@ function motifsSousCent(n: number, dans: Set<string>): void {
   else if (n < 10) dans.add("unites");
   else if (n === 10) dans.add("dix");
   else if (n < 20) { dans.add("dix-ak-unite"); dans.add("unites"); }
-  else {
+  else if (Math.floor(n / 10) === 3) {
+    dans.add("trente");
+    if (n % 10) { dans.add("trente-ak-unite"); dans.add("unites"); }
+  } else {
     dans.add("dizaine");
     if (n % 10) { dans.add("dizaine-ak-unite"); dans.add("unites"); }
   }
@@ -292,14 +345,20 @@ export function motifsDe(n: number): Set<string> {
   const millions = Math.floor(n / 1_000_000);
   const milliers = Math.floor((n % 1_000_000) / 1000);
   const reste = n % 1000;
+  /* Un nombre qui COMPTE des junni ou des million prend le « i » de liaison
+     sur son dernier mot. Quand ce dernier mot est « wer », ça donne la forme
+     qu'il m'a donnée lui-même : « fan weri million ». */
+  const trenteDedans = (x: number) => Math.floor((x % 100) / 10) === 3;
   if (millions) {
     dans.add(millions === 1 ? "million" : "millions");
     if (millions > 1) motifsSousMille(millions, dans);
+    if (trenteDedans(millions)) dans.add("trente-liaison");
     if (milliers || reste) dans.add("million-ak-reste");
   }
   if (milliers) {
     dans.add(milliers === 1 ? "mille" : "milliers");
     if (milliers > 1) motifsSousMille(milliers, dans);
+    if (trenteDedans(milliers)) dans.add("trente-liaison");
     if (sousMille(milliers).includes(" ak ")) dans.add("milliers-partages");
     if (reste) dans.add("mille-ak-reste");
   }
@@ -319,7 +378,9 @@ for (const n of NOMBRES) {
     for (const m of motifsDe(valeur)) MOTIFS_RELUS.add(m);
   } else if (/^f-/.test(n.cle) && valeur % FRANCS_PAR_DEREM === 0) {
     MOTIFS_RELUS.add("derem");
-    for (const m of motifsDe(valeur / FRANCS_PAR_DEREM)) MOTIFS_RELUS.add(m);
+    const derem = valeur / FRANCS_PAR_DEREM;
+    if (derem % 10 === 0 && motifsDe(derem).has("trente")) MOTIFS_RELUS.add("trente-liaison");
+    for (const m of motifsDe(derem)) MOTIFS_RELUS.add(m);
   } else if (/^p-/.test(n.cle)) {
     MOTIFS_RELUS.add("par-centaine");
     for (const m of motifsDe(valeur)) MOTIFS_RELUS.add(m);
@@ -330,7 +391,51 @@ for (const n of NOMBRES) {
     avec la date et ses mots. Rien d'autre à changer : tous les nombres qui
     s'en servent passent en « relu » du même coup. */
 export const MOTIFS_VALIDES_PAR_LAMINE: string[] = [
-  /* (en attente de sa relecture — voir motifsEnAttente()) */
+  /* Le 12 septembre 2026 au soir, sans que j'aie eu à poser la question :
+
+       « 30 en wolof, si tu parles de nombre, chiffre 30 veut dire "Fan wer".
+         Mais si tu parles d'argent, 30 F veut dire 6 dërëm, juróom-benn
+         dërëm. Donc « Fan weri » dërëm veut dire 150 F. « Fan weri » MILLION
+         veut dire 30 MILLION. »
+
+     Deux formes, et elles tranchent trois choses d'un coup :
+
+       — trente devant un mot prend le « i » de liaison, comme n'importe quel
+         autre nombre : fan weri dërëm, fan weri million → « trente-liaison » ;
+       — un PRIX peut donc dire trente, et il le dit ainsi (150 F) ;
+       — et plusieurs millions se disent <nombre>i million, le mot million
+         restant invariable → « millions ».
+
+     Les deux formes qu'il donne sont exactement celles que la règle
+     composait déjà. C'est la première fois que sa relecture confirme une
+     déduction au lieu de la corriger. */
+  "trente-liaison",
+  "millions",
+
+  /* ── LE 15 SEPTEMBRE 2026 AU MATIN ────────────────────────────────────
+
+     Je lui ai mis sous les yeux son propre exemple, composé par la règle :
+
+       30 sacs + 5 sacs = 35 sacs   →  fan wer ak juróom
+       30 F   + 5 F   = 35 F        →  juróom-benni dërëm yokaci benni
+                                       dërëm, mu don juróom-ñaari dërëm
+
+     Sa réponse : « Exactement, c'est très correct, c'est ça, c'est bien ça.
+     Il faut juste préciser que si tu parles argent ou si tu parles le nombre
+     simple. Quand tu parles d'argent, il faut TOUJOURS dire dërëm. »
+
+     Ce qu'il valide là, en une phrase, et qu'il faut compter :
+
+       — « fan wer ak juróom » pour 35 : trente PLUS une unité est relu. Et
+         c'est le motif qui ouvre toute la tranche 31–39 ;
+       — « benni dërëm » pour un seul dërëm : j'avais posé la question
+         explicitement — benn dërëm ou benni dërëm ? — et il a répondu que
+         c'est bien ça. La liaison se pose donc aussi sur UN, et tous les
+         prix à cinq francs sont réglés.
+
+     ET SA PRÉCISION, qui n'est pas un détail de vocabulaire mais la règle
+     d'usage de tout ce fichier : voir OBLIGATION_DEREM juste en dessous. */
+  "trente-ak-unite",
 ];
 for (const m of MOTIFS_VALIDES_PAR_LAMINE) MOTIFS_RELUS.add(m);
 
@@ -350,7 +455,12 @@ export function motifsEnAttente(): Array<{ motif: string; quoi: string; exemple:
 }
 
 function juger(n: number, wolof: string, argent: boolean): Dit {
-  const manquants = [...motifsDe(n)].filter((m) => !MOTIFS_RELUS.has(m));
+  const motifs = motifsDe(n);
+  /* En argent, c'est « dërëm » qui suit le nombre — donc la liaison tombe sur
+     son dernier mot, exactement comme devant junni. « Fan weri dërëm », sa
+     ligne du 12 septembre au soir, veut dire 150 F. */
+  if (argent && motifs.has("trente") && n % 10 === 0) motifs.add("trente-liaison");
+  const manquants = [...motifs].filter((m) => !MOTIFS_RELUS.has(m));
   if (argent && !MOTIFS_RELUS.has("derem")) manquants.push("derem");
   return manquants.length
     ? { wolof, sur: "propose", enAttente: manquants }
