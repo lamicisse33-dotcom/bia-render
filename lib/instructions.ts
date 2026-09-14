@@ -164,6 +164,31 @@ const FRANCAIS: Array<[Quoi, string[]]> = (() => {
     for (const m of mots) { suite.push(`${m} ${m}`); suite.push(`${m} ${m} ${m}`); }
     par.set(quoi, suite);
   }
+  /* ── CE N'EST PAS LE MOT QU'IL REDOUBLE, C'EST CE QU'IL DIT ─────────────
+
+     Le 14 septembre 2026 au soir, il a dit « garde garde » et rien ne s'est
+     passé. J'ai d'abord cru que le mot manquait à la liste — il y était. Le
+     registre a rendu ce que l'oreille avait vraiment écrit :
+
+       « Garde ça »            → ordre pris, phrase rangée
+       « Garde ça, garde ça »  → aucun ordre
+
+     La première leçon de toute l'histoire du projet venait d'entrer par la
+     première ; la seconde, dite deux secondes plus tard, est repartie au
+     modèle. La liste connaissait « garde garde » mais pas « garde ça garde
+     ça », et c'est lui qui a raison : QUAND IL REDOUBLE, IL REDOUBLE SA
+     TOURNURE, pas un mot isolé.
+
+     On redouble donc aussi les tournures courtes. Trois mots au plus, pour
+     que le résultat tienne encore sous la limite de sept — au-delà, la
+     tournure se suffisait déjà largement à elle-même. */
+  for (const [quoi, formes] of ENTIERES) {
+    const suite = par.get(quoi) || [];
+    for (const f of formes) {
+      if (f.split(" ").length <= 3) suite.push(`${f} ${f}`);
+    }
+    par.set(quoi, suite);
+  }
   return [...par.entries()];
 })();
 
