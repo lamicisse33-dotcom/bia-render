@@ -154,6 +154,7 @@ export function noterTour(t: Partial<Tour>) {
     modele_ms: entier(t.modele_ms),
     voix_ms: entier(t.voix_ms),
     demarrage_ms: entier(t.demarrage_ms),
+    ailleurs_ms: entier(t.ailleurs_ms),
     vecu_ms: vecu,
     quand: Date.now(),
   }].slice(-TOURS_GARDES);
@@ -176,6 +177,7 @@ export function resumeTours() {
     modele_ms: mediane(l.map((t) => t.modele_ms)),
     voix_ms: mediane(l.map((t) => t.voix_ms)),
     demarrage_ms: mediane(l.map((t) => t.demarrage_ms)),
+    ailleurs_ms: mediane(l.map((t) => t.ailleurs_ms)),
   } : null;
   return {
     tours: tours.length,

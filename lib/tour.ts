@@ -94,6 +94,8 @@ export type Tour = {
   voix_ms: number;
   /** Son en main → première syllabe réellement émise. */
   demarrage_ms: number;
+  /** Le temps qu'aucune borne n'a couvert. Zéro quand tout est mesuré. */
+  ailleurs_ms: number;
   /** Sa dernière syllabe à lui → la première syllabe d'elle. TOUT le tour. */
   vecu_ms: number;
   quand: number;
@@ -109,9 +111,28 @@ export function tourVide(voie: "parole" | "ecrit" = "parole"): Bornes {
    redemande la voix — et écraser la date ferait rétrécir la durée mesurée
    jusqu'à la faire disparaître. La première est la bonne : c'est l'instant où
    la chose est arrivée. */
+/* ── ET UNE BORNE EN RETARD N'EST PAS UNE BORNE ─────────────────────────────
+
+   Ce que les treize premiers tours ont montré, le 15 septembre 2026 au soir.
+   Trois d'entre eux rendaient des durées impossibles : cinq secondes de
+   fabrication de voix sur un tour qui n'en avait duré quatre, et zéro pour le
+   modèle. La somme des cinq morceaux ne faisait plus le total.
+
+   LA CAUSE. Depuis que le modèle diffuse, BIA parle sur la TÊTE de sa réponse
+   — donc le tour se referme AVANT que le bloc complet n'arrive. Les bornes
+   posées à l'arrivée de ce bloc tombaient alors dans le tour SUIVANT, qui
+   héritait d'une date d'il y a dix secondes.
+
+   On répare des deux côtés : la borne du modèle est posée à la tête (voir
+   app/page.tsx), et ici on refuse tout ce qui arrive avant que le micro se
+   soit fermé. Aucune de ces trois bornes ne PEUT le précéder — une mesure qui
+   accepte l'impossible ne mesure plus rien. */
+const APRES_LE_MICRO = new Set(["ecoute", "modele", "enMain"]);
+
 export function poser(b: Bornes, quoi: keyof Bornes & ("parole"|"micro"|"ecoute"|"modele"|"enMain"|"syllabe"),
                       quand = Date.now()): Bornes {
   if (b[quoi]) return b;
+  if (APRES_LE_MICRO.has(quoi) && !b.micro) return b;
   b[quoi] = quand;
   return b;
 }
@@ -134,15 +155,35 @@ export function finir(b: Bornes, quand = Date.now()): Tour | null {
   if (!debut) return null;
   const vecu = ecart(debut, b.syllabe);
   if (!vecu || vecu > TROP_LONG) return null;
-  return {
-    voie: b.voie,
-    source: b.source || "inconnue",
-    attente: b.attente,
+  const morceaux = {
     queue_ms: ecart(b.parole, b.micro),
     transcription_ms: ecart(b.micro, b.ecoute),
     modele_ms: ecart(b.ecoute || b.micro, b.modele),
     voix_ms: ecart(b.modele, b.enMain),
     demarrage_ms: ecart(b.enMain, b.syllabe),
+  };
+  const somme = Object.values(morceaux).reduce((a, n) => a + n, 0);
+  /* ── LE CONTRÔLE QUI AURAIT ATTRAPÉ LE DÉFAUT TOUT SEUL ────────────────
+
+     Les morceaux ne peuvent pas dépasser le tour : c'est de l'arithmétique,
+     pas une opinion. Quand ça arrive, une borne vient d'ailleurs — d'un tour
+     précédent, d'un chemin parallèle — et le tour entier est faux. On le
+     jette au lieu de le laisser tirer la médiane.
+
+     Trois tours sur treize étaient dans ce cas le 15 septembre au soir, et
+     c'est en additionnant à la main que je l'ai vu. Désormais c'est le code
+     qui le voit, à chaque tour, sans que personne ait à y penser. */
+  if (somme > vecu) return null;
+  return {
+    voie: b.voie,
+    source: b.source || "inconnue",
+    attente: b.attente,
+    ...morceaux,
+    /* Le temps qu'aucune borne n'a couvert. Zéro quand tout est mesuré ;
+       non nul quand un chemin ne pose pas toutes ses bornes — la voix du
+       navigateur, par exemple. Visible plutôt que réparti en douce sur les
+       autres : un morceau qu'on ne sait pas nommer doit se voir. */
+    ailleurs_ms: vecu - somme,
     vecu_ms: vecu,
     quand,
   };

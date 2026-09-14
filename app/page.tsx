@@ -1806,7 +1806,12 @@ export default function Home() {
     couperSon();
     if (emotion) await jouerSouffle(emotion);
     setMode("speaking");
-    await jouerEtAnimer(await octetsDuRepertoire(adresse), true);
+    const octetsDits = await octetsDuRepertoire(adresse);
+    /* Le son est en main : le reste est du décodage et du démarrage. Sans
+       cette borne, les quarante millisecondes qui suivent ne tombaient dans
+       aucun morceau et la somme ne faisait plus le total. */
+    poserBorne(bornesRef.current, "enMain");
+    await jouerEtAnimer(octetsDits, true);
     setMode("ready");
     setFace("yeux_ouverts");
   }, [finirAttente, couperSon, jouerSouffle, jouerEtAnimer, octetsDuRepertoire]);
@@ -2210,6 +2215,16 @@ export default function Home() {
                   const marque = recu.match(/\[{1,2}\s*[ée]motion\s*[:\-—]?\s*([A-Za-zÀ-ÿ_]+)\s*\]{1,2}/i);
                   if (marque) emotionRef.current = marque[1].toLowerCase()
                     .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                  /* ── LA BORNE DU MODÈLE, EN DIFFUSION ──────────────
+                     Elle était posée à l'arrivée du bloc complet — donc APRÈS
+                     que la tête avait déjà parlé, et donc après la fermeture
+                     du tour. Elle atterrissait dans le tour SUIVANT et lui
+                     donnait une durée de voix impossible : cinq secondes de
+                     fabrication sur un tour qui n'en avait duré quatre.
+                     C'est le défaut que les treize premiers tours ont
+                     montré. Ici, c'est le bon instant : le modèle a écrit
+                     assez pour qu'elle ouvre la bouche. */
+                  poserBorne(bornesRef.current, "modele");
                   teteEnCours = speak(tete, emotionRef.current);
                 }
               }

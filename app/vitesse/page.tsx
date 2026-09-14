@@ -18,12 +18,12 @@ import { useCallback, useEffect, useState } from "react";
 type Part = { quoi: string; ms: number; part: number };
 type Groupe = {
   tours: number; vecu_ms: number; queue_ms: number; transcription_ms: number;
-  modele_ms: number; voix_ms: number; demarrage_ms: number;
+  modele_ms: number; voix_ms: number; demarrage_ms: number; ailleurs_ms: number;
 };
 type Tour = {
   voie: string; source: string; attente: boolean; queue_ms: number;
   transcription_ms: number; modele_ms: number; voix_ms: number;
-  demarrage_ms: number; vecu_ms: number;
+  demarrage_ms: number; ailleurs_ms: number; vecu_ms: number;
 };
 type Etat = {
   version?: string;
@@ -179,6 +179,9 @@ function Bloc({ titre, g }: { titre: string; g: Groupe | null }) {
     ["modèle", g.modele_ms],
     ["fabrication de la voix", g.voix_ms],
     ["démarrage du son", g.demarrage_ms],
+    /* Le temps qu'aucune borne ne couvre. Zéro quand tout est mesuré ;
+       s'il grossit, c'est qu'un chemin nous échappe. */
+    ["ailleurs", g.ailleurs_ms],
   ];
   return (
     <section style={{ marginBottom: 18 }}>
