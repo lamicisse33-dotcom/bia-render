@@ -838,6 +838,56 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
+  /* ── L'ÉCRAN QUI NE S'ÉTEINT PLUS PENDANT QU'ELLE EST LÀ ─────────────────
+
+     Lamine, le 14 septembre 2026 : « il faut faire de sorte que quand elle
+     est affichée, l'écran du téléphone reste éveillé. »
+
+     Un téléphone s'éteint au bout de trente secondes. Or on ne touche pas
+     BIA : on lui PARLE. Elle réfléchit quatre secondes, elle répond huit —
+     pendant tout ce temps, rien ne bouge sous le doigt, et l'écran se
+     verrouille au milieu de sa phrase. Et sur la carte, c'est pire : on
+     conduit, on ne touche à rien, et l'écran meurt juste avant le virage.
+
+     LE VERROU NE TIENT QUE TANT QUE LA PAGE EST VISIBLE — c'est le navigateur
+     qui l'exige, et c'est une bonne règle : dès qu'on passe à autre chose, le
+     téléphone reprend sa vie normale. Il faut donc le REDEMANDER à chaque
+     retour, sinon il ne revient jamais après le premier changement
+     d'application.
+
+     ON NE LE DEMANDE PAS SI LE NAVIGATEUR NE SAIT PAS FAIRE. Safari le sait
+     depuis iOS 16.4 ; ailleurs, on ne fait rien et rien ne casse.
+
+     ET ÇA COÛTE DE LA BATTERIE, il faut le dire : un écran allumé en
+     permanence est ce qui vide un téléphone le plus vite. C'est son choix, et
+     il le sait — mais le verrou tombe dès qu'on quitte BIA, donc ça ne dure
+     que le temps qu'on est avec elle. */
+  useEffect(() => {
+    type Verrou = { release: () => Promise<void>; released?: boolean };
+    const api = (navigator as unknown as {
+      wakeLock?: { request: (t: string) => Promise<Verrou> };
+    }).wakeLock;
+    if (!api) return;
+    let verrou: Verrou | null = null;
+    let vivant = true;
+
+    const tenir = async () => {
+      if (!vivant || document.visibilityState !== "visible") return;
+      if (verrou && !verrou.released) return;
+      try { verrou = await api.request("screen"); }
+      catch { /* refusé (batterie faible, onglet caché) : on réessaiera */ }
+    };
+    const auRetour = () => { if (document.visibilityState === "visible") void tenir(); };
+
+    void tenir();
+    document.addEventListener("visibilitychange", auRetour);
+    return () => {
+      vivant = false;
+      document.removeEventListener("visibilitychange", auRetour);
+      void verrou?.release().catch(() => { });
+    };
+  }, []);
+
   /* ── LA MISE À JOUR D'ELLE-MÊME ──────────────────────────────────────────
 
      Lamine, le 14 septembre 2026 : « il faut forcer les mises à jour ; dès
