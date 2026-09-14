@@ -1017,7 +1017,22 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
         };
         if(ordre.quoi==="apprendre")suite.apprend=true;
         if(ordre.quoi==="fini")suite.apprend=false;
-        if(ordre.quoi==="encore"){suite.apprend=true;suite.aRepeter="";}
+        /* ── « TANT QUE JE N'AI PAS DIT CORRIGE CORRIGE, ÇA NE S'OUVRE PAS »
+
+           Lamine, le 14 septembre 2026 au soir. Sa règle est juste, et elle
+           répare un défaut que j'avais posé moi-même sans le voir.
+
+           « encore » ouvrait l'apprentissage. Or ce mot-là couvre « stop
+           stop », « recommence recommence » — et « NON NON ». Personne ne dit
+           « non, non » en pensant donner un ordre. Il se retrouvait donc en
+           mode répétition au milieu d'une conversation ordinaire, elle
+           perroquetait ses phrases, et rien à l'écran n'expliquait pourquoi.
+
+           « encore » GARDE désormais l'état où il est : pendant une leçon il
+           veut dire « non, redis-le » et l'apprentissage continue ; hors
+           leçon il ne fait rien de plus que corriger la dernière phrase. Ce
+           qui OUVRE est un ordre explicite, et rien d'autre. */
+        if(ordre.quoi==="encore"){suite.apprend=Boolean(body.apprend);suite.aRepeter="";}
         if(ordre.quoi==="oublie")suite.aRepeter="";
         return {corps:suite};
       }

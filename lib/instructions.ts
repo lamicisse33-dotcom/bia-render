@@ -107,8 +107,25 @@ const A_DOUBLER: Array<[Quoi, string[]]> = [
      sans y penser dans une phrase ordinaire, « apprentissage » non. On garde
      les anciens — ne jamais retirer une de ses formulations — mais celui-ci
      est celui qu'il emploiera. */
-  ["apprendre", ["apprentissage", "apprends", "apprend"]],
-  ["encore", ["stop", "corrige", "recommence", "redis", "non"]],
+  /* ── « CORRIGE CORRIGE » OUVRE LA LEÇON ────────────────────────────────
+     Lamine, le 14 septembre 2026 au soir : « quand je dis corrige corrige,
+     elle doit comprendre qu'elle doit se mettre immédiatement en mode
+     apprentissage, donc elle doit répéter ce que je dis. »
+
+     C'est SON mot, et il est meilleur que le mien. « apprentissage » annonce
+     une leçon ; « corrige » est ce qu'on dit au moment où l'on entend une
+     faute — c'est à dire au seul moment où l'on enseigne vraiment.
+
+     Le mot RESTE aussi sous « encore » dans ses tournures longues
+     (« stop corrige », « non corrige », « corrige ça ») : celles-là veulent
+     dire « refais cette phrase-là », pas « ouvre une leçon ». On ne retire
+     jamais une de ses formulations — on choisit seulement laquelle ouvre. */
+  ["apprendre", ["apprentissage", "apprends", "apprend", "corrige"]],
+  /* « non » et « stop » redoublés N'OUVRENT PLUS l'apprentissage : voir le
+     commentaire dans app/api/chat/route.ts. On dit « non, non » vingt fois
+     par jour sans vouloir donner d'ordre. Ils gardent leur sens — corriger la
+     dernière phrase — et le gardent AUSSI pendant une leçon. */
+  ["encore", ["stop", "recommence", "redis", "non"]],
   ["retiens", ["memorise", "retiens", "garde"]],
   ["fini", ["fini", "termine"]],
   ["oublie", ["supprime", "efface", "oublie"]],

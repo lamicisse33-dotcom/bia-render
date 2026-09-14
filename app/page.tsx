@@ -449,6 +449,11 @@ export default function Home() {
      muet : c'est exactement la faute qu'on vient de passer deux soirées à
      réparer. */
   const [motGarde, setMotGarde] = useState("");
+  /* La phrase qui VIENT d'être rangée. Séparée de `aGarder` parce que la
+     leçon se referme aussitôt : sans elle, l'annonce afficherait des
+     guillemets vides au moment précis où il a besoin de relire ce qui est
+     entré. */
+  const [gardee, setGardee] = useState("");
   /* ── LA LANGUE DE LA CONVERSATION, D'UN TOUR À L'AUTRE ──────────────────
 
      `langueRef` est remise à « wo » au début de CHAQUE tour, parce que la
@@ -6096,6 +6101,15 @@ export default function Home() {
                     const d = await r.json() as { retenu?: string; erreur?: string };
                     if (!r.ok || !d.retenu) { setMotGarde(d.erreur || "Ça n'a pas été gardé."); return; }
                     setMotGarde("gardée");
+                    setGardee(quoi);
+                    /* LA LEÇON EST PASSÉE. Sa règle du 14 septembre au soir :
+                       une fois enregistré, on referme et on continue la
+                       conversation. Le serveur suivra : le téléphone lui
+                       enverra `apprend: false` dès la prochaine phrase. */
+                    apprend.current = false;
+                    setEnApprentissage(false);
+                    aRepeter.current = "";
+                    setAGarder("");
                     /* SA VOIX SUIT LE TEXTE, sans le faire attendre : le
                        texte est déjà rangé à cet instant, le son n'est
                        qu'un plus. S'il rate, la mémoire reste juste. */
@@ -6119,33 +6133,52 @@ export default function Home() {
               <span>« {aGarder} »</span>
             </button>
           ) : null}
-          {/* CE QUI S'EST VRAIMENT PASSÉ, en toutes lettres. Et tant qu'elle
-              est gardée, de quoi la reprendre tout de suite si la
-              transcription l'avait abîmée. */}
-          {motGarde && motGarde !== "en cours" ? (
-            <em className={motGarde === "gardée" ? "apprend-dit ok" : "apprend-dit rate"}>
-              {motGarde === "gardée" ? "C'est dans sa mémoire." : motGarde}
-              {motGarde === "gardée" ? (
-                <button
-                  type="button"
-                  className="apprend-defaire"
-                  onClick={() => {
-                    const quoi = aGarder;
-                    setMotGarde("en cours");
-                    void fetch(`/api/retenir?texte=${encodeURIComponent(quoi)}`, {
-                      method: "DELETE", headers: { "x-bia-code": codeRef.current },
-                    })
-                      .then(() => setMotGarde(""))
-                      .catch(() => setMotGarde("Je n'ai pas pu l'enlever."));
-                  }}
-                >
-                  annuler
-                </button>
-              ) : null}
-            </em>
+          {/* Le motif d'un refus reste DANS le bandeau : la leçon n'est pas
+              finie, il est encore en train d'essayer. */}
+          {motGarde && motGarde !== "en cours" && motGarde !== "gardée" ? (
+            <em className="apprend-dit rate">{motGarde}</em>
           ) : null}
-          <i>« stop stop » pour corriger · « on a fini » pour arrêter</i>
+          <i>redis-la jusqu'à ce qu'elle soit juste, puis appuie · « on a fini » pour sortir sans garder</i>
         </div>
+      ) : null}
+
+      {/* ── LA LEÇON EST PASSÉE, ON CONTINUE NORMALEMENT ──────────────────
+
+          Lamine, le 14 septembre 2026 au soir : « j'appuie sur le bouton, ça
+          doit être enregistré, et que l'apprentissage passe. On continue
+          normalement. »
+
+          La correction est PONCTUELLE, et c'est la bonne façon de voir les
+          choses : il entend une faute, il dit « corrige corrige », il
+          enseigne, il appuie, et la conversation reprend. Pas de mode dans
+          lequel on reste par inadvertance.
+
+          MAIS L'ANNULATION DOIT SURVIVRE À LA FERMETURE. Si elle vivait dans
+          le bandeau, elle disparaîtrait à la seconde même où elle devient
+          utile — juste après l'enregistrement, quand il lit la phrase et voit
+          que l'oreille l'avait abîmée. Elle vit donc ici, dehors, et elle
+          reste tant qu'il ne l'a pas écartée. */}
+      {motGarde === "gardée" ? (
+        <p className="apprend-garde-fait">
+          C'est dans sa mémoire : <b>« {gardee} »</b>
+          <button
+            type="button"
+            className="apprend-defaire"
+            onClick={() => {
+              const quoi = gardee;
+              setMotGarde("en cours");
+              void fetch(`/api/retenir?texte=${encodeURIComponent(quoi)}`, {
+                method: "DELETE", headers: { "x-bia-code": codeRef.current },
+              })
+                .then(() => setMotGarde(""))
+                .catch(() => setMotGarde("Je n'ai pas pu l'enlever."));
+            }}
+          >
+            annuler
+          </button>
+          <button type="button" className="apprend-defaire"
+            onClick={() => setMotGarde("")}>fermer</button>
+        </p>
       ) : null}
 
       {temoin ? <p className="temoin-vocal" aria-hidden="true">{temoin}</p> : null}

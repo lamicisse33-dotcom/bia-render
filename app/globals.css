@@ -2565,6 +2565,30 @@ button { font: inherit; touch-action: manipulation; }
 }
 .apprend-dit.ok { color: rgba(150,220,170,.92); }
 .apprend-dit.rate { color: rgba(255,170,150,.95); }
+/* ── CE QUI VIENT D'ENTRER DANS SA MÉMOIRE ──────────────────────────────────
+
+   La leçon se referme dès l'appui — « on continue normalement » — mais cette
+   annonce-là reste. C'est le seul moment où il peut relire la phrase rangée
+   et voir que l'oreille l'avait abîmée ; la faire disparaître avec le bandeau
+   la supprimerait à la seconde où elle sert. */
+.apprend-garde-fait {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: calc(max(10px, env(safe-area-inset-top)) + 8px);
+  transform: translateX(-50%);
+  max-width: min(92vw, 460px);
+  margin: 0;
+  padding: 9px 14px;
+  border: 1px solid rgba(120,200,150,.45);
+  border-radius: 14px;
+  background: rgba(14,32,22,.9);
+  color: rgba(198,240,214,.92);
+  font-size: 12.5px; line-height: 1.5; text-align: center;
+}
+.apprend-garde-fait b { color: #cdf3dd; font-weight: 600; }
+.apprend-garde-fait .apprend-defaire { margin-left: 10px; }
+
 .apprend-defaire {
   margin-left: 8px; padding: 0;
   border: 0; border-bottom: 1px solid currentColor;
