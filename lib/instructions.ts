@@ -106,6 +106,13 @@ const A_DOUBLER: Array<[Quoi, string[]]> = [
   ["fini", ["fini", "termine"]],
   ["oublie", ["supprime", "efface", "oublie"]],
   ["repete", ["repete"]],
+  /* SES MOTS, LE 14 SEPTEMBRE AU SOIR : « pour la coupure du micro c'est
+     pareil — je dis coupe le micro deux fois, elle doit exécuter tout de
+     suite. » La tournure longue marche toujours ; le redoublement s'y ajoute,
+     parce que c'est devenu SA façon de donner un ordre, et qu'une règle qui
+     souffre une exception n'est plus une règle qu'on retient. */
+  ["micro", ["coupe le micro"]],
+  ["silence", ["silence", "chut"]],
 ];
 
 /** Les tournures qui se suffisent : trop longues pour tomber par hasard. */
@@ -199,13 +206,44 @@ export function lireLOrdre(texte: string): Ordre | null {
    Ces phrases-là sont FRANÇAISES et de ma main : ce sont des accusés de
    réception, pas du wolof. Le jour où il en voudra en wolof, il les écrira,
    et elles remplaceront celles-ci. */
+/* ── « D'ACCORD PAPA » ──────────────────────────────────────────────────────
+
+   Lamine, le 14 septembre 2026 : « ensuite elle doit dire d'accord papa. Il
+   faut enregistrer ce mot-là — d'accord papa — pour qu'elle puisse le servir
+   tout de suite. »
+
+   UNE SEULE PHRASE POUR TOUS LES ORDRES, et c'est mieux que cinq. Il donne un
+   ordre en conduisant : ce qu'il attend, ce n'est pas un compte rendu, c'est
+   la preuve en trois syllabes qu'elle a entendu. « C'est mémorisé », « effacé
+   de ma mémoire », « d'accord on arrête » — trois façons de dire la même
+   chose, trois sons à enregistrer, et trois occasions de se tromper de
+   réponse. Une seule, toujours la même, s'enregistre une fois et se reconnaît
+   sans écouter.
+
+   DEUX ORDRES RESTENT MUETS, et ce n'est pas un oubli : « tais-toi » et
+   « répète ». Répondre « d'accord papa » à « tais-toi » serait se contredire
+   dans la même seconde ; et « répète » n'a rien à annoncer, puisqu'elle
+   répète.                                                                  */
+const ACCORD = "D'accord papa.";
+
 export const ACCUSES: Record<Quoi, string> = {
-  apprendre: "D'accord. Dis-moi, je répète.",
-  encore: "D'accord, redis-le-moi.",
-  retiens: "C'est mémorisé.",
-  fini: "D'accord, on arrête.",
-  oublie: "Effacé de ma mémoire.",
+  apprendre: ACCORD,
+  encore: ACCORD,
+  retiens: ACCORD,
+  fini: ACCORD,
+  oublie: ACCORD,
   repete: "",
-  micro: "",
+  micro: ACCORD,
   silence: "",
 };
+
+/* ── LA CLÉ DU SON DÉJÀ FABRIQUÉ ────────────────────────────────────────────
+
+   « Elle doit dire d'accord papa — pour qu'elle puisse le servir tout de
+   suite. » Un accusé qu'on fabrique à la voix met une seconde et coûte deux
+   centimes ; enregistré une fois, il part instantanément et ne coûte plus
+   rien. C'est exactement ce que le répertoire fait déjà pour les salutations.
+
+   Le texte vit dans lib/services-textes.ts sous cette clé, pour être
+   enregistré avec les autres, au même passage et au même bouton.           */
+export const CLE_ACCORD = "ordre-daccord";

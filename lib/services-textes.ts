@@ -140,6 +140,18 @@ export const GROUPES_SERVICES = [
 
    Écrites par moi, à corriger par Lamine — comme les 49 du guidage, dont il a
    changé trente-six sur quarante-neuf. Le wolof est à lui. */
+/* ── CE QUI ATTEND SON WOLOF ────────────────────────────────────────────────
+
+   Une phrase sans wolof ne se fabrique pas : la route d'enregistrement passe
+   les textes vides (voir tousLesSonsAttendus). Elle n'est donc ni payée ni
+   enregistrée, et c'est le français qui part en attendant.
+
+   MAIS ÇA NE DOIT PAS SE PERDRE. Un trou qui ne se signale nulle part est un
+   trou qu'on retrouve six mois plus tard. Toute clé dont le wolof est vide
+   doit être ICI, nommée, et l'épreuve le vérifie. Elle se vide au fur et à
+   mesure qu'il écrit. */
+export const EN_ATTENTE_DE_SON_WOLOF = ["ordre-daccord"];
+
 export const SERVICES: Service[] = [
   /* La carte. Dite pendant que le fond de carte se charge et que l'itinéraire
      se calcule : c'est le service dont l'attente est la plus longue, donc
@@ -257,6 +269,24 @@ export const SERVICES: Service[] = [
     quand: "l'écoute est cassée — clé refusée, quota épuisé. Répéter ne sert à rien",
     wolof: "Sama nopp bi degul dara, Xoolal ndakh am nga code bu bax.",
     francais: "Mon oreille est en panne, ce n'est pas toi. Regarde l'état de BIA." },
+
+  /* ── L'ACCUSÉ DES ORDRES DU MAÎTRE ─────────────────────────────────────
+
+     Lamine, le 14 septembre 2026 : « elle doit dire d'accord papa — il faut
+     enregistrer ce mot-là pour qu'elle puisse le servir tout de suite. »
+
+     C'est la réponse à TOUS ses ordres vocaux : stop stop, mémorise mémorise,
+     supprime supprime, coupe le micro. Une seule phrase, enregistrée une
+     fois, servie instantanément et gratuitement — voir lib/instructions.ts.
+
+     LE WOLOF EST À ÉCRIRE PAR LUI. Je ne l'écris pas de ma main, et tant
+     qu'il est vide c'est le français qui part, avec la voix fabriquée. Deux
+     mots à me donner, et cette réponse devient instantanée dans les deux
+     langues. */
+  { cle: "ordre-daccord", groupe: "services",
+    quand: "il vient de lui donner un ordre à la voix : stop stop, mémorise mémorise, supprime supprime",
+    wolof: "",
+    francais: "D'accord papa." },
 
   /* Déjà dans app/api/chat/route.ts, sous le nom PANNE_MOTEUR. */
   { cle: "panne-moteur", groupe: "pannes",

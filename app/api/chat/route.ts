@@ -13,7 +13,7 @@ import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
 import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgences";
-import { ACCUSES, lireLOrdre } from "@/lib/instructions";
+import { ACCUSES, CLE_ACCORD, lireLOrdre } from "@/lib/instructions";
 import { ajouterCorrection } from "@/lib/lexique";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
@@ -732,15 +732,23 @@ async function repondre(body:Corps,code:string|null,emettre:((morceau:string)=>v
               emotion:"concernee",source:"ordre du maître"}};
           }
           return {corps:{reply:ACCUSES.retiens,emotion:"joie",
+            son:sonDe(CLE_ACCORD,langueDe(question),ACCUSES.retiens),
             apprend:true,aRepeter:"",retenu:repete,source:"ordre du maître"}};
         }
         if(ordre.quoi==="repete"&&repete){
           return {corps:{reply:repete,emotion:"neutre",apprend:Boolean(body.apprend),
             aRepeter:repete,source:"ordre du maître"}};
         }
+        /* ── « POUR QU'ELLE PUISSE LE SERVIR TOUT DE SUITE » ────────────
+           Le son de « d'accord papa » est déjà fabriqué : le téléphone le
+           joue au lieu de demander à la voix. Zéro seconde, zéro centime. Et
+           tant qu'il n'est pas enregistré, le fichier manque, le téléphone
+           bascule tout seul sur la voix fabriquée — rien ne casse. */
+        const ditOui=ACCUSES[ordre.quoi]||"";
         const suite:Record<string,unknown>={
-          reply:ACCUSES[ordre.quoi]||"D'accord.",emotion:"neutre",source:"ordre du maître",
+          reply:ditOui||"D'accord.",emotion:"neutre",source:"ordre du maître",
           ordre:ordre.quoi,
+          ...(ditOui?{son:sonDe(CLE_ACCORD,langueDe(question),ditOui)}:{}),
         };
         if(ordre.quoi==="apprendre")suite.apprend=true;
         if(ordre.quoi==="fini")suite.apprend=false;
