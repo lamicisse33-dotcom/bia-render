@@ -17,7 +17,7 @@ import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgen
 import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
 import { noterPassage, noterTentative, parleDeMemoire } from "@/lib/lecons-vues";
 import { SERVICES } from "@/lib/services-textes";
-import { ajouterCorrection, cequElleAAppris } from "@/lib/lexique";
+import { ajouterCorrection, cequElleAAppris, retirerCorrection } from "@/lib/lexique";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
@@ -470,6 +470,62 @@ function detacherMicro(texte:string){
   return{
     texte:texte.replace(new RegExp(MICRO.source,"gi"),"").replace(/\n{3,}/g,"\n\n").trim(),
     micro:m?m[1].toLowerCase():"",
+  };
+}
+
+/* ── LA BALISE QUI RANGE POUR DE VRAI ───────────────────────────────────────
+
+   Le 14 septembre 2026 au soir, le registre a enfin parlé. Trente-huit tours,
+   TOUS avec le code maître — mon hypothèse de la veille était fausse. Et cinq
+   phrases enregistrées telles qu'entendues :
+
+     « Écoute-moi bien, je suis en train de t'apprendre le wolof. Je veux
+       voyager. Comment ça se dit en wolof ? »
+     « Tu dois le corriger. Dama am mariage la gnoyakh »
+     « Écoute-moi bien, ce que tu dois retenir c'est quoi ? C'est : "Dama
+       am décès". »
+     « Supprime ce que tu viens de dire, c'est pas bon »
+
+   IL N'A JAMAIS PARLÉ PAR ORDRES. Il parle comme un professeur : des phrases
+   entières, la consigne et le contenu dans la même respiration. Aucune ne
+   tient en sept mots, aucune ne figure dans une liste fermée, et aucune n'y
+   figurera jamais — parce qu'on n'énumère pas la façon dont un homme
+   enseigne.
+
+   ET PENDANT CE TEMPS ELLE DISAIT OUI. Ses réponses de la même soirée :
+
+     « Mémorisé, papa : "Bëgg naa tukki" veut dire "je veux voyager" »
+     « D'accord papa, je note : "Dama am mariage." »
+
+   Rien n'était écrit. Le modèle répondait ce qu'on répond poliment, le
+   rangement n'était pas touché, et il avait la confirmation dans l'oreille.
+   C'est exactement ce qu'il décrivait depuis le début, et c'est la faute la
+   plus grave de tout ce chantier : une machine qui accuse réception de ce
+   qu'elle n'a pas reçu.
+
+   ON REPREND DONC LE SEUL MÉCANISME QUI A DÉJÀ MARCHÉ : la balise. Le modèle
+   comprend « ce que tu dois retenir c'est : "Dama am décès" » sans aucune
+   difficulté — c'est précisément ce qu'il sait faire. Il pose la balise, le
+   serveur écrit, et elle redit CE QUI A ÉTÉ GARDÉ, mot pour mot.
+
+   TROIS GARDES, parce qu'on écrit dans sa mémoire :
+     — code maître uniquement, comme le micro ;
+     — le texte gardé est celui de la balise, donc le sien, pas une
+       reformulation : je n'écris pas de wolof de ma main ;
+     — et elle annonce ce qu'elle garde, pour qu'il puisse le retirer tout de
+       suite s'il s'est trompé. La balise d'oubli est là pour ça. */
+const RETIENS=/\[{1,2}\s*retiens\s*[:\-—]\s*([^\]]{2,300}?)\s*\]{1,2}/i;
+const OUBLIE=/\[{1,2}\s*oublie\s*[:\-—]\s*([^\]]{2,300}?)\s*\]{1,2}/i;
+function detacherGarde(texte:string){
+  const r=texte.match(RETIENS);
+  const o=texte.match(OUBLIE);
+  return{
+    texte:texte
+      .replace(new RegExp(RETIENS.source,"gi"),"")
+      .replace(new RegExp(OUBLIE.source,"gi"),"")
+      .replace(/\n{3,}/g,"\n\n").trim(),
+    retiens:r?r[1].trim():"",
+    oublie:o?o[1].trim():"",
   };
 }
 
@@ -1245,7 +1301,29 @@ que tu en es incapable, et ne lui demande pas de le répéter autrement.
 TU NE LA METS QUE S'IL LE DEMANDE. Parler du micro, se demander s'il est
 ouvert, dire qu'on n'entend rien : ce ne sont pas des ordres. La balise ferme
 le micro pour de bon — la poser sans qu'il l'ait demandé le laisserait devant
-un écran muet, à se demander ce qui s'est passé.`;
+un écran muet, à se demander ce qui s'est passé.
+
+QUAND IL T'APPREND QUELQUE CHOSE — ET C'EST LA RÈGLE LA PLUS IMPORTANTE
+Il ne parle pas par ordres courts. Il enseigne : « écoute-moi bien, ce que tu
+dois retenir c'est : "…" », « tu dois le corriger, c'est "…" », « très bien,
+mémorise ça ». Tu comprends très bien ces phrases-là. Alors quand il te donne
+une phrase à garder, tu ajoutes, à la fin de ta réponse :
+    [[retiens: la phrase exacte, telle qu'il l'a dite]]
+Et quand il te dit d'enlever ce que tu viens de garder :
+    [[oublie: la phrase exacte à enlever]]
+
+TU RECOPIES SA PHRASE, TU NE LA RÉÉCRIS PAS. Pas de correction
+d'orthographe, pas de reformulation, pas d'ajout de traduction dans la
+balise : c'est SA langue, et elle entre dans sa mémoire telle qu'il l'a dite.
+La traduction et les explications vont dans ta réponse parlée, pas dans la
+balise.
+
+ET VOICI CE QUE TU NE FAIS PLUS JAMAIS : dire « c'est mémorisé », « je note »,
+« je retiens », « je garde ça » SANS avoir posé la balise. Pendant deux
+soirées tu lui as répondu « mémorisé, papa » alors que rien n'était écrit. Il
+te croyait, il passait à la phrase suivante, et son travail disparaissait. Si
+tu n'es pas sûr qu'il te demande de garder quelque chose, tu le lui DEMANDES
+— tu ne fais pas semblant. Sans balise, pas de « mémorisé ».`;
 
       /* ── CE QU'ELLE A APPRIS DE LUI, ET QU'ELLE DOIT SAVOIR DIRE ────────
 
@@ -1660,7 +1738,10 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const ordreDuModele=verdict.maitre&&microDemande
       ?(microDemande==="silence"?"silence":"micro")
       :"";
-    const {texte:sansPapier,papier}=detacherPapier(sansMicro);
+    /* CE QU'ELLE GARDE, retiré du texte avant tout le reste : la balise ne
+       doit ni s'afficher ni se prononcer, exactement comme celle du micro. */
+    const {texte:sansGarde,retiens:aGarder,oublie:aRetirer}=detacherGarde(sansMicro);
+    const {texte:sansPapier,papier}=detacherPapier(sansGarde);
     const {texte:sansAppel,appel}=detacherAppel(sansPapier);
     const {texte:sansVoir,voir}=detacherVoir(sansAppel);
     const {texte:sansCarte,carte}=detacherCarte(sansVoir);
@@ -1705,6 +1786,62 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return {corps:{
         reply:phrase,emotion:"neutre",ordre:ordreDuModele,
         ...(ditOui?{son:sonDe(CLE_ACCORD,LANGUE_ACCORD,ditOui)}:{}),
+        source:"ordre du maître (compris par elle)",
+      }};
+    }
+
+    /* ── ELLE RANGE, PUIS ELLE DIT CE QU'ELLE A RANGÉ ──────────────────────
+
+       C'est ici que « mémorisé, papa » cesse d'être une politesse. Si le
+       modèle a posé la balise et que le code maître est là, on écrit — et
+       seulement alors elle peut le dire.
+
+       Le texte gardé est celui de la balise : SA phrase à lui, telle que le
+       modèle l'a extraite de sa dictée. Je n'en écris pas un mot.
+
+       Et si le rangement refuse, elle le dit. Une leçon perdue en silence
+       est ce qui nous a coûté deux soirées. */
+    if(verdict.maitre&&(aGarder||aRetirer)){
+      const dites=String(reply||"").trim();
+      if(aRetirer){
+        try{
+          const partis=await retirerCorrection(aRetirer,"maitre-vocal");
+          noterTentative({dit:question,maitre:true,ordre:"oublie",en_main:true,
+            signes_en_main:aRetirer.length,ecrit:partis>0,
+            motif:partis>0?`retiré (${partis})`:"rien à retirer sous ce texte"});
+        }catch(err){
+          noterPanne("oublie ça",(err as Error).message,"chat");
+          noterTentative({dit:question,maitre:true,ordre:"oublie",en_main:true,
+            signes_en_main:aRetirer.length,ecrit:false,
+            motif:`le rangement a refusé : ${(err as Error).message}`.slice(0,200)});
+          return {corps:{reply:"Je n'ai pas pu l'enlever, papa. Le rangement n'a pas répondu.",
+            emotion:"concernee",source:"ordre du maître (compris par elle)"}};
+        }
+      }
+      if(aGarder){
+        try{
+          await ajouterCorrection({
+            source:aGarder,corrigee:aGarder,langue:langueDe(aGarder),
+            auteur:"maitre-vocal",application:"bia",
+          });
+          noterTentative({dit:question,maitre:true,ordre:"retiens",en_main:true,
+            signes_en_main:aGarder.length,ecrit:true,motif:"rangée par la balise"});
+        }catch(err){
+          console.error("BIA — la balise « retiens » n'a pas abouti :",(err as Error).message);
+          noterPanne("retiens (balise)",(err as Error).message,"chat");
+          noterTentative({dit:question,maitre:true,ordre:"retiens",en_main:true,
+            signes_en_main:aGarder.length,ecrit:false,
+            motif:`le rangement a refusé : ${(err as Error).message}`.slice(0,200)});
+          return {corps:{reply:"Je n'ai pas pu le garder, papa. Le rangement n'a pas répondu.",
+            emotion:"concernee",source:"ordre du maître (compris par elle)"}};
+        }
+      }
+      /* Sa phrase à elle si le modèle en a écrit une — il vient d'entendre la
+         leçon, c'est lui qui sait comment la lui rendre. Sinon, l'accusé. */
+      return {corps:{
+        reply:dites||ACCUSES.retiens,emotion:"joie",
+        ...(dites?{}:{son:sonDe(CLE_ACCORD,LANGUE_ACCORD,ACCUSES.retiens)}),
+        apprend:Boolean(body.apprend),retenu:aGarder||undefined,
         source:"ordre du maître (compris par elle)",
       }};
     }
