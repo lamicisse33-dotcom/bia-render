@@ -64,6 +64,12 @@ const PHRASE = "Je regarde ce que tu me demandes et je te réponds tout de suite
 
 const LONGUEURS = [20, 50, 100, 200, 400];
 
+/* Une voix ElevenLabs publique, celle de leur documentation. Ce n'est pas un
+   secret et ce n'est pas la voix de BIA : elle ne sert qu'à mesurer un délai,
+   le temps que Lamine en choisisse une pour de bon. Voir le moteur
+   « elevenlabs » plus bas. */
+const VOIX_PAR_DEFAUT = "21m00Tcm4TlvDq8ikWAM";
+
 /* ── TROIS FOIS CHAQUE LONGUEUR ─────────────────────────────────────────────
 
    Le premier essai, le 15 septembre 2026, a rendu ceci :
@@ -118,13 +124,37 @@ function lesMoteurs(): Moteur[] {
       }),
     },
     {
+      /* ── LE MOTEUR QU'ON PEUT ESSAYER SANS RIEN DEMANDER À PERSONNE ────
+
+         Lamine, le 15 septembre 2026 : « est-ce que ça nécessite forcément
+         une clé pour le test ? »
+
+         Pour OpenAI, oui : on ne peut pas appeler un service payant sans
+         s'identifier auprès de lui. Mais pour celui-ci, LA CLÉ EST DÉJÀ LÀ —
+         c'est ElevenLabs qui transcrit ce que Lamine dit, tous les jours,
+         depuis des semaines. Il ne manquait qu'un identifiant de VOIX, et un
+         identifiant de voix n'est pas un secret : c'est une référence
+         publique, la même pour tout le monde.
+
+         On en met donc une par défaut, et la comparaison peut se faire
+         AUJOURD'HUI, sans qu'il ait à ouvrir Render ni à créer un compte.
+
+         CETTE VOIX NE SERT QU'À MESURER UN DÉLAI. Elle ne parle pas wolof et
+         n'a rien à voir avec celle de BIA ; on ne l'emploie nulle part
+         ailleurs. Le jour où Lamine choisira une vraie voix, il posera
+         ELEVENLABS_VOICE_FR et c'est celle-là qui sera mesurée. */
       nom: "elevenlabs",
-      pret: Boolean(e.apiKey && (e.voiceFr || e.voiceWo)),
-      motif: e.apiKey ? (e.voiceFr || e.voiceWo ? "" : "aucune voix ElevenLabs configurée") : "ELEVENLABS_API_KEY absente",
-      appeler: (texte) => fetch(`https://api.elevenlabs.io/v1/text-to-speech/${e.voiceFr || e.voiceWo}/stream`, {
+      pret: Boolean(e.apiKey),
+      motif: e.apiKey ? "" : "ELEVENLABS_API_KEY absente",
+      appeler: (texte) => fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${e.voiceFr || e.voiceWo || VOIX_PAR_DEFAUT}/stream`
+        + "?optimize_streaming_latency=3", {
         method: "POST",
         headers: { "xi-api-key": e.apiKey, "content-type": "application/json", accept: "audio/mpeg" },
-        body: JSON.stringify({ text: texte, model_id: e.model }),
+        /* Le modèle RAPIDE pour la mesure, pas celui de la lecture soignée :
+           la question posée est « est-ce qu'un moteur peut rendre de l'audio
+           en moins d'une seconde », et c'est ce modèle-là qui y répond. */
+        body: JSON.stringify({ text: texte, model_id: process.env.ELEVENLABS_TTS_RAPIDE || "eleven_flash_v2_5" }),
       }),
     },
     {
