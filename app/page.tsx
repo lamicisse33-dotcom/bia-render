@@ -528,6 +528,10 @@ export default function Home() {
      à ne montrer qu'à lui la page d'écoute des voix, qui dépense à chaque
      appui. La réponse ne dit que oui ou non, et ne coûte rien. */
   const [estMaitre, setEstMaitre] = useState(false);
+  /* Le même témoin, lisible depuis les fonctions qui ne se refabriquent pas
+     à chaque rendu — l'attente, notamment, qui doit savoir à qui elle parle
+     AVANT de demander un prénom. */
+  const estMaitreRef = useRef(false);
   /* Les verdicts du code maître : le compte s'affiche sur les boutons, et le
      mot d'accusé de réception s'efface tout seul. */
   /* ── ELLE VIENT DE RÉPONDRE À UNE SALUTATION ────────────────────────────
@@ -1379,7 +1383,17 @@ export default function Home() {
 
     // 1. Elle a entendu. Et si elle ne connaît pas encore la personne, elle
     //    demande son prénom — une seule fois dans la vie de l'appareil.
-    const connu = nomRef.current.trim();
+    /* ── ELLE NE DEMANDE PAS SON NOM À SON PÈRE ──────────────────────────
+
+       Lamine, le 14 septembre 2026 : « elle doit m'appeler papa, pas un autre
+       nom quoi qu'il arrive… dès qu'elle détecte le code maître, même sur un
+       autre téléphone. »
+
+       Le code maître suffit à le reconnaître, et il le suit d'appareil en
+       appareil — c'est exactement ce qu'il demandait, et c'est plus sûr qu'un
+       timbre de voix. Lui demander « comment tu t'appelles ? » sur un
+       téléphone neuf reviendrait à ne pas reconnaître son père à la voix. */
+    const connu = estMaitreRef.current ? "papa" : nomRef.current.trim();
     if (connu) {
       if (!await jouer(PARTIE_1_CONNU, connu)) return;
     } else {
@@ -4750,7 +4764,11 @@ export default function Home() {
     if (!code || estMaitre) return;
     fetch("/api/codes", { headers: { "x-bia-code": code } })
       .then((r) => (r.ok ? r.json() : { maitre: false }))
-      .then((d: { maitre?: boolean }) => setEstMaitre(Boolean(d.maitre)))
+      .then((d: { maitre?: boolean }) => {
+        setEstMaitre(Boolean(d.maitre));
+        /* Le témoin lisible partout, y compris depuis l'attente. */
+        estMaitreRef.current = Boolean(d.maitre);
+      })
       .catch(() => {});
   }, [code, estMaitre]);
 
@@ -5803,7 +5821,7 @@ export default function Home() {
       {enApprentissage ? (
         <p className="apprend-bandeau">
           <b>On apprend</b> — dis ta phrase, elle la répète.
-          <i>« c&apos;est mal parlé » pour recommencer · « c&apos;est bon, retiens ça » pour garder · « on a fini »</i>
+          <i>« stop stop » pour corriger · « mémorise mémorise » pour garder · « supprime supprime » pour effacer · « on a fini »</i>
         </p>
       ) : null}
 

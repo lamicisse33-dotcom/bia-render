@@ -71,55 +71,98 @@ export type Quoi =
 
 export type Ordre = { quoi: Quoi; dit: string };
 
-/* Les tournures françaises. Écrites en entier : « bon » tout seul ne doit
-   rien déclencher, et « retiens » au milieu d'une phrase non plus. */
-const FRANCAIS: Array<[Quoi, string[]]> = [
+/* ── DEUX FOIS, ET C'EST LUI QUI L'A TROUVÉ ─────────────────────────────────
+
+   Lamine, le 14 septembre 2026 : « les instructions, je dois les répéter au
+   moins deux fois. Stop stop pour qu'elle s'arrête. Corrige corrige pour
+   qu'elle corrige. Supprime supprime pour qu'elle supprime. Mémorise mémorise
+   pour qu'elle mémorise. »
+
+   C'est la meilleure garde de tout ce fichier, et elle vient de lui.
+
+   Je lui avais dit ma seule inquiétude sur la version d'avant : « stop » et
+   « non » sont trop courts. Quelqu'un qui raconte sa journée dit « non » vingt
+   fois ; il aurait effacé une mémoire en parlant de son voisin. Je n'avais pas
+   de bonne réponse — allonger les tournures les rend pénibles à dire en
+   conduisant, et les enlever aurait retiré les mots qui lui viennent.
+
+   SA RÉPONSE EST MEILLEURE QUE TOUT CE QUE J'AVAIS. « Stop stop » ne se dit
+   pas par accident. Personne ne redouble un mot au milieu d'une phrase, et
+   celui qui le fait le fait exprès. Un mot seul ne déclenche donc plus rien :
+   c'est le REDOUBLEMENT qui est l'ordre.
+
+   ── CE QUI MARCHE ENCORE SANS DOUBLER ───────────────────────────────────────
+
+   Les tournures LONGUES, parce qu'elles ne peuvent pas arriver par hasard :
+   « efface ça de ta mémoire », « c'est bon mémorise », « on a fini ». Personne
+   ne les prononce sans le vouloir. On n'enlève jamais une façon de dire qui
+   marchait — on retire seulement les mots nus, qui étaient le danger.        */
+
+/** Les mots qu'il faut redoubler. « stop » ne fait rien ; « stop stop » agit. */
+const A_DOUBLER: Array<[Quoi, string[]]> = [
+  ["apprendre", ["apprends", "apprend"]],
+  ["encore", ["stop", "corrige", "recommence", "redis", "non"]],
+  ["retiens", ["memorise", "retiens", "garde"]],
+  ["fini", ["fini", "termine"]],
+  ["oublie", ["supprime", "efface", "oublie"]],
+  ["repete", ["repete"]],
+];
+
+/** Les tournures qui se suffisent : trop longues pour tomber par hasard. */
+const ENTIERES: Array<[Quoi, string[]]> = [
   ["apprendre", [
-    "on apprend", "apprends", "je vais t apprendre", "on va apprendre",
+    "on apprend", "je vais t apprendre", "on va apprendre",
     "mode apprentissage", "repete apres moi", "repete avec moi",
   ]],
-  /* ── SES MOTS, DU 14 SEPTEMBRE 2026 ────────────────────────────────────
-
-     « Ce qui n'est pas bien, je dis STOP, je dois CORRIGER ça — elle doit
-       comprendre que c'est à corriger. Quand je dis c'est bon MÉMORISE, elle
-       doit mémoriser. Quand je dis EFFACE ÇA DE TA MÉMOIRE, elle doit
-       pouvoir effacer. »
-
-     Ce sont ces tournures-là qui comptent, parce que ce sont celles qui lui
-     viennent à la bouche. Les autres restent : on n'enlève jamais une façon
-     de dire qui marchait. */
   ["encore", [
-    "stop", "stop corrige", "corrige", "corrige ca", "non corrige",
+    "stop corrige", "non corrige", "corrige ca",
     "c est a corriger", "il faut corriger", "non stop",
     "non c est mal parle", "c est mal parle", "tu as mal parle", "tu parles mal",
     "ce n est pas ca", "c est pas ca", "non ce n est pas ca", "non c est pas ca",
-    "tu as mal dit", "recommence", "non recommence", "redis", "non",
+    "tu as mal dit", "non recommence",
   ]],
   ["retiens", [
-    "c est bon memorise", "memorise", "memorise ca", "c est bon memorise ca",
+    "c est bon memorise", "memorise ca", "c est bon memorise ca",
     "voila memorise", "oui memorise",
     "c est bon retiens ca", "ca c est bon retiens ca", "c est bon retiens",
-    "retiens ca", "retiens", "garde ca", "c est bon garde ca",
+    "retiens ca", "garde ca", "c est bon garde ca",
     "voila c est bon", "oui c est ca retiens",
   ]],
   ["fini", ["on a fini", "c est fini", "arrete d apprendre", "on arrete", "fin de la lecon"]],
   ["oublie", [
-    "efface ca de ta memoire", "efface de ta memoire", "supprime", "supprime ca",
-    "efface ca", "efface", "retire ca de ta memoire",
-    "oublie ca", "oublie", "ne retiens pas ca", "annule ca",
+    "efface ca de ta memoire", "efface de ta memoire", "supprime ca",
+    "efface ca", "retire ca de ta memoire",
+    "oublie ca", "ne retiens pas ca", "annule ca",
   ]],
-  ["repete", ["repete", "redis le", "dis le encore", "repete ca"]],
+  ["repete", ["redis le", "dis le encore", "repete ca"]],
   ["micro", ["coupe le micro", "ferme le micro", "arrete le micro", "coupe ton micro"]],
-  ["silence", ["tais toi", "silence", "arrete de parler", "chut"]],
+  ["silence", ["tais toi", "arrete de parler"]],
 ];
 
-/* ── LA PLACE DE SES TOURNURES ──────────────────────────────────────────────
+/* Toutes les formes reconnues, une fois pour toutes : les entières, plus
+   chaque mot redoublé. On accepte aussi le triplement — quelqu'un qui doute
+   en dit trois, et le refuser serait absurde. */
+const FRANCAIS: Array<[Quoi, string[]]> = (() => {
+  const par = new Map<Quoi, string[]>();
+  for (const [quoi, formes] of ENTIERES) par.set(quoi, [...(par.get(quoi) || []), ...formes]);
+  for (const [quoi, mots] of A_DOUBLER) {
+    const suite = par.get(quoi) || [];
+    for (const m of mots) { suite.push(`${m} ${m}`); suite.push(`${m} ${m} ${m}`); }
+    par.set(quoi, suite);
+  }
+  return [...par.entries()];
+})();
 
-   À remplir par Lamine, et par lui seul. Une ligne par tournure, avec l'ordre
-   qu'elle déclenche. Elles passent AVANT les françaises : quand il aura écrit
-   les siennes, ce sont elles qui feront foi.
+/* ── LA PLACE DE SES TOURNURES WOLOF ────────────────────────────────────────
 
-   Exemple de la forme attendue (le texte est à lui, pas à moi) :
+   À remplir par Lamine, et par lui seul. Elles passent AVANT les françaises :
+   quand il aura écrit les siennes, ce sont elles qui feront foi.
+
+   MÊME RÈGLE POUR LES SIENNES : un mot nu ne doit pas déclencher un ordre. Si
+   c'est un mot court, écris-le déjà redoublé — « … … » — comme il le fait en
+   français. Si c'est une tournure de plusieurs mots, elle se suffit.
+
+   La forme attendue (le texte est à lui, pas à moi) :
      ["retiens", ["..."]],                                                  */
 export const SIENNES: Array<[Quoi, string[]]> = [
 ];
@@ -127,7 +170,7 @@ export const SIENNES: Array<[Quoi, string[]]> = [
 /* Un ordre n'est jamais long. Au-delà, c'est une phrase qui CONTIENT le mot,
    pas un ordre — « je ne sais pas si je dois retenir ce qu'il m'a dit » ne
    doit rien déclencher. */
-const MOTS_AU_PLUS = 6;
+const MOTS_AU_PLUS = 7;
 
 /**
  * L'ordre qu'il vient de donner, ou null si ce n'en est pas un.
