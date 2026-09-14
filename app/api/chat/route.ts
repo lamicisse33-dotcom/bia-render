@@ -20,7 +20,7 @@ import { ajouterCorrection, cequElleAAppris } from "@/lib/lexique";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
-import { DIFFUSER_LE_MODELE } from "@/lib/diffusion";
+import { DIFFUSER_LE_MODELE, teteDeLaReponse } from "@/lib/diffusion";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
 
@@ -808,7 +808,42 @@ function lieuDemandeDans(question: string): string {
   return "";
 }
 
-async function repondre(body:Corps,code:string|null,emettre:((morceau:string)=>void)|null):Promise<Rendu>{
+/* -- LA GARANTIE QUI REMPLACE LE VERROU DES 120 SIGNES ---------------------
+
+   Lamine, le 15 septembre 2026 : « actuellement la priorité c'est la vitesse. »
+
+   LE DANGER, en une phrase : quand la réponse porte un geste, le serveur
+   REMPLACE le texte du modèle par une phrase de service enregistrée. Si BIA
+   avait déjà commencé à dire le texte du modèle, elle disait une chose puis
+   une autre, sans rapport. C'est ce que Lamine a entendu le 13 septembre, et
+   c'est pour ça qu'on exigeait cent vingt signes avant de parler — un seuil
+   que ses réponses (médiane : 78 signes) n'atteignaient presque jamais.
+
+   ON RENVERSE LA REGLE. Au lieu d'interdire à BIA de parler tôt pour que le
+   serveur garde son droit de remplacer, on retire au SERVEUR son droit de
+   remplacer dès qu'il a laissé partir une tête. Le geste s'attache alors à la
+   phrase que BIA a vraiment dite, au lieu de la contredire.
+
+   POURQUOI LE SERVEUR PEUT LE SAVOIR. Il ne voit pas le téléphone parler.
+   Mais le téléphone décide avec teteDeLaReponse(), sur le texte accumulé —
+   exactement la même fonction, exactement la même suite de morceaux. Le
+   serveur la rejoue donc sur ce qu'il vient d'envoyer, et sait à la
+   milliseconde ce que le téléphone vient de décider. Deux copies du même
+   raisonnement sur la même donnée : elles ne peuvent pas diverger.
+
+   CE QUI SE PERD, ET C'EST VOULU : sur une réponse à geste dont la balise
+   serait arrivée en retard, on sert la phrase du modèle au lieu de
+   l'enregistrement gratuit. Ca coûte une fabrication de voix. Une phrase
+   contredite coûte la confiance. */
+async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string)=>void)|null):Promise<Rendu>{
+  /* Ce que le téléphone a recu, et ce qu'il en a fait. */
+  let envoye="";
+  let dejaParle=false;
+  const emettre=emettreBrut?((morceau:string)=>{
+    envoye+=morceau;
+    if(!dejaParle&&teteDeLaReponse(envoye))dejaParle=true;
+    emettreBrut(morceau);
+  }):null;
   try{
     const question=String(body.message||"").trim().slice(0,1200);
 
@@ -1532,7 +1567,10 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     /* LE MODÈLE A CHOISI UNE RÉPONSE ENREGISTRÉE. On la sert mot pour mot,
        avec son son déjà fabriqué : la voix ne fabrique rien, et rien n'attend.
        C'est là qu'est l'économie — la voix, c'est 93 % de la facture. */
-    const choisie=repertoireActif()?etiquetteSeule(complet):null;
+    /* `dejaParle` : voir la garantie en tete de repondre(). Si le telephone a
+       deja dit une phrase, on ne la remplace plus par autre chose — meme par
+       un enregistrement gratuit. */
+    const choisie=(repertoireActif()&&!dejaParle)?etiquetteSeule(complet):null;
     /* Une étiquette seule qu'on ne connaît pas : le modèle a voulu se servir
        du répertoire et s'est trompé de nom. La réponse part quand même — mais
        on le NOTE, sinon BIA dirait « #la-famile » à voix haute sans que
@@ -1717,7 +1755,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        son serait un silence. */
     const geste={carte:carteRattrapee,film,trouve,voir,papier,appel};
     const famille=familleDuGeste(geste);
-    const accuse=famille&&(!reply||reply.length<=120)&&!filmRate
+    const accuse=famille&&(!reply||reply.length<=120)&&!filmRate&&!dejaParle
       ? choisirService(famille,String(body.dernierService||""))
       : null;
     if(accuse){

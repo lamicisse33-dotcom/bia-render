@@ -88,9 +88,45 @@
    va vraiment vite reste ce qui est ENREGISTRÉ : zéro seconde. */
 export const DIFFUSER_LE_MODELE = true;
 
-/** En dessous, le serveur peut encore remplacer toute la réponse. Voir plus
-    haut : ce n'est pas une marge de confort, c'est la condition exacte. */
-export const SIGNES_AVANT_DE_PARLER = 120;
+/* ── LE VERROU DES CENT VINGT SIGNES, ET POURQUOI IL TOMBE ─────────────────
+
+   Lamine, le 15 septembre 2026 : « actuellement la priorité c'est la
+   vitesse. »
+
+   CE QUE CE NOMBRE COÛTAIT, mesuré et non supposé. Ses réponses font 48 à 137
+   signes, médiane 78. Le seuil en exigeait 120 AVANT de laisser dire un mot :
+   la diffusion ne se déclenchait donc presque jamais — une réponse sur treize
+   a été dite en plusieurs morceaux. Le streaming était allumé depuis deux
+   jours et ne servait à rien.
+
+   POURQUOI IL EXISTAIT. Quand la réponse porte un geste — carte, papier,
+   appel, vidéo — le serveur REMPLACE le texte du modèle par une phrase de
+   service enregistrée. Si BIA avait commencé à dire le texte du modèle, elle
+   disait une chose puis une autre, sans rapport. C'est ce que Lamine a
+   entendu le 13 septembre.
+
+   CE QUI A CHANGÉ DEPUIS, ET QUI REND LE SEUIL INUTILE. Deux gardes, et la
+   seconde est celle qui tient vraiment :
+
+     1. UN_GESTE. Toutes les balises de geste sont demandées sur la PREMIÈRE
+        ligne (voir app/api/chat/route.ts : « tu poses sur la PREMIÈRE
+        ligne »). Dès qu'une apparaît, on se tait et on attend la fin. Le
+        commentaire de BALISES plus haut disait « en dernière (le geste) » —
+        c'était vrai d'une version antérieure du socle, ça ne l'est plus.
+
+     2. ET SURTOUT : LE SERVEUR PERD SON DROIT DE REMPLACER dès qu'il a laissé
+        partir une tête. C'est écrit dans app/api/chat/route.ts, autour de
+        `dejaParle`. Le modèle peut donc oublier de poser sa balise en tête :
+        au pire BIA dit sa propre phrase et le geste s'y ajoute — jamais une
+        phrase contredite par une autre.
+
+   La première garde est une politesse qu'on demande au modèle. La seconde est
+   une garantie qu'on s'impose à nous-mêmes, et elle tient quoi qu'il écrive.
+
+   ZÉRO, DONC, et c'est MORCEAU_MINIMAL qui décide seul : une tête doit être
+   une phrase COMPLÈTE d'au moins quarante signes. En dessous, l'aller-retour
+   chez la voix coûte plus que ce qu'il fait gagner. */
+export const SIGNES_AVANT_DE_PARLER = 0;
 
 /** Les fins de phrase où l'on peut couper sans que ça s'entende. Le
     deux-points et le point-virgule en font partie : dans une énumération, la
@@ -98,8 +134,9 @@ export const SIGNES_AVANT_DE_PARLER = 120;
 const FIN_DE_PHRASE = /[.!?…:;](?=\s|$)|\n/g;
 
 /** Les balises que le modèle sème et qui ne doivent JAMAIS être prononcées.
-    Elles arrivent en première ligne (l'émotion) ou en dernière (le geste) ;
-    on les retire au passage, y compris à moitié écrites en fin de flux. */
+    Elles sont toutes demandées en PREMIÈRE ligne — l'émotion comme les gestes
+    (voir le socle dans app/api/chat/route.ts) ; on les retire au passage, y
+    compris à moitié écrites en fin de flux. */
 const BALISES = /\[{1,2}[^\]]*\]{0,2}/g;
 
 /** Le texte débarrassé de ses balises, tel qu'il pourrait être dit. */
@@ -107,9 +144,34 @@ export function sansBalises(texte: string): string {
   return texte.replace(BALISES, " ").replace(/\s+/g, " ").trim();
 }
 
-/** Le plus court morceau qui vaille un aller-retour chez la voix. En dessous,
-    on attend la phrase suivante et on les dira ensemble. */
-const MORCEAU_MINIMAL = 40;
+/* ── LE PLUS COURT MORCEAU QUI TIENNE, ET IL SE CALCULE ────────────────────
+
+   Ce nombre n'est pas un goût, c'est une soustraction. Un morceau doit durer
+   assez longtemps, une fois dit, pour couvrir la fabrication du SUIVANT.
+   Sinon BIA se tait au milieu de sa réponse, et une couture s'entend.
+
+   LES DEUX CÔTÉS DE LA SOUSTRACTION, mesurés le 15 septembre 2026 :
+     — fabriquer N signes chez Soynade : 1,22 s de plancher + 22 ms par signe
+       (essai à trois prises, /api/essai-voix) ;
+     — dire N signes : environ 13,5 signes par seconde, et davantage encore
+       puisque BIA parle ralentie de 30 % (voir lib/ralentir.ts).
+
+       N     audio     fabrication du suivant     marge
+      20     1,5 s          1,7 s                 −0,2 s   ← elle se coupe
+      25     1,9 s          1,8 s                 +0,1 s   ← trop juste
+      30     2,2 s          1,9 s                 +0,3 s
+      40     3,0 s          2,1 s                 +0,9 s
+
+   QUARANTE ÉTAIT CONFORTABLE, ET C'ÉTAIT LE PROBLÈME. Ses premières phrases
+   sont courtes — « Waaw, maa ngi fi te jamm rekk la. » en fait trente-trois.
+   À quarante, elle attendait la phrase suivante et parlait à la fin : sur sa
+   réponse médiane, la diffusion ne gagnait RIEN.
+
+   TRENTE, donc. Trois dixièmes de marge, et le ralentissement de la voix en
+   ajoute par-dessus. En dessous, la marge devient négative et on échange une
+   seconde gagnée contre un silence au milieu d'une phrase — un mauvais
+   marché, et l'un des deux s'entend. */
+const MORCEAU_MINIMAL = 30;
 
 /** Une balise de GESTE, c'est-à-dire tout sauf l'émotion. C'est elle qui
     annonce que le serveur va remplacer la réponse — voir teteDeLaReponse. */
