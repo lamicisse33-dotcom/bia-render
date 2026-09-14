@@ -318,6 +318,53 @@ export async function combien(): Promise<number> {
    l'Interprète pendant que celles de BIA se perdaient en silence. Demandé
    par Lamine le 10 septembre 2026 : « vérifie si les corrections de BIA sont
    bien enregistrées. » Maintenant ça se lit dans /api/etat. */
+/* ── « ELLES NE SONT PAS DANS SES FICHES » ──────────────────────────────────
+
+   Lamine, le 15 septembre 2026 : « BIA dit qu'elle ne peut pas se souvenir des
+   leçons que je lui ai données, car elles ne sont pas dans ses fiches. Il faut
+   vérifier ça. »
+
+   Vérifier, justement — et je ne pouvais pas. /api/etat disait « 73 entrées,
+   toutes de bia » et s'arrêtait là. Or la question n'est pas COMBIEN il y a
+   de lignes : c'est QUI les a posées. Une leçon donnée à la voix s'écrit sous
+   l'auteur « maitre-vocal » ; une correction au bouton « Mal dit » sous un
+   autre. Soixante-treize lignes dont zéro à lui donnent exactement ce qu'il
+   décrit — une mémoire pleine où il ne trouve rien.
+
+   On rend donc le compte PAR AUTEUR. Trois secondes pour voir si ses leçons
+   sont arrivées, au lieu d'une soirée à deviner. Et ça reste : la prochaine
+   fois que cette question se posera, la réponse sera déjà à l'écran. */
+export async function parAuteur(): Promise<Record<string, number> | null> {
+  if (!lexiqueConfig.actif) {
+    const compte: Record<string, number> = {};
+    for (const e of enMemoire) {
+      const qui = String(e.auteur || "sans auteur");
+      compte[qui] = (compte[qui] || 0) + 1;
+    }
+    return compte;
+  }
+  try {
+    const r = await fetch(
+      `${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}?select=auteur&order=id.desc&limit=2000`,
+      { headers: entetes(), cache: "no-store" },
+    );
+    if (!r.ok) return null;
+    const lignes = await r.json() as Array<{ auteur?: string | null }>;
+    if (!Array.isArray(lignes)) return null;
+    const compte: Record<string, number> = {};
+    for (const l of lignes) {
+      const qui = String(l.auteur || "sans auteur");
+      compte[qui] = (compte[qui] || 0) + 1;
+    }
+    return compte;
+  } catch {
+    /* null, pas {} : « je n'ai pas pu compter » et « personne n'a rien posé »
+       sont deux réponses différentes, et c'est précisément la confusion qui
+       nous a coûté la soirée d'hier. */
+    return null;
+  }
+}
+
 export async function combienParApplication(): Promise<Record<string, number>> {
   const compte: Record<string, number> = {};
   for (const e of await toutes()) {

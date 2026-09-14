@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { voixConfig } from "@/lib/voix";
 import { ecouteConfig, resumeEcoutes } from "@/lib/ecoute";
-import { lexiqueConfig, combien, combienParApplication } from "@/lib/lexique";
+import { lexiqueConfig, combien, combienParApplication, parAuteur } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
 import { resumeAttentes, resumeLectures } from "@/lib/attentes-vues";
 import { resumeEmotions } from "@/lib/emotions-vues";
@@ -30,6 +30,11 @@ export async function GET() {
   // applications : sans ce détail, on ne sait pas si BIA en reçoit.
   let origines: Record<string, number> | null = null;
   try { origines = await combienParApplication(); } catch { origines = null; }
+
+  /* QUI a posé ces lignes. Le total ne dit pas si ses leçons à lui sont
+     arrivées — « maitre-vocal » le dit. Voir parAuteur() dans lib/lexique.ts. */
+  let auteurs: Record<string, number> | null = null;
+  try { auteurs = await parAuteur(); } catch { auteurs = null; }
 
   return NextResponse.json({
     /* ── LA VERSION EN LIGNE, POUR QUE LE TÉLÉPHONE SE METTE À JOUR SEUL ────
@@ -70,6 +75,11 @@ export async function GET() {
     lexique: lexiqueConfig.actif ? "supabase" : "mémoire vive (perdu au réveil)",
     lexique_entrees: entrees,
     lexique_origines: origines,
+    /* QUI a posé ces lignes. Voir parAuteur() dans lib/lexique.ts : le total
+       ne dit pas si SES leçons sont arrivées ; « maitre-vocal » le dit.
+       null veut dire « je n'ai pas pu compter », pas « personne n'a rien
+       posé » — la confusion entre les deux est ce qu'on répare ici. */
+    lexique_auteurs: auteurs,
     voix_clonee: Boolean(voixConfig.soynade.audioPrompt),
     derniere_panne: dernierePanne(),
     // L'histoire, elle, ne s'efface pas : une panne passée reste lisible même
