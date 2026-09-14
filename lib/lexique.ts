@@ -153,6 +153,36 @@ export async function retirerCorrection(corrigee: string, auteur: string): Promi
    trois qui sont de lui. */
 export type Apprise = { texte: string; quand: string };
 
+/* ── « LE RANGEMENT DE SA MÉMOIRE N'EST PAS ACCESSIBLE » ────────────────────
+
+   Lamine, le 14 septembre 2026 : « je lui ai demandé, elle dit que le
+   rangement de sa mémoire n'est pas accessible. Elle doit avoir accès. »
+
+   Il a raison, et la faute est à moi. J'avais écrit UNE requête, avec une
+   colonne que je n'avais jamais vérifiée : `created_at`. Si la table ne l'a
+   pas — et rien ne garantit qu'elle l'ait, elle est partagée avec BIBA et
+   l'Interprète, et c'est l'Interprète qui l'a créée — Supabase répond 400,
+   la fonction lève, et BIA annonce que sa mémoire est fermée. Pour une DATE
+   qu'on n'affiche même pas en entier.
+
+   ON DESCEND DONC L'ESCALIER. Trois requêtes, de la plus riche à la plus
+   pauvre, et on s'arrête à la première qui répond :
+     1. le texte AVEC sa date, filtré sur l'auteur ;
+     2. le texte SEUL, filtré sur l'auteur      — si la date n'existe pas ;
+     3. le texte ET l'auteur sans filtre, le tri des siennes fait ICI — si
+        c'est la manière de filtrer qui n'a pas plu.
+   Si la troisième échoue aussi, c'est Supabase lui-même qui est tombé, et
+   alors seulement BIA a raison de dire qu'elle ne peut pas relire.
+
+   CE QU'ON NE FAIT PAS : rendre les lignes des AUTRES faute de savoir les
+   siennes. Elle lui réciterait les corrections des testeurs comme si c'était
+   ce qu'il lui a appris. Mieux vaut dire « je n'arrive pas à relire » que
+   répondre à côté avec assurance.
+
+   RÈGLE GÉNÉRALE, à retenir pour les prochaines : une mémoire ne doit jamais
+   se déclarer fermée parce qu'un DÉTAIL de ce qu'on lui demandait manque. */
+type Marche = { adresse: (n: number) => string; lire: (l: Record<string, unknown>) => Apprise | null };
+
 export async function cequElleAAppris(auteur = "maitre-vocal", max = 12): Promise<Apprise[]> {
   if (!lexiqueConfig.actif) {
     return enMemoire
@@ -160,17 +190,43 @@ export async function cequElleAAppris(auteur = "maitre-vocal", max = 12): Promis
       .slice(-max).reverse()
       .map((e) => ({ texte: e.corrigee, quand: "" }));
   }
-  const r = await fetch(
-    `${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}`
-    + `?select=corrigee,created_at&auteur=eq.${encodeURIComponent(auteur)}`
-    + `&order=id.desc&limit=${Math.max(1, Math.min(50, max))}`,
-    { headers: entetes(), cache: "no-store" },
-  );
-  if (!r.ok) throw new Error(`Supabase ${r.status} : ${(await r.text()).slice(0, 200)}`);
-  const lignes = await r.json() as Array<{ corrigee?: string; created_at?: string }>;
-  return lignes
-    .map((l) => ({ texte: String(l.corrigee || "").trim(), quand: String(l.created_at || "") }))
-    .filter((l) => l.texte);
+  const combien = Math.max(1, Math.min(50, max));
+  const base = `${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}`;
+  const qui = `auteur=eq.${encodeURIComponent(auteur)}`;
+  const texteDe = (l: Record<string, unknown>) => String(l.corrigee || "").trim();
+
+  const escalier: Marche[] = [
+    {
+      adresse: (n) => `${base}?select=corrigee,created_at&${qui}&order=id.desc&limit=${n}`,
+      lire: (l) => texteDe(l) ? { texte: texteDe(l), quand: String(l.created_at || "") } : null,
+    },
+    {
+      adresse: (n) => `${base}?select=corrigee&${qui}&order=id.desc&limit=${n}`,
+      lire: (l) => texteDe(l) ? { texte: texteDe(l), quand: "" } : null,
+    },
+    {
+      /* Dernière marche : on prend large et on fait le tri ici. 400 lignes
+         coûtent moins qu'une mémoire qui se dit fermée. */
+      adresse: () => `${base}?select=corrigee,auteur&order=id.desc&limit=400`,
+      lire: (l) => (texteDe(l) && String(l.auteur || "") === auteur)
+        ? { texte: texteDe(l), quand: "" } : null,
+    },
+  ];
+
+  let dernierMotif = "";
+  for (const marche of escalier) {
+    try {
+      const r = await fetch(marche.adresse(combien), { headers: entetes(), cache: "no-store" });
+      if (!r.ok) { dernierMotif = `Supabase ${r.status} : ${(await r.text()).slice(0, 160)}`; continue; }
+      const lignes = await r.json() as Array<Record<string, unknown>>;
+      if (!Array.isArray(lignes)) { dernierMotif = "réponse inattendue"; continue; }
+      const lues = lignes.map(marche.lire).filter((a): a is Apprise => Boolean(a));
+      return lues.slice(0, combien);
+    } catch (err) {
+      dernierMotif = (err as Error).message;
+    }
+  }
+  throw new Error(dernierMotif || "le lexique n'a pas répondu");
 }
 
 export const OUTILS = new Set([

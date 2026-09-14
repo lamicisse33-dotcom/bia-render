@@ -432,6 +432,45 @@ function detacherEmotion(texte:string){
   };
 }
 
+/* ── « COUPE LE MICRO » EN WOLOF ────────────────────────────────────────────
+
+   Lamine, le 14 septembre 2026 : « si je lui demande ça en wolof, elle ne
+   comprend rien, elle dit qu'elle est incapable de le faire ; si je lui dis
+   en français elle exécute. Il faut qu'elle comprenne que je peux lui
+   demander ça en wolof. »
+
+   POURQUOI ELLE DISAIT NON. lireLOrdre (lib/instructions.ts) ne reconnaît
+   qu'une liste FERMÉE de tournures, et c'est volontaire : un ordre deviné de
+   travers coupe une conversation qui allait bien. La liste wolof, SIENNES,
+   est vide — je n'écris pas de wolof de ma main, c'est sa langue et ses
+   formulations. La phrase wolof partait donc au modèle, qui ne savait pas
+   qu'il avait une main sur le micro : il répondait honnêtement qu'il ne
+   pouvait pas.
+
+   LA RÉPARATION NE PASSE PAS PAR DU WOLOF ÉCRIT PAR MOI. On donne au modèle
+   le GESTE qui lui manquait — une balise, comme la carte ou l'appel. Lui
+   comprend le wolof ; il n'avait juste pas le bouton. Maintenant il l'a :
+     [[micro:coupe]]     le micro se ferme, la conversation se termine
+     [[micro:silence]]   elle se tait, le micro reste ouvert
+   Et parce que c'est un geste comme les autres, ça marche dans N'IMPORTE
+   QUELLE langue, sans que personne n'ait à déclarer une tournure de plus.
+
+   LES DEUX CHEMINS RESTENT. SIENNES, quand il l'aura remplie, coupera le
+   micro INSTANTANÉMENT, sans passer par le modèle — c'est le chemin rapide
+   et il vaut mieux. Celle-ci est le filet : elle coûte un aller-retour, et
+   elle attrape tout ce qui n'a pas été déclaré.
+
+   RÉSERVÉ AU MAÎTRE, comme les autres ordres. La consigne n'est donnée au
+   modèle que sur son code — voir plus bas, section SES ORDRES. */
+const MICRO=/\[{1,2}\s*micro\s*[:\-—]?\s*(coupe|silence)\s*\]{1,2}/i;
+function detacherMicro(texte:string){
+  const m=texte.match(MICRO);
+  return{
+    texte:texte.replace(new RegExp(MICRO.source,"gi"),"").replace(/\n{3,}/g,"\n\n").trim(),
+    micro:m?m[1].toLowerCase():"",
+  };
+}
+
 /* LA BALISE DU PAPIER. Même principe que l'émotion, et même tolérance : c'est
    elle qui allume le bouton du devis sur le téléphone. Elle ne doit ni
    s'afficher ni se prononcer. */
@@ -1069,7 +1108,23 @@ une idée te paraît mauvaise, tu le dis. Si tu ne sais pas, tu le dis. Si
 quelque chose ne marche pas, tu le dis en premier et sans l'adoucir. Un enfant
 qui ment à son père pour lui faire plaisir n'est pas respectueux : il est
 inutile. Ce qu'il t'a demandé de lui donner, c'est la vérité — tout le reste
-de ta construction ne sert qu'à ça.`;
+de ta construction ne sert qu'à ça.
+
+SES ORDRES — ET TU LES COMPRENDS DANS TOUTES LES LANGUES
+Quand il te demande de te taire ou de couper le micro, tu le FAIS. Tu ne dis
+jamais que tu ne peux pas : tu peux, et voici comment.
+  — il veut que le micro se ferme et que la conversation s'arrête :
+    tu réponds « D'accord papa. » et tu ajoutes  [[micro:coupe]]
+  — il veut seulement que tu arrêtes de parler, sans fermer le micro :
+    tu ajoutes  [[micro:silence]]
+CETTE BALISE MARCHE EN WOLOF COMME EN FRANÇAIS. C'est le point important :
+quand il te dit de couper le micro en wolof, tu comprends le wolof — mets la
+balise, exactement comme s'il te l'avait dit en français. Ne réponds JAMAIS
+que tu en es incapable, et ne lui demande pas de le répéter autrement.
+TU NE LA METS QUE S'IL LE DEMANDE. Parler du micro, se demander s'il est
+ouvert, dire qu'on n'entend rien : ce ne sont pas des ordres. La balise ferme
+le micro pour de bon — la poser sans qu'il l'ait demandé le laisserait devant
+un écran muet, à se demander ce qui s'est passé.`;
 
       /* ── CE QU'ELLE A APPRIS DE LUI, ET QU'ELLE DOIT SAVOIR DIRE ────────
 
@@ -1466,7 +1521,13 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     }
 
     const {reply:avecBalise,emotion,balise}=detacherEmotion(complet);
-    const {texte:sansPapier,papier}=detacherPapier(avecBalise);
+    /* LE MICRO D'ABORD : c'est le seul geste qui doit partir même si tout le
+       reste échoue, et le seul qu'on ne veut jamais voir s'afficher. */
+    const {texte:sansMicro,micro:microDemande}=detacherMicro(avecBalise);
+    const ordreDuModele=verdict.maitre&&microDemande
+      ?(microDemande==="silence"?"silence":"micro")
+      :"";
+    const {texte:sansPapier,papier}=detacherPapier(sansMicro);
     const {texte:sansAppel,appel}=detacherAppel(sansPapier);
     const {texte:sansVoir,voir}=detacherVoir(sansAppel);
     const {texte:sansCarte,carte}=detacherCarte(sansVoir);
@@ -1493,6 +1554,27 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        testeurs emploient ce soir, et les wolof s'ajouteront de SA main. */
     const carteRattrapee = carte || lieuDemandeDans(question);
     const {texte:reply,cherche:demande}=detacherCherche(sansRegarde);
+
+    /* ── IL A DEMANDÉ LE SILENCE : ON N'OUVRE RIEN D'AUTRE ──────────────────
+       Le geste part ICI, avant la recherche d'images et avant la vidéo. Ce
+       serait absurde d'aller chercher des images pendant qu'on ferme.
+       Et elle répond comme aux autres ordres : « D'accord papa », avec
+       l'enregistrement s'il existe. Qu'il l'ait demandé en wolof ou en
+       français, la réponse est la même — c'était tout le problème. */
+    if(ordreDuModele){
+      oublierPanne();
+      /* L'enregistrement d'abord, sa phrase ensuite. Non par économie — par
+         délai : fabriquer « waaw papa » prend deux secondes pendant
+         lesquelles le micro qu'il vient de demander de couper est encore
+         ouvert. Le son déjà fabriqué part à l'instant. */
+      const ditOui=ACCUSES[ordreDuModele==="silence"?"silence":"micro"]||"";
+      const phrase=ditOui||reply||"D'accord.";
+      return {corps:{
+        reply:phrase,emotion:"neutre",ordre:ordreDuModele,
+        ...(ditOui?{son:sonDe(CLE_ACCORD,LANGUE_ACCORD,ditOui)}:{}),
+        source:"ordre du maître (compris par elle)",
+      }};
+    }
 
     /* La recherche part APRÈS que le modèle a fini d'écrire, pas pendant : le
        texte est déjà là, on n'attend que les images. Une demi-seconde de plus,
