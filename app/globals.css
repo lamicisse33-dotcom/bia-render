@@ -2527,3 +2527,47 @@ button { font: inherit; touch-action: manipulation; }
   display: block; margin-top: 3px;
   font-style: normal; font-size: 11.5px; color: rgba(255,255,255,.5);
 }
+
+/* ── LE BOUTON BLEU ─────────────────────────────────────────────────────────
+
+   Demandé le 14 septembre 2026 : « mettre un bouton bleu pendant la session
+   d'apprentissage ». Bleu, et il l'a nommé ainsi pour une raison : tout le
+   reste du bandeau est dans l'or de BIA. Le seul geste qui ÉCRIT DANS SA
+   MÉMOIRE ne doit ressembler à rien d'autre à l'écran.
+
+   Assez grand pour être touché sans regarder — il apprend en conduisant. */
+.apprend-garder {
+  display: block; width: 100%;
+  margin: 8px 0 2px;
+  padding: 11px 14px;
+  border: 1px solid rgba(120,180,255,.55);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(38,86,158,.95), rgba(26,62,120,.95));
+  color: #eaf3ff;
+  font: inherit; font-size: 14px; font-weight: 600;
+  text-align: center; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.apprend-garder:disabled { opacity: .6; }
+.apprend-garder:active { transform: translateY(1px); }
+/* La phrase gardée, sous le mot « Garder » : il doit voir CE QU'IL range,
+   pas se fier à son souvenir de ce qu'elle vient de dire. Deux lignes au
+   plus — au-delà, c'est le bandeau qui mangerait l'écran. */
+.apprend-garder span {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 3px;
+  font-size: 12px; font-weight: 400; color: rgba(234,243,255,.72);
+}
+.apprend-dit {
+  display: block; margin-top: 5px;
+  font-style: normal; font-size: 11.5px;
+}
+.apprend-dit.ok { color: rgba(150,220,170,.92); }
+.apprend-dit.rate { color: rgba(255,170,150,.95); }
+.apprend-defaire {
+  margin-left: 8px; padding: 0;
+  border: 0; border-bottom: 1px solid currentColor;
+  background: none; color: inherit;
+  font: inherit; font-size: 11.5px; cursor: pointer;
+}

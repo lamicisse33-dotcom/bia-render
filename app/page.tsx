@@ -435,6 +435,20 @@ export default function Home() {
      par tour, jamais deux, et rien ne part tant qu'il n'a pas validé. */
   const sonDeSaVoix = useRef<{ blob: Blob; nom: string } | null>(null);
   const [enApprentissage, setEnApprentissage] = useState(false);
+  /* ── CE QU'ELLE VIENT DE RÉPÉTER, VISIBLE ─────────────────────────────────
+
+     Lamine, le 14 septembre 2026 : « le mieux c'est de mettre un bouton bleu
+     pendant la session d'apprentissage au lieu de lui demander de mémoriser.
+     Si j'appuie sur ce bouton elle mémorise directement. »
+
+     `aRepeter` est un ref — il ne réveille pas l'écran. Il fallait donc son
+     double en état, sinon le bouton n'apparaîtrait qu'au tour suivant, c'est
+     à dire une phrase trop tard. */
+  const [aGarder, setAGarder] = useState("");
+  /* « en cours », « gardée », ou le motif du refus. Jamais un « c'est fait »
+     muet : c'est exactement la faute qu'on vient de passer deux soirées à
+     réparer. */
+  const [motGarde, setMotGarde] = useState("");
   /* ── LA LANGUE DE LA CONVERSATION, D'UN TOUR À L'AUTRE ──────────────────
 
      `langueRef` est remise à « wo » au début de CHAQUE tour, parce que la
@@ -2270,7 +2284,13 @@ export default function Home() {
         apprend.current = data.apprend;
         setEnApprentissage(data.apprend);
       }
-      if (typeof data.aRepeter === "string") aRepeter.current = data.aRepeter;
+      if (typeof data.aRepeter === "string") {
+        aRepeter.current = data.aRepeter;
+        /* Le bouton suit la phrase en main, à la milliseconde. Et l'annonce
+           d'un garde précédent s'efface : elle parlait d'une autre phrase. */
+        setAGarder(data.aRepeter);
+        setMotGarde("");
+      }
       /* Les deux ordres qui n'ont rien à dire : ils AGISSENT. */
       if (data.ordre === "micro") { taire(); fermerConversation(); }
       if (data.ordre === "silence") taire();
@@ -6045,10 +6065,87 @@ export default function Home() {
           bandeau discret, et les trois phrases qui en sortent — parce qu'on
           n'apprend pas une commande par cœur en conduisant. */}
       {enApprentissage ? (
-        <p className="apprend-bandeau">
+        <div className="apprend-bandeau">
           <b>On apprend</b> — dis ta phrase, elle la répète.
-          <i>« stop stop » pour corriger · « mémorise mémorise » pour garder · « supprime supprime » pour effacer · « on a fini »</i>
-        </p>
+          {/* ── LE BOUTON BLEU ──────────────────────────────────────────
+              Sa demande du 14 septembre au soir, et elle règle un problème
+              qu'aucune correction de code ne pouvait régler : l'oreille se
+              trompe une fois sur trois, et une validation qui traverse
+              l'oreille peut ranger une phrase abîmée sous son nom. Un appui
+              ne se transcrit pas.
+
+              LA PHRASE EST ÉCRITE SUR LE BOUTON. Il doit voir CE QU'IL
+              GARDE — pas un « mémoriser » générique qui l'obligerait à se
+              fier à sa mémoire de ce qu'elle vient de dire. */}
+          {aGarder ? (
+            <button
+              type="button"
+              className="apprend-garder"
+              disabled={motGarde === "en cours"}
+              onClick={() => {
+                const quoi = aGarder;
+                const son = sonDeSaVoix.current;
+                setMotGarde("en cours");
+                void (async () => {
+                  try {
+                    const r = await fetch("/api/retenir", {
+                      method: "POST",
+                      headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+                      body: JSON.stringify({ texte: quoi }),
+                    });
+                    const d = await r.json() as { retenu?: string; erreur?: string };
+                    if (!r.ok || !d.retenu) { setMotGarde(d.erreur || "Ça n'a pas été gardé."); return; }
+                    setMotGarde("gardée");
+                    /* SA VOIX SUIT LE TEXTE, sans le faire attendre : le
+                       texte est déjà rangé à cet instant, le son n'est
+                       qu'un plus. S'il rate, la mémoire reste juste. */
+                    if (son) {
+                      try {
+                        const f = new FormData();
+                        f.append("texte", quoi);
+                        f.append("audio", son.blob, son.nom);
+                        await fetch("/api/memoire", {
+                          method: "POST", headers: { "x-bia-code": codeRef.current }, body: f,
+                        });
+                      } catch { /* le texte est gardé ; le son manquera */ }
+                    }
+                  } catch {
+                    setMotGarde("Le rangement n'a pas répondu.");
+                  }
+                })();
+              }}
+            >
+              {motGarde === "en cours" ? "…" : "Garder"}
+              <span>« {aGarder} »</span>
+            </button>
+          ) : null}
+          {/* CE QUI S'EST VRAIMENT PASSÉ, en toutes lettres. Et tant qu'elle
+              est gardée, de quoi la reprendre tout de suite si la
+              transcription l'avait abîmée. */}
+          {motGarde && motGarde !== "en cours" ? (
+            <em className={motGarde === "gardée" ? "apprend-dit ok" : "apprend-dit rate"}>
+              {motGarde === "gardée" ? "C'est dans sa mémoire." : motGarde}
+              {motGarde === "gardée" ? (
+                <button
+                  type="button"
+                  className="apprend-defaire"
+                  onClick={() => {
+                    const quoi = aGarder;
+                    setMotGarde("en cours");
+                    void fetch(`/api/retenir?texte=${encodeURIComponent(quoi)}`, {
+                      method: "DELETE", headers: { "x-bia-code": codeRef.current },
+                    })
+                      .then(() => setMotGarde(""))
+                      .catch(() => setMotGarde("Je n'ai pas pu l'enlever."));
+                  }}
+                >
+                  annuler
+                </button>
+              ) : null}
+            </em>
+          ) : null}
+          <i>« stop stop » pour corriger · « on a fini » pour arrêter</i>
+        </div>
       ) : null}
 
       {temoin ? <p className="temoin-vocal" aria-hidden="true">{temoin}</p> : null}
