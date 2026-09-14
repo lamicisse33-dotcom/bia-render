@@ -17,6 +17,11 @@ import { etatRepertoire } from "@/lib/repertoire";
    c'est ici qu'on lit pourquoi — le statut renvoyé par le modèle et le début
    de son message. Elle se vide dès que le modèle répond de nouveau. Aucune
    clé n'y apparaît. */
+/* Calculée une fois au chargement du module : elle ne change qu'au
+   redéploiement, et c'est précisément ce qu'on veut détecter. */
+const VERSION = (process.env.RENDER_GIT_COMMIT || "").slice(0, 12)
+  || `local-${Math.floor(Date.now() / 1000)}`;
+
 export async function GET() {
   let entrees: number | null = null;
   try { entrees = await combien(); } catch { entrees = null; }
@@ -27,6 +32,26 @@ export async function GET() {
   try { origines = await combienParApplication(); } catch { origines = null; }
 
   return NextResponse.json({
+    /* ── LA VERSION EN LIGNE, POUR QUE LE TÉLÉPHONE SE METTE À JOUR SEUL ────
+
+       Lamine, le 14 septembre 2026 : « il faut forcer les mises à jour ; dès
+       qu'il y a une nouvelle mise à jour, ça doit être automatique chez
+       elle. »
+
+       Le service worker ne garde PAS l'application — donc une réouverture
+       suffit normalement. Mais BIA s'installe sur l'écran d'accueil et reste
+       ouverte des heures : le téléphone garde alors le code chargé le matin,
+       et il ne verra jamais ce qu'on a déployé à midi. C'est exactement ce
+       qui lui est arrivé : il a essayé des instructions qui n'étaient pas
+       encore chez lui.
+
+       On rend donc la version d'ICI, et le téléphone la compare à celle avec
+       laquelle il a démarré. Voir app/page.tsx, « la mise à jour d'elle-même ».
+
+       RENDER_GIT_COMMIT est posé par Render à chaque déploiement. En local il
+       n'existe pas : on prend l'heure de démarrage du serveur, qui change à
+       chaque redémarrage — même effet, sans rien à configurer. */
+    version: VERSION,
     voix: voixConfig.fournisseur,
     ecoute: ecouteConfig.fournisseur,
     modele: process.env.BIA_LLM_MODEL || "claude-sonnet-5",

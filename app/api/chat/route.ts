@@ -15,7 +15,7 @@ import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
 import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgences";
 import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
 import { SERVICES } from "@/lib/services-textes";
-import { ajouterCorrection } from "@/lib/lexique";
+import { ajouterCorrection, cequElleAAppris } from "@/lib/lexique";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
@@ -1007,6 +1007,39 @@ quelque chose ne marche pas, tu le dis en premier et sans l'adoucir. Un enfant
 qui ment à son père pour lui faire plaisir n'est pas respectueux : il est
 inutile. Ce qu'il t'a demandé de lui donner, c'est la vérité — tout le reste
 de ta construction ne sert qu'à ça.`;
+
+      /* ── CE QU'ELLE A APPRIS DE LUI, ET QU'ELLE DOIT SAVOIR DIRE ────────
+
+         Lamine, le 14 septembre 2026 : « je viens de lui demander si elle a
+         reçu des instructions, elle dit qu'elle ne sait pas. Il faut qu'elle
+         puisse le savoir, et me dire ce qu'elle a compris. »
+
+         Ce qu'il lui apprenait partait bien dans le lexique et remontait au
+         modèle comme exemple de LANGUE — mais rien ne lui disait que c'était
+         une instruction de lui. Elle ne pouvait donc que répondre « je ne
+         sais pas », ce qui est la pire réponse : il n'avait aucun moyen de
+         savoir si son travail avait servi.
+
+         POUR LUI SEUL, et ça va de soi : c'est sa mémoire à lui. Un testeur
+         qui demanderait « qu'est-ce qu'on t'a appris ? » n'a pas à recevoir
+         la liste de son travail.
+
+         ET SI LE RANGEMENT NE RÉPOND PAS, elle le DIT au lieu de prétendre
+         n'avoir rien reçu. « Je ne sais pas » et « on ne m'a rien appris »
+         sont deux réponses différentes, et les confondre l'enverrait
+         réapprendre ce qu'elle sait déjà. */
+      try{
+        const apprises=await cequElleAAppris();
+        variable+=apprises.length
+          ?`\n\nCE QU'IL T'A APPRIS, ET QUE TU DOIS SAVOIR DIRE\nIl t'a appris ${apprises.length} chose(s) à la voix. Les plus récentes d'abord :\n`
+            +apprises.map((a,i)=>`${i+1}. « ${a.texte} »${a.quand?` — ${a.quand.slice(0,10)}`:""}`).join("\n")
+            +`\nS'il te demande ce qu'il t'a appris, ce que tu as reçu, ou ce que tu as retenu : réponds avec CETTE liste, simplement, sans la réciter en entier s'il y en a beaucoup — dis combien, et cite les dernières. Ne dis JAMAIS que tu n'as rien reçu.`
+          :`\n\nCE QU'IL T'A APPRIS\nIl ne t'a encore rien appris à la voix. S'il te le demande, dis-le simplement : sa mémoire est vide pour l'instant, et tu attends qu'il t'apprenne.`;
+      }catch(err){
+        console.error("BIA — l'inventaire de sa mémoire n'a pas répondu :",(err as Error).message);
+        noterPanne("inventaire de la mémoire",(err as Error).message,"chat");
+        variable+=`\n\nCE QU'IL T'A APPRIS\nTu n'arrives pas à relire ta mémoire en ce moment — le rangement ne répond pas. S'il te demande ce qu'il t'a appris, dis-lui ÇA, exactement : que tu ne peux pas la relire maintenant. Ne dis surtout pas que tu n'as rien reçu : ce serait faux, et il réapprendrait ce que tu sais déjà.`;
+      }
     }
 
     /* La base des 70 situations, elle, ne se charge que si le sujet s'y prête :

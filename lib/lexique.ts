@@ -129,6 +129,50 @@ export async function retirerCorrection(corrigee: string, auteur: string): Promi
   return Array.isArray(parties) ? parties.length : 0;
 }
 
+/* ── CE QU'ELLE A APPRIS, ET QU'ELLE DOIT POUVOIR DIRE ──────────────────────
+
+   Lamine, le 14 septembre 2026 : « je viens de lui demander si elle a reçu
+   des instructions, elle dit qu'elle ne sait pas, qu'elle n'a rien reçu. Il
+   faut qu'elle puisse le savoir, et me dire ce qu'elle a compris. C'est une
+   IA, il faut qu'elle soit autonome. »
+
+   Il a raison, et le défaut était grossier. Ce qu'il lui apprenait partait
+   bien dans le lexique et remontait au modèle comme exemple de LANGUE — mais
+   rien ne lui disait que c'était une instruction de lui, ni quand, ni
+   combien. Une mémoire dont on ne peut pas faire l'inventaire ne se distingue
+   pas d'une mémoire vide : il n'avait aucun moyen de savoir si son travail
+   avait servi, sinon la reprendre au hasard.
+
+   ON REND DONC LES DERNIÈRES, AVEC LEUR DATE. Les plus récentes d'abord :
+   c'est ce qu'il vient de dire qu'il veut vérifier, pas ce qu'il a dit la
+   semaine passée.
+
+   ET SEULEMENT LES SIENNES, celles posées à la voix. Les corrections faites
+   au bouton « Mal dit », par lui ou par un testeur, ne sont pas des
+   instructions : les mêler ici lui ferait relire cent lignes pour trouver les
+   trois qui sont de lui. */
+export type Apprise = { texte: string; quand: string };
+
+export async function cequElleAAppris(auteur = "maitre-vocal", max = 12): Promise<Apprise[]> {
+  if (!lexiqueConfig.actif) {
+    return enMemoire
+      .filter((e) => e.auteur === auteur)
+      .slice(-max).reverse()
+      .map((e) => ({ texte: e.corrigee, quand: "" }));
+  }
+  const r = await fetch(
+    `${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}`
+    + `?select=corrigee,created_at&auteur=eq.${encodeURIComponent(auteur)}`
+    + `&order=id.desc&limit=${Math.max(1, Math.min(50, max))}`,
+    { headers: entetes(), cache: "no-store" },
+  );
+  if (!r.ok) throw new Error(`Supabase ${r.status} : ${(await r.text()).slice(0, 200)}`);
+  const lignes = await r.json() as Array<{ corrigee?: string; created_at?: string }>;
+  return lignes
+    .map((l) => ({ texte: String(l.corrigee || "").trim(), quand: String(l.created_at || "") }))
+    .filter((l) => l.texte);
+}
+
 export const OUTILS = new Set([
   // wolof — pronoms, copules, marqueurs, prépositions, liaisons
   "maa","mangi","maangi","naa","nga","ngeen","yaa","yow","moom","noo","nu","ñu","ñungi","ñoom","yeen",

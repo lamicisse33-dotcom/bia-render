@@ -346,6 +346,13 @@ export default function Home() {
   const microAvantLaCarte = useRef(false);
   /* Le même témoin pour la vidéo en plein écran — voir l'effet plus bas. */
   const microAvantLeFilm = useRef(false);
+  /* La version avec laquelle ce téléphone a démarré. Voir « la mise à jour
+     d'elle-même » plus bas. */
+  const versionChargee = useRef("");
+  /* Deux témoins de plus, lisibles depuis l'effet qui surveille la version :
+     il ne se refabrique jamais, donc il ne peut pas lire un état de React. */
+  const occupeeRef = useRef(false);
+  const filmOuvertRef = useRef(false);
 
   /* ── LA CARTE, ET LA CONFIRMATION QUI LA PRÉCÈDE ─────────────────────────
 
@@ -380,6 +387,9 @@ export default function Home() {
      valeur périmée. */
   const carteOuverteRef = useRef(false);
   useEffect(() => { carteOuverteRef.current = carte !== null; }, [carte]);
+  /* Les deux témoins que lit la surveillance de version : elle ne se
+     refabrique pas, donc elle ne peut pas lire `mode` ni `film`. */
+  useEffect(() => { occupeeRef.current = mode !== "ready"; }, [mode]);
 
   const [aConfirmer, setAConfirmer] = useState<Lieu[] | null>(null);
   /* Vrai quand la RECHERCHE a échoué, pas quand l'endroit est inconnu. */
@@ -473,6 +483,9 @@ export default function Home() {
      fait sur la carte ». Deux sources : YouTube, ou un fichier du téléphone —
      et celui-là ne quitte jamais l'appareil. */
   const [film, setFilm] = useState<Film | null>(null);
+  /* Le témoin que lit la surveillance de version : elle ne se refabrique pas,
+     donc elle ne peut pas lire cet état-ci. */
+  useEffect(() => { filmOuvertRef.current = film !== null; }, [film]);
   const fichierVideo = useRef<HTMLInputElement | null>(null);
   /* L'adresse locale d'une vidéo choisie sur le téléphone. On la relâche à la
      fermeture : sans ça le navigateur garde le fichier en mémoire. */
@@ -821,8 +834,59 @@ export default function Home() {
     } catch {}
     fetch("/api/etat")
       .then((r) => r.json())
-      .then((e) => { setMoteurs(e); moteursRef.current = e; })
+      .then((e) => { setMoteurs(e); moteursRef.current = e; versionChargee.current = String(e?.version || ""); })
       .catch(() => {});
+  }, []);
+
+  /* ── LA MISE À JOUR D'ELLE-MÊME ──────────────────────────────────────────
+
+     Lamine, le 14 septembre 2026 : « il faut forcer les mises à jour ; dès
+     qu'il y a une nouvelle mise à jour, ça doit être automatique chez elle. »
+
+     Le service worker ne garde PAS l'application, donc une réouverture suffit
+     normalement. Mais BIA s'installe sur l'écran d'accueil et reste ouverte
+     des heures : le téléphone garde alors le code chargé le matin, et ne
+     verra jamais ce qu'on a déployé à midi. C'est exactement ce qui vient de
+     lui arriver — il a essayé des instructions qui n'étaient pas chez lui.
+
+     ON REGARDE QUAND IL REVIENT À L'APPLICATION, pas en boucle : un appel
+     toutes les trente secondes brûlerait sa batterie et son forfait pour
+     attendre un déploiement qui arrive deux fois par jour.
+
+     ET ON NE RECHARGE JAMAIS AU MILIEU DE QUELQUE CHOSE. Recharger pendant
+     qu'elle parle, qu'elle écoute, qu'une carte guide ou qu'un papier est
+     ouvert, ce serait couper la parole à quelqu'un pour lui annoncer une
+     bonne nouvelle. On attend le calme — et le calme revient toujours. */
+  useEffect(() => {
+    const regarder = async () => {
+      if (document.visibilityState !== "visible") return;
+      if (!versionChargee.current) return;
+      try {
+        const e = await (await fetch("/api/etat", { cache: "no-store" })).json();
+        const enLigne = String(e?.version || "");
+        if (!enLigne || enLigne === versionChargee.current) return;
+        /* Une version neuve est en ligne. On attend qu'elle ne fasse rien. */
+        const calme = () => !occupeeRef.current
+          && !conversationRef.current && !carteOuverteRef.current
+          && !filmOuvertRef.current && !papierOuvertRef.current;
+        if (calme()) { location.reload(); return; }
+        const montre = setInterval(() => {
+          if (calme()) { clearInterval(montre); location.reload(); }
+        }, 4000);
+        /* Deux minutes, puis on laisse tomber : elle revérifiera au prochain
+           retour. Mieux vaut une version en retard qu'une horloge qui tourne
+           en attendant un silence qui ne vient pas. */
+        setTimeout(() => clearInterval(montre), 120000);
+      } catch { /* pas de réseau : on réessaiera au prochain retour */ }
+    };
+    document.addEventListener("visibilitychange", regarder);
+    /* Et une fois au démarrage, après un instant : si la page dort depuis
+       hier dans un onglet, le premier retour n'aura pas lieu. */
+    const premier = setTimeout(() => void regarder(), 20000);
+    return () => {
+      document.removeEventListener("visibilitychange", regarder);
+      clearTimeout(premier);
+    };
   }, []);
 
   /* Quand elle a fini de parler, son visage garde l'émotion de ce qu'elle
