@@ -92,8 +92,31 @@ export default function Vitesse() {
   const gros = t?.ou_passe_le_temps?.[0];
 
   return (
-    <main style={{ minHeight: "100vh", background: "#0d0b09", color: "#f3ece2",
-      font: "16px/1.5 system-ui, -apple-system, sans-serif", padding: "20px 16px 60px" }}>
+    /* ── POURQUOI CETTE PAGE NE DEFILAIT PAS ──────────────────────────────
+
+       Lamine, le 15 septembre 2026 : « elle ne defile pas. Il faut que je
+       puisse la faire tourner jusqu'en bas. »
+
+       La cause n'est pas ici, elle est dans globals.css : `html, body {
+       overflow: hidden }`. C'est voulu — BIA est une application plein ecran
+       qui ne doit pas rebondir sous le doigt quand on lui parle. Mais cette
+       regle vaut pour TOUT le domaine, et elle a enferme cette page-ci : le
+       bouton de l'essai Soynade etait sous le pli, inatteignable. Il a donc
+       regarde trois fois un tableau dont il manquait la moitie.
+
+       On ne touche pas a la regle globale — l'enlever ferait rebondir BIA
+       elle-meme. On fait de ce cadre-ci son PROPRE conteneur de defilement :
+       fixe aux quatre bords, il defile a l'interieur, et le corps derriere ne
+       bouge pas d'un pixel.
+
+       `-webkit-overflow-scrolling: touch` pour l'inertie de l'iPhone, et une
+       marge basse en `env(safe-area-inset-bottom)` : sans elle, la derniere
+       ligne se cache derriere la barre d'accueil. */
+    <main style={{ position: "fixed", inset: 0, overflowY: "auto",
+      WebkitOverflowScrolling: "touch", overscrollBehavior: "contain",
+      background: "#0d0b09", color: "#f3ece2",
+      font: "16px/1.5 system-ui, -apple-system, sans-serif",
+      padding: "20px 16px calc(80px + env(safe-area-inset-bottom, 0px))" }}>
       <div style={{ maxWidth: 640, margin: "0 auto" }}>
         <h1 style={{ font: "600 22px/1.3 system-ui", margin: "0 0 4px" }}>Où passe le temps</h1>
         <p style={{ margin: "0 0 24px", opacity: 0.55, fontSize: 13 }}>
@@ -102,10 +125,15 @@ export default function Vitesse() {
         </p>
 
         {!t && (
-          <p style={{ opacity: 0.7 }}>
-            Aucun tour mesuré depuis le dernier redémarrage du serveur.
-            Parle-lui une fois et cette page se remplit toute seule.
-          </p>
+          <>
+            {/* Le serveur a pu redemarrer et vider ses tours : l'essai, lui,
+                ne depend d'aucun tour et doit rester lancable. */}
+            <EssaiSoynade essai={etat?.essai_voix} enCours={enCours} lancer={lancerLEssai} />
+            <p style={{ opacity: 0.7 }}>
+              Aucun tour mesuré depuis le dernier redémarrage du serveur.
+              Parle-lui une fois et cette page se remplit toute seule.
+            </p>
+          </>
         )}
 
         {t && (
@@ -123,11 +151,14 @@ export default function Vitesse() {
               </section>
             )}
 
+            {/* L'ESSAI D'ABORD : c'est le geste qu'il vient faire, et il
+                etait en bas d'une page qui ne defilait pas. Ce qu'on vient
+                CHERCHER se met en haut ; ce qu'on vient LIRE peut attendre. */}
+            <EssaiSoynade essai={etat?.essai_voix} enCours={enCours} lancer={lancerLEssai} />
+
             <Barres parts={t.ou_passe_le_temps} />
 
             <Appels e={etat?.etapes} />
-
-            <EssaiSoynade essai={etat?.essai_voix} enCours={enCours} lancer={lancerLEssai} />
 
             <Bloc titre="Quand elle doit réfléchir" g={t.reponse_du_modele} />
             <Bloc titre="Quand la réponse est déjà enregistrée" g={t.reponse_enregistree} />
