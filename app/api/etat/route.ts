@@ -11,6 +11,7 @@ import { depense } from "@/lib/depense";
 import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
 import { etatRepertoire } from "@/lib/repertoire";
 import { resumeCorpus } from "@/lib/corpus";
+import { resumeSouvenirs } from "@/lib/souvenirs";
 
 /* Dit à l'interface quels moteurs sont réellement branchés, pour qu'elle
    choisisse le micro et la voix sans deviner. Ouvert : aucun moteur payant
@@ -137,6 +138,13 @@ export async function GET() {
        forfait gratuit, et une semaine de voix perdue parce que c'était plein
        sans qu'on le voie serait bête. Voir lib/corpus.ts. */
     corpus: resumeCorpus(),
+    /* ── SA MÉMOIRE ÉCRIT-ELLE VRAIMENT ? ─────────────────────────────────
+       Posé le 15 septembre 2026, deux heures après la mémoire elle-même :
+       je lui avais confirmé que tout était en ligne sans pouvoir lui dire si
+       une seule phrase avait été gardée. `part_qui_retrouve` distingue les
+       deux pannes qui se ressemblent : « rien n'est écrit » et « la recherche
+       ne trouve rien ». Voir lib/souvenirs.ts. */
+    souvenirs: resumeSouvenirs(),
     /* CE QU'ELLE VA CHERCHER SUR INTERNET. Cent recherches d'images par jour
        sont gratuites ; la cent-unième se paie. Ce compteur est le robinet
        d'arrêt : quand il touche le plafond, BIA répond sans image plutôt que

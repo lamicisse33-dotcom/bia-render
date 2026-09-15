@@ -53,6 +53,29 @@ const TABLE = process.env.SUPABASE_TABLE_SOUVENIRS || "khalam_souvenirs";
 
 export const souvenirsActifs = () => Boolean(lexiqueConfig.url && lexiqueConfig.cle);
 
+/* ── CE QUI SE VOIT, ET POURQUOI IL LE FAUT ─────────────────────────────────
+
+   Le 15 septembre 2026, j'ai livré sa mémoire et je n'ai posé AUCUN compteur.
+   Deux heures plus tard, en lui confirmant que tout était en ligne, j'ai dû
+   admettre que je ne pouvais pas lui dire si elle écrivait quoi que ce soit.
+
+   C'est la faute que ce projet a déjà payée deux fois : ses leçons qui
+   n'arrivaient pas au rangement, puis ses leçons qui n'en ressortaient pas —
+   les deux introuvables tant que rien ne les regardait. Une chose qu'on ne
+   mesure pas est une chose dont on discute au lieu de la savoir. */
+let compte = { gardes: 0, refuses: 0, cherches: 0, retrouves: 0, pannes: 0, dernierMotif: "" };
+export function resumeSouvenirs() {
+  if (!souvenirsActifs()) return null;
+  return {
+    ...compte,
+    /* La ligne qu'on lit en premier : sur les questions où on a cherché,
+       combien ont ramené quelque chose. Zéro sur vingt dirait que la
+       recherche ne trouve rien — et ce n'est pas la même panne que « rien
+       n'est écrit ». */
+    part_qui_retrouve: compte.cherches ? Math.round((compte.retrouves / compte.cherches) * 100) : null,
+  };
+}
+
 function entetes(type?: string) {
   return {
     apikey: lexiqueConfig.cle,
@@ -114,17 +137,23 @@ function ligne(personne: string, qui: "personne" | "bia", texte: string, langue?
  */
 export async function garder(e: Echange): Promise<void> {
   if (!souvenirsActifs()) return;
-  if (ceQuiEmpeche(e)) return;
+  if (ceQuiEmpeche(e)) { compte.refuses++; return; }
   const lignes = [
     String(e.dit || "").trim() ? ligne(e.personne, "personne", e.dit, e.langue) : null,
     String(e.repondu || "").trim() ? ligne(e.personne, "bia", e.repondu, e.langue) : null,
   ].filter(Boolean);
   if (!lignes.length) return;
-  await fetch(`${lexiqueConfig.url}/rest/v1/${TABLE}`, {
+  const r = await fetch(`${lexiqueConfig.url}/rest/v1/${TABLE}`, {
     method: "POST",
     headers: { ...entetes("application/json"), Prefer: "return=minimal" },
     body: JSON.stringify(lignes),
   });
+  if (!r.ok) {
+    compte.pannes++;
+    compte.dernierMotif = `écriture refusée (${r.status}) : ${(await r.text()).slice(0, 120)}`;
+    return;
+  }
+  compte.gardes += lignes.length;
 }
 
 /* ── LES MOTS SUR LESQUELS ON CHERCHE ───────────────────────────────────────
@@ -183,6 +212,7 @@ export async function retrouver(
   if (!souvenirsActifs() || !String(personne || "").trim()) return [];
   const mots = motsDeLaQuestion(question);
   if (!mots) return [];
+  compte.cherches++;
   try {
     const r = await fetch(`${lexiqueConfig.url}/rest/v1/rpc/chercher_souvenirs`, {
       method: "POST",
@@ -195,12 +225,21 @@ export async function retrouver(
       }),
       cache: "no-store",
     });
-    if (!r.ok) return [];
+    if (!r.ok) {
+      compte.pannes++;
+      compte.dernierMotif = `recherche refusée (${r.status}) : ${(await r.text()).slice(0, 120)}`;
+      return [];
+    }
     const lignes = await r.json() as Souvenir[];
+    if (lignes.length) compte.retrouves++;
     /* Rendus du plus ancien au plus récent : une conversation se lit dans
        l'ordre, même quand on l'a retrouvée par pertinence. */
     return lignes.sort((a, b) => String(a.quand).localeCompare(String(b.quand)));
-  } catch { return []; }
+  } catch (err) {
+    compte.pannes++;
+    compte.dernierMotif = String((err as Error).message || "").slice(0, 120);
+    return [];
+  }
 }
 
 /* ── CE QU'ELLE EN FAIT ─────────────────────────────────────────────────────

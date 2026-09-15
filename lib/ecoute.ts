@@ -115,7 +115,7 @@ const ACCEPTEES = new Set(Object.keys(CARTE));
    c'est que Scribe ne se trompe plus — ou que la reprise ne part pas. Si
    « perdues » monte, c'est que « wol » est refusé et il faudra une autre
    voie. Remis à zéro à chaque redémarrage, comme tous les compteurs. */
-const compte = { ecoutes: 0, reprises: 0, perdues: 0, repliModele: 0, mots: 0, langues: {} as Record<string, number> };
+const compte = { ecoutes: 0, reprises: 0, perdues: 0, repliModele: 0, repliSansMots: 0, mots: 0, dernierRefus: "", langues: {} as Record<string, number> };
 
 export function resumeEcoutes() {
   if (!compte.ecoutes) return null;
@@ -129,6 +129,13 @@ export function resumeEcoutes() {
        combien de fois le modèle neuf a été refusé. */
     mots_donnes: compte.mots,
     repli_sur_ancien_modele: compte.repliModele,
+    /* Le modèle neuf a marché, mais sans les mots : c'est alors les mots
+       qu'il refuse, pas le modèle — et ça ne se répare pas au même endroit. */
+    repli_sans_les_mots: compte.repliSansMots,
+    /* CE QUE LE MOTEUR A RÉPONDU, en clair. Sans cette ligne, on en est
+       réduit à deviner pourquoi il refuse — et on a déjà perdu deux soirées
+       à ça. */
+    dernier_refus: compte.dernierRefus,
   };
 }
 
@@ -181,16 +188,62 @@ export async function transcrire(
      sur le compte, paramètre inconnu, offre qui ne le porte pas. Un refus ne
      doit pas coûter l'écoute — on refait l'essai avec le modèle d'hier, sans
      les mots, et on le NOTE pour que ça se voie au lieu de se deviner. */
+  /* ── ON DESCEND UNE MARCHE À LA FOIS, ET ON DIT LAQUELLE ───────────────
+
+     Le 15 septembre 2026, le compteur posé trois jours plus tôt a rendu un
+     chiffre sans appel : `repli_sur_ancien_modele: 19` sur 19 écoutes. Le
+     modèle neuf était refusé À CHAQUE FOIS, et BIA retombait en silence sur
+     l'ancien — donc les cent mots corrigés de Lamine, préparés à chaque
+     écoute, n'ont JAMAIS servi. Et le wolof continuait d'être entendu comme
+     du français, du turc ou de l'estonien.
+
+     ── POURQUOI ON NE TOMBE PLUS DE DEUX MARCHES D'UN COUP ────────────────
+
+     L'ancien code abandonnait le modèle ET les mots ensemble. On ne pouvait
+     donc pas savoir lequel des deux était refusé — or ce n'est pas la même
+     panne, et ça ne se répare pas au même endroit. On descend maintenant une
+     marche à la fois :
+
+       1. le modèle neuf AVEC ses mots  — ce qu'on veut
+       2. le modèle neuf SANS ses mots  — si ce sont les mots qui gênent
+       3. l'ancien modèle               — pour ne jamais être sourd
+
+     Si la marche 2 passe, on a gagné le meilleur modèle tout de suite, et on
+     sait que le problème vient des mots.
+
+     ── ET ON GARDE LE MOTIF, AU LIEU DE LE PERDRE DANS UN JOURNAL ─────────
+
+     L'ancien code écrivait la raison du refus dans un console.error que
+     personne ne lit. C'est exactement l'aveuglement qui nous a déjà coûté
+     deux soirées. Le motif remonte maintenant dans /api/etat. */
   let premier: { texte: string; brute: string };
+  const estUnRefus = (motif: string) => /\b(400|404|422)\b/.test(motif);
   try {
     premier = await unEssai(audio, nomFichier, null, c.model, mots);
   } catch (err) {
     const motif = (err as Error).message;
-    const refus = /\b(400|404|422)\b/.test(motif);
-    if (!refus || c.model === c.modeleDeRepli) throw err;
-    console.error(`BIA — « ${c.model} » refusé (${motif.slice(0, 120)}) : on écoute avec « ${c.modeleDeRepli} », sans les mots donnés d'avance.`);
-    compte.repliModele++;
-    premier = await unEssai(audio, nomFichier, null, c.modeleDeRepli);
+    if (!estUnRefus(motif) || c.model === c.modeleDeRepli) throw err;
+    compte.dernierRefus = motif.slice(0, 160);
+    /* Marche 2 : le même modèle, sans les mots. */
+    let sansLesMots: { texte: string; brute: string } | null = null;
+    if (mots && mots.length) {
+      try {
+        sansLesMots = await unEssai(audio, nomFichier, null, c.model);
+        compte.repliSansMots++;
+        console.error(`BIA — « ${c.model} » refuse les mots donnés d'avance (${compte.dernierRefus}) ; il écoute quand même.`);
+      } catch (err2) {
+        if (!estUnRefus((err2 as Error).message)) throw err2;
+        compte.dernierRefus = (err2 as Error).message.slice(0, 160);
+      }
+    }
+    if (sansLesMots) {
+      premier = sansLesMots;
+    } else {
+      /* Marche 3 : l'ancien modèle. On n'est jamais sourd. */
+      console.error(`BIA — « ${c.model} » refusé (${compte.dernierRefus}) : on écoute avec « ${c.modeleDeRepli} ».`);
+      compte.repliModele++;
+      premier = await unEssai(audio, nomFichier, null, c.modeleDeRepli);
+    }
   }
   compte.ecoutes++;
   if (premier.brute) compte.langues[premier.brute] = (compte.langues[premier.brute] || 0) + 1;
