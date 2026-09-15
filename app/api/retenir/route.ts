@@ -72,10 +72,12 @@ export async function POST(request: NextRequest) {
 
   let texte = "";
   let extrait = "";
+  let francais = "";
   try {
-    const corps = await request.json() as { texte?: string; extrait?: string };
+    const corps = await request.json() as { texte?: string; extrait?: string; francais?: string };
     texte = texteDe(corps.texte);
     extrait = String(corps.extrait || "").slice(0, 80);
+    francais = String(corps.francais || "").trim().slice(0, 400);
   } catch { texte = ""; }
 
   if (texte.length < 2) {
@@ -105,10 +107,32 @@ export async function POST(request: NextRequest) {
       .catch((err) => console.error("BIA — extrait non vérifié :", (err as Error).message));
   }
 
+  /* ── UNE PHRASE SEULE, OU UNE PAIRE ────────────────────────────────────
+
+     Lamine, le 15 septembre 2026 : « si elle comprend le sens, elle le dit en
+     français, ce n'est pas la peine que je lui répète ça. Je dois tout
+     simplement confirmer et passer à l'étape suivante. »
+
+     Donc quand le français est là et qu'il valide, on range la PAIRE, pas
+     seulement le wolof. C'est ce qui manquait au chemin à la voix : il n'y
+     avait aucune case pour le sens, et « corrigee » portait deux fois la même
+     phrase.
+
+     ── ET ON NE LES MÉLANGE PAS AVEC LES CORRECTIONS DE PRONONCIATION ──────
+
+     Une paire français→wolof et une correction « tu as mal dit » vivent dans
+     la même table mais ne se servent PAS au même moment. Resservir une
+     traduction comme une correction ferait mal parler BIA à cause d'une leçon
+     bien apprise. L'auteur les sépare : « maitre-lecon » pour une paire,
+     « maitre-vocal » pour une phrase seule. */
+  const enPaire = Boolean(francais);
   try {
     await ajouterCorrection({
-      source: texte, corrigee: texte, langue: langueDe(texte),
-      auteur: "maitre-vocal", application: "bia",
+      source: enPaire ? francais : texte,
+      corrigee: texte,
+      langue: langueDe(texte),
+      auteur: enPaire ? "maitre-lecon" : "maitre-vocal",
+      application: "bia",
     });
   } catch (err) {
     console.error("BIA — le bouton « garder » n'a pas abouti :", (err as Error).message);
@@ -125,13 +149,14 @@ export async function POST(request: NextRequest) {
 
   noterTentative({
     dit: "(bouton)", maitre: true, ordre: "retiens", en_main: true,
-    signes_en_main: texte.length, ecrit: true, motif: "rangée par le bouton",
+    signes_en_main: texte.length, ecrit: true,
+    motif: enPaire ? "paire rangée par le bouton" : "rangée par le bouton",
   });
   /* On rend le texte gardé : le téléphone l'affiche, et il voit EXACTEMENT ce
      qui est entré — pas un « c'est fait » qui ne dit rien de ce qui est
      dedans. C'est ce qui lui permet d'attraper une transcription abîmée avant
      qu'elle ne s'installe. */
-  return NextResponse.json({ retenu: texte });
+  return NextResponse.json({ retenu: texte, francais: francais || null, paire: enPaire });
 }
 
 export async function DELETE(request: NextRequest) {

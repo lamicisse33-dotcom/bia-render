@@ -468,6 +468,15 @@ export default function Home() {
      double en état, sinon le bouton n'apparaîtrait qu'au tour suivant, c'est
      à dire une phrase trop tard. */
   const [aGarder, setAGarder] = useState("");
+  /* ── CE QUE SA PHRASE VEUT DIRE, PENDANT QU'IL APPREND ──────────────────
+     Lamine, le 15 septembre 2026 : « si elle comprend le sens, elle le dit en
+     français, ce n'est pas la peine que je lui répète ça. Je dois tout
+     simplement confirmer et passer à l'étape suivante. »
+     `sur` dit d'où ça vient — ses leçons, ou une traduction du modèle. Ça ne
+     change RIEN à ce qu'elle dit : ça se voit sur le bandeau, et lui seul
+     décide si ça mérite un regard. */
+  const [sens, setSens] = useState<{ francais: string; sur: boolean } | null>(null);
+  const [sensCherche, setSensCherche] = useState(false);
   /* « en cours », « gardée », ou le motif du refus. Jamais un « c'est fait »
      muet : c'est exactement la faute qu'on vient de passer deux soirées à
      réparer. */
@@ -2185,6 +2194,9 @@ export default function Home() {
 
 
   const askBia = useCallback(async (question: string, parole = false, tourDonne?: number) => {
+    /* Le sens de sa phrase, demandé pendant qu'on prépare la réponse et
+       attendu juste avant qu'elle ouvre la bouche. Voir plus bas. */
+    let sensPromesse: Promise<{ francais: string; sur: boolean } | null> | null = null;
     const clean = question.trim();
     if (!clean || busyRef.current) return;
     /* Le micro a déjà ouvert son tour avant d'envoyer la parole à la
@@ -2363,6 +2375,38 @@ export default function Home() {
         /* Le bouton suit la phrase en main, à la milliseconde. Et l'annonce
            d'un garde précédent s'efface : elle parlait d'une autre phrase. */
         setAGarder(data.aRepeter);
+        /* ── ET ON DEMANDE LE SENS PENDANT QU'ELLE RÉPÈTE ─────────────────
+
+           Pas après : la répétition doit rester instantanée, c'est elle qu'il
+           écoute pour juger la prononciation. Une phrase wolof prend deux à
+           trois secondes à prononcer — largement de quoi traduire. Quand elle
+           a fini de répéter, le français est déjà là, et il n'a rien attendu.
+
+           Même procédé que sa mémoire dans /api/chat : on lance tôt, on
+           récupère tard, et l'attente disparaît dans le travail qu'on faisait
+           de toute façon. */
+        setSens(null);
+        const laPhrase = data.aRepeter.trim();
+        if (laPhrase.length >= 2) {
+          setSensCherche(true);
+          sensPromesse = fetch("/api/sens", {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+            body: JSON.stringify({ phrase: laPhrase }),
+          })
+            .then((r) => r.json())
+            .then((d: { sens?: { francais: string; sur: boolean } | null }) => {
+              /* Une réponse qui arrive après qu'il a changé de phrase ne doit
+                 pas se coller à la nouvelle. */
+              if (aRepeter.current.trim() !== laPhrase) return null;
+              setSens(d.sens || null);
+              return d.sens || null;
+            })
+            .catch(() => null)
+            .finally(() => { if (aRepeter.current.trim() === laPhrase) setSensCherche(false); });
+        } else {
+          setSensCherche(false);
+        }
         setMotGarde("");
       }
       /* Les deux ordres qui n'ont rien à dire : ils AGISSENT. */
@@ -2512,6 +2556,37 @@ export default function Home() {
           if (vu) { setClavier(false); montrerSurEcran(vu); }
         });
       }
+      /* ── ELLE RÉPÈTE, PUIS ELLE DIT CE QUE ÇA VEUT DIRE ─────────────────
+
+         Lamine, le 15 septembre 2026 : « si elle comprend le sens, elle le
+         dit en français, ce n'est pas la peine que je lui répète ça. Je dois
+         tout simplement confirmer et passer à l'étape suivante. »
+
+         EN UNE SEULE FOIS, et c'est réfléchi. J'avais d'abord voulu lancer sa
+         voix tout de suite et glisser le français derrière, pour ne rien lui
+         faire attendre. Mais fabriquer la voix de la répétition prend deux à
+         trois secondes, et la traduction en prend une : le français serait
+         donc prêt AVANT qu'elle ait ouvert la bouche, et se poserait
+         par-dessus sa propre répétition.
+
+         Une seule phrase, une seule fabrication de voix — c'est plus sûr, et
+         c'est moins cher. Le prix, honnête à dire : quand elle doit traduire,
+         elle met environ une seconde de plus à répondre. Quand la phrase est
+         déjà dans ses leçons, elle ne met rien de plus.
+
+         ON N'ATTEND PAS INDÉFINIMENT : passé deux secondes et demie, elle
+         répète sans le sens, et le bandeau dira qu'elle ne le connaît pas.
+         Mieux vaut une leçon sans traduction qu'une leçon qui n'arrive
+         jamais. */
+      let aDire = data.reply;
+      if (data.apprend && sensPromesse) {
+        const trouve = await Promise.race([
+          sensPromesse,
+          new Promise<null>((r) => setTimeout(() => r(null), 2500)),
+        ]);
+        if (trouve?.francais) aDire = `${data.reply}. Ça veut dire : ${trouve.francais}`;
+      }
+
       // Le visage prend l'émotion tout de suite, avant même la voix : c'est
       // ce qui donne l'impression qu'elle réagit à ce qu'on lui a dit.
       const suite = SUITES[emotionRef.current];
@@ -2553,9 +2628,9 @@ export default function Home() {
              Kha, déjà dans public/sons/. */
           if (data.rireApres) await jouerSouffle(data.rireApres);
         }
-        catch { speak(data.reply, emotionRef.current); }
+        catch { speak(aDire, emotionRef.current); }
       } else {
-        speak(data.reply, emotionRef.current);
+        speak(aDire, emotionRef.current);
       }
     } catch {
       emotionRef.current = "concernee";
@@ -6371,7 +6446,7 @@ export default function Home() {
           n'apprend pas une commande par cœur en conduisant. */}
       {enApprentissage ? (
         <div className="apprend-bandeau">
-          <b>On apprend</b> — dis ta phrase, elle la répète.
+          <b>On apprend</b> — dis ta phrase, elle la répète et la traduit.
           {/* ── LE BOUTON BLEU ──────────────────────────────────────────
               Sa demande du 14 septembre au soir, et elle règle un problème
               qu'aucune correction de code ne pouvait régler : l'oreille se
@@ -6396,20 +6471,28 @@ export default function Home() {
                     const r = await fetch("/api/retenir", {
                       method: "POST",
                       headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-                      body: JSON.stringify({ texte: quoi, extrait: extraitRef.current }),
+                      body: JSON.stringify({
+                        texte: quoi,
+                        extrait: extraitRef.current,
+                        francais: sens?.francais || "",
+                      }),
                     });
                     const d = await r.json() as { retenu?: string; erreur?: string };
                     if (!r.ok || !d.retenu) { setMotGarde(d.erreur || "Ça n'a pas été gardé."); return; }
                     setMotGarde("gardée");
                     setGardee(quoi);
-                    /* LA LEÇON EST PASSÉE. Sa règle du 14 septembre au soir :
-                       une fois enregistré, on referme et on continue la
-                       conversation. Le serveur suivra : le téléphone lui
-                       enverra `apprend: false` dès la prochaine phrase. */
-                    apprend.current = false;
-                    setEnApprentissage(false);
+                    /* ── LE MODE RESTE OUVERT ──────────────────────────
+                       Sa règle du 14 septembre — « une fois enregistré, on
+                       referme et on continue la conversation » — est levée
+                       par lui-même le 15 : « apparemment, je ne peux pas
+                       enchaîner les phrases ». Il enseigne par séries, pas
+                       par phrases isolées, et refermer à chaque fois
+                       l'obligeait à redire « corrige corrige » entre chaque
+                       mot. On ne referme plus : c'est « on a fini » qui
+                       ferme, et rien d'autre. */
                     aRepeter.current = "";
                     setAGarder("");
+                    setSens(null);
                     /* SA VOIX SUIT LE TEXTE, sans le faire attendre : le
                        texte est déjà rangé à cet instant, le son n'est
                        qu'un plus. S'il rate, la mémoire reste juste. */
@@ -6433,12 +6516,33 @@ export default function Home() {
               <span>« {aGarder} »</span>
             </button>
           ) : null}
+          {/* ── CE QUE ÇA VEUT DIRE, ET D'OÙ ÇA VIENT ────────────────────
+
+              Lamine, le 15 septembre 2026 : « si elle comprend le sens, elle
+              le dit en français, ce n'est pas la peine que je lui répète ça.
+              Je dois tout simplement confirmer. »
+
+              LA DISTINCTION NE PASSE PAS PAR SA BOUCHE À ELLE, elle passe
+              par ici. Elle dit le français, point — il a demandé de la
+              simplicité et il a raison. Mais une traduction du modèle et une
+              paire qu'il a écrite lui-même ne méritent pas la même
+              confiance : validée par inattention, une devinette devient une
+              vérité permanente. Un mot sur l'écran suffit à faire la
+              différence, et ne lui coûte pas une seconde. */}
+          {aGarder && sens ? (
+            <em className={sens.sur ? "apprend-sens sur" : "apprend-sens devine"}>
+              {sens.sur ? "tu lui as appris" : "elle traduit"} : « {sens.francais} »
+            </em>
+          ) : null}
+          {aGarder && !sens && !sensCherche ? (
+            <em className="apprend-sens demande">elle ne connaît pas le sens — dis-le-lui</em>
+          ) : null}
           {/* Le motif d'un refus reste DANS le bandeau : la leçon n'est pas
               finie, il est encore en train d'essayer. */}
           {motGarde && motGarde !== "en cours" && motGarde !== "gardée" ? (
             <em className="apprend-dit rate">{motGarde}</em>
           ) : null}
-          <i>redis-la jusqu'à ce qu'elle soit juste, puis appuie · « on a fini » pour sortir sans garder</i>
+          <i>redis-la jusqu'à ce qu'elle soit juste, puis appuie · enchaîne autant que tu veux · « on a fini » pour sortir</i>
         </div>
       ) : null}
 

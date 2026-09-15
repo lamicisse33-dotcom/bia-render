@@ -2565,6 +2565,28 @@ button { font: inherit; touch-action: manipulation; }
 }
 .apprend-dit.ok { color: rgba(150,220,170,.92); }
 .apprend-dit.rate { color: rgba(255,170,150,.95); }
+
+/* ── CE QUE SA PHRASE VEUT DIRE, ET D'OÙ ÇA VIENT ──────────────────────────
+
+   Lamine, le 15 septembre 2026, a demandé que BIA traduise elle-même et qu'il
+   n'ait qu'à confirmer : « c'est plus simple comme ça ». Il a raison, et donc
+   elle ne dit RIEN de plus que le français.
+
+   Mais une traduction du modèle et une paire qu'il a écrite de sa main ne
+   méritent pas la même confiance — validée par inattention, une devinette
+   deviendrait une vérité permanente dans sa mémoire. La distinction se fait
+   donc ICI, en une couleur et deux mots, sans lui coûter une seconde :
+
+     — VERT, « tu lui as appris » : ça vient de ses leçons. C'est sûr.
+     — AMBRE, « elle traduit »    : c'est le modèle. À regarder.
+     — GRIS,  « elle ne connaît pas » : à lui de le dire. */
+.apprend-sens {
+  display: block; margin-top: 5px;
+  font-style: normal; font-size: 11.5px; line-height: 1.35;
+}
+.apprend-sens.sur { color: rgba(150,220,170,.92); }
+.apprend-sens.devine { color: rgba(245,205,130,.95); }
+.apprend-sens.demande { color: rgba(234,243,255,.55); }
 /* ── CE QUI VIENT D'ENTRER DANS SA MÉMOIRE ──────────────────────────────────
 
    La leçon se referme dès l'appui — « on continue normalement » — mais cette
