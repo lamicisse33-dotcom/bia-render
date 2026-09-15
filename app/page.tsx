@@ -1225,12 +1225,20 @@ export default function Home() {
      Un garde-fou la dénoue donc au bout d'une durée calculée sur la longueur
      du texte, généreusement. */
   const voixDuTelephoneRef = useRef(false);
+  /* Armée une seule fois, au premier geste : voir micro(). */
+  const voixDuTelephoneArmee = useRef(false);
   const parlerAvecLeTelephone = useCallback((answer: string) => new Promise<void>((fini) => {
     // Pas de voix du tout sur cet appareil : on rend la main tout de suite,
     // sinon BIA resterait « en train de répondre » pour toujours — et le
     // micro, qui se ferme pendant qu'elle parle, ne se rouvrirait jamais.
     if (!("speechSynthesis" in window)) { stopMouth(answer); fini(); return; }
-    window.speechSynthesis.cancel();
+    /* ON N'ANNULE QUE S'IL Y A QUELQUE CHOSE À ANNULER. `cancel()` suivi
+       aussitôt de `speak()` dans le même tour est connu pour ne rien dire du
+       tout sur iPhone — et ici il n'y avait rien à annuler neuf fois sur dix.
+       On paie donc le risque pour rien. */
+    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+      window.speechSynthesis.cancel();
+    }
     const voices = window.speechSynthesis.getVoices();
     const wolof = voices.find((v) => v.lang.toLowerCase().startsWith("wo"));
     const french =
@@ -1262,11 +1270,24 @@ export default function Home() {
        un garde-fou doit être large, il ne sert qu'à ne jamais rester coincé. */
     const gardeFou = setTimeout(rendre, Math.min(45000, 3000 + (answer.length / 14) * 2000));
 
-    utterance.onstart = () => bouche(true);
+    /* ── ET ON SAURA SI ELLE A VRAIMENT PARLÉ ──────────────────────────
+       Ce filet était muet depuis toujours sans que rien ne le dise. Une voix
+       qui ne démarre pas se voit maintenant à l'écran, au lieu de passer pour
+       une panne de Soynade. */
+    let aDemarre = false;
+    utterance.onstart = () => { aDemarre = true; bouche(true); };
     utterance.onend = rendre;
-    utterance.onerror = rendre;
+    utterance.onerror = () => {
+      setPanne("panne : la voix du téléphone a refusé de parler");
+      rendre();
+    };
     window.speechSynthesis.speak(utterance);
-  }), [bouche, stopMouth]);
+    /* Un dixième de seconde suffit largement à démarrer. Passé une seconde
+       sans un mot, c'est que le téléphone a refusé en silence. */
+    setTimeout(() => {
+      if (!aDemarre && !rendu) setPanne("panne : la voix du téléphone reste muette");
+    }, 1000);
+  }), [bouche, stopMouth, setPanne]);
 
   /* ── Les sons qui ne s'écrivent pas ───────────────────────────────────
 
@@ -2984,6 +3005,35 @@ export default function Home() {
        seul moment où un téléphone accepte de débloquer le son. */
     const ctxParole = contexte();
     if (ctxParole.state === "suspended") { try { await ctxParole.resume(); } catch { } }
+
+    /* ── ON ARME AUSSI LA VOIX DE SECOURS, ET C'EST ICI OU JAMAIS ──────────
+
+       Lamine, le 15 septembre 2026 : « elle dit seulement les mots
+       préenregistrés. » Le crédit Soynade était épuisé — ça, il l'avait
+       trouvé — mais la voix du téléphone, qui devait prendre le relais, ne
+       disait rien non plus. Les enregistrements du répertoire passaient,
+       parce qu'eux sont des fichiers audio ; tout ce qui devait être
+       PRONONCÉ était muet.
+
+       LA CAUSE. Sur iPhone, `speechSynthesis` refuse en silence tant qu'on ne
+       l'a pas réveillée pendant un geste de la personne — exactement comme le
+       contexte audio juste au-dessus. Or dans tout ce fichier il y a cinq
+       `cancel()` et un seul `speak()`, et ce `speak()` arrive toujours au
+       fond d'une réponse, jamais sous son doigt. Le filet de secours n'avait
+       donc jamais été armé, et personne ne s'en était aperçu : il ne sert que
+       les jours où Soynade tombe, et ces jours-là on croyait que c'était
+       Soynade.
+
+       Une phrase vide et sans volume suffit à le réveiller. Elle ne s'entend
+       pas, elle ne coûte rien, et elle ne se fait qu'une fois. */
+    if (!voixDuTelephoneArmee.current && typeof window !== "undefined" && "speechSynthesis" in window) {
+      voixDuTelephoneArmee.current = true;
+      try {
+        const reveil = new SpeechSynthesisUtterance(" ");
+        reveil.volume = 0;
+        window.speechSynthesis.speak(reveil);
+      } catch { /* pas de voix sur cet appareil : le répertoire suffira */ }
+    }
 
     /* ── L'ANALYSEUR A SON PROPRE CONTEXTE, POUR LA PASTILLE ORANGE ──────
        Le pourquoi est écrit en tête de lib/micro.ts, section 6. En deux
