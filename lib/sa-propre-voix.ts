@@ -54,7 +54,7 @@
    Les deux sont graves. C'est pour ça qu'on demande TROIS choses avant de la
    faire taire : la couvrir, tenir, et ne pas ressembler à ce qu'elle dit. */
 
-import { normaliser } from "./repertoire";
+import { normaliser } from "./normaliser";
 
 /* ── L'INTERRUPTEUR ─────────────────────────────────────────────────────────
 

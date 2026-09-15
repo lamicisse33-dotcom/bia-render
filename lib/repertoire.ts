@@ -1,4 +1,5 @@
 import { lexiqueConfig } from "./lexique";
+import { normaliser } from "./normaliser";
 import { empreinteDe } from "./empreinte";
 import { pourLaVoix } from "./nombres";
 import { REPERTOIRE, RELU } from "./repertoire-textes";
@@ -57,17 +58,17 @@ export { REPERTOIRE, RELU } from "./repertoire-textes";
    Le prix d'une erreur est asymétrique : rater une correspondance coûte huit
    secondes ; en inventer une fait répondre à côté. On rate volontiers. */
 
-const CIVILITES = /\b(stp|svp|s il te plait|s il vous plait|bia|please)\b/g;
+/* ── ELLE A DÉMÉNAGÉ, ET IL N'Y EN A TOUJOURS QU'UNE ───────────────────────
 
-export function normaliser(texte: string): string {
-  return String(texte || "")
-    .toLowerCase()
-    .normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(CIVILITES, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+   La normalisation vit maintenant dans lib/normaliser.ts, qui n'importe rien.
+   Raison : app/page.tsx en a besoin, ce fichier-ci est un fichier de serveur,
+   et l'importer depuis le téléphone faisait entrer tout le rangement Supabase
+   dans le paquet du navigateur — écran noir le 15 septembre 2026,
+   « process is not defined ». L'histoire est écrite en entier là-bas.
+
+   On la ré-exporte pour que tous ceux qui la prenaient ici continuent sans
+   changer une ligne. C'est toujours LA MÊME fonction, pas une copie. */
+export { normaliser } from "./normaliser";
 
 /* ── ENTENDRE, PAS LIRE ─────────────────────────────────────────────────────
 
