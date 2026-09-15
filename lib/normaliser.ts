@@ -64,3 +64,49 @@ export function normaliser(texte: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+
+/* ── ENTENDRE, PAS LIRE ─────────────────────────────────────────────────────
+
+   Signalé par Lamine le 11 septembre 2026, en essayant le répertoire à la
+   voix : « il y a des réponses qu'elle n'amène pas. »
+
+   Sa question était « naka waa kër ga ». Tapée telle quelle, elle marchait.
+   Dite au micro, non — et la faute était la mienne. J'avais écrit les formes
+   dans l'orthographe savante du wolof : « kër », « jërëjëf », « ñaar ». Le
+   moteur de reconnaissance, lui, écrit ce qu'il entend avec les lettres du
+   français : « keur », « djeredjef », « gnar ». Aucun des deux n'a tort. Ils
+   ne s'écrivent simplement pas pareil.
+
+   ON COMPARE DONC CE QUE ÇA SONNE. Les équivalences ci-dessous sont celles
+   que le français impose au wolof quand on l'écrit à l'oreille — rien
+   d'inventé, rien de savant.
+
+   ET C'EST CE QUI REND SA MÉMOIRE POSSIBLE. Le 15 septembre 2026 : « une
+   mémoire qui va lui permettre de se rappeler de tout ce qu'on lui a dit il y
+   a une semaine, il y a un mois. » Chercher dans un mois de wolof transcrit à
+   l'oreille avec une recherche ordinaire ne rend RIEN : le mot cherché ne
+   s'écrit jamais deux fois pareil. On range donc chaque souvenir avec sa
+   forme sonnée, et c'est sur elle qu'on cherche. Voir lib/souvenirs.ts. */
+const SONS: Array<[RegExp, string]> = [
+  [/tch/g, "c"],     // tchi → ci
+  [/dj/g, "j"],      // djam → jam
+  [/di(?=[aeiouy])/g, "j"], // « diam » est la façon française d'écrire jàmm
+  [/gui\b/g, "gi"], // « keur gui » → kër gi
+  [/kh/g, "x"],      // khalam s'entend xalam
+  [/gn/g, "n"],      // gnar → ñaar, dont l'accent est déjà tombé
+  [/ph/g, "f"],
+  [/qu?/g, "k"],
+  [/ou/g, "u"],      // juroom / jurum
+  [/eu/g, "e"],      // keur → ker : c'est celle qui manquait
+  [/(.)\1+/g, "$1"], // waa → wa, fukk → fuk, téeméer → temer
+  [/\be\b/g, " "],  // un « e » resté seul ne s'entend pas
+  [/(\w)e\b/g, "$1"], // kère → ker, jamme → jam
+];
+
+/** Ce que la phrase SONNE, une fois écrite à l'oreille du français. */
+export function sonne(texte: string): string {
+  let s = normaliser(texte);
+  for (const [de, vers] of SONS) s = s.replace(de, vers);
+  return s.replace(/\s+/g, " ").trim();
+}

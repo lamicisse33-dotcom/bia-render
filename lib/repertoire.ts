@@ -1,5 +1,5 @@
 import { lexiqueConfig } from "./lexique";
-import { normaliser } from "./normaliser";
+import { normaliser, sonne } from "./normaliser";
 import { empreinteDe } from "./empreinte";
 import { pourLaVoix } from "./nombres";
 import { REPERTOIRE, RELU } from "./repertoire-textes";
@@ -95,28 +95,11 @@ export { normaliser } from "./normaliser";
    équivalences ne fait se confondre deux entrées entre elles, et que les
    phrases qui ne doivent PAS répondre du répertoire n'y répondent toujours
    pas. */
-const SONS: Array<[RegExp, string]> = [
-  [/tch/g, "c"],     // tchi → ci
-  [/dj/g, "j"],      // djam → jam
-  [/di(?=[aeiouy])/g, "j"], // « diam » est la façon française d'écrire jàmm
-  [/gui\b/g, "gi"], // « keur gui » → kër gi
-  [/kh/g, "x"],      // khalam s'entend xalam
-  [/gn/g, "n"],      // gnar → ñaar, dont l'accent est déjà tombé
-  [/ph/g, "f"],
-  [/qu?/g, "k"],
-  [/ou/g, "u"],      // juroom / jurum
-  [/eu/g, "e"],      // keur → ker : c'est celle qui manquait
-  [/(.)\1+/g, "$1"], // waa → wa, fukk → fuk, téeméer → temer
-  [/\be\b/g, " "],  // un « e » resté seul ne s'entend pas
-  [/(\w)e\b/g, "$1"], // kère → ker, jamme → jam
-];
-
-/** Ce que la phrase SONNE, une fois écrite à l'oreille du français. */
-export function sonne(texte: string): string {
-  let s = normaliser(texte);
-  for (const [de, vers] of SONS) s = s.replace(de, vers);
-  return s.replace(/\s+/g, " ").trim();
-}
+/* SONS et sonne() ont déménagé dans lib/normaliser.ts avec normaliser(), pour
+   la même raison : ce sont des fonctions de texte pur, et plusieurs fichiers
+   qui ne sont pas des fichiers de serveur en ont besoin. On les ré-exporte —
+   il n'y en a toujours qu'une de chaque. */
+export { sonne } from "./normaliser";
 
 /* Une lettre d'écart — « ga » pour « gi », un « r » avalé. On ne l'accorde
    qu'à une formule assez longue pour rester reconnaissable, et seulement si

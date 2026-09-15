@@ -18,6 +18,7 @@ import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instruct
 import { noterPassage, noterTentative, parleDeMemoire } from "@/lib/lecons-vues";
 import { lecconQuiRepond, lecconsActives, leconsSousLaMain } from "@/lib/lecons";
 import { demandeDeNombre, repondreAuNombre } from "@/lib/nombre-demande";
+import { consigneDesSouvenirs, garder, retrouver, souvenirsActifs, type Souvenir } from "@/lib/souvenirs";
 import { SERVICES } from "@/lib/services-textes";
 import { ajouterCorrection, cequElleAAppris, retirerCorrection } from "@/lib/lexique";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
@@ -672,7 +673,11 @@ type Corps={message?:string;history?:Array<{role:string;text:string}>;resume?:st
      `aRepeter` : la dernière phrase qu'elle a répétée — c'est CELLE-LÀ qu'on
      garde quand il dit « c'est bon, retiens ça », parce que c'est celle
      qu'il vient d'entendre. Voir lib/instructions.ts. */
-  apprend?:boolean;aRepeter?:string};
+  apprend?:boolean;aRepeter?:string;
+  /* QUI PARLE — l'identifiant du profil tenu par le téléphone. Sert à ranger
+     sa mémoire par personne et non par appareil. Le maître, lui, est reconnu
+     par son code : ce champ ne peut pas usurper sa mémoire. */
+  personne?:string};
 type Rendu={corps:Record<string,unknown>;statut?:number};
 
 /* ── SUR QUOI ELLE TOURNE, ET DEPUIS QUAND ─────────────────────────────────
@@ -707,12 +712,48 @@ const LANGUE_ACCORD=langueDeLAccord(SERVICES.find(s=>s.cle===CLE_ACCORD)?.wolof|
 
    Sans `diffuse`, ou avec DIFFUSER_LE_MODELE à false, rien de tout ça ne
    s'allume : la route répond d'un seul bloc, exactement comme avant.      */
+/* ── QUI PARLE, VU DEPUIS LA PORTE ──────────────────────────────────────────
+
+   La même règle qu'à l'intérieur de repondre(), et elle est ici pour que le
+   rangement de sa mémoire n'ait pas à la deviner une deuxième fois : le
+   maître est reconnu par son CODE, les autres par leur identifiant de profil.
+   Sans identifiant, chaîne vide — et rien ne sera gardé. */
+function quiParleIci(body:Corps,code:string|null):string{
+  const v=verifierCode(code);
+  return v.ok&&v.maitre?"maitre":String(body.personne||"").trim().slice(0,80);
+}
+
+/* ── ET ON GARDE CE QUI VIENT D'ÊTRE DIT ────────────────────────────────────
+
+   APRÈS avoir rendu la main, jamais avant. C'est la règle de toute sa
+   mémoire : un souvenir perdu coûte un souvenir, une seconde d'attente se
+   paie à chaque phrase de chaque journée. La promesse flotte, Node la
+   termine, personne ne l'attend.
+
+   ON NE GARDE QUE CE QUI EST VRAIMENT UNE CONVERSATION. Une réponse de panne,
+   un refus de code, une phrase d'attente : ce sont des accidents de la
+   machine, pas des choses qu'on s'est dites. Les ranger salirait sa mémoire
+   et remonterait un jour comme un souvenir. */
+function garderCeTour(body:Corps,code:string|null,corps:Record<string,unknown>,statut?:number){
+  if(statut&&statut!==200)return;
+  const source=String(corps.source||"");
+  if(source.startsWith("panne")||source==="code"||source==="Erreur sûre")return;
+  const dit=String(body.message||"").trim();
+  const repondu=String(corps.reply||"").trim();
+  if(!dit&&!repondu)return;
+  const personne=quiParleIci(body,code);
+  if(!personne)return;
+  void garder({personne,dit,repondu,langue:String(corps.langue||"")||null})
+    .catch(()=>{/* un souvenir perdu ne casse pas la conversation */});
+}
+
 export async function POST(request:NextRequest){
   const body=await request.json().catch(()=>({})) as Corps;
   const code=request.headers.get("x-bia-code");
 
   if(!DIFFUSER_LE_MODELE||!body.diffuse){
     const r=await repondre(body,code,null);
+    garderCeTour(body,code,r.corps,r.statut);
     return NextResponse.json(r.corps,r.statut?{status:r.statut}:undefined);
   }
 
@@ -725,6 +766,7 @@ export async function POST(request:NextRequest){
       try{
         const r=await repondre(body,code,(morceau)=>envoyer("texte",{morceau}));
         envoyer("fin",{corps:r.corps,statut:r.statut||200});
+        garderCeTour(body,code,r.corps,r.statut);
       }catch(err){
         console.error("BIA — erreur pendant la diffusion :",(err as Error).message);
         noterPanne("exception (diffusion)",(err as Error).message,"chat");
@@ -960,6 +1002,26 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        ligne, aucun coût, et la prochaine soirée ne se passera pas à deviner
        laquelle des deux c'était. */
     noterPassage(Boolean(maitre.ok&&maitre.maitre));
+
+    /* ── À QUI ELLE PARLE, POUR SAVOIR DE QUI SE SOUVENIR ──────────────────
+
+       Sa mémoire est rangée PAR PERSONNE, jamais par appareil. C'est la leçon
+       du 10 septembre, quand elle confondait les gens : « le prénom et les
+       notes étaient gardés sur l'appareil, pas sur une personne » — or ici un
+       téléphone se prête, au frère, au client, au voisin.
+
+       LE MAÎTRE EST RECONNU PAR SON CODE, pas par ce que le téléphone
+       annonce. Deux raisons. Sa mémoire à lui marche donc immédiatement, même
+       depuis un téléphone qui ne connaît pas encore les profils. Et surtout :
+       personne ne peut aller lire ses conversations en se déclarant « lamine »
+       dans un champ — il faudrait son code, et son code ne sort pas d'ici.
+
+       Les autres apportent leur identifiant de profil. Sans identifiant, rien
+       n'est gardé et rien n'est relu : mieux vaut aucune mémoire qu'une
+       mémoire où les phrases de tout le monde se mélangent. */
+    const quiParle=maitre.ok&&maitre.maitre
+      ? "maitre"
+      : String(body.personne||"").trim().slice(0,80);
     /* Et une phrase qui parle de mémoire SANS code maître se note aussi —
        c'est justement le cas qu'il fallait pouvoir nommer. Elle ne
        déclenche rien, exactement comme avant. */
@@ -1358,6 +1420,25 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
 
        L'ordre a changé pour ça, et c'est la seule raison. */
     let socle=system+"\n\n"+SOCLE_RELATIONS;
+    /* ── SA MÉMOIRE, LANCÉE AU PLUS TÔT ────────────────────────────────────
+
+       Lamine, le 15 septembre 2026 : « une mémoire avec beaucoup de
+       persistance qui va lui permettre de se rappeler de tout ce qu'on lui a
+       dit il y a quelques jours, il y a une semaine, il y a un mois. »
+
+       LA RECHERCHE PART ICI ET NE S'ATTEND QUE PLUS BAS. C'est tout ce qui
+       fait qu'elle ne coûte rien : entre ces deux lignes il y a le socle, les
+       relations, le lexique, la version — du travail qui se fait pendant que
+       Supabase cherche. Attendue à l'endroit où on la lance, elle ajouterait
+       son aller-retour à chaque phrase de chaque journée.
+
+       Et elle ne peut pas échouer : retrouver() rend une liste vide plutôt
+       que de lever. Une mémoire qui ne répond pas ne doit pas l'empêcher de
+       parler. Voir lib/souvenirs.ts. */
+    const laMemoire=souvenirsActifs()&&quiParle
+      ? retrouver(quiParle,question)
+      : Promise.resolve([] as Souvenir[]);
+
     let variable="";
 
     /* ── QUAND C'EST LAMINE QUI PARLE ───────────────────────────────────────
@@ -1521,6 +1602,14 @@ S'IL DEMANDE TOUT — « répète-moi tout ce que tu as mémorisé », « relis-
        noieraient son attention. */
     const filDitPar=(body.history||[]).map(item=>String(item.text||""));
     if(estSujetRelation(question,filDitPar))variable+=await consigneRelations();
+
+    /* ── ET ON RÉCUPÈRE SA MÉMOIRE, MAINTENANT QU'ELLE A EU LE TEMPS ───────
+       Lancée bien plus haut. Ce qui en sort, ce sont ses phrases à LUI, mot
+       pour mot, avec leur date — pas un résumé : un résumé, le modèle le
+       reformule, et une reformulation devient un souvenir faux au tour
+       suivant. Dans la partie VARIABLE, jamais dans le socle mis en cache :
+       ces passages changent à chaque question. */
+    variable+=consigneDesSouvenirs(await laMemoire);
 
     const savoir=await savoirKhalam();
     if(savoir)socle+=`\n\n═══ CE QUE TU SAIS DE KHALAM ═══\n${savoir}\n═══ fin de ce que tu sais de KHALAM ═══`;
