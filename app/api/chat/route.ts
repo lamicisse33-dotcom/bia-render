@@ -1642,16 +1642,67 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       ...(variable.trim()?[{type:"text",text:variable}]:[]),
     ];
 
+    /* ── UN SEUL ENDROIT QUI FABRIQUE L'APPEL AU MODÈLE ────────────────────
+
+       Il y en avait quatre, copiés à la main : le premier appel, la reprise
+       après un refus passager, le repli quand l'outil est refusé, et le repli
+       quand la réponse est vide. Quatre copies d'une même ligne de six cents
+       signes, qu'il fallait penser à corriger ensemble — et le jour où on
+       ajoute un réglage, on en oublie une. C'est arrivé ce matin.
+
+       ── LE RÉGLAGE QU'ON AJOUTE, ET POURQUOI ──────────────────────────────
+
+       Lamine, le 15 septembre 2026 : « elle n'arrête pas de dire que mon
+       moteur ne répond pas. » Le tableau, cette fois, a dit pourquoi — parce
+       qu'on venait de le lui faire dire :
+
+         stop_reason max_tokens — blocs reçus : thinking
+
+       Le modèle a produit UN BLOC DE RÉFLEXION ET RIEN D'AUTRE, et il a tapé
+       le plafond de 300 jetons avant d'écrire sa phrase. La recherche n'y
+       était pour rien : mon explication d'il y a une heure était fausse, et
+       c'est l'instrument qui l'a corrigée, pas moi.
+
+       BIA N'A PAS BESOIN DE RÉFLÉCHIR LONGUEMENT. Elle doit dire deux phrases
+       courtes, tout de suite. La réflexion lui coûte les jetons de sa réponse
+       ET le temps avant le premier mot — les deux choses qu'on passe nos
+       nuits à reprendre. On la désactive.
+
+       ET SI CE RÉGLAGE EST REFUSÉ, on repart sans lui : c'est le geste déjà
+       écrit pour l'outil de recherche, et il couvre maintenant les deux. Un
+       réglage inconnu ne doit jamais rendre BIA muette. */
+    const PAS_DE_REFLEXION = { thinking: { type: "disabled" } } as const;
+    const corpsDuModele = (o: {
+      plafond: number; avecOutil: boolean; avecReflexion: boolean;
+    }) => JSON.stringify({
+      model,
+      max_tokens: o.plafond,
+      system: consigne,
+      messages: [...history, { role: "user", content: question }],
+      ...(o.avecOutil ? { tools: [OUTIL_RECHERCHE] } : {}),
+      ...(o.avecReflexion ? {} : PAS_DE_REFLEXION),
+      ...(emettre ? { stream: true } : {}),
+    });
+    const appelerLeModele = (o: {
+      plafond: number; avecOutil: boolean; avecReflexion: boolean;
+    }) => fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+      body: corpsDuModele(o),
+    });
+
+    /* Plafond descendu de 500 à 300 le 11 septembre 2026 : « elle doit dire
+       l'essentiel puis se taire ». Ce n'est pas la consigne qui coûte cher,
+       c'est ce qu'elle écrit — la sortie se paie cinq fois l'entrée, et chaque
+       signe écrit est ensuite un signe envoyé à la voix. 300 jetons laissent
+       largement la place à deux phrases ; au-delà, c'est qu'elle était
+       repartie à bavarder. */
+    const PLAFOND = cherche ? 600 : 300;
+
     /* L'HORLOGE PART ICI, avant la connexion : voir lireLeFlux() et
        lib/etapes.ts. Le premier token se mesure depuis ce point. */
     const partiModele=Date.now();
-    const response=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,/* Plafond descendu de 500 à 300 le 11 septembre 2026 : « elle doit dire
-         l'essentiel puis se taire ». Ce n'est pas la consigne qui coûte cher,
-         c'est ce qu'elle écrit — la sortie se paie cinq fois l'entrée, et
-         chaque signe écrit est ensuite un signe envoyé à la voix. 300 jetons
-         laissent largement la place à deux phrases ; au-delà, c'est qu'elle
-         était repartie à bavarder. */
-      max_tokens: cherche?600:300,system:consigne,messages:[...history,{role:"user",content:question}],...(cherche?{tools:[OUTIL_RECHERCHE]}:{}),...(emettre?{stream:true}:{})})});
+    const response=await appelerLeModele({plafond:PLAFOND,avecOutil:cherche,avecReflexion:false});
 
     /* SI L'OUTIL EST REFUSÉ, ON RÉPOND QUAND MÊME.
 
@@ -1662,11 +1713,26 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        a joint l'outil fait repartir la question SANS lui : elle répondra sans
        Internet, ce qui vaut infiniment mieux que de se taire. */
     let reponse = response;
-    if (!reponse.ok && cherche && reponse.status === 400) {
+    /* ── UN RÉGLAGE REFUSÉ NE DOIT JAMAIS LA RENDRE MUETTE ─────────────────
+
+       Cette garde ne couvrait que l'outil de recherche, et seulement quand il
+       était joint. Depuis ce matin on envoie aussi « pas de réflexion » — sur
+       TOUTES les questions. Si ce réglage était refusé quelque part, BIA
+       deviendrait muette partout, et la garde d'à côté ne l'aurait pas
+       rattrapée parce qu'elle regardait `cherche`.
+
+       Elle regarde donc le 400 lui-même, et repart SANS AUCUN des deux
+       réglages facultatifs. Elle répondra de ce qu'elle sait, sans Internet
+       et en réfléchissant si le modèle y tient : c'est infiniment mieux que
+       la phrase de panne.
+
+       Leçon du 10 septembre 2026, qui vaut toujours : un seul champ mal
+       accepté — le pays « SN » — et l'API refusait la requête ENTIÈRE. */
+    if (!reponse.ok && reponse.status === 400) {
       const detail = await reponse.clone().text().catch(() => "");
-      console.error("BIA — l'outil de recherche est refusé, on répond sans :", detail.slice(0, 300));
-      noterPanne("recherche refusée", detail, "chat");
-      reponse = await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:300,system:consigne,messages:[...history,{role:"user",content:question}],...(emettre?{stream:true}:{})})});
+      console.error("BIA — un réglage est refusé, on repart sans :", detail.slice(0, 300));
+      noterPanne("réglage refusé (400)", detail, "chat");
+      reponse = await appelerLeModele({plafond:300,avecOutil:false,avecReflexion:true});
     }
 
     /* ── « SUR CERTAINES QUESTIONS ELLE DIT QUE SON MOTEUR NE RÉPOND PAS » ──
@@ -1702,7 +1768,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       console.error("BIA — le modèle bégaie, on retente une fois :", reponse.status, detail.slice(0, 200));
       noterPanne(reponse.status, `${detail.slice(0, 200)} — retenté après ${attente} ms`, "chat");
       await new Promise((f) => setTimeout(f, attente));
-      const reprise = await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:cherche?600:300,system:consigne,messages:[...history,{role:"user",content:question}],...(cherche?{tools:[OUTIL_RECHERCHE]}:{}),...(emettre?{stream:true}:{})})});
+      const reprise = await appelerLeModele({plafond:PLAFOND,avecOutil:cherche,avecReflexion:false});
       if (reprise.ok) reponse = reprise;
     }
 
@@ -1749,11 +1815,19 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        ET ON NOTE POURQUOI, désormais. Le motif d'arrêt et les types de blocs
        reçus tiennent en trois mots et disent tout. Sans eux, la prochaine
        fois se passerait encore à deviner. */
-    if(!complet&&cherche){
-      const pourquoi=`stop_reason ${data.stop_reason||"?"} — blocs reçus : ${(data.types||[]).join(", ")||"aucun"}`;
-      console.error("BIA — réponse vide avec la recherche, on refait sans :",pourquoi);
-      noterPanne("réponse vide (avec recherche)",`${pourquoi} — refaite sans l'outil`,"chat");
-      const sansOutil=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:300,system:consigne,messages:[...history,{role:"user",content:question}],...(emettre?{stream:true}:{})})});
+    if(!complet){
+      const pourquoi=`stop_reason ${data.stop_reason||"?"} — blocs reçus : ${(data.types||[]).join(", ")||"aucun"}${cherche?" — recherche jointe":""}`;
+      console.error("BIA — réponse vide, on refait :",pourquoi);
+      noterPanne("réponse vide (refaite)",pourquoi,"chat");
+      /* SANS L'OUTIL, SANS RÉFLEXION, ET AVEC DE LA PLACE. Les trois causes
+         connues d'une réponse sans texte, couvertes d'un coup :
+           — la recherche mange les jetons avant la phrase ;
+           — la réflexion les mange avant la phrase (c'est ce qui s'est passé
+             ce matin : « stop_reason max_tokens — blocs reçus : thinking ») ;
+           — la phrase elle-même était trop longue pour le plafond.
+         900 jetons, le temps d'une seule reprise : on ne paie que ce qui est
+         écrit, et la consigne lui demande toujours deux phrases. */
+      const sansOutil=await appelerLeModele({plafond:900,avecOutil:false,avecReflexion:false});
       if(sansOutil.ok){
         const second:Reponse=emettre?await lireLeFlux(sansOutil,emettre):await sansOutil.json() as Reponse;
         noterModele(second.usage,"chat");
