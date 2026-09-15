@@ -752,11 +752,17 @@ export async function POST(request:NextRequest){
    compte. `depart` est pris avant l'appel, par l'appelant. */
 async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void,depart=0){
   const lecteur=reponse.body?.getReader();
-  if(!lecteur) return {content:[],usage:undefined};
+  if(!lecteur) return {content:[],usage:undefined,stop_reason:"",types:[] as string[]};
   let premierMot=0;
   const decodeur=new TextDecoder();
   const blocs:string[]=[];
   let reste="",usage:Record<string,unknown>={};
+  /* CE QU'ON NE SAVAIT PAS, ET QUI NOUS A COÛTÉ DEUX SEMAINES DE « MON MOTEUR
+     NE RÉPOND PAS ». Une réponse vide était notée comme telle, sans jamais
+     dire POURQUOI elle était vide. Le motif d'arrêt et les types de blocs
+     reçus le disent en trois mots. */
+  let motifDArret="";
+  const typesVus=new Set<string>();
   for(;;){
     const {done,value}=await lecteur.read();
     if(done) break;
@@ -770,6 +776,8 @@ async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void,depart
       try{ ev=JSON.parse(ligne.slice(5).trim()); }catch{ continue; }
       if(ev.type==="message_start"&&ev.message?.usage) usage={...usage,...ev.message.usage};
       if(ev.type==="message_delta"&&ev.usage) usage={...usage,...ev.usage};
+      if(ev.type==="message_delta"&&ev.delta?.stop_reason) motifDArret=String(ev.delta.stop_reason);
+      if(ev.type==="content_block_start"&&ev.content_block?.type) typesVus.add(String(ev.content_block.type));
       if(ev.type==="content_block_start"&&ev.content_block?.type==="text"){
         blocs.push(String(ev.content_block.text||""));
       }
@@ -785,7 +793,8 @@ async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void,depart
     }
   }
   if(depart)noterEtape("modele",depart,premierMot,Date.now(),blocs.join("").length);
-  return {content:blocs.map((text)=>({type:"text",text})),usage};
+  return {content:blocs.map((text)=>({type:"text",text})),usage,
+    stop_reason:motifDArret,types:[...typesVus]};
 }
 
 /* ── CE QU'ON ENTEND DANS « AMENE-MOI AUX ALMADIES » ────────────────────────
@@ -1705,12 +1714,56 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return {corps:{reply:PANNE_MOTEUR,emotion:"concernee",source:`panne : modèle ${reponse.status}`}};
     }
 
-    const data=emettre?await lireLeFlux(reponse,emettre,partiModele):await reponse.json() as {content?:Array<{type:string;text?:string}>;usage?:unknown};
+    type Reponse={content?:Array<{type:string;text?:string}>;usage?:unknown;
+      stop_reason?:string;types?:string[]};
+    let data:Reponse=emettre?await lireLeFlux(reponse,emettre,partiModele):await reponse.json() as Reponse;
     /* Ce n'est plus une estimation : c'est le modèle lui-même qui dit ce
        qu'il a consommé, et combien lui est revenu du cache. Ça se lit dans
        /api/etat, champ « depense ». */
     noterModele(data.usage, "chat");
-    const complet=(data.content||[]).filter(block=>block.type==="text").map(block=>block.text||"").join("\n").trim();
+    const texteDe=(d:Reponse)=>(d.content||[]).filter(b=>b.type==="text").map(b=>b.text||"").join("\n").trim();
+    let complet=texteDe(data);
+
+    /* ── « ELLE N'ARRÊTE PAS DE DIRE QUE MON MOTEUR NE RÉPOND PAS » ─────────
+
+       Lamine, le 15 septembre 2026 au matin. Le tableau disait deux « réponse
+       vide » à vingt-six secondes d'intervalle : le modèle avait répondu 200,
+       sans un mot de texte.
+
+       CE QUI SE PASSE, ET POURQUOI ÇA NE TOUCHE QUE CERTAINES QUESTIONS.
+       Quand la question porte sur quelque chose qui change — un prix, une
+       actualité — on joint l'outil de recherche d'Anthropic et on monte le
+       plafond à 600 jetons. La recherche est exécutée chez eux, et ses
+       résultats occupent ces jetons. Si elle en mange trop, le modèle
+       s'arrête AVANT d'avoir écrit sa phrase : la réponse ne contient que des
+       blocs de recherche, pas un bloc de texte. Vu d'ici, c'est un 200 vide.
+       Vu de Lamine, c'est « mon moteur ne répond pas » sur les questions
+       d'actualité — et ça marche très bien sur les autres.
+
+       ON REFAIT DONC LA QUESTION SANS LA RECHERCHE, une seule fois. Elle
+       répondra de ce qu'elle sait, ce qui vaut infiniment mieux que la phrase
+       de panne. C'est exactement le geste déjà écrit plus haut pour un outil
+       refusé en 400 ; il manquait pour un outil qui aboutit et étouffe la
+       réponse.
+
+       ET ON NOTE POURQUOI, désormais. Le motif d'arrêt et les types de blocs
+       reçus tiennent en trois mots et disent tout. Sans eux, la prochaine
+       fois se passerait encore à deviner. */
+    if(!complet&&cherche){
+      const pourquoi=`stop_reason ${data.stop_reason||"?"} — blocs reçus : ${(data.types||[]).join(", ")||"aucun"}`;
+      console.error("BIA — réponse vide avec la recherche, on refait sans :",pourquoi);
+      noterPanne("réponse vide (avec recherche)",`${pourquoi} — refaite sans l'outil`,"chat");
+      const sansOutil=await fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`,{method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},body:JSON.stringify({model,max_tokens:300,system:consigne,messages:[...history,{role:"user",content:question}],...(emettre?{stream:true}:{})})});
+      if(sansOutil.ok){
+        const second:Reponse=emettre?await lireLeFlux(sansOutil,emettre):await sansOutil.json() as Reponse;
+        noterModele(second.usage,"chat");
+        const texte=texteDe(second);
+        /* On ne garde la seconde que si elle dit quelque chose : une deuxième
+           réponse vide ne vaut pas mieux que la première, et l'écraser ferait
+           perdre le motif d'arrêt de celle-ci. */
+        if(texte){ data=second; complet=texte; }
+      }
+    }
     /* LE MODÈLE A CHOISI UNE RÉPONSE ENREGISTRÉE. On la sert mot pour mot,
        avec son son déjà fabriqué : la voix ne fabrique rien, et rien n'attend.
        C'est là qu'est l'économie — la voix, c'est 93 % de la facture. */
@@ -1986,8 +2039,14 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     }
 
     if(!reply){
-      console.error("BIA — le modèle a répondu sans texte.");
-      noterPanne("réponse vide","Le modèle a répondu 200 mais sans bloc de texte.", "chat");
+      /* On dit MAINTENANT pourquoi elle est vide. « 200 sans bloc de texte »
+         était vrai et inutilisable : ça décrivait le symptôme et taisait la
+         cause. Le motif d'arrêt du modèle et les types de blocs reçus la
+         nomment — max_tokens, refus, ou une réponse qui n'était faite que de
+         blocs de recherche. */
+      const pourquoi=`stop_reason ${data.stop_reason||"?"} — blocs reçus : ${(data.types||[]).join(", ")||"aucun"}${cherche?" — recherche jointe":""}`;
+      console.error("BIA — le modèle a répondu sans texte :",pourquoi);
+      noterPanne("réponse vide",pourquoi,"chat");
       return {corps:{reply:PANNE_MOTEUR,emotion:"concernee",source:"panne : réponse vide"}};
     }
 
