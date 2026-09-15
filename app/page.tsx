@@ -93,7 +93,7 @@ type Message = {
    donc c'est un bouton, à côté des autres. */
 /* « relire » est le seul service qui n'écrit rien : il ouvre la liste des
    textes qui attendent l'oreille de Lamine. Il ne paraît qu'avec son code. */
-type Service = "" | "message" | "devis" | "lettre" | "photo" | "video" | "lire" | "fiche" | "relire";
+type Service = "" | "message" | "devis" | "mail" | "lettre" | "photo" | "video" | "lire" | "fiche" | "relire";
 
 type Emetteur = Partie & { tva: boolean };
 const EMETTEUR_VIDE: Emetteur = {
@@ -2496,7 +2496,10 @@ export default function Home() {
       /* Elle estime avoir de quoi écrire : c'est elle qui allume le bouton,
          et son avis vaut mieux qu'un mot-clé — elle a suivi toute la
          conversation. Le papier déjà ouvert est jeté : il date d'avant. */
-      if (data.papier === "devis" || data.papier === "lettre" || data.papier === "message") {
+      /* « mail » depuis le 15 septembre 2026 : quand elle pose la balise
+         elle-même, elle peut reconnaître un mail comme les trois autres. */
+      if (data.papier === "devis" || data.papier === "lettre"
+          || data.papier === "message" || data.papier === "mail") {
         setPapierPret(data.papier as Sorte);
         /* ── ELLE N'ÉCRIT PLUS RIEN SANS QU'ON LE LUI DEMANDE ────────────────
 
@@ -5186,7 +5189,14 @@ export default function Home() {
       dessin: "M12 3c5 0 9 3.2 9 7.2s-4 7.2-9 7.2c-.9 0-1.8-.1-2.6-.3L4.6 20a.6.6 0 0 1-.9-.7l1-3.1C3 14.9 3 12.9 3 10.2 3 6.2 7 3 12 3Z" },
     { cle: "devis", nom: "Devis",
       dessin: "M6 2h7.2L20 8.8V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.8V9h5.2L13 3.8ZM8 12h8v1.8H8V12Zm0 3.4h8v1.8H8v-1.8Zm0-6.8h3v1.8H8V8.6Z" },
-    { cle: "lettre", nom: "Lettre",
+    /* ── LA LETTRE A CÉDÉ SA PLACE AU MAIL ─────────────────────────────────
+       Lamine, le 15 septembre 2026 : « tu peux remplacer la lettre par un
+       mail. Comme ça, tu pourras lui dicter en wolof, elle va écrire un mail.
+       Ça, ça peut être utile. » Une lettre finit en PDF qu'il faut imprimer ;
+       personne n'envoie ça à son fournisseur. La lettre garde sa capacité —
+       « écris-moi une lettre » la donne toujours — elle perd seulement son
+       bouton. Voir Sorte dans lib/documents.ts. */
+    { cle: "mail", nom: "Mail",
       dessin: "M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1.6 2L12 12.4 19.4 7H4.6Z" },
     { cle: "photo", nom: "Papier",
       dessin: "M9.4 4h5.2l1.2 2H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4.2l1.2-2Zm2.6 4.8a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2Zm0 1.9a2.7 2.7 0 1 1 0 5.4 2.7 2.7 0 0 1 0-5.4Z" },
@@ -6069,7 +6079,7 @@ export default function Home() {
           {service === "photo" ? vuePhoto() : null}
           {service === "" ? vueAccueil() : null}
 
-          {service === "message" || service === "devis" || service === "lettre" ? (
+          {service === "message" || service === "devis" || service === "mail" ? (
             <>
               {papierOccupe && !papier ? <p className="papier-note">BIA écrit…</p> : null}
               {/* ── LE BOUTON QUI DEMANDE VRAIMENT ──────────────────────────
@@ -6086,7 +6096,7 @@ export default function Home() {
                   <button type="button" className="papier-ecrire"
                     onClick={() => void fabriquerPapier(service as Sorte)}>
                     {service === "devis" ? "Écrire le devis"
-                      : service === "lettre" ? "Écrire la lettre" : "Écrire le message"}
+                      : service === "mail" ? "Écrire le mail" : "Écrire le message"}
                   </button>
                 </p>
               ) : null}
@@ -6154,7 +6164,7 @@ export default function Home() {
             « Corrige » rouvre le micro : on dit ce qui cloche en wolof, et
             elle refait. C'est ce que Lamine demande — jusqu'à ce que la
             personne soit d'accord. */}
-        {(service === "message" || service === "devis" || service === "lettre")
+        {(service === "message" || service === "devis" || service === "mail")
           && papier && aValider ? (
           <div className="papier-pied valider">
             <button type="button" className="oui" onClick={() => { taire(); setAValider(false); }}>
@@ -6167,7 +6177,7 @@ export default function Home() {
           </div>
         ) : null}
 
-        {(service === "message" || service === "devis" || service === "lettre")
+        {(service === "message" || service === "devis" || service === "mail")
           && papier && !aValider ? (
           <div className="papier-pied">
             {papier.doc.type === "devis" && papier.totaux ? (

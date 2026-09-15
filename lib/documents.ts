@@ -91,7 +91,27 @@ export type Mot = {
 };
 
 export type Document = Devis | Lettre | Mot;
-export type Sorte = "devis" | "lettre" | "message";
+/* ── LE MAIL EST UN MESSAGE, PAS UNE LETTRE ─────────────────────────────────
+
+   Lamine, le 15 septembre 2026 : « tu peux remplacer la lettre que tu as mise
+   sur la fenêtre par un mail. Comme ça, tu pourras lui dicter en wolof, elle
+   va écrire un mail. Ça, ça peut être utile. »
+
+   Il a raison sur les deux points, et sur le second surtout : une LETTRE a un
+   en-tête, une date, un destinataire, « je vous prie d'agréer », et elle finit
+   en PDF qu'il faut imprimer. Personne n'envoie ça à son fournisseur.
+
+   Un mail, c'est un objet et un corps, qu'on copie et qu'on colle. C'est donc
+   un MESSAGE qui porte un objet — la forme existait déjà, elle attendait
+   seulement son bouton. On ne fabrique aucun type de document de plus : ce
+   qui sort est un message, avec `canal: "courriel"`, et tout ce qui sait
+   afficher et copier un message le sait déjà.
+
+   LA LETTRE N'EST PAS SUPPRIMÉE. Elle perd son bouton, pas sa capacité : une
+   demande d'administration se fait encore sur papier à Dakar, et il suffit de
+   lui dire « écris-moi une lettre » pour l'avoir. On libère une place dans une
+   rangée de boutons, on ne retire rien de ce qu'elle sait faire. */
+export type Sorte = "devis" | "lettre" | "message" | "mail";
 
 /* ── L'argent ───────────────────────────────────────────────────────────────
    Le franc CFA n'a pas de centimes : tout est arrondi à l'entier, et on
@@ -261,14 +281,16 @@ export function nettoyer(brut: unknown, sorte: Sorte): Document | null {
     };
   }
 
-  if (sorte === "message") {
+  if (sorte === "message" || sorte === "mail") {
     /* Le texte garde ses retours à la ligne : un message WhatsApp respire, et
        tout coller en un bloc, c'est le rendre illisible sur un téléphone. */
     const brut = String(o.texte ?? "").replace(/\r/g, "").replace(/[ \t]+/g, " ").trim().slice(0, 2000);
     if (!brut) return null;
     return {
       type: "message",
-      canal: texte(o.canal, 24) || undefined,
+      /* Un mail demandé par le bouton EST un courriel, quoi que le modèle ait
+         cru comprendre du canal. C'est le bouton qui décide, pas lui. */
+      canal: sorte === "mail" ? "courriel" : (texte(o.canal, 24) || undefined),
       destinataire: texte(o.destinataire, 80) || undefined,
       objet: texte(o.objet, 160) || undefined,
       texte: brut,
@@ -332,7 +354,21 @@ Ne mets NI "tva", NI "ninea", NI "rc" : ces trois-là viennent des
 renseignements de l'émetteur, pas de toi. Une TVA affichée par quelqu'un qui
 n'y est pas assujetti est une faute, et ce n'est pas à toi d'en décider.
 
-POUR UN MESSAGE (WhatsApp, SMS, courriel) :
+POUR UN MAIL :
+{
+  "objet": "l'objet du mail, en une ligne — JAMAIS vide",
+  "destinataire": "à qui il s'adresse, si on te l'a dit",
+  "texte": "le corps du mail, prêt à envoyer"
+}
+Un mail n'est NI une lettre NI un message WhatsApp. Pas d'en-tête, pas de
+date, pas de « je vous prie d'agréer l'expression de ma considération
+distinguée » — mais plus posé qu'un WhatsApp : on vouvoie, on ouvre par une
+formule courte (« Bonjour, »), on ferme par une formule courte
+(« Cordialement, »). L'OBJET EST OBLIGATOIRE : un mail sans objet finit dans
+les indésirables ou n'est pas ouvert. Signe du prénom de la personne si tu le
+connais.
+
+POUR UN MESSAGE (WhatsApp, SMS) :
 {
   "canal": "whatsapp, sms ou courriel, si on te l'a dit",
   "destinataire": "à qui il s'adresse, si on te l'a dit",
@@ -366,8 +402,12 @@ suffisent presque toujours. Pas de tournure ampoulée, pas de remplissage.`;
    ne sert qu'à lui rappeler d'y penser, et à ne pas manquer une demande dite
    autrement. */
 const MOTS: Record<Sorte, string[]> = {
-  message: ["message", "whatsapp", "wattsap", "watsap", "sms", "texto", "mail",
-            "email", "courriel", "mesaas", "meesaas"],
+  /* « mail », « email » et « courriel » sont sortis de cette liste-ci pour
+     entrer dans la leur : dit à la voix, « écris-moi un mail » doit donner un
+     mail avec son objet, pas un message WhatsApp. Le reste ne bouge pas. */
+  message: ["message", "whatsapp", "wattsap", "watsap", "sms", "texto",
+            "mesaas", "meesaas"],
+  mail: ["mail", "email", "e-mail", "courriel", "meel"],
   devis: ["devis", "facture", "proforma", "prix", "estimation", "chiffrage",
           "njëg", "xaalis", "fakture", "deewis"],
   lettre: ["lettre", "courrier", "demande", "candidature", "cv", "annonce",

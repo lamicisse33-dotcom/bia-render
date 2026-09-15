@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
       tva?: boolean;
     };
     const sorte: Sorte = body.sorte === "lettre" ? "lettre"
+      : body.sorte === "mail" ? "mail"
       : body.sorte === "message" ? "message" : "devis";
 
     const apiKey = process.env.BIA_LLM_API_KEY || process.env.ANTHROPIC_API_KEY;
