@@ -171,6 +171,40 @@ export function recoudre(cle: string): { ok: true; son: Recousu } | { ok: false;
   };
 }
 
+/* ── REGARDER SANS CONSOMMER ────────────────────────────────────────────────
+
+   Pour lui couper la parole sans perdre ses mots, il faut savoir CE QU'IL
+   DIT pendant qu'elle parle — donc transcrire un enregistrement qui n'est pas
+   fini. `recoudre` ne convient pas : il exige le compte total et il détruit le
+   dépôt. Ici on prend une copie de ce qui est arrivé jusqu'à maintenant, et le
+   dépôt continue de vivre.
+
+   ON NE REND RIEN S'IL MANQUE UN MORCEAU AU DÉBUT. Un fichier audio qui
+   commence au milieu n'est pas un fichier : l'en-tête est dans le premier
+   morceau, et sans lui le décodeur rend du silence ou refuse. On s'arrête donc
+   au premier trou, et on rend ce qui précède — ce qui est toujours un
+   enregistrement valide, simplement plus court. */
+export function apercu(cle: string): { ok: true; son: Recousu } | { ok: false; motif: string } {
+  const d = depots.get(cle);
+  if (!d) return { ok: false, motif: "dépôt inconnu ou expiré" };
+  const suite: Uint8Array[] = [];
+  for (let i = 0; ; i++) {
+    const m = d.morceaux.get(i);
+    if (!m) break;
+    suite.push(m);
+  }
+  if (!suite.length) return { ok: false, motif: "rien encore reçu" };
+  d.touche = Date.now();
+  return {
+    ok: true,
+    son: {
+      blob: new Blob(suite as BlobPart[], { type: d.type }),
+      nom: d.nom, morceaux: suite.length,
+      octets: suite.reduce((n, m) => n + m.byteLength, 0),
+    },
+  };
+}
+
 export function oublierLeDepot(cle: string) { depots.delete(cle); }
 
 /** Ce que /api/etat rend, pour qu'on voie si le chemin rapide sert vraiment. */
