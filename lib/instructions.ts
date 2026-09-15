@@ -158,6 +158,19 @@ const ENTIERES: Array<[Quoi, string[]]> = [
     "c est bon retiens ca", "ca c est bon retiens ca", "c est bon retiens",
     "retiens ca", "garde ca", "c est bon garde ca",
     "voila c est bon", "oui c est ca retiens",
+    /* IL LA VOUVOIE PAR MOMENTS. Le registre du 15 septembre 2026 :
+       « Voilà, mémorisez quoi » — ordre non reconnu, leçon perdue. Ce n'est
+       pas une tournure de plus à deviner, c'est la même, dite à quelqu'un
+       qu'on respecte. */
+    "memorisez", "memorisez ca", "retenez ca", "gardez ca",
+    /* ── ET NON, PAS LE VERBE SEUL ────────────────────────────────────
+       J'avais ajouté « memorise », « retiens » et « garde » tout seuls, en
+       me disant qu'après une répétition il n'y a rien d'autre que ça puisse
+       vouloir dire. Deux épreuves m'ont arrêté, et elles portaient SA règle :
+       quelqu'un qui raconte sa journée dit « non » vingt fois, et un verbe nu
+       rangerait des phrases qu'il n'a jamais voulu ranger. Le redoublement
+       (« mémorise mémorise ») et la première phrase (« Voilà, mémorise. …»)
+       couvrent ses vrais cas sans ouvrir cette porte-là. */
   ]],
   ["fini", ["on a fini", "c est fini", "arrete d apprendre", "on arrete", "fin de la lecon"]],
   ["oublie", [
@@ -235,16 +248,61 @@ const MOTS_AU_PLUS = 7;
  * normalisation que le répertoire, pour qu'un accent ou une majuscule ne
  * change rien. Au moindre doute : null, et la question part au modèle.
  */
-export function lireLOrdre(texte: string): Ordre | null {
-  const dit = normaliser(texte);
+function correspond(dit: string): Quoi | null {
   if (!dit) return null;
   if (dit.split(" ").length > MOTS_AU_PLUS) return null;
   const nu = sansLesBords(dit);
   for (const [quoi, formes] of [...SIENNES, ...FRANCAIS]) {
     for (const f of formes) {
       const forme = normaliser(f);
-      if (dit === forme || (nu && nu === forme)) return { quoi, dit: texte.trim() };
+      if (dit === forme || (nu && nu === forme)) return quoi;
     }
+  }
+  return null;
+}
+
+/* ── L'ORDRE D'ABORD, L'EXPLICATION APRÈS ───────────────────────────────────
+
+   Le 15 septembre 2026, le registre a rendu cette phrase, non reconnue :
+
+     « Voilà, mémorise. Prochaine fois, c'est ce qu'il faut dire. »
+
+   L'ordre est là, au début, parfaitement clair. Ce qui suit n'est pas une
+   autre instruction : c'est lui qui explique POURQUOI, comme on le fait avec
+   quelqu'un qu'on enseigne. Et toute la phrase faisait onze mots, donc elle
+   était écartée avant même d'être comparée.
+
+   ON REGARDE DONC AUSSI LA PREMIÈRE PHRASE TOUTE SEULE. Pas n'importe quel
+   morceau : la première, celle qui porte l'ordre. Chercher un ordre au milieu
+   d'un paragraphe ferait ranger des phrases qu'il n'a jamais voulu ranger —
+   et une mémoire qui garde ce qu'on ne lui a pas demandé est aussi pénible
+   qu'une mémoire qui oublie.
+
+   La limite de sept mots continue de s'appliquer à ce premier morceau : elle
+   n'est pas contournée, elle est appliquée au bon endroit. */
+function premierMorceau(texte: string): string {
+  const coupe = String(texte || "").split(/[.!?;]/)[0];
+  return normaliser(coupe);
+}
+
+/**
+ * L'ordre qu'il vient de donner, ou null si ce n'en est pas un.
+ *
+ * La correspondance est EXACTE, sur le texte normalisé — la même
+ * normalisation que le répertoire, pour qu'un accent ou une majuscule ne
+ * change rien. Au moindre doute : null, et la question part au modèle.
+ */
+export function lireLOrdre(texte: string): Ordre | null {
+  const dit = normaliser(texte);
+  if (!dit) return null;
+  const entier = correspond(dit);
+  if (entier) return { quoi: entier, dit: texte.trim() };
+  /* Rien sur la phrase entière : peut-être l'a-t-il suivie d'une
+     explication. On regarde le début, et rien que le début. */
+  const debut = premierMorceau(texte);
+  if (debut && debut !== dit) {
+    const amorce = correspond(debut);
+    if (amorce) return { quoi: amorce, dit: texte.trim() };
   }
   return null;
 }
@@ -282,6 +340,11 @@ const BORDS = [
   "d accord", "ca y est", "s il te plait",
   "voila", "bon", "ok", "okay", "oui", "alors", "donc", "et", "ben", "eh",
   "hein", "la", "papa", "allez",
+  /* « Voilà, mémorisez quoi » — le 15 septembre 2026, non reconnu, leçon
+     perdue. Ce « quoi » final est un tic d'ici, pas un mot de la phrase :
+     il ponctue, il ne dit rien. Sans lui dans cette liste, chaque ordre
+     terminé de cette façon repartait chez le modèle. */
+  "quoi",
 ];
 
 function sansLesBords(dit: string): string {
