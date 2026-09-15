@@ -5,6 +5,7 @@ import { motsCorriges } from "@/lib/lexique";
 import { pourScribe } from "@/lib/mots-a-entendre";
 import { noterPanne } from "@/lib/panne";
 import { annoncerLaFin, cleValide, oublierLeDepot, recoudre } from "@/lib/morceaux-de-parole";
+import { corpusActif, garderLaVoix } from "@/lib/corpus";
 
 export async function POST(request: NextRequest) {
   try {
@@ -84,11 +85,53 @@ export async function POST(request: NextRequest) {
       try { mots = pourScribe([]); } catch { mots = []; }
     }
     const reco = await transcrire(fichier, nom, indice, mots);
+
+    /* ── ON GARDE SA VOIX, AVEC CE QUE L'OREILLE EN A FAIT ────────────────
+
+       Lamine, le 15 septembre 2026, après avoir demandé si son wolof pouvait
+       être récupéré par les fournisseurs : « comment obtenir cette
+       reconnaissance vocale dont tu parles ? » — puis « oui ».
+
+       C'est ICI que le son et les mots se croisent, et c'était le seul
+       endroit. Deux lignes plus bas, le son était jeté et il ne restait que
+       le texte. Or pour entraîner une oreille il faut les DEUX. Le meilleur
+       modèle wolof ouvert d'aujourd'hui est arrivé à 17 % d'erreur avec 57
+       heures ; c'est deux mois de ses conversations.
+
+       SA VOIX À LUI, ET RIEN D'AUTRE. Le code maître décide, pas un champ du
+       formulaire : garder la voix de quelqu'un le concerne, lui, et il n'a
+       dit oui que pour la sienne.
+
+       ET ÇA NE LE FAIT PAS ATTENDRE. La promesse flotte, on rend la main tout
+       de suite. Un extrait perdu coûte un extrait ; une seconde d'attente se
+       paie à chaque phrase de chaque journée. */
+    let extrait: string | null = null;
+    if (verdict.maitre && corpusActif() && fichier instanceof Blob) {
+      const audio = fichier;
+      const contexte = String(form.get("contexte") || "") || null;
+      /* On n'attend pas, mais on rend quand même sa clé au téléphone quand
+         elle arrive à temps : c'est par elle que le bouton bleu viendra
+         accrocher le texte vérifié. Si le dépôt traîne, tant pis pour la clé
+         — l'extrait, lui, sera bien gardé. */
+      const depot = garderLaVoix({
+        audio,
+        entendu: String(reco.texte || ""),
+        langue: String(reco.langue || "") || null,
+        contexte,
+      }).catch((err) => {
+        console.error("BIA — la voix n'a pas pu être gardée :", (err as Error).message);
+        return null;
+      });
+      extrait = await Promise.race([
+        depot,
+        new Promise<null>((r) => setTimeout(() => r(null), 150)),
+      ]);
+    }
     /* `au_fil_de_leau` dit par quel chemin le son est arrivé. Sans lui, on ne
        saurait pas si le chemin rapide sert vraiment, ou s'il se replie en
        silence sur l'ancien depuis des jours — c'est exactement le genre
        d'aveuglement qui nous a coûté deux soirées sur la mémoire. */
-    return NextResponse.json({ ...reco, au_fil_de_leau: recousu });
+    return NextResponse.json({ ...reco, au_fil_de_leau: recousu, extrait });
   } catch (err) {
     /* ── UNE ÉCOUTE QUI ÉCHOUE NE LAISSAIT AUCUNE TRACE ──────────────────
 

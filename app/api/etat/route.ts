@@ -10,6 +10,7 @@ import { resumeEmotions } from "@/lib/emotions-vues";
 import { depense } from "@/lib/depense";
 import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
 import { etatRepertoire } from "@/lib/repertoire";
+import { resumeCorpus } from "@/lib/corpus";
 
 /* Dit à l'interface quels moteurs sont réellement branchés, pour qu'elle
    choisisse le micro et la voix sans deviner. Ouvert : aucun moteur payant
@@ -127,6 +128,15 @@ export async function GET() {
        si les textes ont été relus par Lamine. Tant que ce n'est pas le cas,
        rien ne s'enregistre et rien ne se sert de mémoire. */
     repertoire: etatRepertoire(),
+    /* ── SON CORPUS DE VOIX, PENDANT QU'IL SE CONSTITUE ───────────────────
+       Le 15 septembre 2026, il a dit oui pour qu'on garde sa voix avec ses
+       transcriptions : c'est ce qui lui permettra un jour de se passer d'une
+       oreille louée. 57 heures ont suffi au meilleur modèle wolof ouvert pour
+       atteindre 17 % d'erreur — ce compteur dit où il en est.
+       `part_du_plafond` est le chiffre à surveiller : son Supabase est au
+       forfait gratuit, et une semaine de voix perdue parce que c'était plein
+       sans qu'on le voie serait bête. Voir lib/corpus.ts. */
+    corpus: resumeCorpus(),
     /* CE QU'ELLE VA CHERCHER SUR INTERNET. Cent recherches d'images par jour
        sont gratuites ; la cent-unième se paie. Ce compteur est le robinet
        d'arrêt : quand il touche le plafond, BIA répond sans image plutôt que

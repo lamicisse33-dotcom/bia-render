@@ -4,6 +4,7 @@ import { ajouterCorrection, retirerCorrection } from "@/lib/lexique";
 import { noterTentative } from "@/lib/lecons-vues";
 import { langueDe } from "@/lib/repertoire";
 import { noterPanne } from "@/lib/panne";
+import { verifierLExtrait } from "@/lib/corpus";
 
 /* ── LE BOUTON QUI NE PEUT PAS ÊTRE MAL ENTENDU ─────────────────────────────
 
@@ -70,9 +71,11 @@ export async function POST(request: NextRequest) {
   if (non) return non;
 
   let texte = "";
+  let extrait = "";
   try {
-    const corps = await request.json() as { texte?: string };
+    const corps = await request.json() as { texte?: string; extrait?: string };
     texte = texteDe(corps.texte);
+    extrait = String(corps.extrait || "").slice(0, 80);
   } catch { texte = ""; }
 
   if (texte.length < 2) {
@@ -82,6 +85,24 @@ export async function POST(request: NextRequest) {
       { erreur: "Il n'y a rien à garder : dis-moi la phrase, elle la répète, puis appuie." },
       { status: 400 },
     );
+  }
+
+  /* ── ET LA PAIRE DEVIENT UNE DONNÉE D'ENTRAÎNEMENT ────────────────────
+
+     Le bouton bleu est le seul instant de toute la journée où on sait qu'un
+     texte est JUSTE : il vient d'entendre BIA répéter, et il valide. On
+     accroche donc ce texte à l'extrait sonore d'où il venait.
+
+     Sans ça, le corpus n'est qu'une pile de sons. Avec ça, chaque validation
+     fabrique une ligne d'entraînement, sans une minute de travail en plus —
+     c'est tout l'intérêt de le mettre ICI plutôt que dans une page à part
+     qu'il faudrait remplir un jour.
+
+     On n'attend pas : un corpus qui retarde son bouton serait abandonné en
+     trois jours. */
+  if (extrait) {
+    void verifierLExtrait(extrait, texte)
+      .catch((err) => console.error("BIA — extrait non vérifié :", (err as Error).message));
   }
 
   try {

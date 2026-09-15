@@ -674,6 +674,12 @@ export default function Home() {
      guetteur le dépose ici ; la transcription suivante le recolle devant ce
      qu'elle rapporte. Voir recoller() dans lib/sa-propre-voix.ts. */
   const motsRattrapesRef = useRef<Prononce | null>(null);
+  /* ── LA CLÉ DU DERNIER EXTRAIT DE SA VOIX ──────────────────────────────
+     Le serveur garde son audio et rend une clé. Quand il appuie sur le bouton
+     bleu, on la renvoie : c'est ce qui transforme un son gardé en donnée
+     d'entraînement, parce que le bouton bleu est le seul instant où on sait
+     qu'un texte est JUSTE. Voir lib/corpus.ts. */
+  const extraitRef = useRef<string>("");
   /* ── ANNULER PENDANT QU'ON PARLE ────────────────────────────────────────
      Demandé par Lamine le 10 septembre 2026 : « pendant qu'il parle, il peut
      se tromper. Pour que ça ne soit pas transmis à BIA et qu'on ne perde pas
@@ -3759,6 +3765,11 @@ export default function Home() {
              On le consomme dans tous les cas : un morceau qu'on garde après
              s'en être servi finirait par se coller devant une phrase sans
              rapport. */
+          /* La clé de l'extrait sonore que le serveur vient de garder. Elle
+             attend le bouton bleu — et si aucun bouton ne vient, l'extrait
+             reste dans le corpus sans texte vérifié, ce qui est déjà mieux
+             que rien. */
+          extraitRef.current = String((d as { extrait?: string }).extrait || "");
           const rattrape = motsRattrapesRef.current;
           motsRattrapesRef.current = null;
           const dit = recoller(rattrape, d.texte || "");
@@ -6385,7 +6396,7 @@ export default function Home() {
                     const r = await fetch("/api/retenir", {
                       method: "POST",
                       headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-                      body: JSON.stringify({ texte: quoi }),
+                      body: JSON.stringify({ texte: quoi, extrait: extraitRef.current }),
                     });
                     const d = await r.json() as { retenu?: string; erreur?: string };
                     if (!r.ok || !d.retenu) { setMotGarde(d.erreur || "Ça n'a pas été gardé."); return; }
