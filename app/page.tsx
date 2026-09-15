@@ -146,6 +146,25 @@ const welcome = "Salaam! Man maa di BIA. Waxal ak man ci wolof walla ci françai
 
 const pause = (ms: number) => new Promise((fini) => setTimeout(fini, ms));
 
+/* ── L'EXTENSION QUI CORRESPOND AU VRAI FORMAT ──────────────────────────────
+
+   Elle était calculée dans le `onstop`, et il en faut maintenant une
+   deuxième : chaque morceau monté au fil de l'eau porte le même nom de
+   fichier, et ElevenLabs lit ce nom. Deux calculs séparés auraient fini par
+   diverger — celui du morceau disant « webm » et celui du fichier « m4a », sur
+   le même enregistrement. Un seul endroit, donc.
+
+   Rappel de ce que ça coûte quand on se trompe : le 12 septembre, on
+   annonçait du webm en tendant du MP4 à Safari, et BIA demandait de répéter
+   indéfiniment quoi qu'on lui dise. */
+function extensionDe(type: string): string {
+  const t = String(type || "");
+  return t.includes("mp4") || t.includes("mpeg") || t.includes("aac") ? "m4a"
+    : t.includes("ogg") ? "ogg"
+    : t.includes("wav") ? "wav"
+    : "webm";
+}
+
 /* Chaque morceau de voix arrive avec du silence au début et à la fin. Mis
    bout à bout, ces silences s'additionnent et créent, entre deux phrases, un
    blanc assez long pour qu'on croie BIA arrivée au bout de sa réponse — et
@@ -3091,6 +3110,20 @@ export default function Home() {
       if (!estCetEnregistrement(idEnr)) return;
       const enregistreur = new MediaRecorder(flux);
       const morceaux: Blob[] = [];
+      /* ── CE QUI MONTE PENDANT QU'IL PARLE ────────────────────────────────
+
+         Sa demande du 15 septembre 2026 : « il faut envoyer la voix partie
+         par partie. » Ce qui suit tient le compte de ce qui est déjà parti.
+
+         `tourDeParole` est l'identifiant que le serveur utilisera pour
+         recoudre. `envois` garde les promesses en vol, pour les attendre à la
+         fin plutôt que de transcrire un dépôt à moitié arrivé. Et `perdu`
+         suffit à tout annuler : au moindre morceau refusé, on oublie le
+         chemin rapide et on renvoie le fichier entier, comme avant. */
+      const tourDeParole = `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+      const envois: Promise<void>[] = [];
+      let deposes = 0;
+      let perdu = false;
       /* De quoi juger, à la fin, si c'était une voix ou la rue. On garde la
          somme et le compte plutôt que la moyenne : une moyenne qu'on met à
          jour tour par tour dérive, et celle-ci doit rester exacte. */
@@ -3270,7 +3303,35 @@ export default function Home() {
         }
       }, TOUR_DE_VEILLE);
 
-      enregistreur.ondataavailable = (e) => { if (e.data.size) morceaux.push(e.data); };
+      /* ── CHAQUE MORCEAU PART DÈS QU'IL EXISTE ────────────────────────────
+
+         L'enregistreur rend un morceau toutes les 400 ms. On le garde — le
+         repli en a besoin, et « mémorise » aussi — ET on le monte tout de
+         suite. Quand Lamine se tait, il ne reste que le dernier à monter.
+
+         RIEN ICI NE PEUT CASSER L'ENREGISTREMENT. L'envoi est lancé sans
+         qu'on l'attende, et son échec ne fait qu'allumer `perdu` : le son
+         complet est toujours dans `morceaux`, et l'ancien chemin le prendra. */
+      enregistreur.ondataavailable = (e) => {
+        if (!e.data.size) return;
+        const indice = morceaux.length;
+        morceaux.push(e.data);
+        if (perdu) return;
+        const type = enregistreur.mimeType || e.data.type || "audio/webm";
+        const f = new FormData();
+        f.append("tour", tourDeParole);
+        f.append("indice", String(indice));
+        f.append("type", type);
+        f.append("nom", `parole.${extensionDe(type)}`);
+        f.append("morceau", e.data, `m${indice}`);
+        envois.push(
+          fetch("/api/ecouter/morceau", {
+            method: "POST", headers: { "x-bia-code": codeRef.current }, body: f,
+          })
+            .then((r) => { if (r.ok) deposes++; else perdu = true; })
+            .catch(() => { perdu = true; }),
+        );
+      };
       enregistreur.onstop = async () => {
         /* ── LA PLACE SE LIBÈRE D'ABORD, LE SORT DE L'ENREGISTREMENT ENSUITE ─
 
@@ -3406,17 +3467,17 @@ export default function Home() {
            On envoie donc le VRAI type, et une extension qui lui correspond.
            Rien à deviner : l'enregistreur le dit lui-même. */
         const typeReel = enregistreur.mimeType || morceaux[0]?.type || "audio/webm";
-        const extension =
-          typeReel.includes("mp4") || typeReel.includes("mpeg") || typeReel.includes("aac") ? "m4a"
-          : typeReel.includes("ogg") ? "ogg"
-          : typeReel.includes("wav") ? "wav"
-          : "webm";
+        const extension = extensionDe(typeReel);
         const forme = new FormData();
         const sonDit = new Blob(morceaux, { type: typeReel });
         /* Gardé pour « mémorise ». Il écrase le précédent : c'est toujours la
            DERNIÈRE façon de dire qui compte, celle qu'il vient de valider. */
         sonDeSaVoix.current = { blob: sonDit, nom: `parole.${extension}` };
         forme.append("audio", sonDit, `parole.${extension}`);
+        /* Le repli porte AUSSI l'identifiant du tour : il ne sert plus à
+           recoudre, mais il dit au serveur que le dépôt commencé peut mourir
+           tout de suite, au lieu d'attendre sa minute avec une voix dedans. */
+        forme.append("tour", tourDeParole);
         /* ── L'INDICE DE LANGUE, QUI N'ÉTAIT JAMAIS ENVOYÉ ──────────────────
 
            Lamine, le 12 septembre 2026, capture à l'appui : « parfois mes
@@ -3563,9 +3624,38 @@ export default function Home() {
         }
 
         try {
-          const r = await fetch("/api/ecouter", { method: "POST", headers: { "x-bia-code": codeRef.current }, body: forme });
+          /* ── ON N'ENVOIE PLUS LE SON S'IL EST DÉJÀ LÀ ────────────────────
+
+             Le gain de la soirée tient dans ces quelques lignes. Si tous les
+             morceaux sont montés pendant qu'il parlait, cette requête ne
+             transporte qu'un identifiant : le son est à Francfort depuis
+             longtemps, et la seconde et demie d'attente disparaît.
+
+             SI QUOI QUE CE SOIT MANQUE, ON REVIENT À L'ANCIEN CHEMIN — et
+             c'est ce qui rend tout ceci sans danger. Trois portes de sortie,
+             et chacune ramène au fichier entier :
+
+               — un morceau refusé en route a allumé `perdu` ;
+               — le compte des morceaux déposés ne tombe pas juste ;
+               — le serveur répond 409 « dépôt incomplet ».
+
+             Dans les trois cas Lamine ne voit rien : il attend une seconde et
+             demie de plus, comme avant, au lieu de perdre sa phrase. */
+          const legere = new FormData();
+          legere.append("tour", tourDeParole);
+          legere.append("total", String(morceaux.length));
+          const indice = forme.get("indice_langue");
+          if (indice !== null) legere.append("indice_langue", String(indice));
+          await Promise.all(envois);
+          const complet = !perdu && deposes === morceaux.length && morceaux.length > 0;
+
+          const envoyer = (corps: FormData) => fetch("/api/ecouter", {
+            method: "POST", headers: { "x-bia-code": codeRef.current }, body: corps,
+          });
+          let r = await envoyer(complet ? legere : forme);
+          if (complet && r.status === 409) r = await envoyer(forme);
           if (!estCetEnregistrement(idEnr)) return;
-          const d = await r.json() as { texte?: string; panne?: boolean; motif?: string };
+          const d = await r.json() as { texte?: string; panne?: boolean; motif?: string; au_fil_de_leau?: boolean };
           if (!estCetEnregistrement(idEnr)) return;
           /* SON OREILLE EST CASSÉE, CE N'EST PAS LA VOIX DE LA PERSONNE.
              Sans ça, BIA répétait « je ne t'entends pas bien, répète » à
@@ -3701,7 +3791,18 @@ export default function Home() {
          coupure du micro) se posent entre les deux : remettre à zéro plus
          tard les effacerait. */
       bornesRef.current = tourVide("parole");
-      enregistreur.start();
+      /* ── QUATRE CENTS MILLISECONDES, ET POURQUOI CE CHIFFRE ──────────────
+
+         `start()` sans argument ne rend qu'un seul morceau, à la fin — c'est
+         ce qui nous coûtait la seconde et demie. Avec un découpage, on en
+         reçoit un toutes les 400 ms.
+
+         Plus court ferait plus de requêtes pour rien : sur une phrase de
+         quatre secondes, 200 ms en feraient vingt au lieu de dix, sur une
+         connexion mobile de Dakar. Plus long laisserait un plus gros reste à
+         monter au moment précis où il se tait — et c'est ce reste, et lui
+         seul, qu'il attend. */
+      enregistreur.start(400);
       setMode("listening");
       setFace("ecoute");
     } catch {
