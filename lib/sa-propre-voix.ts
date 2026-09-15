@@ -149,3 +149,43 @@ export function faut_il_se_taire(
   }
   return { couper: true, dit };
 }
+
+/* ── RECOLLER SA PHRASE EN DEUX MORCEAUX ────────────────────────────────────
+
+   Voilà le piège qu'on évite ici, et il aurait coûté cher.
+
+   Il la coupe au milieu : « Non attends, je parle de demain. » Les trois
+   premiers mots sont dans le guetteur — c'est ce qu'on vient de récupérer. Le
+   reste part dans le micro ordinaire, qui vient de se rouvrir, et arrivera
+   quand il aura fini de parler.
+
+   Deux morceaux, donc. Si on envoyait le premier tout de suite, elle
+   répondrait à « Non attends, je parle » puis une deuxième fois à « de
+   demain » : deux réponses pour une phrase, et deux fois le prix. On garde
+   donc le premier morceau de côté et on le recolle devant le second.
+
+   ET SI LE SECOND EST VIDE — il l'a coupée d'un mot puis s'est tu — le
+   premier morceau devient la phrase entière. Il n'aura toujours rien à
+   redire, et c'est tout ce qu'on lui a promis.
+
+   LE DÉLAI. Un morceau gardé trop longtemps finirait par se coller devant une
+   phrase sans rapport, dite bien plus tard. Passé ce délai, on l'oublie. */
+export const DUREE_DU_RATTRAPAGE = 15_000;
+
+/**
+ * Recolle ce qu'on a rattrapé pendant qu'elle parlait devant ce que le micro
+ * vient d'entendre. Rend `entendu` inchangé s'il n'y a rien à recoller.
+ */
+export function recoller(
+  rattrape: Prononce | null | undefined, entendu: string, maintenant = Date.now(),
+): string {
+  const suite = String(entendu || "").trim();
+  const debut = String(rattrape?.texte || "").trim();
+  if (!debut) return suite;
+  if (maintenant - (rattrape?.quand || 0) > DUREE_DU_RATTRAPAGE) return suite;
+  if (!suite) return debut;
+  /* Les deux enregistreurs se chevauchent d'une fraction de seconde : le
+     début peut se retrouver en tête des deux. On ne le dit pas deux fois. */
+  if (normaliser(suite).startsWith(normaliser(debut))) return suite;
+  return `${debut} ${suite}`;
+}

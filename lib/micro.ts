@@ -451,6 +451,18 @@ export const TOUR_DE_VEILLE = 60;
     de la veille, sinon le micro se ferme au nez de quelqu'un qui réfléchit. */
 export const TOURS_MUETS_AVANT_DE_DOUTER = Math.round(2000 / TOUR_DE_VEILLE);
 
+/** ── LE TEMPS QU'ON LAISSE AU DERNIER MORCEAU DE SE POSER ─────────────────
+ *
+ * Le guetteur qui écoute pendant qu'elle parle envoie l'audio par tranches.
+ * Quand on la coupe, ses mots à LUI sont dans la tranche en cours, pas encore
+ * partie. On la réclame, puis on laisse ce délai au navigateur pour la rendre
+ * et au réseau pour l'emporter.
+ *
+ * Ce délai ne retarde RIEN de ce qu'il ressent : elle est déjà silencieuse
+ * depuis un quart de seconde quand ce compteur démarre. Il ne retarde que le
+ * fait de ne pas avoir à redire sa phrase — l'inverse d'une attente. */
+export const FLUX_DU_GUETTEUR = 250;
+
 /* ═══ LE POINT ORANGE ════════════════════════════════════════════════════
 
    Lamine, le 12 septembre 2026 : « il faut tout faire pour cacher ce point

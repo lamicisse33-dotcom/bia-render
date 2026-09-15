@@ -46,10 +46,14 @@ import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
 import {
   INTERVENTION_MAXIMALE, MICRO_LACHE_ENTRE_LES_TOURS, MICRO_SUR_SON_PROPRE_CONTEXTE, REGLAGES_DU_MICRO,
   SILENCE_QUI_CLÔT_LA_CONVERSATION, TENIR_POUR_COUPER, TOUR_DE_VEILLE,
-  TOURS_MUETS_AVANT_DE_DOUTER, couvreSaVoix, partVocale, silenceQuiSuffit, suivreLeBruit,
+  TOURS_MUETS_AVANT_DE_DOUTER, FLUX_DU_GUETTEUR,
+  couvreSaVoix, partVocale, silenceQuiSuffit, suivreLeBruit,
   vautLaPeine, vraimentUneVoix,
 } from "@/lib/micro";
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie } from "@/lib/ralentir";
+import {
+  GARDER_CE_QUIL_DIT_PENDANT_QUELLE_PARLE, faut_il_se_taire, recoller, type Prononce,
+} from "@/lib/sa-propre-voix";
 import Installer from "./installer";
 import Ecran from "./ecran";
 import type { PieceEcran } from "./ecran";
@@ -666,6 +670,10 @@ export default function Home() {
      renvoi évite de réordonner tout le fichier pour une seule flèche — même
      procédé que `ecouterRef`. */
   const taireRef = useRef<(() => void) | null>(null);
+  /* CE QU'IL A DIT EN LA COUPANT, en attendant la suite de sa phrase. Le
+     guetteur le dépose ici ; la transcription suivante le recolle devant ce
+     qu'elle rapporte. Voir recoller() dans lib/sa-propre-voix.ts. */
+  const motsRattrapesRef = useRef<Prononce | null>(null);
   /* ── ANNULER PENDANT QU'ON PARLE ────────────────────────────────────────
      Demandé par Lamine le 10 septembre 2026 : « pendant qu'il parle, il peut
      se tromper. Pour que ça ne soit pas transmis à BIA et qu'on ne perde pas
@@ -1224,6 +1232,12 @@ export default function Home() {
      micro mort pour de bon : on aurait échangé une course contre un blocage.
      Un garde-fou la dénoue donc au bout d'une durée calculée sur la longueur
      du texte, généreusement. */
+  /* ── CE QUI EST SORTI DU HAUT-PARLEUR, ET QUAND ────────────────────────
+     Pas ce que le modèle a écrit : ce que le haut-parleur a réellement joué.
+     Sa voix est découpée en tête et suite, donc le texte a toujours de
+     l'avance sur le son. C'est la fenêtre que lib/sa-propre-voix.ts compare
+     au micro pour savoir si elle s'entend elle-même. */
+  const ditsRef = useRef<Prononce[]>([]);
   const voixDuTelephoneRef = useRef(false);
   /* Armée une seule fois, au premier geste : voir micro(). */
   const voixDuTelephoneArmee = useRef(false);
@@ -2037,6 +2051,7 @@ export default function Home() {
       const coutures: number[] = [];
       const debutTotal = Date.now();
       let premiereSyllabeFaite = suite;   // la tête parle déjà : ce n'est plus la première
+      let noteDansLEcho = false;
 
       const programmer = async (octets: ArrayBuffer) => {
         const brut = await ctx.decodeAudioData(octets.slice(0));
@@ -2050,6 +2065,14 @@ export default function Home() {
         const debut = Math.max(ctx.currentTime + 0.06, quand);
         if (quand > 0) coutures.push(Math.round((debut - quand) * 1000));
         source.start(debut);
+        /* LE TEXTE ENTRE DANS LA FENÊTRE D'ÉCHO AU MOMENT OÙ IL SE JOUE, pas
+           quand il a été écrit. Une seule fois par appel : les morceaux
+           suivants disent la même phrase. On garde court — au-delà de
+           quelques secondes, ce n'est plus un écho. */
+        if (!noteDansLEcho) {
+          noteDansLEcho = true;
+          ditsRef.current = [...ditsRef.current, { texte: answer, quand: Date.now() }].slice(-6);
+        }
         /* LA BORNE FINALE, et c'est la seule qui compte pour lui : l'instant
            où le son sort vraiment. `debut` est dans l'horloge du son, qui ne
            compte pas comme celle du monde — on la ramène en ajoutant l'écart
@@ -3725,9 +3748,23 @@ export default function Home() {
           tTranscritRef.current = Date.now();
           poserBorne(bornesRef.current, "ecoute");
           transcritRef.current = true;
-          dernierDitRef.current = d.texte || "";
-          if (d.texte) {
-            langueRef.current = estWolof(d.texte) ? "wo" : "fr";
+          /* ── SA PHRASE ENTIÈRE, MÊME S'IL L'A COUPÉE EN DEUX ────────────
+
+             S'il s'est mis à parler pendant qu'elle parlait, le début de sa
+             phrase a été rattrapé par le guetteur et déposé de côté. Il se
+             recolle ICI, devant ce que le micro ordinaire vient d'entendre —
+             en un seul tour, pas deux. Sans rattrapage en attente, `dit` est
+             exactement `d.texte` et rien ne change.
+
+             On le consomme dans tous les cas : un morceau qu'on garde après
+             s'en être servi finirait par se coller devant une phrase sans
+             rapport. */
+          const rattrape = motsRattrapesRef.current;
+          motsRattrapesRef.current = null;
+          const dit = recoller(rattrape, d.texte || "");
+          dernierDitRef.current = dit;
+          if (dit) {
+            langueRef.current = estWolof(dit) ? "wo" : "fr";
             langueDuFil.current = langueRef.current;
             /* ── QUAND ON RIT, ELLE RIT — SANS PASSER PAR PERSONNE ─────────
 
@@ -3747,7 +3784,7 @@ export default function Home() {
 
                Si le rire accompagne une phrase, le rire part d'abord et la
                réponse suit — comme dans une vraie conversation. */
-            const rire = lireLeRire(d.texte);
+            const rire = lireLeRire(dit);
             if (rire.rit) {
               await finirAttente(langueRef.current, false);
               await jouerSouffle(rire.emotion || "rire");
@@ -3756,7 +3793,7 @@ export default function Home() {
               if (!estLeTour(monTour)) return;
               if (rire.seulement) { setMode("ready"); setFace("joie"); return; }
             }
-            void askBia(d.texte, true, monTour);
+            void askBia(dit, true, monTour);
           } else {
             /* ── ELLE N'A RIEN ENTENDU, ET ELLE RESTAIT FIGÉE ────────────
 
@@ -4131,6 +4168,99 @@ export default function Home() {
     if (!analyse) return;
     const tampon = new Uint8Array(analyse.frequencyBinCount);
     let tenu = 0;
+
+    /* ── ET ON GARDE CE QU'IL DIT, AU LIEU DE LE LUI FAIRE REDIRE ──────────
+
+       Lamine, le 15 septembre 2026 : « le micro doit avoir le comportement du
+       micro de ChatGPT vocal. Même quand elle parle, si je parle, le micro
+       doit automatiquement saisir ce que j'ai dit, elle doit se taire. »
+
+       LA MOITIÉ EXISTAIT DÉJÀ : le guetteur ci-dessus la faisait taire. Ce
+       qui manquait, c'est que l'enregistreur est arrêté pendant qu'elle
+       parle, suivant sa règle du 9 septembre (« le micro doit rester inactif
+       pour ne pas embrouiller »). Le micro l'entendait, mais ne gardait rien :
+       ses mots étaient perdus et il devait les redire. C'était ça, « il faut
+       que j'attends » — pas l'attente, la répétition.
+
+       ON N'A PAS TOUCHÉ AU MOMENT OÙ ELLE SE TAIT, et c'est voulu. Couper sur
+       le volume prend un quart de seconde ; attendre des mots transcrits en
+       prendrait trois fois plus. On garde donc sa réactivité d'aujourd'hui,
+       et on se sert des mots pour décider de la SUITE — pas de la coupure.
+
+       UN SECOND ENREGISTREUR, sur le même flux, qui ne partage rien avec
+       celui de la conversation. Toutes les courses qu'on a réparées depuis
+       une semaine vivent dans l'autre ; celui-ci n'y touche pas. */
+    const flux = fluxRef.current;
+    const armer = GARDER_CE_QUIL_DIT_PENDANT_QUELLE_PARLE && flux?.active;
+    let guetteur: MediaRecorder | null = null;
+    const tourGuet = `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    let morceauxGuet = 0;
+    /* Les envois en cours. C'est le détail qui fait toute la différence : ses
+       mots à lui sont dans le DERNIER morceau, celui qui n'est pas encore
+       arrivé au serveur à la seconde où on la coupe. Demander la transcription
+       sans attendre ces envois, c'est demander la transcription de sa voix à
+       ELLE — tout ce qui précède — et jeter la sienne. */
+    const envois: Promise<unknown>[] = [];
+    if (armer) {
+      try {
+        guetteur = new MediaRecorder(flux!);
+        guetteur.ondataavailable = (e) => {
+          if (!e.data.size) return;
+          const i = morceauxGuet++;
+          const type = guetteur!.mimeType || e.data.type || "audio/webm";
+          const f = new FormData();
+          f.append("tour", tourGuet);
+          f.append("indice", String(i));
+          f.append("type", type);
+          f.append("nom", `parole.${extensionDe(type)}`);
+          f.append("morceau", e.data, `m${i}`);
+          envois.push(fetch("/api/ecouter/morceau", {
+            method: "POST", headers: { "x-bia-code": codeRef.current }, body: f,
+          }).catch(() => { /* un morceau perdu ne coûte qu'une reprise de plus */ }));
+        };
+        guetteur.start(400);
+      } catch { guetteur = null; }
+    }
+
+    /* Ce qu'il a dit pendant qu'elle parlait, une fois qu'on l'a fait taire.
+       Cette route coûte une transcription : elle ne part QUE si le volume a
+       déjà vu quelque chose le couvrir. Le volume ne décide jamais du
+       contenu ; il décide seulement s'il vaut la peine de demander des mots. */
+    let dejaRepris = false;
+    const reprendreSesMots = async () => {
+      if (!guetteur || dejaRepris) return;
+      dejaRepris = true;
+      const dits = ditsRef.current;
+      /* On réclame le morceau en cours — sinon il dort dans le navigateur
+         jusqu'au prochain tour de 400 ms, et c'est justement celui-là qui
+         porte ses mots. Puis on laisse les envois se poser. */
+      try { if (guetteur.state === "recording") guetteur.requestData(); } catch { }
+      await new Promise((r) => setTimeout(r, FLUX_DU_GUETTEUR));
+      await Promise.allSettled(envois);
+      if (morceauxGuet === 0) return;
+      const f = new FormData();
+      f.append("tour", tourGuet);
+      f.append("indice_langue", langueRef.current || "");
+      void fetch("/api/ecouter/apercu", {
+        method: "POST", headers: { "x-bia-code": codeRef.current }, body: f,
+      })
+        .then((r) => r.json())
+        .then((d: { texte?: string }) => {
+          const verdict = faut_il_se_taire(d.texte || "", dits);
+          /* SON PROPRE ÉCHO NE RELANCE RIEN. Sans cette garde, elle se
+             répondrait à elle-même en payant un tour à chaque fois — et
+             c'est exactement le risque de garder le micro ouvert. */
+          if (!verdict.couper) return;
+          /* Elle a déjà été coupée par le volume ; il reste à ne pas lui
+             faire redire sa phrase. On ne lance PAS de tour d'ici : le micro
+             ordinaire vient de se rouvrir et tient la suite de la même
+             phrase. On dépose le début, et c'est lui qui les recollera.
+             Voir recoller() dans lib/sa-propre-voix.ts. */
+          motsRattrapesRef.current = { texte: verdict.dit, quand: Date.now() };
+        })
+        .catch(() => { /* pas de mots : il redira, comme avant */ });
+    };
+
     const guet = setInterval(() => {
       analyse.getByteTimeDomainData(tampon);
       let creux = 0;
@@ -4140,10 +4270,18 @@ export default function Home() {
         /* On la fait taire : `taire()` coupe le son, remet le repos — et
            c'est le retour au repos qui rouvre le micro, par l'effet
            ci-dessus. Un seul chemin, pas deux. */
-        if (tenu >= TENIR_POUR_COUPER) { tenu = 0; taireRef.current?.(); }
+        if (tenu >= TENIR_POUR_COUPER) {
+          tenu = 0;
+          taireRef.current?.();
+          /* Les mots arrivent APRÈS, sans faire attendre la coupure. */
+          void reprendreSesMots();
+        }
       } else tenu = 0;
     }, TOUR_DE_VEILLE);
-    return () => clearInterval(guet);
+    return () => {
+      clearInterval(guet);
+      if (guetteur && guetteur.state !== "inactive") { try { guetteur.stop(); } catch { } }
+    };
   }, [conversation, mode]);
 
   /* LE MICRO SE FERME PENDANT QU'ELLE PARLE.
