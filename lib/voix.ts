@@ -195,6 +195,20 @@ let sansCreditDepuis = 0;
 let dernierMotifDeCredit = "";
 
 /** Y a-t-il eu un refus de paiement récemment ? */
+/* ── LES HOQUETS RATTRAPÉS, POUR QU'ILS SE VOIENT ──────────────────────────
+   Une reprise réussie ne laisse aucune trace ailleurs : sans ce compteur, on
+   croirait que tout va bien alors que Soynade tombe une fois sur dix. C'est
+   le genre d'aveuglement qui a déjà coûté deux soirées à ce projet. */
+let reprisesDeVoix = 0;
+let dernierHoquet = "";
+function noterRepriseDeVoix(motif: string) {
+  reprisesDeVoix++;
+  dernierHoquet = motif;
+}
+export function hoquetsDeLaVoix() {
+  return { reprises: reprisesDeVoix, dernier: dernierHoquet };
+}
+
 export function voixSansCredit(): { sans_credit: boolean; depuis: string | null; motif: string } {
   const encore = sansCreditDepuis && Date.now() - sansCreditDepuis < PAUSE_SANS_CREDIT;
   return {
@@ -257,8 +271,59 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages, etiq
     throw new Error(`le crédit de sa voix est épuisé — ${dernierMotifDeCredit}`);
   }
 
+  /* ── UN HOQUET DE SOYNADE NE DOIT PAS LUI COÛTER LA VOIX DE KHA ────────
+
+     Lamine, le 15 septembre 2026 : « pendant les leçons, parfois la voix
+     saute. Elle amène la voix de la machine. »
+
+     Le tableau a donné les deux causes, et ce sont deux accidents de réseau :
+
+       « Soynade 502 : <!DOCTYPE html>… »   — une page d'erreur Cloudflare
+       « terminated »                        — la connexion coupée en route
+
+     Aucune des deux n'était rattrapée. Un seul hoquet et la phrase entière
+     partait dans la voix synthétique du téléphone.
+
+     ── POURQUOI C'EST PIRE PENDANT UNE LEÇON QU'AILLEURS ──────────────────
+
+     Il apprend à BIA à prononcer. Une voix française synthétique qui lit du
+     wolof transcrit à l'oreille — « djarignou » pour « jariñu » — ne
+     ressemble à rien de connaissable, et surtout pas à ce qu'il essaie de lui
+     enseigner. Ce n'est pas un repli dégradé : c'est un contresens.
+
+     ── CE QU'ON REPREND, ET CE QU'ON NE REPREND PAS ───────────────────────
+
+     On reprend ce qui est PASSAGER : 5xx, 429, et les coupures de réseau.
+     On ne reprend PAS ce qui dira la même chose dans dix secondes — 402, 401,
+     403 : c'est le crédit ou la clé, et insister ne ferait qu'ajouter de
+     l'attente au silence.
+
+     Deux reprises au plus, et courtes : au-delà, on aurait échangé une voix
+     synthétique contre une éternité d'attente, ce qui n'est pas mieux. */
+  const REPRISES = 2;
+  const PAUSE_ENTRE_REPRISES = 250;
+  const passager = (statut: number) => statut === 429 || statut >= 500;
+
   const partiVoix = Date.now();
-  let reponse = await appeler(true);
+  let reponse: Response;
+  let dernierEnnui = "";
+  let essai = 0;
+  for (;;) {
+    try {
+      reponse = await appeler(true);
+      if (reponse.ok || !passager(reponse.status) || essai >= REPRISES) break;
+      dernierEnnui = `Soynade ${reponse.status}`;
+    } catch (err) {
+      /* « terminated », « fetch failed », un délai dépassé : le réseau, pas
+         Soynade. C'est exactement ce qui s'est passé à 18 h 05. */
+      dernierEnnui = String((err as Error).message || err).slice(0, 80);
+      if (essai >= REPRISES) throw err;
+    }
+    essai++;
+    console.error(`BIA — sa voix a hoqueté (${dernierEnnui}) : reprise ${essai}/${REPRISES}.`);
+    noterRepriseDeVoix(dernierEnnui);
+    await new Promise((r) => setTimeout(r, PAUSE_ENTRE_REPRISES * essai));
+  }
   /* fetch() rend la main quand les en-têtes sont là — donc au premier octet
      du corps. C'est exactement ce qu'il veut savoir. */
   const premierOctetVoix = Date.now();

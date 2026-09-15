@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { voixConfig, voixSansCredit } from "@/lib/voix";
+import { hoquetsDeLaVoix, voixConfig, voixSansCredit } from "@/lib/voix";
 import { ecouteConfig, resumeEcoutes } from "@/lib/ecoute";
 import { lexiqueConfig, combien, combienParApplication, parAuteur } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
@@ -96,6 +96,14 @@ export async function GET() {
        Ici, ça tient sur une ligne, en haut, et ça dit quoi faire : recharger.
        Voir voixSansCredit() dans lib/voix.ts. */
     voix_sans_credit: voixSansCredit(),
+    /* ── LES HOQUETS DE SA VOIX, RATTRAPÉS ────────────────────────────────
+       Lamine, le 15 septembre 2026 : « pendant les leçons, parfois la voix
+       saute. Elle amène la voix de la machine. » C'étaient des 502 et des
+       connexions coupées, qu'on ne reprenait pas. Maintenant on reprend —
+       et ce compteur existe pour qu'une reprise réussie ne soit pas
+       invisible : sans lui, on croirait que tout va bien alors que Soynade
+       tombe une fois sur dix. Voir lib/voix.ts. */
+    voix_hoquets: hoquetsDeLaVoix(),
     derniere_panne: dernierePanne(),
     // L'histoire, elle, ne s'efface pas : une panne passée reste lisible même
     // si tout va bien depuis. C'est la seule façon de comprendre après coup.

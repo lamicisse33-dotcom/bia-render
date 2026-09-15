@@ -1930,8 +1930,28 @@ export default function Home() {
 
     if (!answer.trim()) { await prendreLaParole(); return; }
 
+    /* ── PENDANT UNE LEÇON, PAS DE VOIX DE MACHINE ────────────────────────
+
+       Lamine, le 15 septembre 2026 : « pendant les leçons, parfois la voix
+       saute. Elle amène la voix de la machine. »
+
+       Ailleurs, la voix du téléphone est un filet utile : elle dit la phrase,
+       mal, mais elle la dit. Pendant une leçon, c'est un CONTRESENS. Il est en
+       train de lui apprendre à prononcer ; une voix française synthétique qui
+       lit du wolof écrit à l'oreille — « djarignou » pour « jariñu » — ne lui
+       apprend rien et lui fait croire qu'elle a mal retenu.
+
+       On préfère le lui DIRE. Une leçon qu'on refait vaut mieux qu'une leçon
+       qu'on juge sur une prononciation qui n'est pas la sienne. */
+    const enLecon = ou === "apprentissage";
+    const renoncer = () => {
+      setPanne("sa voix n'a pas répondu — redis la phrase");
+      stopMouth(answer);
+    };
+
     if (moteursRef.current && moteursRef.current.voix === "navigateur") {
       await prendreLaParole();
+      if (enLecon) { renoncer(); return; }
       if (emotion) await jouerSouffle(emotion);
       await parlerAvecLeTelephone(answer);
       return;
@@ -2002,7 +2022,11 @@ export default function Home() {
       if (!suite) noterAttente();   // le son est là : l'attente est finie, on la note
       if (ou === "réponse") poserBorne(bornesRef.current, "enMain");
       await prendreLaParole();
-      if (!bloc.audio) { await parlerAvecLeTelephone(answer); return; }
+      if (!bloc.audio) {
+        if (enLecon) { renoncer(); return; }
+        await parlerAvecLeTelephone(answer);
+        return;
+      }
       // Le rire vient maintenant : entre la dernière phrase d'attente et le
       // premier mot de la réponse, il fait la liaison.
       if (emotion) await jouerSouffle(emotion);
@@ -2186,6 +2210,9 @@ export default function Home() {
          langue inconnue. Le motif exact se lit dans /api/etat. */
       setPanne(`panne : sa voix — ${String(e).replace(/^Error:\s*/, "").slice(0, 60)}`);
       await prendreLaParole();
+      /* Même règle qu'en haut : pendant une leçon, se taire vaut mieux que
+         prononcer son wolof avec une bouche française. */
+      if (ou === "apprentissage") { stopMouth(answer); return; }
       await parlerAvecLeTelephone(answer);
     }
   }, [contexte, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth]);
@@ -2628,9 +2655,9 @@ export default function Home() {
              Kha, déjà dans public/sons/. */
           if (data.rireApres) await jouerSouffle(data.rireApres);
         }
-        catch { speak(aDire, emotionRef.current); }
+        catch { speak(aDire, emotionRef.current, data.apprend ? "apprentissage" : "réponse"); }
       } else {
-        speak(aDire, emotionRef.current);
+        speak(aDire, emotionRef.current, data.apprend ? "apprentissage" : "réponse");
       }
     } catch {
       emotionRef.current = "concernee";
