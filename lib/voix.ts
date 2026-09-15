@@ -164,6 +164,53 @@ export type Parole = { audio: Buffer; typeMime: string; moteur: string };
 const borne = (v: number | undefined, defaut: number) =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(Math.max(v, 0), 2) : defaut;
 
+/* ── QUAND LE CRÉDIT DE SA VOIX EST ÉPUISÉ ──────────────────────────────────
+
+   Lamine, le 15 septembre 2026 : « bien, ne parle plus, il faut vérifier le
+   crédit ». Le tableau disait vingt-trois fois la même chose :
+
+     Soynade 402 : « Prepaid credits are exhausted. Add credits to continue
+     using the API. »
+
+   UN 402 N'EST PAS UNE PANNE PASSAGÈRE. Un 429 se calme, un 502 se répare
+   tout seul — un 402 veut dire « il faut payer », et il dira la même chose à
+   la seconde suivante. Or BIA le traitait comme n'importe quel échec : elle
+   rappelait Soynade à CHAQUE morceau de CHAQUE phrase, attendait le refus,
+   et repartait sur la voix du téléphone. Cent six appels en vingt-trois
+   minutes, tous refusés, chacun payé en attente.
+
+   ON S'EN SOUVIENT DONC, et on arrête de frapper à une porte fermée. Pendant
+   la pause, la voix du téléphone prend le relais tout de suite, sans le
+   détour. La pause est courte exprès : dès qu'il aura rechargé, BIA doit
+   retrouver sa vraie voix sans qu'on ait à redéployer quoi que ce soit.
+
+   ET ÇA SE VOIT DANS /api/etat, sur une ligne à soi. Vingt-trois pannes
+   identiques noyées dans une liste, ça se cherche ; « crédit de voix épuisé
+   depuis 04:27 », ça se lit.                                              */
+
+/** Une minute : assez pour ne pas marteler, assez court pour qu'un
+    rechargement soit pris en compte presque tout de suite. */
+const PAUSE_SANS_CREDIT = 60_000;
+let sansCreditDepuis = 0;
+let dernierMotifDeCredit = "";
+
+/** Y a-t-il eu un refus de paiement récemment ? */
+export function voixSansCredit(): { sans_credit: boolean; depuis: string | null; motif: string } {
+  const encore = sansCreditDepuis && Date.now() - sansCreditDepuis < PAUSE_SANS_CREDIT;
+  return {
+    sans_credit: Boolean(encore),
+    depuis: sansCreditDepuis ? new Date(sansCreditDepuis).toISOString() : null,
+    motif: dernierMotifDeCredit,
+  };
+}
+
+/* Elle se remet à essayer d'elle-même : pas de bouton, pas de redéploiement.
+   Il recharge, et au bout d'une minute au plus, sa voix revient. */
+function noterLeRefusDePaiement(statut: number, detail: string) {
+  sansCreditDepuis = Date.now();
+  dernierMotifDeCredit = `Soynade ${statut} : ${detail.slice(0, 200)}`;
+}
+
 async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages, etiquette = "voix"): Promise<Parole> {
   const c = voixConfig.soynade;
   if (!c.apiKey) throw new Error("SOYNADE_API_KEY manquante");
@@ -204,6 +251,12 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages, etiq
      audio reçu / audio complet reçu. C'est essentiel. » Il a raison : quatre
      secondes avant le premier octet et quatre secondes à couler après ne se
      réparent pas de la même façon. Voir lib/etapes.ts. */
+  /* On ne frappe pas à une porte qu'on sait fermée. Le message est explicite
+     pour qu'il se lise dans /api/etat sans avoir à le décoder. */
+  if (voixSansCredit().sans_credit) {
+    throw new Error(`le crédit de sa voix est épuisé — ${dernierMotifDeCredit}`);
+  }
+
   const partiVoix = Date.now();
   let reponse = await appeler(true);
   /* fetch() rend la main quand les en-têtes sont là — donc au premier octet
@@ -219,8 +272,17 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages, etiq
 
   if (!reponse.ok) {
     const detail = (await reponse.text().catch(() => "")).slice(0, 400);
+    /* 402 : il faut payer. 401 et 403 : la clé. Les trois diront la même
+       chose dans dix secondes — on cesse d'appeler et la voix du téléphone
+       prend le relais sans attendre le refus à chaque morceau. */
+    if (reponse.status === 402 || reponse.status === 401 || reponse.status === 403) {
+      noterLeRefusDePaiement(reponse.status, detail);
+      throw new Error(`le crédit de sa voix est épuisé — Soynade ${reponse.status} : ${detail}`);
+    }
     throw new Error(`Soynade ${reponse.status} : ${detail}`);
   }
+  /* Elle a répondu : s'il y avait une pause, elle n'a plus lieu d'être. */
+  if (sansCreditDepuis) { sansCreditDepuis = 0; dernierMotifDeCredit = ""; }
   const octets = Buffer.from(await reponse.arrayBuffer());
   noterEtape(etiquette, partiVoix, premierOctetVoix, Date.now(), texte.length);
   return {

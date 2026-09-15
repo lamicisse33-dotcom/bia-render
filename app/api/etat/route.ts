@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { voixConfig } from "@/lib/voix";
+import { voixConfig, voixSansCredit } from "@/lib/voix";
 import { ecouteConfig, resumeEcoutes } from "@/lib/ecoute";
 import { lexiqueConfig, combien, combienParApplication, parAuteur } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
@@ -88,6 +88,12 @@ export async function GET() {
        Voir lib/lecons-vues.ts. */
     lecons_donnees: resumeLecons(),
     voix_clonee: Boolean(voixConfig.soynade.audioPrompt),
+    /* ── LA LIGNE QU'ON CHERCHE QUAND ELLE NE PARLE PLUS ──────────────────
+       Le 15 septembre 2026, vingt-trois pannes identiques — « Prepaid credits
+       are exhausted » — noyées dans une liste qu'il fallait lire une par une.
+       Ici, ça tient sur une ligne, en haut, et ça dit quoi faire : recharger.
+       Voir voixSansCredit() dans lib/voix.ts. */
+    voix_sans_credit: voixSansCredit(),
     derniere_panne: dernierePanne(),
     // L'histoire, elle, ne s'efface pas : une panne passée reste lisible même
     // si tout va bien depuis. C'est la seule façon de comprendre après coup.
