@@ -210,6 +210,8 @@ export async function deposerLecon(lecon: Lecon): Promise<void> {
     body: corps,
   });
   if (!r.ok) throw new Error(`le dépôt a été refusé (${r.status}) : ${(await r.text()).slice(0, 200)}`);
+  /* Il veut l'essayer tout de suite, pas dans une minute. */
+  oublierLeCacheDesLecons();
 }
 
 export async function retirerLecon(cle: string): Promise<void> {
@@ -220,6 +222,7 @@ export async function retirerLecon(cle: string): Promise<void> {
   if (!r.ok && r.status !== 404) {
     throw new Error(`le retrait a été refusé (${r.status}) : ${(await r.text()).slice(0, 200)}`);
   }
+  oublierLeCacheDesLecons();
 }
 
 /* ── CE QUE LA LEÇON DEVIENDRA DANS LA CONVERSATION ─────────────────────────
@@ -272,6 +275,67 @@ export function lecconQuiRepond(phrase: string, lecons: Lecon[]): { lecon: Lecon
 
 export function cleDeLaReponse(lecon: Lecon, rang: number): string {
   return `${lecon.cle}-${rang + 1}`;
+}
+
+/* ── LES LEÇONS, SOUS LA MAIN, SANS PAYER UN ALLER-RETOUR PAR TOUR ──────────
+
+   Le 15 septembre 2026, en construisant son mode d'interrogation, j'ai
+   découvert que lecconQuiRepond() n'était appelé de NULLE PART dans le chemin
+   de la parole — seulement par le bouton « Essaie » de la page des leçons.
+
+   Ce n'était pas un oubli : c'est écrit trente lignes plus haut, « rien n'est
+   branché pour l'instant, et c'est voulu ». Sauf qu'entre-temps il a écrit des
+   leçons, et qu'un report devient un défaut le jour où quelqu'un s'en sert.
+   Ses leçons partaient dans le seau et n'en ressortaient jamais. C'est le
+   défaut de la semaine dernière retourné : avant elles n'y arrivaient pas ;
+   maintenant elles n'en sortent plus.
+
+   ── POURQUOI UN CACHE, ET PAS UN APPEL ─────────────────────────────────────
+
+   Demander le seau à chaque tour, c'est un aller-retour Supabase AVANT qu'elle
+   n'ouvre la bouche, sur le chemin qu'on passe nos journées à raccourcir. Et
+   les leçons ne changent qu'aux moments où LUI les change.
+
+   On les garde donc en mémoire, une minute. Le premier tour après un
+   redéploiement peut manquer une leçon — on préfère ça à une seconde d'attente
+   sur tous les autres. Le rafraîchissement se fait EN ARRIÈRE-PLAN : personne
+   n'attend jamais après lui, on répond avec ce qu'on a et la liste se met à
+   jour pour le tour suivant.
+
+   Et quand il dépose une leçon, le cache est vidé sur-le-champ : il veut
+   l'essayer tout de suite après l'avoir écrite, pas dans une minute. */
+const FRAICHEUR = 60_000;
+let enCache: Lecon[] = [];
+let cacheDepuis = 0;
+let enTrainDeLire: Promise<void> | null = null;
+
+function rafraichir(): Promise<void> {
+  if (enTrainDeLire) return enTrainDeLire;
+  enTrainDeLire = listerLecons()
+    .then((l) => { enCache = l; cacheDepuis = Date.now(); })
+    /* Un seau qui refuse ne doit pas faire tomber la conversation : elle
+       répondra comme avant ce cache, par le modèle. */
+    .catch(() => { })
+    .finally(() => { enTrainDeLire = null; });
+  return enTrainDeLire;
+}
+
+/** Vide le cache. Appelé au dépôt et au retrait : il essaie tout de suite. */
+export function oublierLeCacheDesLecons() { cacheDepuis = 0; enCache = []; }
+
+/**
+ * Les leçons telles qu'on les a sous la main, MAINTENANT. N'attend jamais :
+ * si elles sont périmées, on rend les anciennes et on relit derrière.
+ */
+export function leconsSousLaMain(): Lecon[] {
+  if (!lecconsActives()) return [];
+  if (Date.now() - cacheDepuis > FRAICHEUR) void rafraichir();
+  return enCache;
+}
+
+/** À appeler au démarrage du serveur pour que le premier tour en profite. */
+export function preparerLesLecons(): Promise<void> {
+  return lecconsActives() ? rafraichir() : Promise.resolve();
 }
 
 /** Ce que cette leçon coûtera à enregistrer, en dollars. Le calcul exact vit

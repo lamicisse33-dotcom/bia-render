@@ -16,6 +16,8 @@ import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
 import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgences";
 import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
 import { noterPassage, noterTentative, parleDeMemoire } from "@/lib/lecons-vues";
+import { lecconQuiRepond, lecconsActives, leconsSousLaMain } from "@/lib/lecons";
+import { demandeDeNombre, repondreAuNombre } from "@/lib/nombre-demande";
 import { SERVICES } from "@/lib/services-textes";
 import { ajouterCorrection, cequElleAAppris, retirerCorrection } from "@/lib/lexique";
 import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
@@ -66,6 +68,15 @@ mille francs CFA » au milieu d'une phrase wolof ne choque personne, alors
 qu'un nombre en wolof ancien ne se comprend pas — et sur un montant, ne pas
 se comprendre coûte de l'argent. C'est la même règle que pour les mots
 difficiles, appliquée aux nombres.
+
+CETTE RÈGLE VAUT POUR LES NOMBRES QUE TU LÂCHES DANS UNE PHRASE — un prix, une
+quantité, une heure. Elle ne vaut PAS quand on te demande exprès comment se dit
+un nombre en wolof : cette question-là ne t'arrive jamais, elle est répondue
+avant toi par la table de Lamine. Donc ne dis JAMAIS que tu ne peux pas dire un
+nombre en wolof, et n'invente jamais de raison pour laquelle tu ne le pourrais
+pas — tu ne sais pas comment on te les sert, ce n'est pas ton travail. Si un
+nombre en wolof t'arrive quand même, c'est que sa table ne le couvre pas
+encore : dis-le simplement, et dis le nombre en français.
 
 La question à te poser n'est jamais « est-ce que ce mot est juste ? », mais
 « est-ce que je l'ai entendu dire cette semaine à Dakar ? ». Un mot juste que
@@ -1223,6 +1234,94 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
         ...(dite?{son:sonDe(dite.cle,"wo",dite.wolof)}:{}),
         source:"code",motif:verdict.raison,
       },statut:401};
+    }
+
+    /* ── « JE T'AVAIS DONNÉ MA LISTE » ─────────────────────────────────────
+
+       Le 15 septembre 2026 au soir : « je lui ai demandé des nombres en
+       wolof. Elle dit qu'elle n'a pas reçu de fichier. Elle donnait des
+       réponses fausses. Et pourtant, je t'avais donné ma liste. »
+
+       Deux défauts, et les deux sont de moi. Sa table de nombres n'était
+       importée par aucun fichier ; et la consigne lui INTERDISAIT de dire un
+       nombre en wolof, sans distinguer le montant lâché dans une phrase de la
+       question directe. Le modèle, à qui on interdit de répondre, a inventé
+       une excuse puis des nombres.
+
+       Ici, la question directe ne va plus au modèle : sa table répond.
+       Gratuit, instantané, et exact — ou rien, s'il ne l'a pas couvert.
+       Voir lib/nombre-demande.ts. */
+    {
+      /* Nommée `demandeNombre` et pas `demande` tout court : plus bas, la
+         recherche d'images ouvre son bloc sur une variable de ce nom-là, et
+         epreuve-micro-en-wolof.ts s'en sert comme repère pour vérifier
+         l'ordre des gestes. Deux blocs du même nom lui feraient lire le
+         mauvais — et cette phrase évite soigneusement de l'écrire. */
+      const demandeNombre=demandeDeNombre(question);
+      if(demandeNombre){
+        const dite=repondreAuNombre(demandeNombre);
+        if(dite){
+          return {corps:{
+            reply:dite.dit,
+            emotion:"neutre",
+            source:dite.relu?"nombres (sa table, relu)":"nombres (sa règle)",
+          }};
+        }
+      }
+    }
+
+    /* ── CE QU'IL LUI A APPRIS LUI-MÊME, ENFIN SERVI ───────────────────────
+
+       Le 15 septembre 2026. En construisant son mode d'interrogation, j'ai
+       cherché où les leçons étaient servies. Nulle part. `lecconQuiRepond()`
+       n'était appelé que par le bouton « Essaie » de la page des leçons.
+
+       Ce n'était pas un oubli — j'avais écrit noir sur blanc dans
+       lib/lecons.ts « rien n'est branché pour l'instant, et c'est voulu : il
+       essaie d'abord le geste, on branche ensuite ». Sauf qu'il a écrit des
+       leçons entre-temps. Un report devient un défaut le jour où quelqu'un
+       s'en sert, et ce jour-là était passé.
+
+       ── APRÈS LE CODE, ET C'EST VOULU ──────────────────────────────────────
+
+       Le répertoire est servi plus haut, avant le contrôle du code : ses sons
+       vivent dans un seau PUBLIC, les servir n'ouvre rien. Une leçon, non.
+       C'est son enseignement à lui, dans un seau privé. Elle ne sort donc
+       qu'après le code, et ne coûte toujours pas un appel au modèle.
+
+       ── ELLE NE DEVINE PAS ─────────────────────────────────────────────────
+
+       La reconnaissance est EXACTE (voir lecconQuiRepond). C'est tout le sens
+       de ses dix façons de le dire : dix tournures écrites de sa main valent
+       mieux qu'une approximation qui servirait la mauvaise leçon. */
+    if(lecconsActives()){
+      const lecons=leconsSousLaMain();
+      const laSienne=lecconQuiRepond(question,lecons);
+      if(laSienne&&laSienne.lecon.repond.length){
+        const langue=langueDe(question);
+        const enFr=langue==="fr";
+        const ditDansLeFil=(body.history||[])
+          .filter(item=>item.role==="bia")
+          .map(item=>normaliser(String(item.text||"")));
+        const texteDe=(p:{wolof:string;francais:string})=>
+          (enFr?p.francais:p.wolof)||p.wolof||p.francais;
+        /* LA ROTATION : quatre ou cinq réponses pour qu'elle ne dise pas la
+           même chose à chaque fois. On écarte celles qu'elle vient de dire
+           DANS CE FIL ; si elles y sont toutes, on reprend la liste entière
+           plutôt que de se taire. */
+        const toutes=laSienne.lecon.repond.filter(p=>texteDe(p).trim());
+        const neuves=toutes.filter(p=>!ditDansLeFil.includes(normaliser(texteDe(p))));
+        const choix=(neuves.length?neuves:toutes);
+        if(choix.length){
+          const p=choix[Math.floor(Math.random()*choix.length)];
+          return {corps:{
+            reply:texteDe(p),
+            emotion:"neutre",
+            source:"leçon (gratuit)",
+            lecon:laSienne.lecon.cle,
+          }};
+        }
+      }
     }
 
     const apiKey=process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY;
