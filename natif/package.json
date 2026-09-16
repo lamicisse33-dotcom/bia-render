@@ -1,0 +1,19 @@
+{
+  "name": "bia-natif",
+  "version": "0.1.0",
+  "private": true,
+  "description": "L'enveloppe native de BIA — iPhone et Android. Ne fait pas partie de la construction Next.js : voir natif/LISEZ-MOI.md.",
+  "scripts": {
+    "ios": "cap sync ios && cap open ios",
+    "android": "cap sync android && cap open android",
+    "sync": "cap sync"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/ios": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "appId": "app.khalam.bia",
+  "appName": "BIA",
+  "webDir": "www",
+  "server": {
+    "url": "https://app.khalam.app",
+    "cleartext": false,
+    "androidScheme": "https",
+    "iosScheme": "https"
+  },
+  "backgroundColor": "#0b0b0d",
+  "ios": {
+    "contentInset": "never",
+    "allowsLinkPreview": false,
+    "limitsNavigationsToAppBoundDomains": false,
+    "scrollEnabled": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  }
+}

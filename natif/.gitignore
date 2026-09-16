@@ -1,0 +1,7 @@
+# Les projets natifs sont ENGENDRÉS par Capacitor sur le Mac, pas versionnés
+# ici : ils pèsent lourd, ils contiennent des chemins absolus, et
+# `npx cap add ios` les refabrique à l'identique. Ce qui compte et qui est
+# versionné, c'est capacitor.config.json — la configuration, pas le résultat.
+ios/
+android/
+node_modules/
