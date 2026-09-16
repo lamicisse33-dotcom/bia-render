@@ -74,8 +74,18 @@ seconde où elle touche le micro. Ce n'est pas un réglage de confort.
 
 Elles sont écrites dans `ios/App/App/Info.plist`. **Et `ios/` n'est pas dans le
 dépôt** — c'est voulu, Capacitor le régénère. Mais ça veut dire qu'un
-`npx cap add ios` refait à neuf les efface. Le bloc est donc recopié ici, à
-remettre tel quel juste avant `</dict>` :
+`npx cap add ios` refait à neuf les efface, elles et l'icône.
+
+**Une seule commande les repose toutes**, et on peut la relancer autant de fois
+qu'on veut :
+
+```bash
+cd natif && ./preparer-ios.sh
+```
+
+Elle ne se sert que d'outils déjà présents sur un Mac (`plutil`, `sips`), pour
+qu'elle marche sur une machine neuve sans rien installer. Le bloc est aussi
+recopié ici, pour qui voudrait le poser à la main juste avant `</dict>` :
 
 ```xml
 	<key>NSMicrophoneUsageDescription</key>
@@ -103,6 +113,25 @@ Pour Android, dans `android/app/src/main/AndroidManifest.xml` :
 <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 <uses-permission android:name="android.permission.CAMERA" />
 ```
+
+## L'icône — le 18 septembre 2026
+
+Lamine, après le premier essai : *« je n'arrive pas à voir son icône sur
+l'écran, il n'y a que l'ancienne icône. »*
+
+Il cherchait le visage de BIA et trouvait un carré gris : l'icône par défaut de
+Capacitor. Vue de lui, l'application n'était pas là — alors qu'elle l'était.
+
+`preparer-ios.sh` pose maintenant son visage (`public/icone-512.png`, agrandi
+en 1024×1024, sans transparence : iOS refuse les deux autres cas).
+
+**Si l'icône ne change pas sur le téléphone**, ce n'est pas le code : iOS garde
+les icônes en mémoire. Supprimer l'application de l'écran d'accueil et relancer
+depuis Xcode suffit.
+
+**Et l'ancienne icône reste**, celle du raccourci Safari : ce sont deux choses
+différentes sur le même téléphone, avec le même visage. Tant que les deux
+existent, se fier au nom plutôt qu'à l'image.
 
 ## Ce que ça NE règle pas, et il faut le savoir avant
 
