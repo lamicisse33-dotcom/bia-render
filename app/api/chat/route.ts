@@ -14,6 +14,7 @@ import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { BUDGET_DE_REFLEXION, PLAFOND_AVEC_REFLEXION, meriteReflexion, noterReflexion } from "@/lib/reflechir";
 import { consigneDeSesGestes, gestesDe } from "@/lib/ses-gestes";
+import { noterRate } from "@/lib/rates-du-repertoire";
 import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
 import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgences";
 import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
@@ -1274,6 +1275,24 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
 
     if(REPERTOIRE_PRET&&repertoireActif()){
       const toute=trouverDansRepertoire(question);
+      /* ── ET SI ELLE PASSE À CÔTÉ, ON LE NOTE ────────────────────────────
+
+         Lamine, le 17 septembre 2026, après avoir vu Abena AI tourner hors
+         ligne : « qu'est-ce qu'on peut copier chez eux ? »
+
+         Leur vitesse — et il l'a déjà payée. Une phrase du répertoire sort du
+         téléphone en un dixième de seconde, sans modèle et sans réseau. Il en
+         a 42, et un seul tour sur soixante en vient.
+
+         Il a demandé la liste de ce qui manque. Je lui avais dit que le
+         serveur l'avait ; il ne l'avait pas. Le voici : chaque question qui
+         AURAIT PU être une formule et qui part quand même au modèle est
+         notée, regroupée sur ce qu'elle sonne, et comptée. Ce qui revient
+         souvent est ce qu'il faut enregistrer d'abord.
+
+         `void` : noter ne doit jamais retarder sa réponse d'une milliseconde.
+         Voir lib/rates-du-repertoire.ts. */
+      if(!toute&&!body.apprend) noterRate(question);
       /* ── SERVIE TANT QU'ELLE N'A PAS DÉJÀ ÉTÉ DITE ICI ──────────────────
 
          Lamine, le 13 septembre 2026 : « parfois tu poses une question dont

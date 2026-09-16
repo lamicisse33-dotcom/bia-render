@@ -13,6 +13,8 @@ import { etatRepertoire } from "@/lib/repertoire";
 import { resumeCorpus } from "@/lib/corpus";
 import { resumeSouvenirs } from "@/lib/souvenirs";
 import { resumeReflexion } from "@/lib/reflechir";
+import { listeDesRates, resumeDesRates } from "@/lib/rates-du-repertoire";
+import { verifierCode } from "@/lib/codes";
 
 /* Dit à l'interface quels moteurs sont réellement branchés, pour qu'elle
    choisisse le micro et la voix sans deviner. Ouvert : aucun moteur payant
@@ -27,7 +29,19 @@ import { resumeReflexion } from "@/lib/reflechir";
 const VERSION = (process.env.RENDER_GIT_COMMIT || "").slice(0, 12)
   || `local-${Math.floor(Date.now() / 1000)}`;
 
-export async function GET() {
+export async function GET(request: Request) {
+  /* ── SES PHRASES NE SORTENT QU'AVEC SON CODE ──────────────────────────────
+
+     Cette route reste OUVERTE, et c'est voulu depuis le 12 septembre : le
+     jour où plus rien ne marche, il ne faut pas d'un code valide pour savoir
+     pourquoi. Mais depuis le 17 elle peut porter la liste des questions qui
+     ratent le répertoire — c'est-à-dire du wolof à lui, mot pour mot.
+
+     C'est la même décision que le 16 septembre pour les comptes de ses
+     leçons : les NOMBRES sur le mur ouvert, jamais les phrases. Sans son
+     code, `repertoire_rate` ne contient que des totaux. */
+  const verdict = verifierCode(request.headers.get("x-bia-code"));
+  const maitre = verdict.ok && verdict.maitre;
   let entrees: number | null = null;
   try { entrees = await combien(); } catch { entrees = null; }
 
@@ -161,6 +175,15 @@ export async function GET() {
        se déclenche, et les deux attentes moyennes côte à côte : c'est le
        prix de l'arbitrage, en clair. Voir lib/reflechir.ts. */
     reflexion: resumeReflexion(),
+    /* ── CE QUI MANQUE À SON RÉPERTOIRE ─────────────────────────────────
+       Lamine, le 17 septembre 2026 : « qu'est-ce qu'on peut copier chez
+       eux ? » — d'Abena AI, qui tourne hors ligne. Sa réponse à lui,
+       c'est le répertoire : une phrase enregistrée sort en un dixième de
+       seconde, gratuitement. Ce champ dit lesquelles manquent, la plus
+       demandée d'abord. Voir lib/rates-du-repertoire.ts. */
+    repertoire_rate: resumeDesRates()
+      ? { ...resumeDesRates(), ...(maitre ? { a_enregistrer: listeDesRates() } : {}) }
+      : null,
     /* CE QU'ELLE VA CHERCHER SUR INTERNET. Cent recherches d'images par jour
        sont gratuites ; la cent-unième se paie. Ce compteur est le robinet
        d'arrêt : quand il touche le plafond, BIA répond sans image plutôt que

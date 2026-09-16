@@ -6864,6 +6864,27 @@ function PapierRepertoire({ code }: { code: string | null }) {
   const [regarde, setRegarde] = useState<EtatRepertoire | null>(null);
   const [occupe, setOccupe] = useState<"" | "regarde" | "enregistre">("");
   const [bilan, setBilan] = useState<string>("");
+  /* ── CE QUI MANQUE VRAIMENT, D'APRÈS SES PROPRES CONVERSATIONS ─────────
+
+     Lamine, le 17 septembre 2026, après avoir vu Abena AI tourner hors
+     ligne : « qu'est-ce qu'on peut copier chez eux ? »
+
+     Leur vitesse — et il l'a déjà payée. Une phrase du répertoire sort du
+     téléphone en un dixième de seconde, sans modèle et sans réseau. Il en a
+     42, et UN SEUL tour sur soixante en vient.
+
+     Le bouton d'à côté dit ce qui manque dans le SEAU : les phrases écrites
+     mais pas encore enregistrées. Celui-ci dit tout autre chose, et c'est la
+     vraie question : quelles phrases n'existent nulle part alors qu'on les
+     lui demande tous les jours. Le serveur les note depuis le 17 — voir
+     lib/rates-du-repertoire.ts.
+
+     C'EST ICI ET PAS SUR UNE PAGE À PART. Sa règle du 11 septembre : tout ce
+     qui sert à la personne va dans l'interface. Et c'est ici que son code est
+     déjà en main — sans lui, le serveur ne rend que des nombres, jamais son
+     wolof. */
+  const [aEcrire, setAEcrire] = useState<Array<{ dit: string; vus: number }> | null>(null);
+  const [motRates, setMotRates] = useState("");
 
   /* GRATUIT. Une lecture du seau, aucun son fabriqué, aucun centime. */
   async function regarder() {
@@ -6995,8 +7016,66 @@ function PapierRepertoire({ code }: { code: string | null }) {
     && (regarde.manquants || 0) === 0 && (regarde.a_refaire || 0) === 0
     && (regarde.a_alleger || 0) > 0;
 
+  /* GRATUIT aussi : une lecture de compteurs, aucun son, aucun modèle. */
+  async function cequiManque() {
+    if (!code) { setMotRates("Il faut ton code."); return; }
+    setMotRates("Elle regarde…");
+    try {
+      const r = await fetch(`/api/etat?t=${Date.now()}`, {
+        cache: "no-store", headers: { "x-bia-code": code },
+      });
+      const d = await r.json() as {
+        repertoire_rate?: {
+          questions_examinees?: number; formes_distinctes?: number; formes_repetees?: number;
+          a_enregistrer?: Array<{ dit: string; vus: number }>;
+        } | null;
+      };
+      const v = d.repertoire_rate;
+      if (!v || !v.questions_examinees) {
+        setAEcrire(null);
+        setMotRates("Rien encore. Parle-lui une demi-heure et reviens : c'est ta conversation qui remplit cette liste, pas moi.");
+        return;
+      }
+      setAEcrire(v.a_enregistrer || []);
+      /* Le chiffre qui dit par où commencer : une formule redemandée se
+         rentabilise au deuxième usage. Une vue une seule fois, non. */
+      setMotRates(
+        `${v.questions_examinees} question(s) sont passées à côté du répertoire,`
+        + ` pour ${v.formes_distinctes} formulation(s) différentes.`
+        + (v.formes_repetees
+          ? ` ${v.formes_repetees} reviennent plusieurs fois — ce sont celles-là qu'il faut écrire d'abord.`
+          : " Aucune ne revient encore : attends d'en avoir plus avant d'enregistrer quoi que ce soit.")
+        + " Ce compteur repart à zéro à chaque réveil du serveur.",
+      );
+    } catch (e) {
+      setMotRates(`La lecture n'a pas abouti : ${(e as Error).message}`);
+    }
+  }
+
   return (
     <p className="papier-note" style={{ marginTop: 14 }}>
+      <button type="button" className="papier-lien" onClick={() => void cequiManque()}>
+        Ce qu&apos;on te demande et qu&apos;elle n&apos;a pas →
+      </button>
+      {motRates ? <><br /><span>{motRates}</span></> : null}
+      {aEcrire?.length ? (
+        <>
+          <br />
+          <span style={{ display: "block", marginTop: 8 }}>
+            {aEcrire.map((x, i) => (
+              <span key={`${x.dit}-${i}`} style={{ display: "block" }}>
+                {x.vus > 1 ? <b>{x.vus}×</b> : <span>1×</span>}{" "}
+                {x.dit}
+              </span>
+            ))}
+          </span>
+          <span style={{ display: "block", marginTop: 8 }}>
+            Écris la réponse wolof de celles qui reviennent, donne-les-moi, et
+            elles ne coûteront plus jamais rien.
+          </span>
+        </>
+      ) : null}
+      <br />
       {!resteAFaire ? (
         <button type="button" className="papier-lien" disabled={occupe !== ""}
           onClick={() => void regarder()}>
