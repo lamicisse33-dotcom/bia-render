@@ -396,6 +396,10 @@ export default function Home() {
   const microAvantLaCarte = useRef(false);
   /* Le même témoin pour la vidéo en plein écran — voir l'effet plus bas. */
   const microAvantLeFilm = useRef(false);
+  /* Et le même pour la rangée des tuiles. Il manquait : on fermait le micro
+     en entrant et personne ne le rouvrait en sortant. Voir « LA FENÊTRE DES
+     SERVICES FERME LE MICRO » plus bas. */
+  const microAvantLesServices = useRef(false);
   /* La version avec laquelle ce téléphone a démarré. Voir « la mise à jour
      d'elle-même » plus bas. */
   const versionChargee = useRef("");
@@ -3362,7 +3366,23 @@ export default function Home() {
     enregistreurRef.current = null;
     debrancherMicroRef.current?.();
     debrancherMicroRef.current = null;
-    setMode((m) => (m === "listening" ? "ready" : m));
+    /* ── ON NE LAISSE PAS UN MODE DONT ON NE PEUT PLUS SORTIR ──────────────
+
+       Le 18 septembre 2026, par la rangée des tuiles : « si tu reviens à BIA
+       elle ne t'entend plus, il faut que tu fermes l'application ».
+
+       On ne remettait au repos que « listening ». Fermée pendant qu'elle
+       RÉFLÉCHIT ou qu'elle PARLE, la conversation laissait le mode figé sur
+       « thinking » ou « speaking » — et plus rien ne pouvait l'en sortir,
+       puisqu'on venait justement de périmer le tour en vol : sa réponse,
+       quand elle arriverait, n'écrirait plus l'état. Or le bouton du micro
+       refuse d'ouvrir quand le mode est « thinking » ou « speaking » hors
+       conversation. Le bouton était donc mort jusqu'au redémarrage.
+
+       C'est mot pour mot la leçon de `taire()` : un état qu'on ne quitte pas
+       est une panne, même quand il a l'air normal. Les deux portes de sortie
+       doivent la respecter, pas une seule. */
+    setMode((m) => (m === "listening" || m === "thinking" || m === "speaking" ? "ready" : m));
   }, [ouvrirUnTour, nouvelEnregistrement]);
 
   /* ── UNE VIDÉO QUI JOUE, ET LE MICRO SE TAIT ──────────────────────────────
@@ -4343,9 +4363,52 @@ export default function Home() {
      quatre endroits en manque un cinquième ; écrite ici, elle vaut pour tous
      les chemins, ceux d'aujourd'hui et ceux de demain.
 
-     Un appui sur le micro le rouvre, comme avant. */
+     ── ET IL FAUT LE ROUVRIR EN SORTANT ────────────────────────────────────
+
+     Lamine, le 18 septembre 2026 :
+
+       « Une fois que tu entres dans la fenêtre, tu veux voir un message ou
+         ouvrir l'appareil photo ou quelque chose dans cette fenêtre, si tu
+         reviens à BIA elle ne t'entend plus. Il faut que tu fermes
+         l'application et la rouvres. »
+
+     DEUX DÉFAUTS EN UN, et le second était le grave.
+
+     Le petit : j'avais écrit « un appui sur le micro le rouvre, comme
+     avant ». C'était vrai pour la carte et pour la vidéo, qui ont chacune
+     leur témoin et se rouvrent TOUTES SEULES ; cette fenêtre-ci était la
+     seule des trois à ne rien retenir. Elle en a un maintenant.
+
+     Le grave : ON NE POUVAIT MÊME PLUS LE ROUVRIR À LA MAIN. Cet effet
+     appelait `fermerConversation()` sans `taire()` — les deux autres portes
+     appellent les deux. Or `fermerConversation` ne remettait au repos que le
+     mode « listening ». Si la fenêtre s'ouvrait pendant qu'elle RÉFLÉCHIT ou
+     qu'elle PARLE, le mode restait figé là — et il ne pouvait plus bouger,
+     puisque la réponse en vol venait justement d'être périmée et n'écrirait
+     plus rien. Le bouton du micro, lui, refuse d'ouvrir quand le mode est
+     « thinking » ou « speaking » hors conversation. Résultat : un bouton mort
+     jusqu'au redémarrage de l'application. Exactement ce qu'il décrit.
+
+     C'est la leçon déjà écrite dans `taire()`, à trois cents lignes d'ici :
+     UN ÉTAT QU'ON NE QUITTE PAS EST UNE PANNE, MÊME QUAND IL A L'AIR NORMAL.
+     Je l'avais tirée une fois et laissée à un seul endroit. Elle est
+     maintenant dans `fermerConversation` aussi, qui est l'autre porte de
+     sortie — et cette porte-ci se ferme comme les autres, avec `taire()`. */
   useEffect(() => {
-    if (papierOuvert && conversationRef.current) fermerConversation();
+    if (papierOuvert) {
+      if (!microAvantLesServices.current) {
+        microAvantLesServices.current = conversationRef.current;
+        if (conversationRef.current) { taireRef.current?.(); fermerConversation(); }
+      }
+      return;
+    }
+    /* On ne rallume PAS un micro qu'il venait de couper lui-même : même
+       règle que pour la carte et pour la vidéo. */
+    if (!microAvantLesServices.current) return;
+    microAvantLesServices.current = false;
+    conversationRef.current = true;
+    setConversation(true);
+    void ecouterRef.current?.();
   }, [papierOuvert, fermerConversation]);
 
   /* ── ELLE SE REMET À ÉCOUTER TOUTE SEULE ────────────────────────────────
