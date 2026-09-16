@@ -13,6 +13,7 @@ import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { BUDGET_DE_REFLEXION, PLAFOND_AVEC_REFLEXION, meriteReflexion, noterReflexion } from "@/lib/reflechir";
+import { consigneDeSesGestes, gestesDe } from "@/lib/ses-gestes";
 import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
 import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgences";
 import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
@@ -355,6 +356,13 @@ d'émotion :
 Un bouton s'allumera alors sur son écran : il pourra lire le papier, corriger
 un mot, et l'envoyer — le message et le mail se copient et partent sur
 WhatsApp, par SMS ou depuis sa boîte, le devis et la lettre deviennent un PDF.
+ET POUR FERMER CE QUI EST À L'ÉCRAN :  [[papier:ferme]]
+S'il te dit d'arrêter d'écrire, de fermer ça, ou qu'il n'en veut plus : tu
+poses CETTE balise, et tu le dis en une phrase. Sans elle tu aurais beau
+promettre d'arrêter, le papier resterait là à te contredire. Et ne réponds
+JAMAIS que tu n'écris rien sans avoir regardé la liste de tes propres gestes,
+plus bas dans cette consigne : c'est elle qui dit ce que tu as fait.
+
 CHOISIS BIEN ENTRE LES QUATRE. Un MAIL a un objet et se vouvoie ; un MESSAGE
 part sur WhatsApp et va droit au but ; une LETTRE s'imprime et sert surtout
 pour l'administration ; un DEVIS porte des prix. Dans le doute entre un mail
@@ -549,7 +557,25 @@ function detacherGarde(texte:string){
 /* LA BALISE DU PAPIER. Même principe que l'émotion, et même tolérance : c'est
    elle qui allume le bouton du devis sur le téléphone. Elle ne doit ni
    s'afficher ni se prononcer. */
-const PAPIER=/\[{1,2}\s*papier\s*[:\-—]?\s*(devis|lettre|message)\s*\]{1,2}/i;
+/* ── « MAIL » MANQUAIT ICI, ET C'ÉTAIT MON DÉFAUT DE LA VEILLE ─────────────
+
+   Le 15 septembre 2026 j'ai remplacé la tuile Lettre par une tuile Mail : la
+   consigne lui a appris  [[papier:mail]] , le téléphone l'accepte, la route du
+   document la sert. J'ai oublié CE FILTRE — le seul endroit qui détache la
+   balise de sa phrase. Quatre vérifications au vert, et le seul endroit qui
+   comptait n'en portait aucune.
+
+   Conséquence exacte, et Lamine l'a vue le lendemain : quand elle posait la
+   balise du mail, elle n'était pas reconnue, donc pas retirée. Elle restait
+   dans sa phrase, aucun papier ne s'ouvrait, et BIA se mettait à écrire le
+   mail À LA MAIN dans la conversation — ce qu'il a décrit par « en pleine
+   discussion, elle s'est mise à écrire un mail ».
+
+   ── ET « FERME », POUR QU'IL PUISSE L'ARRÊTER ─────────────────────────────
+
+   « Je lui ai demandé d'arrêter d'écrire. » Elle n'avait aucun geste pour ça :
+   elle pouvait promettre d'arrêter, rien ne se fermait. Maintenant si. */
+const PAPIER=/\[{1,2}\s*papier\s*[:\-—]?\s*(devis|lettre|message|mail|ferme)\s*\]{1,2}/i;
 
 /* L'APPEL À PRÉPARER. Le numéro est nettoyé ici, pas ailleurs : ce qui part
    vers le téléphone doit être composable tel quel, et rien d'autre ne doit
@@ -672,7 +698,7 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
-type Corps={message?:string;history?:Array<{role:string;text:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
+type Corps={message?:string;history?:Array<{role:string;text:string;gestes?:string[]}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
   /* ── L'APPRENTISSAGE À LA VOIX ──────────────────────────────────────────
      `apprend` : on est dans la boucle, elle répète ce qu'il dit.
      `aRepeter` : la dernière phrase qu'elle a répétée — c'est CELLE-LÀ qu'on
@@ -1602,13 +1628,37 @@ tu n'es pas sûr qu'il te demande de garder quelque chose, tu le lui DEMANDES
          ELLE SAIT MAINTENANT SUR QUOI ELLE TOURNE, et depuis quand. C'est la
          seule façon pour lui de vérifier, depuis son téléphone et sans rien
          ouvrir, qu'un déploiement est bien arrivé. */
+      /* ── « ELLE TE PARLE DES CHARABIAS INCOMPRÉHENSIBLES » ──────────────
+
+         Lamine, le 16 septembre 2026 : « quand tu lui demandes son numéro de
+         version, elle te parle des charabias incompréhensibles. Il faut
+         qu'elle le dise normalement, les chiffres simples que je peux
+         comprendre. »
+
+         Il a entendu ça parce que je lui faisais lire RENDER_GIT_COMMIT :
+         douze signes hexadécimaux, « 28747ea1b2c3 ». À l'écrit c'est un
+         identifiant ; dans une bouche, c'est vingt secondes de lettres et de
+         chiffres qui ne veulent rien dire, et ça ne répond même pas à sa
+         question — lui veut savoir SI son envoi est arrivé.
+
+         La date et l'heure du déploiement disent ça, et il peut les
+         recouper : il sait quand il a poussé. Le code technique reste dans
+         /api/etat pour moi, et elle ne le prononce que s'il le réclame. */
       variable+=`\n\nSUR QUELLE VERSION TU TOURNES
-Tu tournes sur la version « ${VERSION} », en place depuis ${DEPUIS}.
-S'il te demande si tu as reçu une mise à jour, une nouvelle version, ou si ce
-qu'il a envoyé est arrivé : dis-lui CE NUMÉRO et CETTE HEURE. C'est la seule
-chose que tu saches de sûr là-dessus — tu ne connais pas la liste de ce qui a
-changé, et tu ne l'inventes pas. S'il veut savoir ce qui a changé, dis-lui de
-demander à Claude.
+Ta version est une DATE : tu tournes sur celle du ${DEPUIS}.
+
+S'il te demande ta version, une mise à jour, ou si ce qu'il a envoyé est
+arrivé : tu réponds par CETTE DATE ET CETTE HEURE, en toutes lettres, comme on
+dit une heure à quelqu'un. Il sait quand il a poussé son travail : si ton
+heure est postérieure, c'est arrivé.
+
+NE PRONONCE JAMAIS un code technique. Le tien s'écrit « ${VERSION} » — c'est
+de l'hexadécimal, ça ne se lit pas à voix haute, et ça ne répond pas à sa
+question. Tu ne le dis QUE s'il réclame explicitement le code technique, et
+alors tu l'épelles lentement, signe par signe.
+
+Tu ne connais pas la liste de ce qui a changé, et tu ne l'inventes pas. S'il
+veut savoir ce qui a changé, dis-lui de demander à Claude.
 NE CONFONDS PAS avec ce qu'il t'apprend à la voix, juste en dessous : la
 version, c'est ta construction ; ce qu'il t'apprend, c'est ta mémoire.`;
 
@@ -1680,6 +1730,21 @@ quelqu'un parce que le sujet est glissant.`;
        suivant. Dans la partie VARIABLE, jamais dans le socle mis en cache :
        ces passages changent à chaque question. */
     variable+=consigneDesSouvenirs(await laMemoire);
+
+    /* ── ET CE QU'ELLE A FAIT ELLE-MÊME ────────────────────────────────────
+
+       « Elle s'est mise à écrire un mail. Je lui dis d'arrêter. Elle me dit
+       qu'elle n'écrit rien. » Elle ne mentait pas : ses gestes sont retirés
+       de ses phrases avant qu'elle parle, et le fil ne garde que le reste.
+       Elle relisait donc une conversation où elle n'avait jamais rien fait.
+
+       Dans la partie VARIABLE, comme les souvenirs : ça change à chaque tour.
+       Voir lib/ses-gestes.ts. */
+    variable+=consigneDeSesGestes(
+      (body.history||[])
+        .filter(item=>item.role==="bia")
+        .map(item=>Array.isArray(item.gestes)?item.gestes.filter(g=>typeof g==="string"):[]),
+    );
 
     const savoir=await savoirKhalam();
     if(savoir)socle+=`\n\n═══ CE QUE TU SAIS DE KHALAM ═══\n${savoir}\n═══ fin de ce que tu sais de KHALAM ═══`;
@@ -2245,6 +2310,34 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const carteRattrapee = carte || lieuDemandeDans(question);
     const {texte:reply,cherche:demande}=detacherCherche(sansRegarde);
 
+    /* ── CE QU'ELLE VIENT DE FAIRE, NOTÉ POUR QU'ELLE PUISSE LE VOIR ───────
+
+       Lamine, le 16 septembre 2026 : « elle s'est mise à écrire un mail. Je
+       lui ai demandé d'arrêter. Elle me dit qu'elle n'écrit rien. »
+
+       Elle ne mentait pas : ses balises sont détachées ici, et le fil ne garde
+       que la phrase NETTOYÉE. Au tour suivant elle relisait ses propres mots
+       sans aucune trace de ce qu'elle avait fait. Une chose qui agit sans voir
+       ses actes, c'est ce qu'il a appelé une marionnette — et le mot est
+       juste.
+
+       On rassemble donc les gestes ICI, au seul endroit où on les connaît
+       tous, et le téléphone les rangera avec la phrase. Voir lib/ses-gestes.ts.
+       Ce qui est noté est ce qui a eu lieu : la carte RATTRAPÉE, pas celle
+       que le modèle a cru poser ; le papier seulement s'il sort. */
+    const sesGestes=gestesDe([
+      /* « ferme » n'est pas une sorte de papier : c'est le geste inverse. */
+      papier==="ferme"?["ferme",""]:["papier",papier],
+      /* L'appel et la carte ne sont pas des mots mais des objets : on en prend
+         ce qui se DIT. Le compilateur m'a arrêté ici, et il avait raison —
+         « [object Object] » dans sa liste de gestes n'aurait rien valu. */
+      ["appel",appel?String(appel.nom||appel.numero||""):""],
+      ["voir",voir],
+      ["carte",carteRattrapee?String((carteRattrapee as {quoi?:string;ou?:string}).quoi||(carteRattrapee as {quoi?:string;ou?:string}).ou||""):""],
+      ["regarde",regarde],["cherche",demande?`${demande.sorte==="video"?"une vidéo":"des images"} de ${demande.quoi}`:""],
+      ["micro",microDemande],["retiens",aGarder],["oublie",aRetirer],
+    ]);
+
     /* ── IL A DEMANDÉ LE SILENCE : ON N'OUVRE RIEN D'AUTRE ──────────────────
        Le geste part ICI, avant la recherche d'images et avant la vidéo. Ce
        serait absurde d'aller chercher des images pendant qu'on ferme.
@@ -2442,8 +2535,17 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     if(!reply&&(papier||appel||voir||trouve||film||carte)){
       oublierPanne();
-      const parDefaut=papier?"Waaw, maa ngi koy defar.":(voir||trouve||film)?"Xool.":"Waaw.";
-      return {corps:{reply:parDefaut,emotion,papier,appel,voir,carte:carteRattrapee,film,trouve,source:"geste sans phrase"}};
+      /* « je suis en train de le faire » serait faux sur une fermeture : là
+         elle ne fabrique rien, elle range. On retombe donc sur le « Waaw »
+         sec, qui existait déjà.
+
+         ET JE N'EN ÉCRIS PAS UN AUTRE. J'avais mis ici une phrase wolof de
+         ma main — « d'accord, je le ferme ». Je ne suis pas celui qui écrit
+         son wolof : c'est sa règle depuis le premier jour, et une phrase
+         livresque de plus dans sa bouche vaut moins que rien. S'il veut
+         qu'elle dise autre chose en fermant, il donnera le mot. */
+      const parDefaut=papier&&papier!=="ferme"?"Waaw, maa ngi koy defar.":(voir||trouve||film)?"Xool.":"Waaw.";
+      return {corps:{reply:parDefaut,emotion,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,source:"geste sans phrase"}};
     }
 
     if(!reply){
@@ -2460,7 +2562,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
-    return {corps:{reply:ceQuElleDit,emotion,papier,appel,voir,carte:carteRattrapee,film,trouve,source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
+    return {corps:{reply:ceQuElleDit,emotion,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message, "chat");
