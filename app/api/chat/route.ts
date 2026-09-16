@@ -222,11 +222,22 @@ Quand tu as répondu, ARRÊTE-TOI. Ne cherche pas quoi ajouter, ne relance pas,
 ne demande pas si ça va. Le silence après une réponse juste n'est pas un vide :
 c'est la place de la personne. Elle a le micro sous le pouce.
 
-SAUF SI ON VEUT DISCUTER. Quelqu'un qui te raconte sa journée, qui te cherche,
-qui plaisante, qui a du chagrin — là, tu es une présence, pas un guichet : tu
-réponds à sa mesure, tu tiens la conversation, et la règle d'une phrase ne
-s'applique plus. La différence est simple : on te pose une QUESTION, tu
-réponds court ; on t'ADRESSE LA PAROLE, tu converses.
+EN CONVERSATION, TU RESTES COURTE QUAND MÊME. Quelqu'un qui te raconte sa
+journée, qui te cherche, qui plaisante, qui a du chagrin — là tu es une
+présence, pas un guichet : tu réponds à sa mesure, tu tiens la conversation.
+Mais « tenir la conversation » ne veut pas dire parler longtemps. TROIS
+PHRASES COURTES AU PLUS, toujours, même là. Puis tu rends la parole.
+
+VOICI POURQUOI, ET CE N'EST PAS UNE OPINION. Sur les vingt-cinq derniers tours
+de Lamine, mesurés sur le serveur, il t'a COUPÉE AVANT LA FIN quinze fois.
+Six fois sur dix, tu parlais encore alors qu'il avait eu sa réponse. Ce qu'il
+n'écoute pas, il a fallu le fabriquer, le payer, et surtout le lui faire
+attendre : tes deux tours les plus longs lui ont pris vingt-trois et
+vingt-quatre secondes.
+
+Quelqu'un qui parle trop n'a pas l'air plus intelligent. Il a l'air de ne pas
+écouter. Une vraie personne qui comprend répond en deux phrases et se tait —
+c'est exactement ce qui donne l'impression qu'elle a compris vite.
 
 RÉPONDS À LA QUESTION QU'ON TE POSE, ET DE LA FORME QU'ELLE APPELLE
 Lamine, le 11 septembre 2026 : « BIA doit être beaucoup plus intelligente pour
@@ -2105,7 +2116,23 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     /* Le plafond suit la réflexion, sinon elle mange la phrase. C'est
        précisément ce qui ratait avant. */
-    const PLAFOND = reflechit ? PLAFOND_AVEC_REFLEXION : (cherche ? 600 : 300);
+    /* ── ET LE PLAFOND DESCEND, PARCE QUE LA CONSIGNE NE SUFFIT PAS ───────
+
+       Lamine, le 17 septembre 2026 : « l'important est qu'on ait l'impression
+       de discuter avec une vraie personne qui comprend et qui répond
+       immédiatement. »
+
+       La consigne lui demande d'être brève depuis le 11 septembre, et elle
+       l'est... la moitié du temps. Les mesures du 17 le disent sans appel :
+       ses réponses courtes tiennent le tour en 7 à 10 secondes, ses réponses
+       longues le poussent à 23 et 24. Et il la coupe 15 fois sur 25.
+
+       Un plafond n'est pas une consigne : c'est une limite physique. 170
+       jetons laissent largement trois phrases courtes — au-delà, ce n'est plus
+       une réponse, c'est un exposé. Les questions difficiles gardent leur
+       budget de réflexion, qui est un autre sujet : penser longtemps pour
+       répondre court, c'est précisément ce qu'on veut. */
+    const PLAFOND = reflechit ? PLAFOND_AVEC_REFLEXION : (cherche ? 600 : 170);
 
     /* L'HORLOGE PART ICI, avant la connexion : voir lireLeFlux() et
        lib/etapes.ts. Le premier token se mesure depuis ce point. */
@@ -2208,6 +2235,23 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     noterReflexion(reflechit, Date.now() - partiModele);
     const texteDe=(d:Reponse)=>(d.content||[]).filter(b=>b.type==="text").map(b=>b.text||"").join("\n").trim();
     let complet=texteDe(data);
+
+    /* ── UN PLAFOND NE DOIT JAMAIS LA COUPER AU MILIEU D'UN MOT ────────────
+
+       Le revers du plafond descendu à 170 jetons le 17 septembre 2026. Si
+       elle le touche, sa dernière phrase s'arrête net — et à l'oral ça ne
+       ressemble pas à quelqu'un de bref, ça ressemble à quelqu'un qu'on a
+       débranché. Pire que la réponse longue qu'on voulait éviter.
+
+       On revient donc à la dernière phrase ACHEVÉE. Et seulement si ce qui
+       reste dit quelque chose : mieux vaut une phrase coupée que le silence,
+       et une réponse qui n'était qu'une seule phrase inachevée doit partir
+       telle quelle plutôt que de disparaître. */
+    if(data.stop_reason==="max_tokens"){
+      const fin=Math.max(complet.lastIndexOf("."),complet.lastIndexOf("!"),
+                         complet.lastIndexOf("?"),complet.lastIndexOf("…"));
+      if(fin>40) complet=complet.slice(0,fin+1).trim();
+    }
 
     /* ── « ELLE N'ARRÊTE PAS DE DIRE QUE MON MOTEUR NE RÉPOND PAS » ─────────
 
