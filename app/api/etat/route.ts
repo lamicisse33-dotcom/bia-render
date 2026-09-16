@@ -12,6 +12,7 @@ import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
 import { etatRepertoire } from "@/lib/repertoire";
 import { resumeCorpus } from "@/lib/corpus";
 import { resumeSouvenirs } from "@/lib/souvenirs";
+import { resumeReflexion } from "@/lib/reflechir";
 
 /* Dit à l'interface quels moteurs sont réellement branchés, pour qu'elle
    choisisse le micro et la voix sans deviner. Ouvert : aucun moteur payant
@@ -153,6 +154,13 @@ export async function GET() {
        deux pannes qui se ressemblent : « rien n'est écrit » et « la recherche
        ne trouve rien ». Voir lib/souvenirs.ts. */
     souvenirs: resumeSouvenirs(),
+    /* ── CE QUE COÛTE ET CE QUE RAPPORTE SA RÉFLEXION ────────────────────
+       Lamine, le 16 septembre 2026 : « parfois elle est trop bête ». Depuis
+       ce soir elle réfléchit avant de parler sur les questions difficiles,
+       et du premier jet ailleurs. Ce champ dit sur combien de questions ça
+       se déclenche, et les deux attentes moyennes côte à côte : c'est le
+       prix de l'arbitrage, en clair. Voir lib/reflechir.ts. */
+    reflexion: resumeReflexion(),
     /* CE QU'ELLE VA CHERCHER SUR INTERNET. Cent recherches d'images par jour
        sont gratuites ; la cent-unième se paie. Ce compteur est le robinet
        d'arrêt : quand il touche le plafond, BIA répond sans image plutôt que

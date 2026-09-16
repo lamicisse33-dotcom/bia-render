@@ -12,6 +12,7 @@ import { noterEtape } from "@/lib/etapes";
 import { noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
+import { BUDGET_DE_REFLEXION, PLAFOND_AVEC_REFLEXION, meriteReflexion, noterReflexion } from "@/lib/reflechir";
 import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
 import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgences";
 import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
@@ -1932,20 +1933,48 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        ET SI CE RÉGLAGE EST REFUSÉ, on repart sans lui : c'est le geste déjà
        écrit pour l'outil de recherche, et il couvre maintenant les deux. Un
        réglage inconnu ne doit jamais rendre BIA muette. */
-    const PAS_DE_REFLEXION = { thinking: { type: "disabled" } } as const;
+    /* ── TROIS ÉTATS, ET IL EN FALLAIT BIEN TROIS ─────────────────────────
+
+       Lamine, le 16 septembre 2026 : « parfois la nuit elle est beaucoup plus
+       intelligente, parfois trop bête. J'ai l'impression qu'il y a un système
+       qui la manipule en bas. »
+
+       Il n'y a pas de système en bas. Il y avait ce booléen-ci, qui mentait.
+
+       `avecReflexion:false` envoyait bien « pas de réflexion ». Mais
+       `avecReflexion:true` ne faisait RIEN : il n'envoyait pas le champ, et le
+       modèle retombait sur son défaut — réflexion comprise. Avec un plafond de
+       300 jetons, elle les mangeait tous avant la phrase, et la réponse
+       arrivait VIDE. C'est mot pour mot la panne du 15 septembre :
+       « stop_reason max_tokens — blocs reçus : thinking ».
+
+       Donc le seul chemin qui réfléchissait était celui qui la rendait muette,
+       et tous les autres répondaient du premier jet. Trois états nommés :
+
+         "eteinte"    — on le dit explicitement : premier jet, le plus rapide.
+         "allumee"    — avec un budget, et un plafond qui le dépasse.
+         "sans-champ" — on ne dit rien du tout. Réservé au rattrapage d'un
+                        réglage refusé : c'est le geste « je retire tous les
+                        réglages facultatifs », et il ne doit pas devenir un
+                        troisième avis sur la réflexion. */
+    type Reflexion = "eteinte" | "allumee" | "sans-champ";
+    const champDeReflexion = (r: Reflexion) =>
+      r === "eteinte" ? { thinking: { type: "disabled" } }
+      : r === "allumee" ? { thinking: { type: "enabled", budget_tokens: BUDGET_DE_REFLEXION } }
+      : {};
     const corpsDuModele = (o: {
-      plafond: number; avecOutil: boolean; avecReflexion: boolean;
+      plafond: number; avecOutil: boolean; reflexion: Reflexion;
     }) => JSON.stringify({
       model,
       max_tokens: o.plafond,
       system: consigne,
       messages: [...history, { role: "user", content: question }],
       ...(o.avecOutil ? { tools: [OUTIL_RECHERCHE] } : {}),
-      ...(o.avecReflexion ? {} : PAS_DE_REFLEXION),
+      ...champDeReflexion(o.reflexion),
       ...(emettre ? { stream: true } : {}),
     });
     const appelerLeModele = (o: {
-      plafond: number; avecOutil: boolean; avecReflexion: boolean;
+      plafond: number; avecOutil: boolean; reflexion: Reflexion;
     }) => fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
@@ -1958,12 +1987,29 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        signe écrit est ensuite un signe envoyé à la voix. 300 jetons laissent
        largement la place à deux phrases ; au-delà, c'est qu'elle était
        repartie à bavarder. */
-    const PLAFOND = cherche ? 600 : 300;
+    /* ── ET LA QUESTION DÉCIDE SI ELLE RÉFLÉCHIT ──────────────────────────
+
+       « Oui vas-y », le 16 septembre 2026, après qu'on a nommé l'arbitrage :
+       la réflexion sur les questions difficiles seulement, le premier jet
+       partout ailleurs. Sa priorité reste la vitesse ; c'est pour ça que ce
+       n'est pas un interrupteur général.
+
+       Ce qui y passe : un calcul, un « pourquoi », une comparaison, un
+       papier à fabriquer, un avis à défendre, une question longue ou qui
+       porte deux chiffres. Ce qui n'y passe pas : les salutations, les
+       traductions d'un mot, les phrases de trois mots, et TOUT le mode
+       apprentissage — là elle répète, elle ne pense pas, et il en fait des
+       dizaines d'affilée. Voir meriteReflexion() dans lib/reflechir.ts. */
+    const reflechit = meriteReflexion(question, Boolean(body.apprend));
+
+    /* Le plafond suit la réflexion, sinon elle mange la phrase. C'est
+       précisément ce qui ratait avant. */
+    const PLAFOND = reflechit ? PLAFOND_AVEC_REFLEXION : (cherche ? 600 : 300);
 
     /* L'HORLOGE PART ICI, avant la connexion : voir lireLeFlux() et
        lib/etapes.ts. Le premier token se mesure depuis ce point. */
     const partiModele=Date.now();
-    const response=await appelerLeModele({plafond:PLAFOND,avecOutil:cherche,avecReflexion:false});
+    const response=await appelerLeModele({plafond:PLAFOND,avecOutil:cherche,reflexion:reflechit?"allumee":"eteinte"});
 
     /* SI L'OUTIL EST REFUSÉ, ON RÉPOND QUAND MÊME.
 
@@ -1993,7 +2039,12 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       const detail = await reponse.clone().text().catch(() => "");
       console.error("BIA — un réglage est refusé, on repart sans :", detail.slice(0, 300));
       noterPanne("réglage refusé (400)", detail, "chat");
-      reponse = await appelerLeModele({plafond:300,avecOutil:false,avecReflexion:true});
+      /* « sans-champ » et non « allumée » : ici on retire TOUS les réglages
+         facultatifs pour qu'un réglage refusé ne la rende pas muette. Ce
+         n'était pas un avis sur la réflexion, et le booléen d'avant le
+         faisait passer pour tel. Le plafond monte quand même, au cas où le
+         modèle réfléchirait de lui-même — c'est ce qui la vidait. */
+      reponse = await appelerLeModele({plafond:PLAFOND_AVEC_REFLEXION,avecOutil:false,reflexion:"sans-champ"});
     }
 
     /* ── « SUR CERTAINES QUESTIONS ELLE DIT QUE SON MOTEUR NE RÉPOND PAS » ──
@@ -2029,7 +2080,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       console.error("BIA — le modèle bégaie, on retente une fois :", reponse.status, detail.slice(0, 200));
       noterPanne(reponse.status, `${detail.slice(0, 200)} — retenté après ${attente} ms`, "chat");
       await new Promise((f) => setTimeout(f, attente));
-      const reprise = await appelerLeModele({plafond:PLAFOND,avecOutil:cherche,avecReflexion:false});
+      const reprise = await appelerLeModele({plafond:PLAFOND,avecOutil:cherche,reflexion:reflechit?"allumee":"eteinte"});
       if (reprise.ok) reponse = reprise;
     }
 
@@ -2048,6 +2099,12 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        qu'il a consommé, et combien lui est revenu du cache. Ça se lit dans
        /api/etat, champ « depense ». */
     noterModele(data.usage, "chat");
+    /* ── ET ON MESURE, PARCE QUE JE LE LUI AI PROMIS ──────────────────────
+       « Je le mesure avant et après plutôt que de te le promettre », le 16
+       septembre 2026. Les deux moyennes côte à côte — avec et sans réflexion
+       — disent le prix réel de l'arbitrage. Sans elles, on saurait seulement
+       que le code existe. Se lit dans /api/etat, champ `reflexion`. */
+    noterReflexion(reflechit, Date.now() - partiModele);
     const texteDe=(d:Reponse)=>(d.content||[]).filter(b=>b.type==="text").map(b=>b.text||"").join("\n").trim();
     let complet=texteDe(data);
 
@@ -2088,7 +2145,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
            — la phrase elle-même était trop longue pour le plafond.
          900 jetons, le temps d'une seule reprise : on ne paie que ce qui est
          écrit, et la consigne lui demande toujours deux phrases. */
-      const sansOutil=await appelerLeModele({plafond:900,avecOutil:false,avecReflexion:false});
+      const sansOutil=await appelerLeModele({plafond:900,avecOutil:false,reflexion:"eteinte"});
       if(sansOutil.ok){
         const second:Reponse=emettre?await lireLeFlux(sansOutil,emettre):await sansOutil.json() as Reponse;
         noterModele(second.usage,"chat");
