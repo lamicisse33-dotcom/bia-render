@@ -42,6 +42,7 @@ import { finir as finirLeTour, poser as poserBorne, tourVide, type Bornes } from
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 import { lireLeRire } from "@/lib/rires";
+import { reveiller } from "@/lib/reveil-du-son";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
 /* `sonne` vit dans lib/normaliser.ts : un fichier SANS aucun import, écrit le
    15 septembre après l'écran noir. Rien ici ne doit remonter jusqu'au
@@ -1098,6 +1099,44 @@ export default function Home() {
     return contexteRef.current!;
   }, []);
 
+  /* ── LE HAUT-PARLEUR NE REVIENT PAS TOUT SEUL APRÈS UN ENREGISTREMENT ────
+
+     Lamine, le 18 septembre 2026 : « quand elle rit pour la première fois le
+     son arrive, mais si elle continue le son ne suit pas — le deuxième rire,
+     y a pas de son. »
+
+     C'est le haut-parleur, pas le rire. Entre les deux rires, le micro s'est
+     ouvert et refermé. Sur iPhone, un enregistrement met la session audio du
+     téléphone en mode « enregistrement » et laisse le contexte de lecture
+     SUSPENDU — ou, sur Safari, dans un état « interrupted » que la norme ne
+     connaît même pas. Un son démarré là-dedans NE SORT PAS. Et il ne se
+     plaint pas : `onended` n'arrive jamais, le filet de secours rend la main
+     au bout de la durée du fichier, et tout continue comme si elle avait ri.
+     Le visage rit, la gorge est muette. C'est exactement ce qu'il a vu.
+
+     ON RÉVEILLAIT BIEN LE CONTEXTE — MAIS SANS ATTENDRE. `resume()` rend une
+     promesse ; on la jetait (`void`) et on démarrait le son dans la foulée.
+     Le premier rire s'en sortait parce que son fichier venait du réseau, et
+     ces deux cents millisecondes suffisaient au réveil. Le second partait du
+     cache, tout de suite, et arrivait avant que le haut-parleur soit rendu.
+
+     UN SON QUI VIENT DE LA MÉMOIRE EST DONC PLUS FRAGILE QU'UN SON QUI VIENT
+     DU RÉSEAU. C'est le contraire de ce qu'on croit en accélérant les choses,
+     et ça vaut pour tout ce qu'on mettra en cache ensuite — les sons du
+     répertoire, et les fichiers embarqués dans l'application native.
+
+     On attend donc le réveil. Trois essais courts : le premier suffit presque
+     toujours, les deux autres sont pour l'iPhone qui rend le haut-parleur
+     avec un temps de retard. Au pire on a perdu 120 ms ; au mieux, elle rit
+     pour de vrai. */
+  const reveillerLeSon = useCallback(async () => {
+    const ctx = contexte();
+    /* La règle elle-même est dans lib/reveil-du-son.ts, avec son histoire et
+       ses épreuves. Ici on ne fait que l'appliquer. */
+    await reveiller(ctx);
+    return ctx;
+  }, [contexte]);
+
   const couperSon = useCallback(() => {
     /* Elle ne parle plus : son énergie retombe, sinon la barre à franchir
        pour l'interrompre resterait haute alors qu'elle s'est tue. */
@@ -1184,8 +1223,10 @@ export default function Home() {
      accusés de réception et des transitions, qui sortent du haut-parleur
      AVANT la réponse. Les compter comme « première syllabe » ferait croire à
      un tour de deux secondes là où il en a duré neuf. */
-  const jouerEtAnimer = useCallback((octets: ArrayBuffer, estLaReponse = false) => new Promise<number>((fini) => {
-    const ctx = contexte();
+  const jouerEtAnimer = useCallback(async (octets: ArrayBuffer, estLaReponse = false) => {
+    /* Le haut-parleur d'abord, le son ensuite. Voir reveillerLeSon(). */
+    const ctx = await reveillerLeSon();
+    return new Promise<number>((fini) => {
     let rendu = false;
     let secours: ReturnType<typeof setTimeout> | null = null;
     const rendre = (ms: number) => {
@@ -1243,7 +1284,8 @@ export default function Home() {
       secours = setTimeout(() => rendre(duree), duree + 1000);
       animationRef.current = requestAnimationFrame(suivre);
     }).catch(() => rendre(0));
-  }), [contexte, envoyerLeTour]);
+    });
+  }, [reveillerLeSon, envoyerLeTour]);
 
   /* La voix du navigateur : béquille, gardée pour le cas où Oolel ne répond
      pas. Elle ne sait pas dire le wolof, d'où la réécriture phonétique — et
@@ -1354,9 +1396,13 @@ export default function Home() {
      d'enregistrer et n'a pas rendu le haut-parleur, une interruption —
      `onended` ne vient jamais et tout ce qui suit reste bloqué. La réponse
      entière restait alors coincée derrière un rire qu'on n'entendait pas. */
-  const jouerSonAvecVisages = useCallback((octets: ArrayBuffer, visages: Array<[string, number]>) =>
-    new Promise<void>((fini) => {
-      const ctx = contexte();
+  const jouerSonAvecVisages = useCallback(async (octets: ArrayBuffer, visages: Array<[string, number]>) => {
+    /* LE RIRE PASSE PAR ICI, ET C'EST LUI QUI A RÉVÉLÉ LE DÉFAUT. Un rire
+       part du cache, sans attendre le réseau : c'est le son le plus rapide de
+       toute l'application, donc le premier à partir avant que le haut-parleur
+       soit rendu. Voir reveillerLeSon(). */
+    const ctx = await reveillerLeSon();
+    return new Promise<void>((fini) => {
       let rendu = false;
       let secours: ReturnType<typeof setTimeout> | null = null;
       let minuteriesVisages: Array<ReturnType<typeof setTimeout>> = [];
@@ -1412,7 +1458,8 @@ export default function Home() {
         source.start();
         secours = setTimeout(() => rendre(), Math.max(mémoire.duration * 1000, arc) + 1000);
       }).catch(() => rendre(true));
-    }), [contexte]);
+    });
+  }, [reveillerLeSon]);
 
   /* Le rire part AVANT la parole, pendant que la voix se synthétise : on
      couvre ainsi l'attente du premier morceau, et l'émotion arrive d'un
