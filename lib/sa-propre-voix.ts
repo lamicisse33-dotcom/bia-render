@@ -187,5 +187,45 @@ export function recoller(
   /* Les deux enregistreurs se chevauchent d'une fraction de seconde : le
      début peut se retrouver en tête des deux. On ne le dit pas deux fois. */
   if (normaliser(suite).startsWith(normaliser(debut))) return suite;
-  return `${debut} ${suite}`;
+
+  /* ── ET LE CHEVAUCHEMENT EST SOUVENT PARTIEL ────────────────────────────
+
+     Idée de ChatGPT, le 17 septembre 2026, sur le zip que Lamine lui avait
+     confié pour le micro. C'est la seule de ses trois propositions que je
+     garde, et elle est juste : la garde du dessus ne savait retirer que le
+     cas où TOUT le début réapparaissait en tête de la suite.
+
+     Or les deux enregistreurs ne se chevauchent pas proprement. Lamine dit
+     « non attends je parle », le guetteur attrape ça, puis le micro ordinaire
+     entend « je parle de demain ». Rien ne commence par l'autre — et on
+     recollait « non attends je parle je parle de demain ». Il redisait deux
+     mots, à voix haute, dans sa propre phrase.
+
+     On cherche donc la plus longue FIN du début qui soit aussi le DÉBUT de la
+     suite, et on ne garde la suite qu'à partir de là. La comparaison se fait
+     sur la forme normalisée, la coupe sur le texte d'origine : c'est ce qu'il
+     a dit qui part au modèle, pas une version rabotée.
+
+     CE QUE JE N'AI PAS PRIS DE SA VERSION, et la raison est mesurée : sa
+     règle d'écho déclarait « c'est sa propre voix » dès que quatre signes de
+     ce qu'on entend se retrouvaient dans ce qu'elle venait de dire. Éprouvé
+     sur une phrase ordinaire d'elle, « waaw », « papa » et « topp » devenaient
+     de l'écho — Lamine l'interrompait et elle ne l'entendait pas. Et il avait
+     rallumé le point orange du téléphone, que Lamine avait demandé le 12
+     septembre de tout faire pour éteindre. */
+  const a = normaliser(debut).split(" ").filter(Boolean);
+  const b = normaliser(suite).split(" ").filter(Boolean);
+  let chevauchement = 0;
+  for (let n = Math.min(a.length, b.length); n > 0; n--) {
+    let pareil = true;
+    for (let i = 0; i < n; i++) {
+      if (a[a.length - n + i] !== b[i]) { pareil = false; break; }
+    }
+    if (pareil) { chevauchement = n; break; }
+  }
+  if (!chevauchement) return `${debut} ${suite}`;
+  /* La suite ne disait rien de neuf : elle n'était que la fin du début. */
+  if (chevauchement >= b.length) return debut;
+  const reste = suite.split(/\s+/).filter(Boolean).slice(chevauchement).join(" ");
+  return reste ? `${debut} ${reste}` : debut;
 }
