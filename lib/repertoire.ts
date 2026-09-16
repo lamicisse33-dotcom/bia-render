@@ -930,16 +930,69 @@ export function figeeEncoreBonne(entree: Entree, filDitParElle: string[]): boole
   return !dejaDitDansLeFil(entree, filDitParElle);
 }
 
-export function consigneRepertoire(): string {
+/* ── « ELLE S'EST MISE À RÉPÉTER BA BENEEN YOON, BA BENEEN YOON » ───────────
+
+   Lamine, le 16 septembre 2026, en testant BIA sur un débat politique :
+   « d'un coup, elle s'est mise à répéter à la prochaine fois, papa, à la
+   prochaine fois, papa. »
+
+   C'est #au-revoir, servi en boucle. DEUX trous se sont additionnés :
+
+   1. La garde au-dessus ne regarde que les clés PERSONNELLES. #au-revoir n'en
+      est pas — il pouvait donc être servi indéfiniment.
+   2. Le chemin le plus emprunté, celui où c'est LE MODÈLE qui choisit
+      l'étiquette, n'avait aucune garde du tout.
+
+   ET CE QUI EN FAIT UNE BOUCLE, pas un simple doublon : le téléphone renvoie
+   à chaque tour tout ce qu'elle a déjà dit. Une fois « Ba beneen yoon »
+   prononcé, le modèle relit une conversation qui s'est DÉJÀ terminée. Tout ce
+   qui suit ressemble alors à un épilogue, et la sortie la moins chère est de
+   redire au revoir. Chaque au revoir rend le suivant plus probable.
+
+   ── POURQUOI PAS « JAMAIS DEUX FOIS » ─────────────────────────────────────
+
+   Parce que ce serait casser son intention. « Où es-tu » a la même réponse au
+   centième message, et c'est voulu — voir figeeEncoreBonne() juste au-dessus.
+   Ce qu'on interdit, c'est le TOUR SUIVANT : si la dernière chose qu'elle a
+   dite est déjà cette phrase-là, elle ne la redit pas. Le modèle écrira
+   autre chose. Une boucle se casse au premier tour ; deux d'affilée, c'est
+   déjà une de trop. */
+export function dejaDiteJusteAvant(entree: Entree, filDitParElle: string[]): boolean {
+  const derniere = normaliser(String(filDitParElle[filDitParElle.length - 1] || ""));
+  if (!derniere) return false;
+  for (const texte of [entree.wolof, entree.francais]) {
+    const cherche = normaliser(String(texte || ""));
+    /* Même seuil que dejaDitDansLeFil : « waw » se retrouverait partout. */
+    if (cherche.length < 12) continue;
+    if (derniere.includes(cherche)) return true;
+  }
+  return false;
+}
+
+/* ── LA PHRASE QU'ELLE VIENT DE DIRE NE LUI EST PLUS PROPOSÉE ──────────────
+
+   C'est ICI que la boucle du 16 septembre 2026 se casse, et nulle part
+   ailleurs. Le modèle relisait une conversation qui s'était déjà terminée
+   — « Ba beneen yoon » était dans sa propre bouche — et la sortie la moins
+   chère était de redire au revoir. Chaque au revoir rendait le suivant plus
+   probable.
+
+   On ne peut pas refuser l'étiquette APRÈS coup : à ce moment-là, sa réponse
+   n'est plus qu'un mot-clé, et le refuser ferait prononcer « #au-revoir » à
+   voix haute. On l'empêche donc de la choisir : la ligne disparaît de la
+   liste pour ce tour-ci, et revient au suivant. */
+export function consigneRepertoire(derniereDite = ""): string {
   if (!REPERTOIRE_PRET) return "";
-  const lignes = TOUT.map(
+  const fil = derniereDite ? [derniereDite] : [];
+  const offertes = TOUT.filter((e) => !fil.length || !dejaDiteJusteAvant(e, fil));
+  const lignes = offertes.map(
     (e) => `${PERSONNELLES.has(e.cle) ? "✦ " : ""}#${e.cle} — quand on demande : ${e.formes.slice(0, 4).join(" / ")}\n    elle dit alors : « ${e.wolof} »`,
   );
   return `
 
 ═══ CE QUI EST DÉJÀ ENREGISTRÉ DE SA VOIX ═══
 
-Ces ${TOUT.length} réponses existent en son, prêtes à être dites. Quand la
+Ces ${offertes.length} réponses existent en son, prêtes à être dites. Quand la
 question de la personne est CELLE-LÀ — même dite autrement, même mal
 orthographiée, même en wolof écrit à la française — tu ne rédiges RIEN : tu
 réponds uniquement par l'étiquette, seule, sur une ligne. Exemple de réponse
@@ -953,6 +1006,13 @@ MAIS SEULEMENT SI ELLE RÉPOND VRAIMENT. « Salaam, dama bëgg ab devis » n'est
 pas une salutation : c'est une demande de devis. Au moindre doute, réponds
 normalement — une réponse enregistrée servie à côté est bien pire qu'une
 phrase que tu écris toi-même.
+
+#au-revoir NE SE DIT QUE SI LA PERSONNE PREND CONGÉ. Ce n'est pas une porte de
+sortie quand la conversation devient difficile, ni quand tu préfères ne pas
+répondre. Si un sujet te met mal à l'aise — une querelle politique, une
+question sur laquelle tu ne veux pas prendre parti — tu le DIS, avec tes mots,
+et tu restes. Prendre congé de quelqu'un qui ne partait pas, c'est lui
+raccrocher au nez.
 
 LES LIGNES MARQUÉES ✦ SONT POUR LES PREMIERS MOTS SEULEMENT. Ce sont celles
 qui parlent de la personne : comment elle va, ce qu'elle ressent, ce qu'elle

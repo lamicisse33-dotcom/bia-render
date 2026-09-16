@@ -21,7 +21,7 @@ import { demandeDeNombre, repondreAuNombre } from "@/lib/nombre-demande";
 import { consigneDesSouvenirs, garder, retrouver, souvenirsActifs, type Souvenir } from "@/lib/souvenirs";
 import { SERVICES } from "@/lib/services-textes";
 import { ajouterCorrection, cequElleAAppris, retirerCorrection } from "@/lib/lexique";
-import { REPERTOIRE_PRET, consigneRepertoire, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
+import { REPERTOIRE_PRET, consigneRepertoire, dejaDiteJusteAvant, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
 import { DIFFUSER_LE_MODELE, teteDeLaReponse } from "@/lib/diffusion";
@@ -1222,6 +1222,13 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        dans lib/repertoire.ts. */
     const seConnait=onSeConnait((body.history||[]).length,String(body.resume||""));
 
+    /* Ce qu'elle a déjà dit dans ce fil. Remonté ici le 16 septembre 2026 :
+       les DEUX chemins du répertoire en ont besoin, et celui d'en bas — le
+       plus emprunté — n'y avait pas accès. Voir dejaDiteJusteAvant(). */
+    const elleADit=(body.history||[])
+      .filter(item=>item.role==="bia")
+      .map(item=>String(item.text||""));
+
     if(REPERTOIRE_PRET&&repertoireActif()){
       const toute=trouverDansRepertoire(question);
       /* ── SERVIE TANT QU'ELLE N'A PAS DÉJÀ ÉTÉ DITE ICI ──────────────────
@@ -1238,11 +1245,12 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
 
          Ce n'est pas « il me connaît » qui gâche une phrase enregistrée :
          c'est « il vient de l'entendre ». On regarde donc ce qu'elle a déjà
-         dit dans CE fil, et rien d'autre. Voir figeeEncoreBonne(). */
-      const elleADit=(body.history||[])
-        .filter(item=>item.role==="bia")
-        .map(item=>String(item.text||""));
-      if(toute&&figeeEncoreBonne(toute,elleADit)){
+         dit dans CE fil, et rien d'autre. Voir figeeEncoreBonne().
+
+         ET JAMAIS DEUX TOURS DE SUITE, depuis le 16 septembre : c'est ce qui
+         a fait répéter « Ba beneen yoon » pendant son débat politique. Voir
+         dejaDiteJusteAvant() dans lib/repertoire.ts. */
+      if(toute&&figeeEncoreBonne(toute,elleADit)&&!dejaDiteJusteAvant(toute,elleADit)){
         /* La langue se décide sur les mots-outils employés, pas sur une
            liste de neuf mots et l'absence d'accents — voir langueDe(). */
         const langue=langueDe(question);
@@ -1690,7 +1698,11 @@ ${cosmetiques}
        La liste va dans le SOCLE, pas dans la partie variable : elle ne change
        jamais, donc elle est relue depuis le cache au dixième du prix. Mise
        dans le variable, on l'aurait repayée plein tarif à chaque question. */
-    if(repertoireActif())socle+=consigneRepertoire();
+    /* La dernière phrase sortie de sa bouche. Elle sert à retirer de la liste
+       la réponse enregistrée qu'elle vient de dire — sinon le modèle la
+       rechoisit, et c'est la boucle du 16 septembre : « à la prochaine fois,
+       papa, à la prochaine fois, papa ». Voir consigneRepertoire(). */
+    if(repertoireActif())socle+=consigneRepertoire(elleADit[elleADit.length-1]||"");
 
     const aMontrer=await catalogue();
     if(aMontrer)variable+=`\n\nCE QUE TU PEUX MONTRER À L'ÉCRAN
@@ -2036,6 +2048,22 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     /* `dejaParle` : voir la garantie en tete de repondre(). Si le telephone a
        deja dit une phrase, on ne la remplace plus par autre chose — meme par
        un enregistrement gratuit. */
+    /* ── POURQUOI ON NE REFUSE PAS L'ÉTIQUETTE ICI ────────────────────────
+
+       C'est pourtant ce chemin-ci qui a bouclé le 16 septembre 2026 pendant
+       son débat politique — « elle s'est mise à répéter à la prochaine fois,
+       papa ». Le réflexe serait de refuser l'étiquette déjà dite au tour
+       d'avant. Je l'ai écrit, puis retiré.
+
+       Parce qu'à cet endroit, `complet` ne contient QUE « #au-revoir ». La
+       refuser ne fait pas apparaître une phrase : elle laisse le mot-clé
+       partir vers la voix, et BIA prononce « dièse au tiret revoir ». Dire au
+       revoir deux fois est ennuyeux ; prononcer une étiquette à voix haute
+       est cassé.
+
+       LA BOUCLE SE CASSE EN AMONT, là où le modèle CHOISIT : la phrase qu'elle
+       vient de dire ne lui est plus proposée. Voir consigneRepertoire() et
+       dejaDiteJusteAvant() dans lib/repertoire.ts. */
     const choisie=(repertoireActif()&&!dejaParle)?etiquetteSeule(complet):null;
     /* Une étiquette seule qu'on ne connaît pas : le modèle a voulu se servir
        du répertoire et s'est trompé de nom. La réponse part quand même — mais
