@@ -692,3 +692,53 @@ export function vraimentUneVoix(dureeDeParole: number, partVocaleMoyenne: number
   if (partVocaleMoyenne === null || !Number.isFinite(partVocaleMoyenne)) return true;
   return partVocaleMoyenne >= PART_VOCALE_MINIMALE;
 }
+
+/* ═══ 7. UN FLUX QUI A L'AIR VIVANT ET QUI NE L'EST PLUS ═══════════════════
+
+   Lamine, le 18 septembre 2026, sur l'application native :
+
+     « Quand on discute, pendant un certain temps, j'ai l'impression que le
+       micro se désactive. Au bout de quelques minutes. Ou quand j'ouvre par
+       exemple appareil photo, ou message, si je reviens, le micro se
+       désactive. »
+
+   ── CE QUE FAIT LE TÉLÉPHONE QUAND ON LE QUITTE ───────────────────────────
+
+   iOS ne laisse pas une application capter le micro en arrière-plan. Quand
+   on passe à l'appareil photo, à Messages, ou qu'un appel arrive, il reprend
+   le micro. Et il a DEUX façons de le faire :
+
+     — la piste se TERMINE (`readyState` passe à « ended ») ;
+     — ou la piste est COUPÉE (`muted` passe à vrai) et reste là.
+
+   LE PREMIER CAS SE VOYAIT DÉJÀ : `flux.active` devient faux, et la prochaine
+   demande de micro en reprend un neuf.
+
+   LE SECOND EST LE PIÈGE, et c'est celui-là qui a coûté ses minutes à Lamine.
+   Une piste coupée reste ACTIVE. `flux.active` dit vrai, l'analyseur est
+   branché, tout a l'air normal — et il ne rend que du silence. BIA attend
+   alors une voix qui ne viendra jamais. Rien ne casse, rien ne se plaint :
+   elle devient sourde, poliment.
+
+   ── ET C'EST LA MÊME FAMILLE DE DÉFAUT QUE LES TROIS AUTRES ───────────────
+
+   Un contexte audio suspendu qui joue sans son. Un mode qu'on ne peut plus
+   quitter. Un compteur qui repart à zéro sans le dire. Et maintenant une
+   piste morte qui se déclare vivante. À chaque fois : l'état affiché n'est
+   pas l'état réel, et personne ne regarde.
+
+   ON NE FAIT PLUS CONFIANCE À `active` TOUT SEUL. On demande aux pistes. */
+
+/**
+ * Ce flux capte-t-il encore vraiment ?
+ *
+ * `active` ne suffit pas : une piste coupée par le téléphone laisse le flux
+ * actif et ne rend que du silence. On exige au moins une piste de son qui
+ * soit VIVANTE et NON COUPÉE.
+ */
+export function fluxVivant(flux: MediaStream | null | undefined): boolean {
+  if (!flux || !flux.active) return false;
+  const pistes = flux.getAudioTracks();
+  if (!pistes.length) return false;
+  return pistes.some((p) => p.readyState === "live" && !p.muted);
+}

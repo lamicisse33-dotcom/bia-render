@@ -50,7 +50,7 @@ import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
    15 septembre après l'écran noir. Rien ici ne doit remonter jusqu'au
    serveur. */
 import { sonne } from "@/lib/normaliser";
-import {
+import { fluxVivant,
   INTERVENTION_MAXIMALE, MICRO_LACHE_ENTRE_LES_TOURS, MICRO_SUR_SON_PROPRE_CONTEXTE, REGLAGES_DU_MICRO,
   SILENCE_QUI_CLÔT_LA_CONVERSATION, TENIR_POUR_COUPER, TOUR_DE_VEILLE,
   TOURS_MUETS_AVANT_DE_DOUTER, FLUX_DU_GUETTEUR,
@@ -3379,9 +3379,25 @@ export default function Home() {
       : ctxParole;
     if (ctxMicro.state === "suspended") { try { await ctxMicro.resume(); } catch { } }
 
-    if (fluxRef.current?.active && analyseRef.current) {
-      return { flux: fluxRef.current, analyse: analyseRef.current, ctxMicro };
+    /* ── ON NE REPREND PAS UN FLUX QUI A L'AIR VIVANT ──────────────────
+
+       Lamine, le 18 septembre 2026 : « quand j'ouvre appareil photo, ou
+       message, si je reviens, le micro se désactive. »
+
+       iOS reprend le micro quand on quitte l'application. Il a deux façons
+       de le faire, et l'une des deux ne se voyait pas : la piste est COUPÉE
+       au lieu d'être terminée. Le flux reste alors ACTIF, l'analyseur reste
+       branché, tout a l'air normal — et il ne rend que du silence. BIA
+       attendait une voix qui ne viendrait jamais.
+
+       `active` ne suffit donc plus : on demande aux pistes. Voir
+       fluxVivant() dans lib/micro.ts, section 7. */
+    if (fluxVivant(fluxRef.current) && analyseRef.current) {
+      return { flux: fluxRef.current!, analyse: analyseRef.current, ctxMicro };
     }
+    /* Mort, mais encore branché : on débranche proprement avant d'en
+       reprendre un neuf, sinon l'ancien analyseur survit dans le contexte. */
+    if (fluxRef.current) { debrancherMicroRef.current?.(); debrancherMicroRef.current = null; }
 
     /* Les trois réglages demandés par Lamine — écho, bruit, volume. Le
        navigateur les honore quand il sait et les ignore sans se plaindre
@@ -3396,6 +3412,27 @@ export default function Home() {
     const entree = ctxMicro.createMediaStreamSource(flux);
     entree.connect(analyse);
 
+    /* ── ET ELLE PRÉVIENT QUAND ELLE MEURT ────────────────────────────
+
+       Au lieu d'attendre le prochain tour pour s'apercevoir que le micro
+       est mort, on écoute la piste elle-même. « ended » et « mute » sont
+       les deux façons dont le téléphone reprend le micro — un appel, une
+       alarme, l'appareil photo, Siri, ou simplement quelques minutes
+       d'arrière-plan.
+
+       On se contente d'INVALIDER : la boucle de réouverture, elle, sait
+       déjà quand il est permis de reprendre un micro. Le rouvrir ici, ce
+       serait le rouvrir peut-être pendant qu'elle parle — l'erreur du
+       17 septembre, et je ne la refais pas. */
+    for (const piste of flux.getAudioTracks()) {
+      const perdue = () => {
+        if (fluxRef.current !== flux) return;
+        debrancherMicroRef.current?.();
+        debrancherMicroRef.current = null;
+      };
+      piste.addEventListener("ended", perdue);
+      piste.addEventListener("mute", perdue);
+    }
     fluxRef.current = flux;
     analyseRef.current = analyse;
     debrancherMicroRef.current = () => {
@@ -4556,6 +4593,57 @@ export default function Home() {
      demande de fermer ce micro à l'instant où elle ouvre la bouche — ça se
      fait, mais pas dans un navigateur où je ne maîtrise pas la session audio.
      C'est précisément ce que l'enveloppe Capacitor doit permettre de tester. */
+  /* ── ON QUITTE L'APPLICATION, ON REVIENT, ELLE ENTEND ENCORE ────────────
+
+     Lamine, le 18 septembre 2026, sur l'application native :
+
+       « Quand on discute, pendant un certain temps, j'ai l'impression que le
+         micro se désactive. Au bout de quelques minutes. Ou quand j'ouvre par
+         exemple appareil photo, ou message, si je reviens, le micro se
+         désactive. »
+
+     CE N'EST PAS LA MÊME CHOSE QUE LA RANGÉE DES TUILES, réparée quelques
+     heures plus tôt. Celle-là est une fenêtre DANS BIA, et c'est nous qui
+     fermions le micro. Ici il QUITTE BIA — l'appareil photo d'iOS, Messages,
+     un appel — et c'est le téléphone qui reprend le micro, sans rien nous
+     dire.
+
+     AU RETOUR, TOUT CE QUI ÉTAIT EN VOL EST MORT : la piste du micro,
+     l'enregistreur qui tournait dessus, le contexte audio, et la réponse qui
+     se fabriquait. Mais rien de tout ça ne s'annonce. L'écran revient comme
+     on l'avait laissé, et c'est ça le piège : il a l'air prêt.
+
+     ON REFAIT DONC L'ÉTAT AU LIEU DE LE SUPPOSER. `taire()` remet au repos
+     et périme ce qui traînait ; on débranche le micro pour que le prochain
+     en reprenne un neuf ; et on relance l'écoute, parce que le mode était
+     peut-être DÉJÀ « ready » — auquel cas la boucle de réouverture, qui
+     n'attend qu'un changement, ne se déclencherait jamais.
+
+     SEULEMENT SI LA CONVERSATION ÉTAIT OUVERTE. Revenir à BIA ne doit pas
+     allumer un micro que personne n'a demandé : ce serait le point orange
+     allumé sans raison, et c'est exactement ce qu'il ne veut plus.
+
+     LE DEMI-SECOND D'ATTENTE n'est pas une superstition : au retour, iOS
+     rend la session audio avec un temps de retard, et un getUserMedia
+     demandé trop tôt rend une piste déjà coupée. On laisse le téléphone
+     finir de revenir. */
+  useEffect(() => {
+    const auRetour = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!conversationRef.current) return;
+      taireRef.current?.();
+      debrancherMicroRef.current?.();
+      debrancherMicroRef.current = null;
+      setTimeout(() => {
+        if (!conversationRef.current || busyRef.current) return;
+        if (enregistreEncore()) return;
+        void ecouterRef.current?.();
+      }, 500);
+    };
+    document.addEventListener("visibilitychange", auRetour);
+    return () => document.removeEventListener("visibilitychange", auRetour);
+  }, [enregistreEncore]);
+
   useEffect(() => {
     if (!conversation || mode !== "ready") return;
     if (enregistreEncore()) return;
