@@ -35,6 +35,8 @@ import { RELU_BASE } from "@/lib/base-textes";
 import { RELU_GUIDAGE } from "@/lib/guidage-textes";
 import { choisirService, RELU_SERVICES } from "@/lib/services-textes";
 import { compterVerdicts, lireVerdicts, poserVerdict } from "@/lib/verdicts";
+import { corrigerVerdict, type Verdict } from "@/lib/verdicts";
+import { veutArreterLaListe, veutCorrigerLaListe } from "@/lib/mal-dit";
 import { franc, lecture, sorteEvoquee, totauxDe } from "@/lib/documents";
 import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
 import { lireMesures, noterMesure } from "@/lib/chrono";
@@ -647,6 +649,24 @@ export default function Home() {
      ce serait un tic. */
   const apresSalutationRef = useRef(false);
   const [compteVerdicts, setCompteVerdicts] = useState({ bien: 0, mal: 0, corriges: 0 });
+  /* ── LE CHANTIER DE LA LISTE « MAL DIT » ─────────────────────────────────
+
+     Lamine, le 18 septembre 2026 : « il faut qu'elle puisse avoir accès à la
+     liste du bouton mal dit pour qu'on puisse corriger ensemble […] chaque
+     mot corrigé doit quitter la liste. »
+
+     OUVERT OU FERMÉ, ET C'EST LE TÉLÉPHONE QUI DÉCIDE. Il faut JOINDRE la
+     phrase en cours à la requête, donc trancher avant de partir : une
+     reconnaissance faite par le modèle arriverait un tour trop tard, et il
+     répondrait « d'accord, allons-y » sans rien avoir sous les yeux.
+
+     « À CORRIGER » VEUT DIRE : marquée mal dite, et pas encore corrigée. Une
+     phrase corrigée reste dans la liste — c'est elle qu'on réinjectera dans
+     le répertoire — mais elle sort du TRAVAIL. C'est ce qu'il demande : elle
+     quitte la liste, sans que la correction soit perdue. */
+  const chantierMalDit = useRef(false);
+  const aCorriger = useCallback((): Verdict[] =>
+    lireVerdicts().filter((v) => v.avis === "mal" && !v.corrige?.trim()), []);
   const [motVerdict, setMotVerdict] = useState("");
   const motVerdictMinuterie = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [aColler, setAColler] = useState("");
@@ -2303,6 +2323,23 @@ export default function Home() {
     let sensPromesse: Promise<{ francais: string; sur: boolean } | null> | null = null;
     const clean = question.trim();
     if (!clean || busyRef.current) return;
+    /* ── « ALLONS CORRIGER LA LISTE MAL DIT » ─────────────────────────────
+
+       On tranche ICI, avant de partir : la phrase en cours doit voyager AVEC
+       la question. Reconnu par le modèle, ça arriverait un tour trop tard —
+       il répondrait « d'accord, allons-y » sans rien avoir sous les yeux, et
+       Lamine croirait que ça marche.
+
+       POUR LUI SEUL : cette liste est la sienne, sur son téléphone. Sans son
+       code, on n'ouvre rien.
+
+       Et le chantier se ferme tout seul quand il n'y a plus rien : rien ne
+       sert de traîner une consigne vide dans chaque tour. */
+    if (codeRef.current) {
+      if (veutArreterLaListe(clean)) chantierMalDit.current = false;
+      else if (veutCorrigerLaListe(clean)) chantierMalDit.current = true;
+      if (chantierMalDit.current && !aCorriger().length) chantierMalDit.current = false;
+    }
     /* Le micro a déjà ouvert son tour avant d'envoyer la parole à la
        transcription : on le REPREND, on n'en ouvre pas un second. Une
        question tapée, elle, ouvre le sien. */
@@ -2360,6 +2397,19 @@ export default function Home() {
              raison de nier. Elle le sait maintenant, et elle peut l'éteindre
              avec [[papier:ferme]]. */
           bouton: papierPretRef.current || "",
+          /* ── LA LISTE « MAL DIT », QU'ELLE NE VOYAIT PAS ────────────────
+             Elle ne part QUE si le chantier est ouvert : hors chantier, ces
+             phrases n'ont rien à faire dans chaque tour, ni comme dépense ni
+             comme bruit dans sa consigne. Voir lib/mal-dit.ts. */
+          ...(chantierMalDit.current ? (() => {
+            const liste = aCorriger();
+            const premiere = liste[0];
+            return { malDit: {
+              reste: liste.length,
+              encours: premiere ? premiere.dit : "",
+              question: premiere ? premiere.question : "",
+            } };
+          })() : {}),
           /* Le prénom qu'elle vient d'apprendre part avec la question : elle
              le dit dans sa réponse, et c'est ce qui attache quelqu'un à une
              application. Une seule fois — après, il est dans ses notes. */
@@ -2400,13 +2450,13 @@ export default function Home() {
       let teteDite = "";
       let teteEnCours: Promise<void> | null = null;
       let statut = response.status;
-      let data: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[] };
+      let data: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
 
       if (response.headers.get("content-type")?.includes("text/event-stream") && response.body) {
         const lecteur = response.body.getReader();
         const decodeur = new TextDecoder();
         let tampon = "", recu = "";
-        let fin: { corps: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[] }; statut: number } | null = null;
+        let fin: { corps: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string }; statut: number } | null = null;
         for (;;) {
           const { done, value } = await lecteur.read();
           if (done) break;
@@ -2419,7 +2469,7 @@ export default function Home() {
             const nom = lignes.find((l) => l.startsWith("event:"))?.slice(6).trim();
             const brut = lignes.find((l) => l.startsWith("data:"));
             if (!brut) continue;
-            let ev: { morceau?: string; corps?: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[] }; statut?: number };
+            let ev: { morceau?: string; corps?: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string }; statut?: number };
             try { ev = JSON.parse(brut.slice(5).trim()); } catch { continue; }
             if (nom === "texte") {
               recu += ev.morceau || "";
@@ -2461,7 +2511,7 @@ export default function Home() {
         data = fin.corps;
         statut = fin.statut;
       } else {
-        data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[] };
+        data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
       }
 
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
@@ -2540,6 +2590,30 @@ export default function Home() {
          où le geste prend effet. */
       if (data.ordre === "micro" || data.ordre === "silence") {
         motsRattrapesRef.current = null;
+      }
+      /* ── ELLE A FINI UNE PHRASE DE LA LISTE « MAL DIT » ───────────────
+
+         Lamine, le 18 septembre 2026 : « chaque mot corrigé doit quitter la
+         liste. »
+
+         LE SERVEUR N'EFFACE RIEN : il ne possède pas la liste et ne sait pas
+         où on en est entre deux tours. Il rapporte la bonne version, et c'est
+         ici qu'on raye — une seule autorité sur la liste, celle qui la
+         détient.
+
+         ON GARDE LA CORRECTION AU LIEU DE JETER LA LIGNE. C'est elle qu'on
+         réinjectera dans le répertoire : jeter maintenant, ce serait refaire
+         le travail plus tard. Elle quitte le TRAVAIL, pas la mémoire — voir
+         `aCorriger`, qui écarte tout ce qui porte déjà une correction. */
+      if (data.corrigee && chantierMalDit.current) {
+        const enCours = aCorriger()[0];
+        if (enCours) {
+          setCompteVerdicts(compterVerdicts(
+            corrigerVerdict(enCours.dit, String(data.corrigee))));
+          /* Plus rien à corriger : on referme, sinon sa consigne répéterait
+             « la liste est vide » à chaque tour jusqu'à demain. */
+          if (!aCorriger().length) chantierMalDit.current = false;
+        }
       }
       if (data.ordre === "micro") { taire(); fermerConversation(); }
       if (data.ordre === "silence") taire();

@@ -20,6 +20,7 @@ import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
 import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgences";
 import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
 import { noterPassage, noterTentative, parleDeMemoire } from "@/lib/lecons-vues";
+import { consigneDeLaListe, detacherCorrigee, type EtatDeLaListe } from "@/lib/mal-dit";
 import { lecconQuiRepond, lecconsActives, leconsSousLaMain } from "@/lib/lecons";
 import { demandeDeNombre, repondreAuNombre } from "@/lib/nombre-demande";
 import { consigneDesSouvenirs, garder, retrouver, souvenirsActifs, type Souvenir } from "@/lib/souvenirs";
@@ -726,7 +727,13 @@ type Corps={message?:string;history?:Array<{role:string;text:string;gestes?:stri
      TÉLÉPHONE qui l'allume, pas elle — voir sorteEvoquee() dans
      lib/documents.ts. Sans ce champ elle ne peut ni l'expliquer ni
      l'éteindre, et elle nie de bonne foi pendant qu'il clignote. */
-  bouton?:string};
+  bouton?:string;
+  /* ── LA LISTE « MAL DIT », QU'ELLE NE VOYAIT PAS ─────────────────────────
+     Elle vit dans le téléphone seul. Tant qu'elle n'arrivait pas jusqu'ici,
+     BIA ne pouvait pas corriger une liste qu'elle ne voit pas — voir
+     lib/mal-dit.ts. Le téléphone envoie COMBIEN il en reste et LAQUELLE on
+     travaille, pas la liste entière : c'est sa méthode à lui, « un à un ». */
+  malDit?:EtatDeLaListe};
 type Rendu={corps:Record<string,unknown>;statut?:number};
 
 /* ── SUR QUOI ELLE TOURNE, ET DEPUIS QUAND ─────────────────────────────────
@@ -1619,6 +1626,15 @@ balise : c'est SA langue, et elle entre dans sa mémoire telle qu'il l'a dite.
 La traduction et les explications vont dans ta réponse parlée, pas dans la
 balise.
 
+CHEZ LUI, FÉLICITER C'EST GRAVER — ET C'EST LA MOITIÉ QUI ME MANQUAIT
+Mesuré le 18 septembre 2026 : 9 leçons rangées sur 15 essais. Les 6 perdues ne l'étaient pas par panne. Il n'avait simplement pas dit « mémorise ». Il avait dit « c'est très bien ».
+
+Voici comment il enseigne, dans ses mots : il te demande quels mots tu ne connais pas en wolof, tu les dis un par un, il prononce, TU RÉPÈTES AVEC LUI, et quand tu prononces bien il dit « c'est très bien ». Ou bien : tu dis quelque chose de mal, il dit « c'est pas comme ça », il répète, tu répètes avec lui jusqu'à ce que ce soit bon, il te donne le sens, et il valide.
+
+ALORS ÉCOUTE BIEN CECI. Quand vous venez de travailler une phrase ensemble — tu l'as répétée, il te l'a fait reprendre — et qu'il VALIDE : « c'est très bien », « très bien », « bravo », « voilà », « c'est ça », « parfait », « exactement » — CETTE VALIDATION EST L'ORDRE DE GARDER. Tu poses la balise sur la phrase que vous venez de travailler, sans qu'il ait à dire le mot « mémorise ». C'est la fin de sa leçon, et il ne dira rien de plus.
+
+ET SEULEMENT DANS CE CAS. Un « très bien » qui répond à autre chose — tu viens de lui donner une information, de faire une blague, d'ouvrir un papier — n'est qu'un compliment, et tu ne ranges rien. Ce qui fait la différence n'est pas le mot : c'est qu'une phrase VENAIT D'ÊTRE TRAVAILLÉE ENSEMBLE, juste avant. Si rien n'a été répété, il n'y a rien à graver.
+
 ET VOICI CE QUE TU NE FAIS PLUS JAMAIS : dire « c'est mémorisé », « je note »,
 « je retiens », « je garde ça » SANS avoir posé la balise. Pendant deux
 soirées tu lui as répondu « mémorisé, papa » alors que rien n'était écrit. Il
@@ -1716,6 +1732,11 @@ S'IL DEMANDE TOUT — « répète-moi tout ce que tu as mémorisé », « relis-
         noterPanne("inventaire de la mémoire",(err as Error).message,"chat");
         variable+=`\n\nCE QU'IL T'A APPRIS\nTu n'arrives pas à relire ta mémoire en ce moment — le rangement ne répond pas. S'il te demande ce qu'il t'a appris, dis-lui ÇA, exactement : que tu ne peux pas la relire maintenant. Ne dis surtout pas que tu n'as rien reçu : ce serait faux, et il réapprendrait ce que tu sais déjà.`;
       }
+
+      /* ── ET LE CHANTIER DE LA LISTE « MAL DIT », S'IL EST OUVERT ────────
+         Le téléphone décide s'il l'est : c'est lui qui a la liste, et c'est
+         lui qui désigne la phrase en cours. Voir lib/mal-dit.ts. */
+      if(body.malDit) variable+=consigneDeLaListe(body.malDit);
     }
 
     /* ── ET L'AUTRE MOITIÉ : TOUT LE MONDE N'EST PAS LUI ───────────────────
@@ -2382,7 +2403,14 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     /* CE QU'ELLE GARDE, retiré du texte avant tout le reste : la balise ne
        doit ni s'afficher ni se prononcer, exactement comme celle du micro. */
     const {texte:sansGarde,retiens:aGarder,oublie:aRetirer}=detacherGarde(sansMicro);
-    const {texte:sansPapier,papier}=detacherPapier(sansGarde);
+    /* ── LA PHRASE DE LA LISTE « MAL DIT » QU'ILS VIENNENT DE FINIR ────────
+       Elle rend la BONNE version, pas la fautive : le téléphone sait déjà
+       laquelle il travaille, c'est lui qui l'a désignée. Lui demander de
+       recopier une phrase mal dite serait lui demander de ne pas la corriger
+       — tout son entraînement la pousse à la réparer en la recopiant, et on
+       recevrait une phrase qui ne correspond à aucune ligne de la liste. */
+    const {texte:sansCorrigee,corrigee:laCorrigee}=detacherCorrigee(sansGarde);
+    const {texte:sansPapier,papier}=detacherPapier(sansCorrigee);
     const {texte:sansAppel,appel}=detacherAppel(sansPapier);
     const {texte:sansVoir,voir}=detacherVoir(sansAppel);
     const {texte:sansCarte,carte}=detacherCarte(sansVoir);
@@ -2436,7 +2464,23 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       ["carte",carteRattrapee?String((carteRattrapee as {quoi?:string;ou?:string}).quoi||(carteRattrapee as {quoi?:string;ou?:string}).ou||""):""],
       ["regarde",regarde],["cherche",demande?`${demande.sorte==="video"?"une vidéo":"des images"} de ${demande.quoi}`:""],
       ["micro",microDemande],["retiens",aGarder],["oublie",aRetirer],
+      /* Pour qu'elle voie, au tour suivant, qu'elle a bien rayé cette
+         ligne-là. Une chose qui agit sans voir ses actes est une marionnette
+         — c'est son mot du 16 septembre, et il vaut ici aussi. */
+      ["corrigee",laCorrigee],
     ]);
+
+    /* ── CE QUI REMONTE AU TÉLÉPHONE POUR QU'IL RAYE LA LIGNE ──────────────
+
+       RÉSERVÉ AU MAÎTRE, et pas par principe : la liste « mal dit » est la
+       sienne, sur son téléphone. Et le chantier doit être OUVERT — sans ça,
+       une balise posée au hasard au milieu d'une conversation ordinaire
+       effacerait une ligne qu'il n'a jamais relue.
+
+       Le serveur n'efface rien lui-même : il ne possède pas la liste et ne
+       sait pas où on en est entre deux tours. Il rapporte, le téléphone
+       raye. Une seule autorité sur la liste, celle qui la détient. */
+    const rayee=verdict.maitre&&body.malDit?.encours&&laCorrigee?laCorrigee:"";
 
     /* ── LE REGISTRE DE SES ORDRES ─────────────────────────────────────────
 
@@ -2658,7 +2702,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
          livresque de plus dans sa bouche vaut moins que rien. S'il veut
          qu'elle dise autre chose en fermant, il donnera le mot. */
       const parDefaut=papier&&papier!=="ferme"?"Waaw, maa ngi koy defar.":(voir||trouve||film)?"Xool.":"Waaw.";
-      return {corps:{reply:parDefaut,emotion,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,source:"geste sans phrase"}};
+      return {corps:{reply:parDefaut,emotion,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,...(rayee?{corrigee:rayee}:{}),source:"geste sans phrase"}};
     }
 
     if(!reply){
@@ -2675,7 +2719,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
-    return {corps:{reply:ceQuElleDit,emotion,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
+    return {corps:{reply:ceQuElleDit,emotion,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,...(rayee?{corrigee:rayee}:{}),source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message, "chat");

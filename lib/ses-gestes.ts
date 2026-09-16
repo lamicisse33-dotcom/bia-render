@@ -58,6 +58,10 @@ const DITS: Record<string, (quoi: string) => string> = {
   micro: (q) => (q === "coupe" ? "tu as coupé le micro" : `tu as agi sur le micro (${q})`),
   retiens: (q) => `tu as rangé dans ta mémoire : « ${q} »`,
   oublie: (q) => `tu as retiré de ta mémoire : « ${q} »`,
+  /* Le 18 septembre : une phrase de la liste « mal dit » qu'ils viennent de
+     finir ensemble. Elle doit le VOIR au tour suivant, sinon elle repart sur
+     la même — il la corrigerait deux fois sans comprendre pourquoi. */
+  corrigee: (q) => `tu as rayé une phrase de la liste « mal dit » : la bonne version est « ${q} »`,
   ferme: () => "tu as fermé le papier qui était à l'écran",
 };
 
