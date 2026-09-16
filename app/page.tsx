@@ -5368,7 +5368,25 @@ export default function Home() {
        bouton. Voir Sorte dans lib/documents.ts. */
     { cle: "mail", nom: "Mail",
       dessin: "M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1.6 2L12 12.4 19.4 7H4.6Z" },
-    { cle: "photo", nom: "Papier",
+    /* ── « SUR APPAREIL PHOTO, TU AS ÉCRIT PAPIER » ──────────────────────
+
+       Lamine, le 17 septembre 2026. Il a raison, et c'est une confusion que
+       j'ai créée : le dessin est un appareil photo, l'étiquette disait
+       « Papier », et le mot papier désigne déjà TOUT AUTRE CHOSE dans BIA —
+       les devis, les mails, les lettres qu'elle fabrique. Deux sens pour un
+       mot, sur un écran de huit tuiles.
+
+       La CLÉ reste « photo » : elle est branchée partout ailleurs, et un
+       renommage de clé casserait le bouton sans rien gagner. C'est
+       l'étiquette qu'on corrige, parce que c'est elle qu'il lit.
+
+       IL A DIT « APPAREIL PHOTO », ET J'ÉCRIS « PHOTO ». Une tuile fait 62
+       pixels de large (voir .service dans globals.css) : « Appareil photo »
+       s'y casse en trois lignes, cette tuile devient plus haute que les sept
+       autres, et toute la rangée se décale. « Photo » dit la même chose et
+       tient sur une ligne. Ce n'est pas moi qui tranche sur ses mots : s'il
+       veut les deux mots, on élargit les tuiles, et il me le dira. */
+    { cle: "photo", nom: "Photo",
       dessin: "M9.4 4h5.2l1.2 2H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4.2l1.2-2Zm2.6 4.8a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2Zm0 1.9a2.7 2.7 0 1 1 0 5.4 2.7 2.7 0 0 1 0-5.4Z" },
     { cle: "video", nom: "Vidéo",
       dessin: "M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm6 3.6v6.8L15.6 12 10 8.6Z" },
