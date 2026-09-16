@@ -43,6 +43,10 @@ import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 import { lireLeRire } from "@/lib/rires";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
+/* `sonne` vit dans lib/normaliser.ts : un fichier SANS aucun import, écrit le
+   15 septembre après l'écran noir. Rien ici ne doit remonter jusqu'au
+   serveur. */
+import { sonne } from "@/lib/normaliser";
 import {
   INTERVENTION_MAXIMALE, MICRO_LACHE_ENTRE_LES_TOURS, MICRO_SUR_SON_PROPRE_CONTEXTE, REGLAGES_DU_MICRO,
   SILENCE_QUI_CLÔT_LA_CONVERSATION, TENIR_POUR_COUPER, TOUR_DE_VEILLE,
@@ -2467,7 +2471,25 @@ export default function Home() {
         }
         setMotGarde("");
       }
-      /* Les deux ordres qui n'ont rien à dire : ils AGISSENT. */
+      /* ── LES DEUX ORDRES QUI N'ONT RIEN À DIRE : ILS AGISSENT ──────────
+
+         Lamine, le 17 septembre 2026 : « quand je lui demande de se taire,
+         effectivement elle se tait immédiatement. Mais après quelques
+         instants d'attente, elle s'est mise à répéter. »
+
+         C'ÉTAIT MON RENVOI AUTOMATIQUE, ÉCRIT LE MATIN MÊME. Ce qu'il dit
+         pendant qu'elle parle est déposé de côté, et reparti tout seul dès
+         qu'elle se tait. Excellent pour une phrase qu'il a commencée par-
+         dessus elle. Catastrophique pour un ORDRE : il dit « tais-toi », le
+         guetteur le dépose, elle obéit et se tait — puis mon renvoi relance
+         ce même « tais-toi » comme une nouvelle question. Elle obéit encore.
+         Et encore. La boucle qu'il a entendue.
+
+         UN ORDRE EXÉCUTÉ NE SE REJOUE PAS. On vide le dépôt ici, à l'instant
+         où le geste prend effet. */
+      if (data.ordre === "micro" || data.ordre === "silence") {
+        motsRattrapesRef.current = null;
+      }
       if (data.ordre === "micro") { taire(); fermerConversation(); }
       if (data.ordre === "silence") taire();
       /* ── SA VOIX PART AVEC LE TEXTE, ET SEULEMENT S'IL VALIDE ───────────
@@ -4385,6 +4407,22 @@ export default function Home() {
       if (!reste || !conversationRef.current || busyRef.current) return;
       if (enregistreEncore()) return;
       if (Date.now() - reste.quand > DUREE_DU_RATTRAPAGE) { motsRattrapesRef.current = null; return; }
+      /* ── ET JAMAIS DEUX FOIS LA MÊME PHRASE ──────────────────────────────
+
+         Le second verrou de la boucle du 17 septembre au soir. Le premier
+         vide le dépôt quand un ordre prend effet ; celui-ci rattrape tous les
+         autres cas — une phrase qu'elle a DÉJÀ reçue comme question n'a
+         aucune raison de repartir. Sans lui, n'importe quel geste futur qui
+         oublierait de vider le dépôt rouvrirait la même boucle.
+
+         On regarde ses quatre dernières phrases à lui, sur la forme sonnée :
+         l'oreille n'écrit jamais le wolof deux fois pareil, et une
+         comparaison lettre à lettre laisserait passer le doublon. */
+      const dejaDemande = historyRef.current
+        .filter((m) => m.role === "user")
+        .slice(-4)
+        .some((m) => sonne(String(m.text || "")) === sonne(reste.texte));
+      if (dejaDemande) { motsRattrapesRef.current = null; return; }
       motsRattrapesRef.current = null;
       void askBia(reste.texte, true);
     }, 1000);
