@@ -52,7 +52,7 @@ import {
 } from "@/lib/micro";
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie } from "@/lib/ralentir";
 import {
-  GARDER_CE_QUIL_DIT_PENDANT_QUELLE_PARLE, faut_il_se_taire, recoller, type Prononce,
+  DUREE_DU_RATTRAPAGE, GARDER_CE_QUIL_DIT_PENDANT_QUELLE_PARLE, faut_il_se_taire, recoller, type Prononce,
 } from "@/lib/sa-propre-voix";
 import Installer from "./installer";
 import Ecran from "./ecran";
@@ -3959,6 +3959,23 @@ export default function Home() {
               if (!estLeTour(monTour)) return;
               if (rire.seulement) { setMode("ready"); setFace("joie"); return; }
             }
+            /* ── UN TOUR EST DÉJÀ EN VOL : ON DÉPOSE, ON NE DEMANDE PAS ──
+
+               Depuis le 17 septembre le micro reste ouvert pendant qu'elle
+               réfléchit. Ce qu'il dit là arrive donc PENDANT que sa question
+               précédente est encore chez le modèle. Lancer un second tour
+               ici, ce serait deux réponses pour une conversation — et la
+               garde de `askBia` le jetterait de toute façon.
+
+               On le dépose au même endroit que le guetteur, et il se recolle
+               tout seul : soit devant sa phrase suivante, soit tout de suite
+               après sa réponse si elle se tait — voir « LA PHRASE DÉPOSÉE NE
+               RESTE PAS PAR TERRE » plus bas. Ses mots ne tombent plus. */
+            if (busyRef.current) {
+              motsRattrapesRef.current = { texte: recoller(motsRattrapesRef.current, dit), quand: Date.now() };
+              setMode("thinking");
+              return;
+            }
             void askBia(dit, true, monTour);
           } else {
             /* ── ELLE N'A RIEN ENTENDU, ET ELLE RESTAIT FIGÉE ────────────
@@ -4299,8 +4316,27 @@ export default function Home() {
     [],
   );
 
+  /* ── ET PENDANT QU'ELLE RÉFLÉCHIT, AUSSI ────────────────────────────────
+
+     Lamine, le 17 septembre 2026 : « il faut que pendant qu'elle réfléchisse,
+     que je puisse continuer à parler. »
+
+     Cet effet n'attendait que « ready ». Entre l'instant où sa question part
+     et celui où elle ouvre la bouche, il s'écoule en moyenne QUATRE SECONDES
+     ET DEMIE — 1,6 s de transcription et 3,1 s de modèle, mesurées sur ses
+     vingt-cinq derniers tours. Pendant tout ce temps le micro était mort, et
+     ce qu'il disait tombait par terre.
+
+     LA GARDE ÉTAIT PLUS SÉVÈRE QUE NÉCESSAIRE, et je peux le montrer : la
+     raison écrite plus haut est « ce serait l'ouvrir PENDANT qu'elle parle —
+     elle s'entendrait, se transcrirait, se répondrait ». C'est vrai de
+     « speaking ». Ça ne l'est pas de « thinking » : là, elle est MUETTE. Il
+     n'y a aucune voix dans le haut-parleur, donc aucun écho possible.
+
+     « speaking » reste donc interdit ici — c'est le guetteur qui s'en occupe,
+     avec ses propres précautions. On n'ouvre que sur le silence. */
   useEffect(() => {
-    if (!conversation || mode !== "ready") return;
+    if (!conversation || (mode !== "ready" && mode !== "thinking")) return;
     if (enregistreEncore()) return;
     const t = setTimeout(() => {
       if (!conversationRef.current || enregistreEncore()) return;
@@ -4308,6 +4344,37 @@ export default function Home() {
     }, 180);
     return () => clearTimeout(t);
   }, [conversation, mode, enregistreEncore]);
+
+  /* ── LA PHRASE DÉPOSÉE NE RESTE PAS PAR TERRE ───────────────────────────
+
+     Le complément indispensable du dépôt ci-dessus. S'il parle pendant
+     qu'elle réfléchit, puis se tait pour écouter sa réponse, ses mots
+     resteraient déposés sans que personne y réponde jamais — et de son point
+     de vue il aurait parlé dans le vide, ce qui est exactement le défaut
+     qu'on répare.
+
+     Dès qu'elle est revenue au repos, ce qui traîne part donc tout seul. Ce
+     n'est pas un tour de plus inventé : c'est SA phrase à lui, qu'on avait
+     mise de côté faute de pouvoir la traiter à l'instant.
+
+     TROIS PRÉCAUTIONS. On ne part que du repos, jamais pendant qu'elle parle.
+     On respecte le délai du rattrapage — une phrase d'il y a une minute
+     n'est plus la conversation en cours, et lib/sa-propre-voix.ts le dit
+     déjà. Et on laisse une seconde : s'il est en train de reprendre la
+     parole, c'est le micro ordinaire qui doit l'entendre, et le recollage se
+     fera devant sa phrase entière plutôt qu'en deux morceaux. */
+  useEffect(() => {
+    if (!conversation || mode !== "ready") return;
+    const t = setTimeout(() => {
+      const reste = motsRattrapesRef.current;
+      if (!reste || !conversationRef.current || busyRef.current) return;
+      if (enregistreEncore()) return;
+      if (Date.now() - reste.quand > DUREE_DU_RATTRAPAGE) { motsRattrapesRef.current = null; return; }
+      motsRattrapesRef.current = null;
+      void askBia(reste.texte, true);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [conversation, mode, enregistreEncore, askBia]);
 
   /* ── LUI COUPER LA PAROLE ───────────────────────────────────────────────
 
