@@ -68,6 +68,81 @@ else
   echo "! $SOURCE introuvable — l'icône reste celle de Capacitor"
 fi
 
+# ── 3. LA VERSION D'iOS MINIMALE ──────────────────────────────────────────────
+#
+# Lamine, le 18 septembre 2026, premier essai : « Build Failed », quatre fois
+# la même erreur — App, Capacitor, CapacitorCordova, Pods-App.
+#
+#   The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 14.0,
+#   but the range of supported deployment target versions is 15.0 to 27.0
+#
+# XCODE 27 N'ACCEPTE PLUS iOS 14, et Capacitor génère encore 14.0 partout.
+# Rien à voir avec BIA : tout l'écosystème iOS a dû monter à 15 cette année.
+#
+# ON MONTE À 15.0, PAS PLUS HAUT. C'est le plancher qu'Apple impose, donc le
+# plus d'iPhones gardés — et à Dakar, les téléphones de trois ou quatre ans
+# sont la règle, pas l'exception. Chaque version de plus retire des gens.
+#
+# ET LE PIÈGE EST DANS LES PAQUETS DE RESSOURCES. `assertDeploymentTarget()`,
+# la fonction de Capacitor déjà dans le Podfile, aligne les pods sur le projet
+# — mais elle ignore les cibles de type « resource bundle », qu'Xcode 27 refuse
+# aussi. C'est ce qui a fait perdre une soirée à beaucoup de monde. Le crochet
+# ajouté ici repasse sur tout.
+
+PROJET="ios/App/App.xcodeproj/project.pbxproj"
+PODFILE="ios/App/Podfile"
+
+if grep -q "IPHONEOS_DEPLOYMENT_TARGET = 14.0;" "$PROJET" 2>/dev/null; then
+  sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 14.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' "$PROJET"
+  echo "✓ le projet vise iOS 15.0"
+else
+  echo "✓ le projet ne vise plus iOS 14"
+fi
+
+if grep -q "platform :ios, '14.0'" "$PODFILE" 2>/dev/null; then
+  sed -i '' "s/platform :ios, '14.0'/platform :ios, '15.0'/" "$PODFILE"
+  echo "✓ le Podfile vise iOS 15.0"
+fi
+
+if ! grep -q "generated_projects" "$PODFILE" 2>/dev/null; then
+  python3 - "$PODFILE" <<'FIN'
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+vieux = "post_install do |installer|\n  assertDeploymentTarget(installer)\nend"
+neuf = '''post_install do |installer|
+  assertDeploymentTarget(installer)
+  # Xcode 27 n'accepte plus iOS 14 : la plage va de 15.0 a 27.0, et il refuse
+  # AUSSI les cibles « resource bundle », qu'assertDeploymentTarget ignore.
+  installer.pods_project.targets.each do |cible|
+    cible.build_configurations.each do |config|
+      pose = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+      if pose.nil? || pose.to_f < 15.0
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      end
+    end
+  end
+  installer.generated_projects.each do |projet|
+    projet.targets.each do |cible|
+      cible.build_configurations.each do |config|
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      end
+    end
+  end
+end'''
+if vieux in s:
+    open(p, "w", encoding="utf-8").write(s.replace(vieux, neuf))
+    print("  (crochet des paquets de ressources ajoute)")
+FIN
+fi
+
+# Les pods sont deja construits avec l'ancien chiffre : il faut les refaire,
+# sinon Pods-App echoue encore alors que le Podfile est juste.
+echo "→ pod install (une a deux minutes)…"
+( cd ios/App && pod install > /tmp/bia-pod-install.log 2>&1 ) \
+  && echo "✓ les pods sont refaits sur iOS 15.0" \
+  || { echo "! pod install a echoue — voir /tmp/bia-pod-install.log"; exit 1; }
+
 echo
 echo "Prêt. Dans Xcode : ⌘R."
 echo "Si l'icône ne change pas sur le téléphone, supprime l'application"
