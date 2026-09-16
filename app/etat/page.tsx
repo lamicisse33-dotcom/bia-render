@@ -45,6 +45,22 @@ type Etat = {
   pannes?: { total: number; dernieres: Panne[] };
   depense?: unknown;
   repertoire?: { entrees?: number };
+  /* ── CE QU'IL LUI A APPRIS ────────────────────────────────────────────────
+     Les trois comptes du 16 septembre. Ils existaient déjà dans /api/etat ;
+     ils n'avaient pas de porte. Voir plus bas. */
+  lexique_entrees?: number | null;
+  lexique_auteurs?: Record<string, number> | null;
+  lecons_donnees?: {
+    tentatives?: number;
+    reconnues?: number;
+    ecrites?: number;
+    sans_le_code?: number;
+    rien_en_main?: number;
+    avec_code_maitre?: number;
+    sans_code_maitre?: number;
+    note?: string;
+  } | null;
+  souvenirs?: { gardes?: number; refuses?: number; cherches?: number; retrouves?: number } | null;
 };
 
 /* ── TRADUIRE LE NUMÉRO EN QUELQUE CHOSE QU'ON PEUT FAIRE ──────────────────
@@ -136,9 +152,9 @@ export default function PageEtat() {
 
       <h1>L&apos;état de BIA</h1>
       <p className="voix-note">
-        Cette page ne demande aucun code, et c&apos;est voulu&nbsp;: le jour où
-        plus rien ne marche, il ne faut pas qu&apos;il faille un code valide
-        pour savoir pourquoi.
+        Ce qu&apos;elle a retenu de toi, et ce qui a raté. Cette page ne demande
+        aucun code, et c&apos;est voulu&nbsp;: le jour où plus rien ne marche, il
+        ne faut pas qu&apos;il faille un code valide pour savoir pourquoi.
       </p>
 
       <p className="voix-note">
@@ -208,6 +224,129 @@ export default function PageEtat() {
               </b>
             </p>
           </div>
+
+          {/* ── CE QUE TU LUI AS APPRIS ────────────────────────────────────
+
+              Lamine, le 16 septembre 2026 : « je ne peux pas ouvrir le lien
+              que tu m'as donné. »
+
+              Je lui avais dit d'ouvrir /api/etat sur son téléphone et d'y
+              chercher « lexique_auteurs ». C'était la troisième fois de la
+              semaine que je lui demandais de lire du texte brut de serveur —
+              et sa règle du 11 septembre disait déjà le contraire : « tout ce
+              qui sert à la personne va dans l'interface, jamais sur une page
+              qu'il faut taper à la main. »
+
+              Pire : cette page-ci existait depuis le 12, à trois doigts de
+              distance, et je l'avais oubliée. Les comptes étaient donc
+              lisibles depuis quatre jours — sans porte pour y entrer. Encore.
+
+              ── CE QUE CES TROIS LIGNES RÉPONDENT ──────────────────────────
+
+              Sa question du 16 septembre était : « quand je la corrige sur
+              une phrase, sans que ce soit en mode apprentissage, est-ce
+              qu'elle mémorise vraiment ? » Aucune réponse de ma part ne vaut
+              un compteur qu'il regarde monter lui-même après avoir parlé.
+
+              ── ET POURQUOI SES PHRASES NE SONT PAS ÉCRITES ICI ────────────
+
+              Cette page ne demande aucun code, et ça ne change pas : le jour
+              de la panne, il ne faut pas de code pour savoir pourquoi. Mais
+              son wolof est ce qu'il a de plus précieux — il m'a demandé le
+              15 si un fournisseur pouvait le récupérer. On montre donc les
+              NOMBRES, jamais les phrases. */}
+          <h2>Ce que tu lui as appris</h2>
+          <div className="etat-liste">
+            <p>
+              <span>Phrases dans sa mémoire</span>
+              <b>{typeof etat.lexique_entrees === "number" ? etat.lexique_entrees : "—"}</b>
+            </p>
+            {/* Les deux comptes qui comptent pour lui, et ils ne disent pas la
+                même chose : « maitre-vocal » est né d'une correction en pleine
+                conversation, « maitre-lecon » d'une leçon avec son sens en
+                français. Voir auteur: enPaire ? … dans app/api/retenir. */}
+            <p>
+              <span>Corrigées en parlant</span>
+              <b className={(etat.lexique_auteurs?.["maitre-vocal"] || 0) > 0 ? "etat-oui" : "etat-non"}>
+                {etat.lexique_auteurs?.["maitre-vocal"] ?? "—"}
+              </b>
+            </p>
+            <p>
+              <span>Apprises en mode leçon</span>
+              <b>{etat.lexique_auteurs?.["maitre-lecon"] ?? "—"}</b>
+            </p>
+            {etat.souvenirs ? (
+              <p>
+                <span>Souvenirs gardés</span>
+                <b>{etat.souvenirs.gardes ?? 0}</b>
+              </p>
+            ) : null}
+          </div>
+          <p className="voix-note">
+            Le premier nombre est celui de toute la table, partagée avec tes
+            autres applications. Les deux suivants sont à toi seul&nbsp;:
+            <b> «&nbsp;corrigées en parlant&nbsp;»</b> doit monter d&apos;un à
+            chaque fois que tu la reprends et qu&apos;elle répond
+            «&nbsp;c&apos;est mémorisé&nbsp;». Parle-lui, reviens ici, appuie
+            sur <i>Regarder à nouveau</i>&nbsp;: si le nombre n&apos;a pas
+            bougé, elle ne l&apos;a pas rangé, quoi qu&apos;elle ait dit.
+          </p>
+
+          {/* ── ET CE QUI S'EST PASSÉ AUX DERNIÈRES LEÇONS ─────────────────
+              Le compte ci-dessus dit SI c'est rangé. Celui-ci dit POURQUOI,
+              quand ça ne l'est pas : ordre non reconnu, rien en main, ou tour
+              qui n'a jamais été examiné faute de code. Trois pannes
+              différentes, trois réparations différentes. */}
+          {etat.lecons_donnees && (etat.lecons_donnees.tentatives || 0) > 0 ? (
+            <>
+              <h2>Tes dernières leçons</h2>
+              <div
+                className={
+                  (etat.lecons_donnees.ecrites || 0) === (etat.lecons_donnees.tentatives || 0)
+                    ? "etat-bien"
+                    : "etat-mal"
+                }
+              >
+                <p>
+                  <b>
+                    {etat.lecons_donnees.ecrites || 0} rangée
+                    {(etat.lecons_donnees.ecrites || 0) > 1 ? "s" : ""} sur{" "}
+                    {etat.lecons_donnees.tentatives} essai
+                    {(etat.lecons_donnees.tentatives || 0) > 1 ? "s" : ""}.
+                  </b>
+                </p>
+                {(etat.lecons_donnees.tentatives || 0) - (etat.lecons_donnees.reconnues || 0) > 0 ? (
+                  <p className="voix-note">
+                    {(etat.lecons_donnees.tentatives || 0) - (etat.lecons_donnees.reconnues || 0)} fois,
+                    elle n&apos;a pas compris que c&apos;était un ordre de
+                    mémoriser. Dis-moi comment tu l&apos;as formulé&nbsp;: c&apos;est
+                    ma liste de tournures qui est trop étroite, pas toi qui
+                    t&apos;y prends mal.
+                  </p>
+                ) : null}
+                {(etat.lecons_donnees.rien_en_main || 0) > 0 ? (
+                  <p className="voix-note">
+                    {etat.lecons_donnees.rien_en_main} fois, l&apos;ordre était
+                    clair mais elle n&apos;avait aucune phrase sous la main —
+                    «&nbsp;retiens ça&nbsp;» sans qu&apos;un «&nbsp;ça&nbsp;»
+                    ait été dit juste avant.
+                  </p>
+                ) : null}
+                {(etat.lecons_donnees.sans_le_code || 0) > 0 ? (
+                  <p className="voix-note">
+                    {etat.lecons_donnees.sans_le_code} fois, le tour n&apos;a même
+                    pas été examiné&nbsp;: le code maître n&apos;était pas
+                    reconnu. L&apos;apprentissage est à toi seul.
+                  </p>
+                ) : null}
+              </div>
+              <p className="voix-note">
+                Ce compte-ci repart à zéro à chaque réveil du serveur, toutes
+                les quinze minutes d&apos;inactivité. Les nombres du dessus, eux,
+                ne repartent jamais&nbsp;: ils sont dans Supabase.
+              </p>
+            </>
+          ) : null}
 
           {/* ── LES DERNIÈRES PANNES ───────────────────────────────────────
               Une panne isolée et une panne qui revient toutes les dix minutes

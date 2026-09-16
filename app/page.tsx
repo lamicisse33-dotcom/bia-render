@@ -5305,13 +5305,23 @@ export default function Home() {
             un téléphone. Cinquième fois de la soirée qu'une chose existe sans
             porte pour y entrer. Elle est ici, à côté des autres, et elle ne
             demande aucun code. */}
-        <h2 className="papier-titre" style={{ marginTop: 22 }}>Quand ça ne répond plus</h2>
+        {/* ── ET LE COMPTE DE CE QU'ELLE A RETENU ──────────────────────────
+
+            Lamine, le 16 septembre 2026 : « je ne peux pas ouvrir le lien que
+            tu m'as donné. » Je lui avais demandé de taper /api/etat à la main
+            sur son téléphone pour y lire du texte brut de serveur — la
+            troisième fois de la semaine, contre sa propre règle du 11. Cette
+            carte-ci existait déjà ; c'est moi qui l'avais oubliée. Elle mène
+            maintenant aussi aux comptes de ce qu'il lui a appris, et son
+            texte le dit, sinon il ne saura pas qu'ils y sont. */}
+        <h2 className="papier-titre" style={{ marginTop: 22 }}>Ce qu&apos;elle a retenu, et ce qui rate</h2>
         <div className="relire-liste">
           <a href="/etat" className="relire-carte">
             <span className="relire-nom">L&apos;état de BIA</span>
             <span className="relire-quoi">
-              Pourquoi son moteur ne répond pas, avec le numéro et le message
-              exacts. Ne demande aucun code.
+              Combien de phrases tu lui as apprises, et si la dernière est bien
+              rangée. Puis pourquoi son moteur ne répond pas, avec le numéro et
+              le message exacts. Ne demande aucun code.
             </span>
           </a>
         </div>
