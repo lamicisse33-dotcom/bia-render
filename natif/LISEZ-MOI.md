@@ -67,18 +67,34 @@ gratuit suffit pour installer sur ton propre téléphone ; l'application expire
 au bout de sept jours, ce qui est largement assez pour répondre à la question
 du micro.
 
-## Les permissions, et pourquoi elles doivent être écrites à la main
+## Les permissions — POSÉES LE 18 SEPTEMBRE, ET À REPOSER SI ON REFAIT LE PROJET
 
-Capacitor crée le projet iOS, mais les textes de permission sont à toi — c'est
-ce que l'utilisateur lira dans la fenêtre du téléphone.
+Sans elles, iOS ne demande pas la permission : **il tue l'application** à la
+seconde où elle touche le micro. Ce n'est pas un réglage de confort.
 
-Dans Xcode, ouvre `ios/App/App/Info.plist` et ajoute :
+Elles sont écrites dans `ios/App/App/Info.plist`. **Et `ios/` n'est pas dans le
+dépôt** — c'est voulu, Capacitor le régénère. Mais ça veut dire qu'un
+`npx cap add ios` refait à neuf les efface. Le bloc est donc recopié ici, à
+remettre tel quel juste avant `</dict>` :
 
-| Clé | Texte proposé (à corriger si tu veux) |
-|---|---|
-| `NSMicrophoneUsageDescription` | BIA a besoin du micro pour t'entendre parler. |
-| `NSCameraUsageDescription` | BIA a besoin de l'appareil photo pour lire les papiers que tu lui montres. |
-| `NSPhotoLibraryUsageDescription` | BIA a besoin de tes photos pour lire les papiers que tu lui envoies. |
+```xml
+	<key>NSMicrophoneUsageDescription</key>
+	<string>BIA a besoin du micro pour t'entendre parler.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>BIA a besoin de l'appareil photo pour lire les papiers que tu lui montres.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>BIA a besoin de tes photos pour lire les papiers que tu lui envoies.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>BIA a besoin de ta position pour te situer sur la carte et te guider.</string>
+```
+
+La position est là parce que la carte suit le déplacement
+(`navigator.geolocation.watchPosition` dans `app/carte/Carte.tsx`). Sans cette
+clé, le guidage reste muet sans dire pourquoi.
+
+Ces quatre textes sont ceux que l'utilisateur lira dans la fenêtre du
+téléphone : **ce sont des mots pour les gens, pas du code.** Lamine les change
+comme il veut.
 
 Pour Android, dans `android/app/src/main/AndroidManifest.xml` :
 
