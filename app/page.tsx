@@ -6900,6 +6900,12 @@ function PapierRepertoire({ code }: { code: string | null }) {
      wolof. */
   const [aEcrire, setAEcrire] = useState<Array<{ dit: string; vus: number }> | null>(null);
   const [motRates, setMotRates] = useState("");
+  /* ── ET CE QU'ELLE A FAIT DE SES ORDRES ────────────────────────────────
+     Lamine, le 17 septembre 2026 : « quand je lui demande de faire quelque
+     chose, elle doit le faire. » Ses phrases d'un côté, ses gestes de
+     l'autre : c'est la seule façon de voir laquelle des quatre marches est
+     tombée. Voir lib/ordres-vus.ts. */
+  const [registre, setRegistre] = useState<Array<{ dit: string; gestes: string[] }> | null>(null);
 
   /* GRATUIT. Une lecture du seau, aucun son fabriqué, aucun centime. */
   async function regarder() {
@@ -7040,11 +7046,17 @@ function PapierRepertoire({ code }: { code: string | null }) {
         cache: "no-store", headers: { "x-bia-code": code },
       });
       const d = await r.json() as {
+        ordres?: { tours?: number; avec_un_geste?: number;
+          registre?: Array<{ dit: string; gestes: string[] }> } | null;
         repertoire_rate?: {
           questions_examinees?: number; formes_distinctes?: number; formes_repetees?: number;
           a_enregistrer?: Array<{ dit: string; vus: number }>;
         } | null;
       };
+      /* Le registre voyage dans la même lecture : une requête, deux
+         réponses à ses deux questions du jour. */
+      setRegistre((d as { ordres?: { registre?: Array<{ dit: string; gestes: string[] }> } | null })
+        .ordres?.registre || null);
       const v = d.repertoire_rate;
       if (!v || !v.questions_examinees) {
         setAEcrire(null);
@@ -7073,6 +7085,23 @@ function PapierRepertoire({ code }: { code: string | null }) {
         Ce qu&apos;on te demande et qu&apos;elle n&apos;a pas →
       </button>
       {motRates ? <><br /><span>{motRates}</span></> : null}
+      {registre?.length ? (
+        <>
+          <br />
+          <span style={{ display: "block", marginTop: 10 }}><b>Ce que tu lui as dit, et ce qu&apos;elle a fait</b></span>
+          <span style={{ display: "block" }}>
+            {registre.slice(-12).reverse().map((t, i) => (
+              <span key={`${t.dit}-${i}`} style={{ display: "block", marginTop: 6 }}>
+                « {t.dit} »<br />
+                {t.gestes.length
+                  ? <span>→ {t.gestes.join(" · ")}</span>
+                  /* Le cas qui l'intéresse : il a parlé, rien n'a bougé. */
+                  : <span>→ <b>elle n&apos;a rien fait</b></span>}
+              </span>
+            ))}
+          </span>
+        </>
+      ) : null}
       {aEcrire?.length ? (
         <>
           <br />

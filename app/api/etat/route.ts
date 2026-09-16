@@ -15,6 +15,7 @@ import { resumeSouvenirs } from "@/lib/souvenirs";
 import { resumeReflexion } from "@/lib/reflechir";
 import { listeDesRates, resumeDesRates } from "@/lib/rates-du-repertoire";
 import { verifierCode } from "@/lib/codes";
+import { registreDesOrdres, resumeDesOrdres } from "@/lib/ordres-vus";
 
 /* Dit à l'interface quels moteurs sont réellement branchés, pour qu'elle
    choisisse le micro et la voix sans deviner. Ouvert : aucun moteur payant
@@ -181,6 +182,13 @@ export async function GET(request: Request) {
        c'est le répertoire : une phrase enregistrée sort en un dixième de
        seconde, gratuitement. Ce champ dit lesquelles manquent, la plus
        demandée d'abord. Voir lib/rates-du-repertoire.ts. */
+    /* ── CE QU'IL A DIT, ET CE QU'ELLE EN A FAIT ────────────────────────
+       Lamine, le 17 septembre 2026 : « quand je lui demande de faire quelque
+       chose, elle doit le faire. » Avant de réparer, voir où ça casse : ses
+       phrases d'un côté, ses gestes de l'autre. Voir lib/ordres-vus.ts. */
+    ordres: resumeDesOrdres()
+      ? { ...resumeDesOrdres(), ...(maitre ? { registre: registreDesOrdres() } : {}) }
+      : null,
     repertoire_rate: resumeDesRates()
       ? { ...resumeDesRates(), ...(maitre ? { a_enregistrer: listeDesRates() } : {}) }
       : null,

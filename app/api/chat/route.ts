@@ -15,6 +15,7 @@ import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive }
 import { BUDGET_DE_REFLEXION, PLAFOND_AVEC_REFLEXION, meriteReflexion, noterReflexion } from "@/lib/reflechir";
 import { consigneDeSesGestes, gestesDe } from "@/lib/ses-gestes";
 import { noterRate } from "@/lib/rates-du-repertoire";
+import { noterTour } from "@/lib/ordres-vus";
 import { SONS_QUI_DISENT_AUTRE_CHOSE } from "@/lib/a-refaire";
 import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgences";
 import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
@@ -2436,6 +2437,19 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       ["regarde",regarde],["cherche",demande?`${demande.sorte==="video"?"une vidéo":"des images"} de ${demande.quoi}`:""],
       ["micro",microDemande],["retiens",aGarder],["oublie",aRetirer],
     ]);
+
+    /* ── LE REGISTRE DE SES ORDRES ─────────────────────────────────────────
+
+       Lamine, le 17 septembre 2026 : « quand je lui demande de faire quelque
+       chose, elle doit le faire. »
+
+       Avant de réparer, savoir OÙ ça casse. Entre sa bouche et le geste il y
+       a quatre marches — l'oreille, le modèle qui ne voit pas d'ordre, le
+       filtre qui ne reconnaît pas la balise, le geste qui ne fait pas ce
+       qu'il attendait — et les quatre donnent le même symptôme. On range donc
+       côte à côte CE QU'ON A ENTENDU et CE QU'ELLE A FAIT. Réservé au maître.
+       Voir lib/ordres-vus.ts. */
+    if(verdict.maitre) noterTour(question, sesGestes);
 
     /* ── IL A DEMANDÉ LE SILENCE : ON N'OUVRE RIEN D'AUTRE ──────────────────
        Le geste part ICI, avant la recherche d'images et avant la vidéo. Ce
