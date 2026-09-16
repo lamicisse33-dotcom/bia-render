@@ -290,6 +290,14 @@ export default function Home() {
      fabriquer ; voici ce qui manquait — le bouton, le papier à l'écran, la
      correction d'un chiffre mal entendu, et le PDF. */
   const [papierPret, setPapierPret] = useState<Sorte | null>(null);
+  /* Lu au moment d'envoyer la question : `papierPret` lui-même ne serait pas
+     à jour dans la fonction d'envoi, qui a été fabriquée avant. */
+  const papierPretRef = useRef<Sorte | null>(null);
+  /* L'appui long qui éteint le point. `appuiLong` empêche le clic qui suit
+     de rouvrir un papier : sur un téléphone, relâcher après un appui long
+     déclenche quand même onClick. */
+  const minuteurAppui = useRef<number | undefined>(undefined);
+  const appuiLong = useRef(false);
   const [papierOuvert, setPapierOuvert] = useState(false);
   const [papier, setPapier] = useState<{ doc: Papier; totaux: Totaux | null } | null>(null);
   /* Tous les papiers déjà écrits par cette personne. Ils survivent au
@@ -829,6 +837,7 @@ export default function Home() {
   const profilRef = useRef("");
 
   historyRef.current = history;
+  papierPretRef.current = papierPret;
   resumeRef.current = resume;
   codeRef.current = code || "";
   emetteurRef.current = emetteur;
@@ -2287,6 +2296,15 @@ export default function Home() {
         body: JSON.stringify({
           message: clean,
           history: historyRef.current.slice(-12),
+          /* ── LE POINT QUI CLIGNOTE, ET QU'ELLE NE VOYAIT PAS ───────────
+             Lamine, le 16 septembre 2026 : « ça continue à clignoter en bas.
+             Je lui ai demandé d'arrêter d'écrire, elle dit qu'elle n'écrit
+             pas. » Elle disait vrai : ce point, c'est LE TÉLÉPHONE qui
+             l'allume en lisant les mots de Lamine, avant même qu'elle
+             réponde. Elle n'en savait rien, donc elle niait — et elle avait
+             raison de nier. Elle le sait maintenant, et elle peut l'éteindre
+             avec [[papier:ferme]]. */
+          bouton: papierPretRef.current || "",
           /* Le prénom qu'elle vient d'apprendre part avec la question : elle
              le dit dans sa réponse, et c'est ce qui attache quelqu'un à une
              application. Une seule fois — après, il est dans ses notes. */
@@ -5908,8 +5926,38 @@ export default function Home() {
             Les deux boutons partagent maintenant la même case : le clavier ne
             peut plus descendre. */}
         <div className="coin-papier">
+        {/* ── ET IL PEUT L'ÉTEINDRE DU DOIGT ───────────────────────────────
+
+            Lamine, le 16 septembre 2026 : « ça continue à clignoter en bas. »
+
+            Le point s'allumait tout seul et RIEN ne l'éteignait : appuyer
+            dessus ouvrait un papier — c'est-à-dire exactement la chose qu'il
+            ne voulait pas. Un voyant qu'on ne peut pas éteindre n'informe
+            plus, il harcèle.
+
+            Un appui LONG l'éteint, sans rien fabriquer et sans rien payer.
+            Le bouton, lui, reste là : c'est le point qu'on retire, pas la
+            capacité d'écrire. */}
         <button className={papierPret ? "papier-ouvrir pret" : "papier-ouvrir"} type="button"
-          onClick={() => ouvrirPapier()} aria-label="Écrire un message, un devis ou une lettre">
+          onClick={() => { if (appuiLong.current) { appuiLong.current = false; return; } ouvrirPapier(); }}
+          onPointerDown={() => {
+            appuiLong.current = false;
+            if (!papierPretRef.current) return;
+            clearTimeout(minuteurAppui.current);
+            minuteurAppui.current = window.setTimeout(() => {
+              appuiLong.current = true;
+              setPapierPret(null);
+              /* Une secousse courte : il doit SENTIR que c'est éteint, sans
+                 qu'on lui écrive un message de plus à lire. */
+              try { navigator.vibrate?.(30); } catch {}
+            }, 550);
+          }}
+          onPointerUp={() => clearTimeout(minuteurAppui.current)}
+          onPointerLeave={() => clearTimeout(minuteurAppui.current)}
+          onContextMenu={(e) => e.preventDefault()}
+          aria-label={papierPret
+            ? "Écrire un message, un devis ou une lettre — appui long pour éteindre le point"
+            : "Écrire un message, un devis ou une lettre"}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M6 2h7.2L20 8.8V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.8V9h5.2L13 3.8ZM8 12h8v1.8H8V12Zm0 3.4h8v1.8H8v-1.8Zm0-6.8h3v1.8H8V8.6Z" />
           </svg>

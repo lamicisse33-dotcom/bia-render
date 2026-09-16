@@ -708,7 +708,12 @@ type Corps={message?:string;history?:Array<{role:string;text:string;gestes?:stri
   /* QUI PARLE — l'identifiant du profil tenu par le téléphone. Sert à ranger
      sa mémoire par personne et non par appareil. Le maître, lui, est reconnu
      par son code : ce champ ne peut pas usurper sa mémoire. */
-  personne?:string};
+  personne?:string;
+  /* Le point qui clignote en bas de son écran, s'il est allumé. C'est le
+     TÉLÉPHONE qui l'allume, pas elle — voir sorteEvoquee() dans
+     lib/documents.ts. Sans ce champ elle ne peut ni l'expliquer ni
+     l'éteindre, et elle nie de bonne foi pendant qu'il clignote. */
+  bouton?:string};
 type Rendu={corps:Record<string,unknown>;statut?:number};
 
 /* ── SUR QUOI ELLE TOURNE, ET DEPUIS QUAND ─────────────────────────────────
@@ -1740,6 +1745,37 @@ quelqu'un parce que le sujet est glissant.`;
 
        Dans la partie VARIABLE, comme les souvenirs : ça change à chaque tour.
        Voir lib/ses-gestes.ts. */
+    /* ── LE POINT QUI CLIGNOTE, EXPLIQUÉ À CELLE QU'ON ACCUSE ─────────────
+
+       Lamine, le 16 septembre 2026 : « ça continue à clignoter en bas. Je lui
+       ai demandé d'arrêter d'écrire, elle dit qu'elle n'écrit pas. Et
+       pourtant, ça clignote toujours. »
+
+       Les deux avaient raison. Elle n'écrivait rien, et ça clignotait quand
+       même : le téléphone allume ce point en lisant les mots de LAMINE, avant
+       qu'elle ait répondu. Elle n'en savait rien.
+
+       On le lui dit, et on lui donne le geste pour l'éteindre. Sinon elle
+       continuerait à nier une chose vraie, ce qui est la pire façon d'avoir
+       raison. */
+    const boutonAllume=String(body.bouton||"").trim().slice(0,20);
+    if(boutonAllume){
+      variable+=`\n\nUN POINT CLIGNOTE EN BAS DE SON ÉCRAN
+Un petit bouton « papier » est allumé chez lui en ce moment, marqué « ${boutonAllume} ».
+
+CE N'EST PAS TOI QUI L'AS ALLUMÉ. C'est son téléphone, qui a reconnu dans SES
+mots à lui un verbe d'écriture et le nom d'un papier. Ça veut dire « si tu
+veux, j'écris » — pas « je suis en train d'écrire ».
+
+Donc : s'il te demande d'arrêter d'écrire ou ce que tu écris, ne réponds
+SURTOUT PAS seulement « je n'écris rien ». C'est vrai et ça ne l'aide pas : le
+point, lui, clignote toujours, et il a l'impression que tu lui mens.
+
+Dis-lui ce qui est : ce bouton propose, il n'écrit pas. Puis, s'il n'en veut
+pas, ÉTEINS-LE en posant  [[papier:ferme]]  — c'est le seul moyen. Il peut
+aussi l'éteindre lui-même en gardant le doigt appuyé dessus.`;
+    }
+
     variable+=consigneDeSesGestes(
       (body.history||[])
         .filter(item=>item.role==="bia")

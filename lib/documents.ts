@@ -418,10 +418,56 @@ const sansAccent = (t: string) =>
   String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, " ");
 
+/* ── « ÇA CONTINUE À CLIGNOTER EN BAS » ────────────────────────────────────
+
+   Lamine, le 16 septembre 2026, découragé :
+
+     « On est en train de discuter, ça continue à clignoter en bas. Je lui ai
+       demandé d'arrêter d'écrire, elle dit qu'elle n'écrit pas. Et pourtant,
+       ça clignote toujours. »
+
+   ELLE DISAIT VRAI, ET CE N'ÉTAIT PAS ELLE. Ce point qui clignote, c'est le
+   TÉLÉPHONE qui l'allume, en lisant les mots de LAMINE, avant même que le
+   serveur ait répondu. J'avais écrit ça comme une gentillesse : « elle peut
+   oublier sa balise, lui n'oubliera pas ce qu'il est venu chercher. »
+
+   Sauf qu'il suffisait d'UN mot de la liste, n'importe où dans la phrase. Et
+   la liste contient « prix », « demande », « njëg » et surtout « xaalis » —
+   l'argent. En wolof, on ne tient pas trois minutes de conversation sans dire
+   xaalis. Le point s'allumait donc presque à chaque tour, sans rien vouloir
+   dire, et rien ne pouvait l'éteindre : il n'y avait aucun geste pour ça.
+
+   Une chose qui s'allume toute seule au nom de quelqu'un qui n'a rien
+   demandé, et qu'on ne peut pas éteindre : c'est exactement ce qu'il appelle
+   une marionnette manipulée par l'application. Il l'avait dit avant que je
+   l'aie trouvé.
+
+   ── CE QUI CHANGE ─────────────────────────────────────────────────────────
+
+   Allumer un bouton est une affirmation plus forte que ranger un document
+   qu'on a déjà demandé. Ça demande donc plus qu'un mot : il faut un VERBE
+   d'écriture à côté. « Écris-moi un message » allume ; « il m'a envoyé un
+   message », « j'ai pas de xaalis », « c'est quoi le prix » n'allument plus.
+
+   MOTS ne bouge PAS : cette liste sert aussi à choisir la SORTE quand il a
+   vraiment demandé un papier, et là un mot seul suffit — la demande est déjà
+   établie. Les deux questions ne sont pas la même. */
+const VERBES_D_ECRIRE = [
+  "ecris", "ecrit", "ecrire", "redige", "rediger", "prepare", "preparer",
+  "fais", "faire", "fait", "etablis", "etablir",
+  /* PAS « envoie » : « il m'a envoyé un message hier » raconte, il ne demande
+     rien. Mieux vaut un bouton qui ne s'allume pas qu'un bouton qui clignote
+     pour rien — il lui reste son doigt. */
+  "bind", "binde", "bindal", "defar", "defaral", "yonne", "yonnee",
+];
+
 /** La sorte de document évoquée, s'il y en a une. */
 export function sorteEvoquee(texteDit: string): Sorte | null {
   const mots = new Set(sansAccent(texteDit).split(" ").filter(Boolean));
-  for (const sorte of ["devis", "lettre", "message"] as Sorte[]) {
+  /* Sans verbe d'écriture, on n'allume rien. C'est toute la réparation du
+     16 septembre : le mot seul ne dit pas qu'il veut un papier. */
+  if (!VERBES_D_ECRIRE.some((v) => mots.has(v))) return null;
+  for (const sorte of ["devis", "lettre", "message", "mail"] as Sorte[]) {
     if (MOTS[sorte].some((m) => mots.has(m))) return sorte;
   }
   return null;
