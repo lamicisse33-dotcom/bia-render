@@ -4316,27 +4316,42 @@ export default function Home() {
     [],
   );
 
-  /* ── ET PENDANT QU'ELLE RÉFLÉCHIT, AUSSI ────────────────────────────────
+  /* ── J'AI OUVERT LE MICRO PENDANT QU'ELLE RÉFLÉCHIT, ET JE L'AI REFERMÉ ──
 
-     Lamine, le 17 septembre 2026 : « il faut que pendant qu'elle réfléchisse,
-     que je puisse continuer à parler. »
+     Le 17 septembre 2026 au matin, sur sa demande — « il faut que pendant
+     qu'elle réfléchisse, que je puisse continuer à parler » — j'ai fait
+     accepter « thinking » à cet effet, en plus de « ready ».
 
-     Cet effet n'attendait que « ready ». Entre l'instant où sa question part
-     et celui où elle ouvre la bouche, il s'écoule en moyenne QUATRE SECONDES
-     ET DEMIE — 1,6 s de transcription et 3,1 s de modèle, mesurées sur ses
-     vingt-cinq derniers tours. Pendant tout ce temps le micro était mort, et
-     ce qu'il disait tombait par terre.
+     LE SOIR MÊME : « elle ne m'entend pas, le micro se coupe très vite. »
 
-     LA GARDE ÉTAIT PLUS SÉVÈRE QUE NÉCESSAIRE, et je peux le montrer : la
-     raison écrite plus haut est « ce serait l'ouvrir PENDANT qu'elle parle —
-     elle s'entendrait, se transcrirait, se répondrait ». C'est vrai de
-     « speaking ». Ça ne l'est pas de « thinking » : là, elle est MUETTE. Il
-     n'y a aucune voix dans le haut-parleur, donc aucun écho possible.
+     MON RAISONNEMENT ÉTAIT FAUX, ET VOICI OÙ. J'avais écrit : « thinking,
+     elle est MUETTE, donc aucun écho possible ». Vrai à l'instant où le
+     micro s'ouvre. Faux une seconde plus tard — parce que ce micro-là NE SE
+     FERME PAS quand elle se met à parler. Il reste ouvert, il entend sa voix
+     dans le haut-parleur, `aParle` passe à vrai, et au premier blanc entre
+     deux de ses morceaux le silence suffit : le micro se coupe. Sur SA voix
+     à elle, pas sur la sienne.
 
-     « speaking » reste donc interdit ici — c'est le guetteur qui s'en occupe,
-     avec ses propres précautions. On n'ouvre que sur le silence. */
+     Vu de Lamine : un micro qui s'ouvre et se referme tout seul pendant
+     qu'elle parle, et qui n'est plus là quand lui prend la parole.
+
+     L'état de la boucle ne dit pas ce qui SUIVRA. « Elle est muette
+     maintenant » ne veut pas dire « elle se taira pendant tout
+     l'enregistrement », et c'est exactement la différence que j'ai manquée.
+
+     ON REVIENT DONC À « ready ». Pendant qu'elle parle, c'est le guetteur qui
+     écoute — il a ses propres précautions contre l'écho, et il ne déclenche
+     aucun tour. La fenêtre où il ne peut pas parler redevient les trois
+     secondes du modèle, comme avant.
+
+     CE QUI RESTE DE CE MATIN, et qui est bon : ce qu'il dit pendant qu'un
+     tour est en vol est DÉPOSÉ au lieu d'être jeté, et reparti dès qu'elle se
+     tait. Voir plus bas. Refaire l'ouverture pendant qu'elle réfléchit
+     demande de fermer ce micro à l'instant où elle ouvre la bouche — ça se
+     fait, mais pas dans un navigateur où je ne maîtrise pas la session audio.
+     C'est précisément ce que l'enveloppe Capacitor doit permettre de tester. */
   useEffect(() => {
-    if (!conversation || (mode !== "ready" && mode !== "thinking")) return;
+    if (!conversation || mode !== "ready") return;
     if (enregistreEncore()) return;
     const t = setTimeout(() => {
       if (!conversationRef.current || enregistreEncore()) return;
