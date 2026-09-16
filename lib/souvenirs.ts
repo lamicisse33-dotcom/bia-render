@@ -156,6 +156,43 @@ export async function garder(e: Echange): Promise<void> {
   compte.gardes += lignes.length;
 }
 
+/* ── COMBIEN IL Y EN A VRAIMENT, DANS LE RANGEMENT ──────────────────────────
+
+   Lamine, le 18 septembre 2026 à 23 h, capture à l'appui : « Souvenirs
+   gardés : 0 ». Une heure plus tôt, la même page disait 74.
+
+   RIEN N'ÉTAIT PERDU, ET C'ÉTAIT MA FAUTE QUAND MÊME. `compte.gardes` est un
+   compteur de mémoire vive : il compte ce qui a été écrit DEPUIS LE RÉVEIL du
+   serveur, et il repart à zéro à chaque redéploiement — c'est-à-dire à chaque
+   fois que Lamine pousse. Je l'avais posé dans le bloc « Ce que tu lui as
+   appris », entre trois nombres qui, eux, ne repartent JAMAIS, sans rien
+   écrire de la différence.
+
+   Lue par celui qui a construit cette mémoire, cette ligne dit une seule
+   chose : « ton travail a disparu ». Un chiffre juste, présenté de travers,
+   fait plus de dégâts qu'un chiffre absent.
+
+   On va donc chercher le VRAI nombre, celui de la table. Supabase le rend
+   sans transférer une seule ligne : une requête de tête, et il répond dans
+   l'en-tête `content-range`.
+
+   `null` VEUT DIRE « JE N'AI PAS PU COMPTER », et surtout pas zéro. C'est
+   exactement la confusion qu'on vient de payer. */
+export async function combienDeSouvenirs(): Promise<number | null> {
+  if (!souvenirsActifs()) return null;
+  try {
+    const r = await fetch(`${lexiqueConfig.url}/rest/v1/${TABLE}?select=id`, {
+      method: "HEAD",
+      headers: { ...entetes(), Prefer: "count=exact", Range: "0-0" },
+    });
+    if (!r.ok) return null;
+    /* « 0-0/1234 » — ce qui nous intéresse est après la barre. */
+    const plage = r.headers.get("content-range") || "";
+    const total = Number(plage.split("/")[1]);
+    return Number.isFinite(total) ? total : null;
+  } catch { return null; }
+}
+
 /* ── LES MOTS SUR LESQUELS ON CHERCHE ───────────────────────────────────────
 
    On enlève les mots qui reviennent dans toutes les phrases : ils ne

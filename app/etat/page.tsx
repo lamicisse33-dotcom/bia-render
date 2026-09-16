@@ -61,6 +61,7 @@ type Etat = {
     note?: string;
   } | null;
   souvenirs?: { gardes?: number; refuses?: number; cherches?: number; retrouves?: number } | null;
+  souvenirs_en_tout?: number | null;
 };
 
 /* ── TRADUIRE LE NUMÉRO EN QUELQUE CHOSE QU'ON PEUT FAIRE ──────────────────
@@ -275,10 +276,21 @@ export default function PageEtat() {
               <span>Apprises en mode leçon</span>
               <b>{etat.lexique_auteurs?.["maitre-lecon"] ?? "—"}</b>
             </p>
-            {etat.souvenirs ? (
+            {/* ── LE NOMBRE QUI NE REPART JAMAIS ─────────────────────────
+                Et surtout PAS `souvenirs.gardes`, qui comptait depuis le
+                réveil du serveur : il affichait 74 puis 0 une heure plus
+                tard, dans un bloc où les trois autres nombres ne bougent
+                qu'en montant. Le compteur du réveil a sa place plus bas,
+                avec les autres qui repartent à zéro. */}
+            {typeof etat.souvenirs_en_tout === "number" ? (
               <p>
                 <span>Souvenirs gardés</span>
-                <b>{etat.souvenirs.gardes ?? 0}</b>
+                <b>{etat.souvenirs_en_tout}</b>
+              </p>
+            ) : etat.souvenirs ? (
+              <p>
+                <span>Souvenirs gardés</span>
+                <b className="etat-non">je n&apos;ai pas pu compter</b>
               </p>
             ) : null}
           </div>
@@ -290,6 +302,18 @@ export default function PageEtat() {
             «&nbsp;c&apos;est mémorisé&nbsp;». Parle-lui, reviens ici, appuie
             sur <i>Regarder à nouveau</i>&nbsp;: si le nombre n&apos;a pas
             bougé, elle ne l&apos;a pas rangé, quoi qu&apos;elle ait dit.
+          </p>
+          {/* ── CES QUATRE-LÀ NE REPARTENT JAMAIS ────────────────────────
+              Écrit le 18 septembre 2026 au soir, parce que la page a fait
+              croire le contraire : « Souvenirs gardés » affichait le compteur
+              du réveil, pas la table. Un chiffre juste, présenté de travers,
+              fait plus de dégâts qu'un chiffre absent. */}
+          <p className="voix-note">
+            <b>Ces quatre nombres ne repartent jamais à zéro.</b> Ils sont dans
+            Supabase, pas dans la mémoire du serveur&nbsp;: un redéploiement ne
+            les touche pas, et rien de ce qui est ici ne peut disparaître parce
+            que tu as poussé du code. Les compteurs qui, eux, repartent au
+            réveil sont plus bas, et c&apos;est écrit à chaque fois.
           </p>
 
           {/* ── ET CE QUI S'EST PASSÉ AUX DERNIÈRES LEÇONS ─────────────────

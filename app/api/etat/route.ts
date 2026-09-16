@@ -11,7 +11,7 @@ import { depense } from "@/lib/depense";
 import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
 import { etatRepertoire } from "@/lib/repertoire";
 import { resumeCorpus } from "@/lib/corpus";
-import { resumeSouvenirs } from "@/lib/souvenirs";
+import { combienDeSouvenirs, resumeSouvenirs } from "@/lib/souvenirs";
 import { resumeReflexion } from "@/lib/reflechir";
 import { listeDesRates, resumeDesRates } from "@/lib/rates-du-repertoire";
 import { verifierCode } from "@/lib/codes";
@@ -169,6 +169,16 @@ export async function GET(request: Request) {
        deux pannes qui se ressemblent : « rien n'est écrit » et « la recherche
        ne trouve rien ». Voir lib/souvenirs.ts. */
     souvenirs: resumeSouvenirs(),
+    /* ── ET LE VRAI NOMBRE, CELUI DE LA TABLE ─────────────────────────────
+       Le 18 septembre à 23 h, la page disait « Souvenirs gardés : 0 » une
+       heure après avoir dit 74. Rien n'était perdu : `gardes` compte ce qui
+       a été écrit DEPUIS LE RÉVEIL du serveur, et il repart à zéro à chaque
+       déploiement. Je l'avais mis entre trois nombres qui ne repartent
+       jamais, sans écrire la différence. Lu par celui qui a construit cette
+       mémoire, ça dit « ton travail a disparu ».
+       `null` veut dire « je n'ai pas pu compter », jamais zéro : c'est
+       exactement la confusion qu'on vient de payer. */
+    souvenirs_en_tout: await combienDeSouvenirs(),
     /* ── CE QUE COÛTE ET CE QUE RAPPORTE SA RÉFLEXION ────────────────────
        Lamine, le 16 septembre 2026 : « parfois elle est trop bête ». Depuis
        ce soir elle réfléchit avant de parler sur les questions difficiles,
