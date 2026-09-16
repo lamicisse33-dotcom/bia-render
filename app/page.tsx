@@ -6181,13 +6181,21 @@ export default function Home() {
           <button className="verdict-bien" type="button"
             onClick={() => juger("bien")}
             aria-label="Elle l'a bien dit — à garder et à enregistrer">
-            <b>Bien dit</b>{compteVerdicts.bien ? <i>{compteVerdicts.bien}</i> : null}
+            {/* ── LE CHIFFRE S'AFFICHE MÊME À ZÉRO ────────────────────────
+                Lamine, le 18 septembre 2026, sur l'application neuve : « les
+                chiffres ne s'affichent plus, je ne sais pas s'ils sont vides
+                ou pas. »
+                Je cachais le compte à zéro, par propreté. Résultat : « aucun
+                verdict » et « le compteur est cassé » s'écrivaient pareil —
+                c'est-à-dire pas du tout. Un zéro affiché est une information ;
+                un vide n'en est pas une. */}
+            <b>Bien dit</b><i>{compteVerdicts.bien}</i>
           </button>
           {motVerdict ? <span className="verdict-mot">{motVerdict}</span> : null}
           <button className="verdict-mal" type="button"
             onClick={() => juger("mal")}
             aria-label="Elle l'a mal dit — à corriger plus tard">
-            <b>Mal dit</b>{compteVerdicts.mal ? <i>{compteVerdicts.mal}</i> : null}
+            <b>Mal dit</b><i>{compteVerdicts.mal}</i>
           </button>
         </div>
       ) : null}
