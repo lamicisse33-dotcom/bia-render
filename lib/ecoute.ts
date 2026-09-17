@@ -96,7 +96,13 @@ const CARTE: Record<string, "wo" | "fr"> = {
    trompe TOUJOURS. Laisser deviner un moteur qui échoue à cent pour cent
    n'est pas de la prudence, c'est un aller-retour offert.
 
-   ── DONC ON LUI DIT LA LANGUE DU FIL, DÈS LE PREMIER APPEL ──────────────
+   ── J'AI ALORS IMPOSÉ LA LANGUE DU FIL, ET C'ÉTAIT UNE FAUTE ────────────
+
+   ⚠ CE QUI SUIT A ÉTÉ TENTÉ LE 18 SEPTEMBRE À 20 H ET RETIRÉ À 21 H 20.
+   Ça rendait du charabia et BIA ne comprenait plus rien. Le pourquoi, chiffré,
+   est à IMPOSER_LA_LANGUE_DES_LE_PREMIER_APPEL, plus bas dans ce fichier —
+   à lire AVANT d'y revenir. Le raisonnement ci-dessous est conservé parce
+   qu'il explique la tentative, pas parce qu'il est juste.
 
    La langue de la conversation — pas le wolof d'office : la règle du dessus
    est intacte, un fil en français impose « fra ». Le téléphone la connaît et
@@ -112,8 +118,14 @@ const CARTE: Record<string, "wo" | "fr"> = {
      1. ON N'IMPOSE QUE SI ON SAIT. Sans langue de fil — la toute première
         phrase d'une conversation — on laisse deviner comme avant. C'est
         aussi ce qui garde le compteur `langues_entendues` honnête.
+        ⚠ CETTE GARDE N'EN ÉTAIT PAS UNE : `langueDuFil` est un useRef
+        initialisé à "wo". Il n'est JAMAIS vide. Douze écoutes sur douze ont
+        donc été imposées, wolof compris quand il parlait français.
      2. SI LE TEXTE REVIENT VIDE, on relaisse deviner. Un vide ne coûte qu'un
         appel, et c'est exactement le cas où il fallait douter.
+        ⚠ FILET POSÉ SOUS LE MAUVAIS TROU : imposer une langue ne rend pas du
+        silence, ça rend des mots — les mauvais. `imposees_sans_texte` est
+        resté à 0 pendant que rien ne marchait.
 
    `imposees_sans_texte` dans /api/etat dit si cette manœuvre abîme quelque
    chose. Si ce nombre monte, on revient en arrière — et il le dira avant que
@@ -155,8 +167,12 @@ export function resumeEcoutes() {
     reprises_ratees: compte.perdues,
     /* ── CE COMPTEUR NE DIT QUE CE QU'ON A LAISSÉ DEVINER ────────────────
 
-       Depuis le 18 septembre au soir, la langue du fil est imposée dès le
-       premier appel : le moteur ne devine plus, donc il ne peut plus se
+       Tant que IMPOSER_LA_LANGUE_DES_LE_PREMIER_APPEL vaut `false` — son
+       état depuis le 18 septembre 21 h 20 — ce compteur voit TOUTES les
+       écoutes, et c'est ce qu'on veut. La règle ci-dessous ne sert que si on
+       remet l'imposition un jour : la langue du fil serait alors imposée dès
+       le premier appel, le moteur ne devinerait plus, donc il ne pourrait
+       plus se
        tromper, donc ce compteur ne mesurerait plus rien s'il comptait aussi
        les écoutes imposées. Il ne compte QUE les écoutes laissées libres —
        la première d'une conversation, quand on ne sait pas encore.
@@ -273,6 +289,65 @@ async function unEssai(
   };
 }
 
+
+/* ── ET C'ÉTAIT FAUX. REMIS À FALSE UNE HEURE PLUS TARD ────────────────
+
+   Lamine, le 18 septembre à 21 h 20, après avoir essayé : « tout ce que je
+   lui demande, elle dit qu'elle ne connaît pas, elle ne comprend pas. »
+
+   Il avait raison, et le compteur le dit sans discussion :
+
+       ecoutes            12
+       imposees           12      ← TOUTES, sans une seule exception
+       langues_entendues  {}      ← plus rien n'est mesuré
+       imposees_sans_texte 0      ← ma garde n'a jamais servi
+
+   Et dans sa bouche à elle, trois fois de suite : « déggutuma li nga wax »,
+   « wax yi ñaxasoo ci bruit bi, xamuma », « xamuma "lan ngi bind mën" ».
+   Elle citait la transcription qu'on lui avait donnée. C'était du charabia.
+
+   ── LES DEUX FAUTES, ET ELLES SONT DE MOI ────────────────────────────
+
+   1. MA GARDE N'EN ÉTAIT PAS UNE. J'avais écrit « on n'impose que si on
+      SAIT », en croyant que la langue du fil serait vide au premier tour.
+      Elle ne l'est JAMAIS : `langueDuFil` est un useRef initialisé à "wo"
+      — le téléphone dit toujours qu'il sait, et par défaut il dit wolof.
+      Donc on imposait le wolof à cent pour cent des écoutes, dès le premier
+      mot, y compris quand il parlait français. Douze sur douze.
+
+   2. MON FILET ATTRAPAIT LE MAUVAIS DÉFAUT. Je guettais le texte VIDE.
+      Le texte n'était pas vide : il était FAUX. Imposer une langue ne rend
+      pas du silence, ça rend des mots — les mauvais. Un filet posé sous le
+      mauvais trou ne rattrape rien.
+
+   Et j'avais en plus éteint le seul compteur qui l'aurait montré :
+   `langues_entendues` ne compte que les écoutes laissées libres, et il n'y
+   en avait plus aucune. J'ai aveuglé l'instrument dans le même commit que
+   la faute qu'il aurait vue.
+
+   ── DONC ON REVIENT, ET ON NE GARDE QUE LA LEÇON ─────────────────────
+
+   On laisse à nouveau le moteur deviner, et on reprend quand il dérape :
+   le comportement d'avant, qui n'était pas bon — zéro wolof reconnu sur
+   quatre-vingts écoutes — mais avec lequel il POUVAIT parler.
+
+   Ce qui restait vrai de mon raisonnement : reprendre coûte une seconde sur
+   soixante pour cent des tours. Ce qui était faux : croire qu'on pouvait
+   l'économiser en devinant à la place du moteur. La bonne réponse n'est pas
+   d'imposer une langue, c'est de changer d'oreille — Soynade.
+
+   CE QU'IL FAUDRAIT AVANT DE RÉESSAYER, si on y revient un jour :
+     — n'imposer que sur une langue VRAIMENT ENTENDUE dans ce fil, jamais
+       sur la valeur de départ ;
+     — et un filet qui juge le TEXTE, pas son absence. */
+
+/** Dire au moteur la langue du fil dès le premier appel, au lieu de le
+  laisser deviner. Posé le 18 septembre au soir, RETIRÉ une heure plus tard :
+  la langue du fil n'est jamais vide (elle démarre à "wo"), donc ça imposait
+  le wolof à toutes les écoutes et rendait du charabia. Voir le bloc
+  ci-dessus avant de le remettre à `true`. */
+export const IMPOSER_LA_LANGUE_DES_LE_PREMIER_APPEL = false;
+
 export async function transcrire(
   audio: Blob, nomFichier: string, indice?: string | null, mots?: string[],
 ): Promise<Ecoute> {
@@ -359,7 +434,9 @@ export async function transcrire(
      Et les deux se mesurent : `imposees_sans_texte` et
      `imposees_rattrapees` dans /api/etat. Si le premier monte, on revient
      en arrière — et ce chiffre le dira avant que Lamine ne le sente. */
-  const imposeeDesLePremier = indice ? (indice === "fr" ? "fra" : "wol") : null;
+  const imposeeDesLePremier = IMPOSER_LA_LANGUE_DES_LE_PREMIER_APPEL && indice
+    ? (indice === "fr" ? "fra" : "wol")
+    : null;
   if (imposeeDesLePremier) compte.imposees++;
 
   let premier: { texte: string; brute: string };
