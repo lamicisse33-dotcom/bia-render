@@ -91,6 +91,33 @@ s'étonne fort et compatit tout bas —, les nomme, les branche dans le code,
 
 ---
 
+## Déposé le 17 septembre 2026 — la prise « VOIX. DIDI »
+
+Kha a enregistré les quatre sons d'un trait, en cinq parties bien séparées.
+
+| Fichier | Vient de | Durée |
+|---|---|---|
+| `reflexion-1.mp3` | partie 1, premier « mmm » | 0,89 s |
+| `reflexion-2.mp3` | partie 1, deuxième | 0,94 s |
+| `reflexion-3.mp3` | partie 1, troisième | 0,89 s |
+
+Tous ramenés à la même crête : elle ne réfléchit pas fort puis tout bas.
+
+**Ce qui reste à découper de cette même prise** — les sons sont là, il ne
+manque que la décision de Lamine sur ce qu'on en fait :
+
+- **partie 3** — la compassion. Confirmée par lui : « c'est le O de
+  compassion ». L'émotion `concernee` n'a pas encore de souffle déclaré.
+- **partie 4** — l'écoute. L'émotion `ecoute` non plus.
+- **partie 5** — des rires de plus, en supplément de ceux du 9 septembre.
+
+**Et ce qui manque encore : les « oh ! » d'étonnement.** La partie 2 ne
+contient qu'un seul bloc de quatre secondes, sans coupure interne — impossible
+d'en tirer des exclamations courtes. Un « oh ! » d'étonnement fait moins d'une
+seconde. Trois, brefs et bien séparés, et `oh-1.mp3` / `oh-2.mp3` seront
+remplis : ils sont déjà branchés dans le code et servent DEUX émotions,
+l'étonnement et la surprise.
+
 ## Ce qui est déjà déposé, et qu'il ne faut pas refaire
 
 | | |

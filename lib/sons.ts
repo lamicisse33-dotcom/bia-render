@@ -63,6 +63,44 @@ export const SOUFFLES: Souffle[] = [
     // Les petits rires ne durent qu’une demi-seconde : trois images serrées.
     visages: [["douce", 140], ["rire_retenu", 320], ["malice", 400]],
   },
+  /* ── LE SOUFFLE D'ATTENTE — LE 17 SEPTEMBRE 2026 ──────────────────────
+
+     Mesuré la veille sur 63 tours : 10,9 secondes entre sa dernière syllabe
+     à lui et la première d'elle. Pendant ces onze secondes, BIA ne fait
+     AUCUN bruit.
+
+     ── ET CE SILENCE ÉTAIT UNE DÉCISION, PAS UN OUBLI ─────────────────────
+
+     Lamine, le 12 septembre : « entendue une fois, c'est accueillant ;
+     entendue à chaque question, c'est une machine qui récite. C'est ce qui a
+     gâché la démonstration. » Il avait raison, et depuis elle se tait.
+
+     MAIS IL PARLAIT D'UNE PHRASE. Une phrase de quarante secondes, dite avec
+     des mots, répétée à chaque tour : insupportable, et à juste titre.
+
+     Un « mmm » n'est pas une phrase. Il ne dit rien, il ne se récite pas, il
+     dure une seconde. C'est ce qu'un être humain fait quand il réfléchit, et
+     personne ne s'en agace. Sa décision tient donc entière : on ne remet pas
+     la phrase — on ajoute le souffle.
+
+     ── ET IL FAUT QU'IL SOIT ENREGISTRÉ, PAS FABRIQUÉ ─────────────────────
+
+     C'est le point qui décide de tout. Fabriquer une phrase d'attente prend
+     4,9 secondes chez Soynade — autant que la réponse elle-même. Une
+     couverture qui arrive après ce qu'elle devait couvrir ne couvre rien.
+     Enregistré, il part en un dixième de seconde.
+
+     TROIS VARIANTES, et c'est la raison pour laquelle il en faut trois :
+     c'est le son qu'elle fera le plus souvent de toute sa vie. Deux
+     s'entendraient revenir en une conversation. */
+  {
+    emotion: "reflexion",
+    fichiers: ["/sons/reflexion-1.mp3", "/sons/reflexion-2.mp3", "/sons/reflexion-3.mp3"],
+    /* Le visage ne bouge pas : il est déjà pensif pendant qu'elle réfléchit,
+       et c'est exactement l'expression qu'il faut. Une suite d'images ici ne
+       ferait que contredire l'état où elle se trouve. */
+    visages: [],
+  },
   {
     emotion: "etonnement",
     fichiers: ["/sons/oh-1.mp3", "/sons/oh-2.mp3"],

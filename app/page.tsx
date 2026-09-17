@@ -685,6 +685,10 @@ export default function Home() {
   const codeRef = useRef<string>("");
   const contexteRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  /* Le renvoi sert à couper le souffle d'attente depuis couperSon(), qui est
+     déclarée plus haut que lui. Un seul endroit coupe le son ; il doit
+     pouvoir couper celui-ci aussi. */
+  const taireLeSoufflRef = useRef<(() => void) | null>(null);
   /** Les morceaux d'une même réponse, programmés bout à bout. */
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const animationRef = useRef<number | null>(null);
@@ -855,6 +859,10 @@ export default function Home() {
   const toursRef = useRef(0);
   const cacheSons = useRef<Map<string, ArrayBuffer>>(new Map());
   const dernierSon = useRef<string | null>(null);
+  /* Le dernier souffle d'attente joué : c'est ce qui empêche le même « mmm »
+     de revenir deux fois de suite. Sur le son qu'elle fera le plus souvent de
+     toute sa vie, c'est ce détail qui sépare une personne d'une machine. */
+  const dernierSouffle = useRef<string | null>(null);
   const transcritRef = useRef(false);
   /* Le motif de la dernière panne d'écoute, s'il y en a eu une. Il change ce
      que BIA DIT : « je n'ai pas entendu » n'est pas « mon oreille est en
@@ -1162,6 +1170,9 @@ export default function Home() {
   }, [contexte]);
 
   const couperSon = useCallback(() => {
+    /* Le souffle d'attente tombe avec le reste : s'il survivait à sa réponse,
+       elle ferait « mmm » par-dessus sa propre phrase. */
+    taireLeSoufflRef.current?.();
     /* Elle ne parle plus : son énergie retombe, sinon la barre à franchir
        pour l'interrompre resterait haute alors qu'elle s'est tue. */
     sonDelleRef.current = 0;
@@ -1484,6 +1495,79 @@ export default function Home() {
       }).catch(() => rendre(true));
     });
   }, [reveillerLeSon]);
+
+  /* ── LE SOUFFLE QUI COUVRE LE TEMPS DE RÉFLEXION ──────────────────────
+
+     Mesuré le 16 septembre sur 63 tours : 10,9 secondes entre sa dernière
+     syllabe à lui et la première d'elle, PENDANT LESQUELLES ELLE NE FAIT
+     AUCUN BRUIT. C'est ça qu'il ressent comme de la lenteur, et c'est la plus
+     grosse part du problème — plus grosse que tout ce que je peux gratter sur
+     le micro.
+
+     ── SA FONCTION À ELLE, QUI NE TOUCHE À RIEN ──────────────────────────
+
+     Pas `jouerSouffle`, et c'est délibéré. Celui-là écrit le mode et le
+     visage : il la ferait passer en « speaking » alors qu'elle réfléchit, et
+     la boucle qui rouvre le micro se déclencherait de travers. On a déjà payé
+     une soirée pour ce genre de croisement, le 17 septembre au soir.
+
+     Ici on ne fait qu'une chose : jouer un son. Le visage est déjà pensif, le
+     mode est déjà « thinking », et rien de tout ça ne doit bouger.
+
+     ── ET IL S'EFFACE DEVANT ELLE ────────────────────────────────────────
+
+     Trois gardes, et chacune répare un défaut qu'on connaît :
+
+       — il ne part QUE si le tour est encore le sien ;
+       — il ne part QUE si rien d'autre ne sort du haut-parleur, sinon il se
+         superposerait à sa réponse ;
+       — et il attend 600 ms. Une réponse qui vient du répertoire arrive en
+         moins que ça : elle ne doit pas être précédée d'un « mmm » de
+         réflexion alors qu'il n'y a eu aucune réflexion. */
+  const souffleDattenteRef = useRef<AudioBufferSourceNode | null>(null);
+  const soufflerEnAttendant = useCallback(async (jeton: object) => {
+    if (carteOuverteRef.current) return;
+    const souffle = souffleDe("reflexion");
+    if (!souffle) return;
+    await new Promise((suite) => setTimeout(suite, 600));
+    if (attenteRef.current !== jeton || stopAttenteRef.current) return;
+    if (sourceRef.current) return;      // elle parle déjà : on se tait
+    const fichier = fichierDe(souffle, dernierSouffle.current);
+    let octets = cacheSons.current.get(fichier);
+    if (!octets) {
+      try {
+        const r = await fetch(fichier);
+        if (!r.ok) return;              // pas encore enregistré : silence, comme avant
+        octets = await r.arrayBuffer();
+        cacheSons.current.set(fichier, octets);
+      } catch { return; }
+    }
+    dernierSouffle.current = fichier;
+    if (attenteRef.current !== jeton || stopAttenteRef.current) return;
+    if (sourceRef.current) return;
+    try {
+      const ctx = await reveillerLeSon();
+      const memoire = await ctx.decodeAudioData(octets.slice(0));
+      if (attenteRef.current !== jeton || stopAttenteRef.current) return;
+      if (sourceRef.current) return;
+      const source = ctx.createBufferSource();
+      source.buffer = memoire;
+      source.connect(ctx.destination);
+      souffleDattenteRef.current = source;
+      source.onended = () => {
+        if (souffleDattenteRef.current === source) souffleDattenteRef.current = null;
+      };
+      source.start();
+    } catch { /* un souffle qui ne part pas ne casse rien */ }
+  }, [reveillerLeSon]);
+
+  /* Elle se met à parler : le souffle s'arrête, il a fini son travail. */
+  const taireLeSouffle = useCallback(() => {
+    const s = souffleDattenteRef.current;
+    souffleDattenteRef.current = null;
+    if (s) { try { s.stop(); } catch { } }
+  }, []);
+  taireLeSoufflRef.current = taireLeSouffle;
 
   /* Le rire part AVANT la parole, pendant que la voix se synthétise : on
      couvre ainsi l'attente du premier morceau, et l'émotion arrive d'un
@@ -4056,6 +4140,11 @@ export default function Home() {
         } else {
           void attendreEnParlant(jeton, langueRef.current);
         }
+        /* ── ET LE SOUFFLE, À CHAQUE TOUR ─────────────────────────────────
+           `attendreEnParlant` ne parle qu'au PREMIER échange — c'est sa
+           décision du 12 septembre, et elle tient. Le souffle, lui, n'est pas
+           une phrase : il revient à chaque fois, comme chez un être humain. */
+        void soufflerEnAttendant(jeton);
 
         try {
           /* ── ON N'ENVOIE PLUS LE SON S'IL EST DÉJÀ LÀ ────────────────────
