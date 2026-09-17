@@ -163,3 +163,19 @@ export type EssaiVoix = {
 let essaiVoix: EssaiVoix | null = null;
 export function noterEssaiVoix(e: EssaiVoix) { essaiVoix = e; }
 export function dernierEssaiVoix() { return essaiVoix; }
+
+/* ── ET L'ESSAI DE L'OREILLE, POSÉ LE 18 SEPTEMBRE AU SOIR ─────────────────
+
+   Celui de la voix ci-dessus existait depuis le 15 ; l'oreille, non. Ce
+   manque a coûté six jours : les cent mots corrigés de Lamine étaient refusés
+   à chaque écoute, et le seul endroit où ça se voyait était un compteur que
+   je n'ai pas lu. Voir AVANT-DE-DIRE-QUE-C-EST-BON.md, règle 1.
+
+   On garde le dernier essai tel quel, sans le typer champ par champ : c'est
+   une mesure qu'on lit, pas une donnée dont le code dépend, et la figer en
+   type obligerait à toucher ce fichier chaque fois qu'on mesure une chose de
+   plus. VIT EN MÉMOIRE et repart à zéro au réveil du serveur, comme le reste
+   — la page le garde de son côté, comme elle le fait déjà pour la voix. */
+let essaiOreille: unknown = null;
+export function noterEssaiOreille(e: unknown) { essaiOreille = e; }
+export function dernierEssaiOreille() { return essaiOreille; }

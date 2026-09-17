@@ -47,8 +47,26 @@ type Lecture = {
   reponses: number; en_plusieurs_morceaux: number;
   couture_max_ms: number; couture_mediane_ms: number;
 };
+/* ── L'ESSAI DE L'OREILLE ────────────────────────────────────────────────
+   Posé le 18 septembre au soir. On ne type pas son détail : c'est une mesure
+   qu'on lit, pas une donnée dont le code dépend. Les trois verdicts sont des
+   phrases, écrites par le serveur pour être lues telles quelles. */
+type EssaiOreille = {
+  quand: string;
+  moteur?: string;
+  sons_ecoutes?: number;
+  mots_donnes?: number;
+  les_cent_mots?: string;
+  le_wolof?: string;
+  ce_que_les_cent_mots_apportent?: string;
+  mots_faux_avec_les_mots_pour_cent?: number | null;
+  mots_faux_sans_les_mots_pour_cent?: number | null;
+  langues_reconnues?: Record<string, number>;
+  son_annonce?: string;
+};
 type Etat = {
   version?: string;
+  essai_oreille?: EssaiOreille | null;
   lecture?: Lecture | null;
   essai_voix?: Essai | null;
   etapes?: { ecoute: Appel | null; modele: Appel | null;
@@ -91,6 +109,9 @@ export default function Vitesse() {
    serveur reste la source quand il l'a encore ; sinon on ressort celui qu'on
    avait gardé, avec sa date, pour qu'on ne le prenne jamais pour frais.        */
 const BOITE_ESSAI = "bia-essai-voix";
+/* Le même traitement pour l'oreille : un essai payé ne doit pas disparaître
+   parce que Render a mis l'instance en veille au bout de quinze minutes. */
+const BOITE_OREILLE = "bia-essai-oreille";
 
   const relire = useCallback(async () => {
     try {
@@ -102,6 +123,8 @@ const BOITE_ESSAI = "bia-essai-voix";
           localStorage.setItem(BOITE_ESSAI,
             JSON.stringify({ essai: neuf.essai_voix, quand: Date.now() }));
         } catch { /* rangement plein ou fermé : on s'en passe */ }
+        /* IDEM POUR L'OREILLE, et la raison est la même : c'est une mesure
+           payée. Son essai coûte vingt appels à ElevenLabs. */
       } else {
         /* Le serveur a redémarré. Ce qu'on avait gardé vaut mieux que rien —
            c'est une mesure payée, pas une supposition. */
@@ -112,6 +135,17 @@ const BOITE_ESSAI = "bia-essai-voix";
             setGardeDu(new Date(garde.quand).toLocaleString("fr-FR",
               { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }));
           }
+        } catch { /* rien de gardé */ }
+      }
+      if (neuf.essai_oreille) {
+        try {
+          localStorage.setItem(BOITE_OREILLE,
+            JSON.stringify({ essai: neuf.essai_oreille, quand: Date.now() }));
+        } catch { /* rangement plein ou fermé */ }
+      } else {
+        try {
+          const g = JSON.parse(localStorage.getItem(BOITE_OREILLE) || "null");
+          if (g?.essai) neuf.essai_oreille = g.essai;
         } catch { /* rien de gardé */ }
       }
       setEtat(neuf);
@@ -145,6 +179,24 @@ const BOITE_ESSAI = "bia-essai-voix";
       await relire();
     } catch (e) { setMotif((e as Error).message); }
     setEnCours(false);
+  }, [relire]);
+
+  /* ── LE BOUTON QUI MANQUAIT DEPUIS SIX JOURS ────────────────────────
+     Celui de la voix existait depuis le 15 septembre. L'oreille, non — et
+     pendant six jours les cent mots corrigés de Lamine étaient refusés à
+     chaque écoute sans que rien ne le dise. Voir
+     AVANT-DE-DIRE-QUE-C-EST-BON.md, règle 1. */
+  const [oreilleEnCours, setOreilleEnCours] = useState(false);
+  const lancerLOreille = useCallback(async () => {
+    let code = "";
+    try { code = localStorage.getItem("bia-code") || ""; } catch { }
+    if (!code) { setMotif("ouvre BIA une fois sur ce téléphone, puis reviens"); return; }
+    setOreilleEnCours(true);
+    try {
+      await fetch("/api/essai-oreille", { method: "POST", headers: { "x-bia-code": code } });
+      await relire();
+    } catch (e) { setMotif((e as Error).message); }
+    setOreilleEnCours(false);
   }, [relire]);
 
   const t = etat?.tours;
@@ -201,6 +253,7 @@ const BOITE_ESSAI = "bia-essai-voix";
           <>
             {/* Le serveur a pu redemarrer et vider ses tours : l'essai, lui,
                 ne depend d'aucun tour et doit rester lancable. */}
+            <EssaiOreilleBloc essai={etat?.essai_oreille} enCours={oreilleEnCours} lancer={lancerLOreille} />
             <EssaiSoynade essai={etat?.essai_voix} enCours={enCours} lancer={lancerLEssai} gardeDu={gardeDu} />
             <p style={{ opacity: 0.7 }}>
               Aucun tour mesuré depuis le dernier redémarrage du serveur.
@@ -258,6 +311,7 @@ const BOITE_ESSAI = "bia-essai-voix";
             {/* L'ESSAI D'ABORD : c'est le geste qu'il vient faire, et il
                 etait en bas d'une page qui ne defilait pas. Ce qu'on vient
                 CHERCHER se met en haut ; ce qu'on vient LIRE peut attendre. */}
+            <EssaiOreilleBloc essai={etat?.essai_oreille} enCours={oreilleEnCours} lancer={lancerLOreille} />
             <EssaiSoynade essai={etat?.essai_voix} enCours={enCours} lancer={lancerLEssai} gardeDu={gardeDu} />
 
             <Barres parts={t.ou_passe_le_temps} envoi={envoiDuSon} />
@@ -374,6 +428,63 @@ function Appels({ e }: { e?: { ecoute: Appel | null; modele: Appel | null;
    simule nous-mêmes le streaming. Si Soynade prend toujours ~3–4 secondes
    même pour 20 caractères, alors je ne perdrais plus de temps à optimiser
    autour. » — Lamine, 15 septembre 2026. */
+/* ── CE QUE L'OREILLE ENTEND, SUR LA VRAIE VOIX DE KHA ────────────────────
+
+   Trois questions, trois phrases écrites par le serveur. On les affiche
+   telles quelles : celui qui lit ne doit pas avoir à interpréter un tableau
+   pour savoir si son oreille marche. */
+function EssaiOreilleBloc({ essai, enCours, lancer }:
+  { essai?: EssaiOreille | null; enCours: boolean; lancer: () => void }) {
+  const mauvais = (p?: string) => Boolean(p && /REFUS|ZÉRO|AGGRAVENT|aucun effet/.test(p));
+  return (
+    <section style={{ marginBottom: 26, paddingTop: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+        <h2 style={{ font: "600 15px/1.3 system-ui", margin: 0 }}>Son oreille, sur la voix de Kha</h2>
+        <button onClick={lancer} disabled={enCours} style={{
+          font: "500 13px/1 system-ui", padding: "9px 14px", borderRadius: 8,
+          border: "1px solid #3a2f26", background: enCours ? "#1a1511" : "#e8b25f",
+          color: enCours ? "#8a7a68" : "#1a1108", cursor: enCours ? "default" : "pointer" }}>
+          {enCours ? "en cours…" : essai ? "recommencer" : "essayer l’oreille"}
+        </button>
+      </div>
+      {!essai && (
+        <p style={{ margin: 0, opacity: 0.7, fontSize: 14, lineHeight: 1.5 }}>
+          Dix enregistrements de Kha, dont on connaît le texte mot pour mot, sont
+          transcrits deux fois — avec les cent mots corrigés, puis sans. Ça dit
+          trois choses : si les mots sont acceptés, si le wolof est reconnu, et si
+          ces cent mots servent vraiment à quelque chose.
+        </p>
+      )}
+      {essai && (
+        <div style={{ display: "grid", gap: 10 }}>
+          {[
+            { titre: "Les cent mots corrigés", phrase: essai.les_cent_mots },
+            { titre: "Le wolof", phrase: essai.le_wolof },
+            { titre: "Ce que les cent mots apportent", phrase: essai.ce_que_les_cent_mots_apportent },
+          ].map((l) => (
+            <div key={l.titre} style={{
+              border: `1px solid ${mauvais(l.phrase) ? "#5a2a24" : "#2a2420"}`,
+              background: mauvais(l.phrase) ? "#1d100e" : "#141210",
+              borderRadius: 10, padding: "11px 13px" }}>
+              <div style={{ font: "600 13px/1.3 system-ui", marginBottom: 4,
+                color: mauvais(l.phrase) ? "#e08b7a" : "#e8b25f" }}>{l.titre}</div>
+              <div style={{ font: "400 14px/1.5 system-ui", opacity: 0.92 }}>{l.phrase || "—"}</div>
+            </div>
+          ))}
+          <p style={{ margin: 0, opacity: 0.55, fontSize: 12.5, lineHeight: 1.5 }}>
+            {essai.sons_ecoutes} son(s) écouté(s) · {essai.mots_donnes} mots donnés · moteur{" "}
+            {essai.moteur} · mots faux : {essai.mots_faux_sans_les_mots_pour_cent ?? "—"} % sans
+            eux, {essai.mots_faux_avec_les_mots_pour_cent ?? "—"} % avec.{" "}
+            {essai.son_annonce}. Langues reconnues :{" "}
+            {Object.entries(essai.langues_reconnues || {}).map(([k, n]) => `${k} ${n}`).join(" · ") || "aucune"}.
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function EssaiSoynade({ essai, enCours, lancer, gardeDu }:
   { essai?: Essai | null; enCours: boolean; lancer: () => void; gardeDu?: string }) {
   const max = Math.max(1, ...(essai?.resultats || []).map((r) => r.fin_ms));

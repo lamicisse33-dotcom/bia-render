@@ -5,7 +5,7 @@ import { lexiqueConfig, combien, combienParApplication, parAuteur } from "@/lib/
 import { dernierePanne, pannes } from "@/lib/panne";
 import { resumeLecons } from "@/lib/lecons-vues";
 import { resumeAttentes, resumeLectures, resumeTours } from "@/lib/attentes-vues";
-import { resumeEtapes, dernierEssaiVoix } from "@/lib/etapes";
+import { resumeEtapes, dernierEssaiOreille, dernierEssaiVoix } from "@/lib/etapes";
 import { resumeEmotions } from "@/lib/emotions-vues";
 import { depense } from "@/lib/depense";
 import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
@@ -140,6 +140,7 @@ export async function GET(request: Request) {
     /* L'ESSAI DE SOYNADE aux cinq longueurs — le test qui décide si on
        découpe par phrase ou si on change de moteur. Lancé depuis /vitesse,
        gardé ici jusqu'au suivant. Voir app/api/essai-voix/route.ts. */
+    essai_oreille: dernierEssaiOreille(),
     essai_voix: dernierEssaiVoix(),
     /* Ce que le moteur d'écoute a cru entendre, et combien de fois il a
        fallu le reprendre. Voir lib/ecoute.ts. */
