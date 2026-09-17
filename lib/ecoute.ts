@@ -75,27 +75,57 @@ const CARTE: Record<string, "wo" | "fr"> = {
    envoyé. Vérifié le 12 septembre : `indice_langue` n'apparaît nulle part
    dans app/page.tsx. La devinette tournait donc à chaque phrase.
 
-   ── CE QU'ON NE FAIT PAS, ET POURQUOI ───────────────────────────────────
+   ── CE QU'ON NE FAIT TOUJOURS PAS ───────────────────────────────────────
 
    ON NE FORCE PAS LE WOLOF À TOUS LES COUPS. Ce serait réparer un défaut en
    en créant un autre : BIA parle aussi français, et du français transcrit
    de force en wolof ne ressort pas mieux que du wolof transcrit en arabe.
-   Et la devinette de Scribe est JUSTE une bonne partie du temps — sur le
-   français, elle ne se trompe jamais.
+   Cette règle tient, et elle tient encore aujourd'hui.
 
-   ── ALORS ON LA LAISSE DEVINER, ET ON RATTRAPE QUAND ELLE DÉRAPE ─────────
+   ── MAIS ON A CESSÉ DE LE LAISSER DEVINER, LE 18 SEPTEMBRE AU SOIR ──────
 
-   Premier essai : sans consigne, comme aujourd'hui. Si le moteur rend du
-   français ou du wolof, c'est fini — on ne paie rien de plus.
+   Ce qui était écrit ici, et qui était FAUX : « la devinette de Scribe est
+   juste une bonne partie du temps ». Je l'avais supposé. Mesuré, sur deux
+   sessions et quatre-vingts écoutes :
 
-   Mais s'il rend de l'arabe, du bambara, du peul ou du wolof de Gambie, on
-   REPREND en imposant la langue attendue : celle de la conversation en
-   cours, et le wolof par défaut — BIA est wolof d'abord.
+       18 sept., 55 écoutes   fra 18 · eng 23 · por 4 · war 2 · ind 2 · …
+       18 sept., 25 écoutes   fra 10 · eng 3 · fin 2 · ita 2 · nld 2 · …
+       WOLOF, LES DEUX FOIS : ZÉRO
 
-   Ça coûte une seconde transcription, et seulement dans le cas cassé. C'est
-   très en dessous du prix de l'autre solution : une phrase illisible fait
-   répondre BIA à côté, la personne répète, et on paie DEUX fois de toute
-   façon — plus le modèle, plus la voix.
+   Il ne se trompe pas « une bonne partie du temps » sur le wolof : il se
+   trompe TOUJOURS. Laisser deviner un moteur qui échoue à cent pour cent
+   n'est pas de la prudence, c'est un aller-retour offert.
+
+   ── DONC ON LUI DIT LA LANGUE DU FIL, DÈS LE PREMIER APPEL ──────────────
+
+   La langue de la conversation — pas le wolof d'office : la règle du dessus
+   est intacte, un fil en français impose « fra ». Le téléphone la connaît et
+   l'envoie déjà (`indice_langue`).
+
+   La reprise disparaît alors d'elle-même : elle existait pour corriger un
+   dérapage de détection, et il n'y a plus de détection à corriger. Quinze
+   reprises sur vingt-cinq écoutes, c'est une seconde et un appel repris sur
+   soixante pour cent des tours.
+
+   ── LES DEUX GARDES, ET ELLES SE MESURENT ───────────────────────────────
+
+     1. ON N'IMPOSE QUE SI ON SAIT. Sans langue de fil — la toute première
+        phrase d'une conversation — on laisse deviner comme avant. C'est
+        aussi ce qui garde le compteur `langues_entendues` honnête.
+     2. SI LE TEXTE REVIENT VIDE, on relaisse deviner. Un vide ne coûte qu'un
+        appel, et c'est exactement le cas où il fallait douter.
+
+   `imposees_sans_texte` dans /api/etat dit si cette manœuvre abîme quelque
+   chose. Si ce nombre monte, on revient en arrière — et il le dira avant que
+   Lamine ne le sente.
+
+   ── ET CE QUE ÇA NE RÉPARE PAS ──────────────────────────────────────────
+
+   Rien de tout ça n'apprend le wolof à cette oreille. On lui épargne une
+   erreur qu'elle commet systématiquement ; on ne la rend pas meilleure. Le
+   vrai chantier est de changer d'oreille — Soynade, déjà fournisseur de la
+   voix, publie un modèle de reconnaissance wolof. Ceci fait gagner une
+   seconde en attendant, pas une transcription juste.
 
    ── ET SI SCRIBE NE CONNAÎT PAS LE WOLOF ────────────────────────────────
 
@@ -115,7 +145,7 @@ const ACCEPTEES = new Set(Object.keys(CARTE));
    c'est que Scribe ne se trompe plus — ou que la reprise ne part pas. Si
    « perdues » monte, c'est que « wol » est refusé et il faudra une autre
    voie. Remis à zéro à chaque redémarrage, comme tous les compteurs. */
-const compte = { ecoutes: 0, reprises: 0, perdues: 0, repliModele: 0, repliSansMots: 0, mots: 0, dernierRefus: "", langues: {} as Record<string, number> };
+const compte = { ecoutes: 0, reprises: 0, perdues: 0, repliModele: 0, repliSansMots: 0, mots: 0, dernierRefus: "", langues: {} as Record<string, number>, imposees: 0, imposeesVides: 0, imposeesRattrapees: 0 };
 
 export function resumeEcoutes() {
   if (!compte.ecoutes) return null;
@@ -123,7 +153,28 @@ export function resumeEcoutes() {
     ecoutes: compte.ecoutes,
     reprises: compte.reprises,
     reprises_ratees: compte.perdues,
+    /* ── CE COMPTEUR NE DIT QUE CE QU'ON A LAISSÉ DEVINER ────────────────
+
+       Depuis le 18 septembre au soir, la langue du fil est imposée dès le
+       premier appel : le moteur ne devine plus, donc il ne peut plus se
+       tromper, donc ce compteur ne mesurerait plus rien s'il comptait aussi
+       les écoutes imposées. Il ne compte QUE les écoutes laissées libres —
+       la première d'une conversation, quand on ne sait pas encore.
+
+       C'est ce qui permet de continuer à répondre à la seule question qui
+       compte : est-ce que cette oreille reconnaît le wolof, oui ou non ? */
     langues_entendues: compte.langues,
+    /* ── ET CE QU'ON A IMPOSÉ, SÉPARÉMENT ───────────────────────────────
+
+       `imposees` : combien d'écoutes sont parties avec la langue déjà dite.
+       `imposees_sans_texte` : combien sont revenues vides — le seul risque
+       de cette manœuvre, imposer une langue à quelqu'un qui en parle une
+       autre. `imposees_rattrapees` : combien de ces vides ont été sauvées en
+       relaissant deviner. Si `imposees_sans_texte` monte, il faudra revenir
+       en arrière, et ce chiffre-là le dira avant que Lamine ne le sente. */
+    imposees: compte.imposees,
+    imposees_sans_texte: compte.imposeesVides,
+    imposees_rattrapees: compte.imposeesRattrapees,
     /* Deux chiffres pour savoir si les mots donnés d'avance servent, sans
        avoir à parler devant un téléphone : combien de mots on envoie, et
        combien de fois le modèle neuf a été refusé. */
@@ -262,10 +313,59 @@ export async function transcrire(
      L'ancien code écrivait la raison du refus dans un console.error que
      personne ne lit. C'est exactement l'aveuglement qui nous a déjà coûté
      deux soirées. Le motif remonte maintenant dans /api/etat. */
+  /* ── ON N'ATTEND PLUS QU'IL SE TROMPE POUR LUI DIRE LA LANGUE ──────────
+
+     Lamine, le 18 septembre 2026 au soir, après sa session : « elle est trop
+     nulle en wolof. »
+
+     Le compteur lui donne raison, et durement. Sur ses 25 écoutes de la
+     session, voici ce que le moteur a cru entendre :
+
+         fra 10 · eng 3 · fin 2 · ita 2 · nld 2
+         cat 1 · hun 1 · ilo 1 · por 1 · sh 1 · war 1
+         WOLOF : 0
+
+     Du hongrois, de l'ilocano, du waray — jamais la langue qu'il parle. Et
+     ce n'était pas un mauvais jour : la veille, sur 55 écoutes, zéro aussi.
+
+     ── POURQUOI LES CENT MOTS N'Y CHANGENT RIEN ─────────────────────────
+
+     Ils étaient refusés jusqu'à ce matin, et ils passent maintenant — mais
+     ils corrigent L'ORTHOGRAPHE des mots, pas la RECONNAISSANCE de la
+     langue. Le moteur entend du wolof et décide que c'est du finnois ; on
+     lui a juste appris à mieux écrire le finnois.
+
+     ── CE QU'ON FAISAIT, ET CE QUE ÇA COÛTAIT ───────────────────────────
+
+     On le laissait deviner, il se trompait, et ALORS on reprenait en
+     imposant la langue. Quinze reprises sur vingt-cinq écoutes : un
+     aller-retour de plus sur soixante pour cent des tours, et une seconde
+     perdue à chaque fois, pour un texte faux entre-temps.
+
+     Laisser deviner un moteur qui se trompe DANS CENT POUR CENT DES CAS
+     n'est pas de la prudence, c'est du gaspillage. On lui dit donc la langue
+     TOUT DE SUITE — celle du fil, que le téléphone connaît et envoie déjà.
+
+     ── LE SEUL RISQUE, ET SA GARDE ──────────────────────────────────────
+
+     Imposer une langue à quelqu'un qui en parle une autre rend un texte
+     mauvais, voire vide. D'où deux précautions :
+
+       1. ON N'IMPOSE QUE SI ON SAIT. Sans langue de fil — la toute première
+          phrase d'une conversation — on laisse deviner comme avant.
+       2. SI LE TEXTE REVIENT VIDE, on relaisse deviner. Un vide ne coûte
+          qu'un appel de plus, et c'est exactement le cas où il faut douter.
+
+     Et les deux se mesurent : `imposees_sans_texte` et
+     `imposees_rattrapees` dans /api/etat. Si le premier monte, on revient
+     en arrière — et ce chiffre le dira avant que Lamine ne le sente. */
+  const imposeeDesLePremier = indice ? (indice === "fr" ? "fra" : "wol") : null;
+  if (imposeeDesLePremier) compte.imposees++;
+
   let premier: { texte: string; brute: string };
   const estUnRefus = (motif: string) => /\b(400|404|422)\b/.test(motif);
   try {
-    premier = await unEssai(audio, nomFichier, null, c.model, mots);
+    premier = await unEssai(audio, nomFichier, imposeeDesLePremier, c.model, mots);
   } catch (err) {
     const motif = (err as Error).message;
     if (!estUnRefus(motif) || c.model === c.modeleDeRepli) throw err;
@@ -274,7 +374,7 @@ export async function transcrire(
     let sansLesMots: { texte: string; brute: string } | null = null;
     if (mots && mots.length) {
       try {
-        sansLesMots = await unEssai(audio, nomFichier, null, c.model);
+        sansLesMots = await unEssai(audio, nomFichier, imposeeDesLePremier, c.model);
         compte.repliSansMots++;
         console.error(`BIA — « ${c.model} » refuse les mots donnés d'avance (${compte.dernierRefus}) ; il écoute quand même.`);
       } catch (err2) {
@@ -288,11 +388,49 @@ export async function transcrire(
       /* Marche 3 : l'ancien modèle. On n'est jamais sourd. */
       console.error(`BIA — « ${c.model} » refusé (${compte.dernierRefus}) : on écoute avec « ${c.modeleDeRepli} ».`);
       compte.repliModele++;
-      premier = await unEssai(audio, nomFichier, null, c.modeleDeRepli);
+      premier = await unEssai(audio, nomFichier, imposeeDesLePremier, c.modeleDeRepli);
     }
   }
   compte.ecoutes++;
-  if (premier.brute) compte.langues[premier.brute] = (compte.langues[premier.brute] || 0) + 1;
+  /* On ne note la langue que quand on l'a laissée DEVINER : une langue
+     imposée et retrouvée ne prouve rien, et polluerait le seul compteur qui
+     répond à « cette oreille reconnaît-elle le wolof ? ». */
+  if (!imposeeDesLePremier && premier.brute) {
+    compte.langues[premier.brute] = (compte.langues[premier.brute] || 0) + 1;
+  }
+
+  /* ── LA GARDE DU TEXTE VIDE ────────────────────────────────────────────
+
+     Le seul vrai risque d'imposer : il parlait une autre langue, et le
+     moteur rend du vide ou du charabia. Le vide, on le rattrape — on
+     relaisse deviner, ça ne coûte qu'un appel, et c'est précisément le cas
+     où il fallait douter. */
+  if (imposeeDesLePremier && !premier.texte) {
+    compte.imposeesVides++;
+    try {
+      const libre = await unEssai(audio, nomFichier, null, c.model, mots);
+      if (libre.texte) {
+        compte.imposeesRattrapees++;
+        if (libre.brute) compte.langues[libre.brute] = (compte.langues[libre.brute] || 0) + 1;
+        premier = libre;
+      }
+    } catch { /* on garde le vide : mieux vaut muet que faux */ }
+  }
+
+  /* ── LANGUE IMPOSÉE ET TEXTE OBTENU : IL N'Y A RIEN À RATTRAPER ────────
+
+     On sait quelle langue on a demandée, donc on la rend telle quelle sans
+     passer par ce que le moteur en dit. Et surtout on NE REPREND PAS : la
+     reprise existait pour corriger un dérapage de détection, et il n'y a
+     plus de détection à corriger. C'est là qu'est la seconde gagnée. */
+  if (imposeeDesLePremier && premier.texte) {
+    return {
+      texte: premier.texte,
+      langue: CARTE[imposeeDesLePremier] || (indice === "fr" ? "fr" : "wo"),
+      moteur: "elevenlabs-scribe",
+      entendue: imposeeDesLePremier,
+    };
+  }
 
   /* Il a entendu du français ou du wolof : c'est bon, on s'arrête là. Et
      s'il n'a RIEN entendu, reprendre ne servirait à rien — le silence ne
