@@ -148,11 +148,57 @@ async function unEssai(
   form.append("file", audio, nomFichier || "parole.webm");
   form.append("model_id", modele || c.model);
   if (imposer) form.append("language_code", imposer);
-  /* LES MOTS QU'ON LUI DONNE D'AVANCE. Cent au plus — au-delà, chaque écoute
-     est facturée vingt secondes, et une phrase en dure trois. Le surcoût
-     annoncé est de 20 % sur la transcription, qui est la plus petite part de
-     la facture : la voix coûte vingt fois plus. */
-  if (mots && mots.length) { form.append("keyterms", JSON.stringify(mots)); compte.mots = mots.length; }
+  /* ── LES MOTS QU'ON LUI DONNE D'AVANCE, ET COMMENT ON LES ENVOIE ──────
+
+     Cent au plus — au-delà, chaque écoute est facturée vingt secondes, et une
+     phrase en dure trois. Le surcoût annoncé est de 20 % sur la
+     transcription, qui est la plus petite part de la facture : la voix coûte
+     vingt fois plus.
+
+     ── SIX JOURS À NE JAMAIS AVOIR SERVI, ET C'ÉTAIT UNE LIGNE ──────────
+
+     Lamine, le 12 septembre au soir : « attaque ça » — les mots corrigés
+     devaient être donnés d'avance au moteur d'écoute. Je l'ai fait, j'ai
+     écrit l'épreuve, et ça n'a JAMAIS marché une seule fois. Relevé sur son
+     serveur le 18 septembre, sur 55 écoutes :
+
+         mots_donnes            100
+         repli_sans_les_mots     55      ← toutes, sans exception
+         reprises                36
+         reprises_ratees         36      ← toutes, sans exception
+         dernier_refus   « All keywords must be less than 50 characters »
+
+     Cent pour cent d'échec, et le compteur le disait depuis le début. Je ne
+     l'avais pas lu.
+
+     LA CAUSE. J'empaquetais la liste entière en JSON dans UN SEUL champ
+     « keyterms » — un champ dont la valeur était `["salaam","dërëm",…]`.
+     L'API mesure alors la longueur de ce champ, huit cents signes, et refuse.
+     Ce n'est pas le contenu qui était mauvais : vérifié, les cent termes font
+     douze signes au plus, aucun doublon, cinq mots au maximum. C'était
+     l'emballage, et corriger la liste à la source n'y aurait rien changé.
+
+     C'est un piège connu, et pas seulement de moi : la bibliothèque Python
+     officielle d'ElevenLabs a introduit exactement la même faute dans sa
+     version 2.59.0, avec exactement ce message d'erreur.
+
+     LA FORME QUI MARCHE : un champ RÉPÉTÉ, une ligne par terme.
+
+         keyterms=salaam
+         keyterms=dërëm
+
+     ── ET LE PRIX DE LA RÉPARATION, DIT D'AVANCE ────────────────────────
+
+     Tant que les mots étaient refusés, il ne payait pas le surcoût de 20 %.
+     À partir de maintenant, il le paie — sur la transcription, qui fait 18 %
+     du temps et une petite part de la facture. En échange, le moteur cesse de
+     deviner : il entendait de l'anglais 23 fois contre 18 fois du français,
+     sur du wolof. C'est ce que ces cent mots étaient censés corriger depuis
+     six jours. */
+  if (mots && mots.length) {
+    for (const m of mots) form.append("keyterms", m);
+    compte.mots = mots.length;
+  }
 
   /* ── LES TROIS INSTANTS DE L'ÉCOUTE ─────────────────────────────────
      Le troisième appel extérieur, et il manquait à la mesure d'hier soir.
