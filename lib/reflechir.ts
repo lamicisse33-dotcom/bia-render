@@ -100,7 +100,61 @@ const MOTS_AU_MOINS = 4;
  * réflexion n'y ajouterait que de l'attente, sur le seul geste où il en fait
  * des dizaines d'affilée.
  */
+/* ── ÉTEINTE LE 17 SEPTEMBRE 2026 AU PETIT MATIN ────────────────────────────
+
+   Lamine, à quatre heures : « ça fait combien de temps qu'on travaille sur la
+   vitesse que tu n'arrives pas à régler ? La lenteur est toujours là. »
+
+   J'ai regardé le journal du serveur au lieu de discuter. Voici ce qu'il dit,
+   mot pour mot :
+
+     "thinking.type.enabled" is not supported for this model.
+     Use "thinking.type.adaptive" and "output_config.effort".
+
+   LA RÉFLEXION QUE J'AI POSÉE LE 16 SEPTEMBRE N'A JAMAIS FONCTIONNÉ. Pas une
+   seule fois. Le modèle refuse le réglage, l'appel échoue, on rattrape en
+   renvoyant tout sans les réglages facultatifs — et la réponse arrive du
+   premier jet, comme avant. Sauf qu'entre les deux il y a eu un aller-retour
+   complet au serveur, payé et attendu.
+
+   MESURÉ SUR SES 63 TOURS DE CETTE NUIT : 2 669 ms quand elle ne « réfléchit »
+   pas, 8 488 ms quand elle « réfléchit ». Six secondes de plus, sur 11 % de ses
+   questions, POUR RIEN — puisque la réflexion n'a pas lieu.
+
+   J'ai ajouté cette fonction en croyant la rendre plus intelligente, et je ne
+   suis jamais allé vérifier qu'elle partait. C'est la même faute que la
+   facture : agir sans regarder l'état réel.
+
+   ── POURQUOI J'ÉTEINS AU LIEU DE RÉPARER, CE MATIN ─────────────────────────
+
+   Le message d'erreur dit la forme attendue. Je pourrais l'écrire. Mais je ne
+   peux pas l'essayer — le crédit est à zéro depuis 03 h 41 — et livrer une
+   forme d'appel non éprouvée sur l'application qu'il vient d'installer serait
+   exactement ce qu'il me reproche : du travail qu'on n'a pas vérifié.
+
+   On éteint. Six secondes rendues tout de suite, un aller-retour de moins
+   payé à chaque question difficile, et zéro risque. Le jour où on rallume,
+   c'est ce mot-ci qu'on change, et on le mesure AVANT de le garder. */
+export const ELLE_REFLECHIT_AVANT_DE_PARLER = false;
+
+/**
+ * Cette question gagne-t-elle à ce qu'elle réfléchisse avant de parler ?
+ *
+ * `apprentissage` : dans le mode leçon elle RÉPÈTE, elle ne pense pas.
+ */
 export function meriteReflexion(question: string, apprentissage = false): boolean {
+  return ELLE_REFLECHIT_AVANT_DE_PARLER && questionQuiMeriteraitReflexion(question, apprentissage);
+}
+
+/* ── LE TRI, GARDÉ VIVANT MÊME PENDANT QUE C'EST ÉTEINT ─────────────────────
+
+   Ce tri est le fruit de plusieurs soirées : ce qui mérite une réflexion et ce
+   qui n'en a pas besoin. L'éteindre ne doit pas l'effacer, sinon le jour où on
+   rallume il faudra tout refaire — et on le referait moins bien.
+
+   Il reste donc éprouvé, à part, prêt. C'est l'interrupteur qui décide, pas
+   l'oubli. */
+export function questionQuiMeriteraitReflexion(question: string, apprentissage = false): boolean {
   if (apprentissage) return false;
   const q = normaliser(question);
   if (!q) return false;
