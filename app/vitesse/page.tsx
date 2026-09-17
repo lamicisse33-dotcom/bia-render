@@ -72,10 +72,49 @@ export default function Vitesse() {
   const [motif, setMotif] = useState("");
   const [quand, setQuand] = useState("");
 
+/* ── L'ESSAI DE LA VOIX NE DOIT PAS S'ÉVAPORER ──────────────────────────────
+
+   Lamine, le 17 septembre 2026 : « va vérifier, j'ai lancé le test. »
+
+   Le résultat n'y était plus. Ce n'était pas lui : cet essai vit en mémoire
+   vive, comme les autres compteurs — et entre son lancement et ma
+   vérification, le serveur avait redémarré (il venait de pousser un commit,
+   Render redéploie, la mémoire repart à zéro).
+
+   LES AUTRES COMPTEURS PEUVENT SE PERMETTRE DE REPARTIR : ils se remplissent
+   tout seuls dès qu'on parle à BIA. Celui-ci, non. Il coûte cinq appels à
+   Soynade — de l'argent — et il ne se relance qu'à la main. Le perdre, c'est
+   redemander à quelqu'un de repayer une mesure qu'il a déjà faite.
+
+   ON LE GARDE DONC DANS LE TÉLÉPHONE. C'est le seul endroit qui survit à un
+   déploiement, et c'est aussi celui de la personne qui a payé la mesure. Le
+   serveur reste la source quand il l'a encore ; sinon on ressort celui qu'on
+   avait gardé, avec sa date, pour qu'on ne le prenne jamais pour frais.        */
+const BOITE_ESSAI = "bia-essai-voix";
+
   const relire = useCallback(async () => {
     try {
       const r = await fetch("/api/etat", { cache: "no-store" });
-      setEtat(await r.json() as Etat);
+      const neuf = await r.json() as Etat;
+      if (neuf.essai_voix) {
+        /* Le serveur l'a : on le garde pour le jour où il l'aura oublié. */
+        try {
+          localStorage.setItem(BOITE_ESSAI,
+            JSON.stringify({ essai: neuf.essai_voix, quand: Date.now() }));
+        } catch { /* rangement plein ou fermé : on s'en passe */ }
+      } else {
+        /* Le serveur a redémarré. Ce qu'on avait gardé vaut mieux que rien —
+           c'est une mesure payée, pas une supposition. */
+        try {
+          const garde = JSON.parse(localStorage.getItem(BOITE_ESSAI) || "null");
+          if (garde?.essai) {
+            neuf.essai_voix = garde.essai;
+            setGardeDu(new Date(garde.quand).toLocaleString("fr-FR",
+              { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }));
+          }
+        } catch { /* rien de gardé */ }
+      }
+      setEtat(neuf);
       setMotif("");
       setQuand(new Date().toLocaleTimeString("fr-FR"));
     } catch (e) { setMotif((e as Error).message); }
@@ -92,6 +131,10 @@ export default function Vitesse() {
      le serveur qui appelle, et cette page ne fait que demander. Le code
      maître est déjà dans ce navigateur — même origine que BIA. */
   const [enCours, setEnCours] = useState(false);
+  /* Rempli seulement quand l'essai vient du téléphone et non du serveur : il
+     porte alors sa date, pour qu'on ne le prenne pas pour une mesure d'il y a
+     une minute. */
+  const [gardeDu, setGardeDu] = useState("");
   const lancerLEssai = useCallback(async () => {
     let code = "";
     try { code = localStorage.getItem("bia-code") || ""; } catch { }
@@ -158,7 +201,7 @@ export default function Vitesse() {
           <>
             {/* Le serveur a pu redemarrer et vider ses tours : l'essai, lui,
                 ne depend d'aucun tour et doit rester lancable. */}
-            <EssaiSoynade essai={etat?.essai_voix} enCours={enCours} lancer={lancerLEssai} />
+            <EssaiSoynade essai={etat?.essai_voix} enCours={enCours} lancer={lancerLEssai} gardeDu={gardeDu} />
             <p style={{ opacity: 0.7 }}>
               Aucun tour mesuré depuis le dernier redémarrage du serveur.
               Parle-lui une fois et cette page se remplit toute seule.
@@ -215,7 +258,7 @@ export default function Vitesse() {
             {/* L'ESSAI D'ABORD : c'est le geste qu'il vient faire, et il
                 etait en bas d'une page qui ne defilait pas. Ce qu'on vient
                 CHERCHER se met en haut ; ce qu'on vient LIRE peut attendre. */}
-            <EssaiSoynade essai={etat?.essai_voix} enCours={enCours} lancer={lancerLEssai} />
+            <EssaiSoynade essai={etat?.essai_voix} enCours={enCours} lancer={lancerLEssai} gardeDu={gardeDu} />
 
             <Barres parts={t.ou_passe_le_temps} envoi={envoiDuSon} />
 
@@ -331,14 +374,22 @@ function Appels({ e }: { e?: { ecoute: Appel | null; modele: Appel | null;
    simule nous-mêmes le streaming. Si Soynade prend toujours ~3–4 secondes
    même pour 20 caractères, alors je ne perdrais plus de temps à optimiser
    autour. » — Lamine, 15 septembre 2026. */
-function EssaiSoynade({ essai, enCours, lancer }:
-  { essai?: Essai | null; enCours: boolean; lancer: () => void }) {
+function EssaiSoynade({ essai, enCours, lancer, gardeDu }:
+  { essai?: Essai | null; enCours: boolean; lancer: () => void; gardeDu?: string }) {
   const max = Math.max(1, ...(essai?.resultats || []).map((r) => r.fin_ms));
   return (
     <section style={{ marginBottom: 26, paddingTop: 4 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
         gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
         <h2 style={{ font: "600 15px/1.3 system-ui", margin: 0 }}>La voix, aux cinq longueurs</h2>
+        {/* ── D'OÙ VIENT CE CHIFFRE ────────────────────────────────────────
+            Quand le serveur a redémarré, l'essai ressort du téléphone. Il
+            reste juste — c'est une mesure payée — mais il n'est pas d'il y a
+            une minute, et le lecteur doit le savoir. Un chiffre juste présenté
+            sans sa date, c'est la faute qu'on a déjà payée le 18 au soir. */}
+        {gardeDu ? <span style={{ font: "400 12px/1.3 system-ui", color: "#9a8f80" }}>
+          gardé sur ce téléphone — mesuré le {gardeDu}
+        </span> : null}
         <button onClick={lancer} disabled={enCours} style={{
           font: "500 13px/1 system-ui", padding: "9px 14px", borderRadius: 8,
           border: "1px solid #3a2f26", background: enCours ? "#1a1511" : "#e8b25f",
