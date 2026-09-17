@@ -3,3 +3,7 @@ node_modules
 .env
 .env.local
 next-env.d.ts
+
+# Les découpes que Kha doit refaire. On les garde sous la main pour comparer
+# avec la prochaine prise, mais elles ne partent pas en ligne.
+sons-mis-de-cote

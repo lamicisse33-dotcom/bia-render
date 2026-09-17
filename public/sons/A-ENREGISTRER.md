@@ -30,10 +30,17 @@ impressionné, un « oh » qui découvre.
 
 ### 2. La réflexion — « **mmm…** »
 
-Bouche fermée, tenu **une à deux secondes**, comme quand on cherche sa réponse.
+Bouche fermée, tenu **1,5 à 2 secondes**, comme quand on cherche sa réponse.
 Pas un « mmm » d'approbation : un « mmm » qui pense.
 
 **Trois fois.**
+
+> **À REFAIRE — et c'est la faute de Claude, pas celle de Kha.** La prise du
+> 17 septembre était bonne, mais les morceaux qu'il en a taillés font 0,89 s.
+> Il avait écrit « une à deux secondes » sur cette fiche, puis il a découpé
+> sous sa propre consigne sans le relever. À 0,89 s, le « mmm » s'entend
+> comme un hoquet : c'est la tenue qui fait la réflexion, pas le son.
+> **Compter mentalement « un… deux… » bouche fermée avant de relâcher.**
 
 > **C'est le plus important des quatre.** BIA met environ trois secondes à
 > réfléchir, et pendant ces trois secondes elle ne fait rien. Ce « mmm » part
@@ -94,14 +101,23 @@ s'étonne fort et compatit tout bas —, les nomme, les branche dans le code,
 ## Déposé le 17 septembre 2026 — la prise « VOIX. DIDI »
 
 Kha a enregistré les quatre sons d'un trait, en cinq parties bien séparées.
+La matière est bonne. Ce qui a été découpé et branché, puis **retiré le soir
+même** :
 
-| Fichier | Vient de | Durée |
-|---|---|---|
-| `reflexion-1.mp3` | partie 1, premier « mmm » | 0,89 s |
-| `reflexion-2.mp3` | partie 1, deuxième | 0,94 s |
-| `reflexion-3.mp3` | partie 1, troisième | 0,89 s |
+| Fichier | Vient de | Durée | État |
+|---|---|---|---|
+| `reflexion-1.mp3` | partie 1, premier « mmm » | 0,89 s | retiré — trop court |
+| `reflexion-2.mp3` | partie 1, deuxième | 0,94 s | retiré — trop court |
+| `reflexion-3.mp3` | partie 1, troisième | 0,89 s | retiré — trop court |
 
-Tous ramenés à la même crête : elle ne réfléchit pas fort puis tout bas.
+Lamine, une heure après les avoir entendus : « c'est pas bien fait, elle doit
+le reprendre, c'est trop court, alors que ça doit être un peu plus long. »
+
+Les trois découpes ne sont pas perdues : elles sont rangées dans
+`sons-mis-de-cote/`, hors dépôt, pour comparer avec la prochaine prise.
+**Dans le code, le mécanisme est intact et éteint par une simple liste vide :
+le jour où la nouvelle prise arrive, on remet trois noms et elle réfléchit à
+nouveau tout haut.**
 
 **Ce qui reste à découper de cette même prise** — les sons sont là, il ne
 manque que la décision de Lamine sur ce qu'on en fait :
@@ -117,6 +133,17 @@ d'en tirer des exclamations courtes. Un « oh ! » d'étonnement fait moins d'un
 seconde. Trois, brefs et bien séparés, et `oh-1.mp3` / `oh-2.mp3` seront
 remplis : ils sont déjà branchés dans le code et servent DEUX émotions,
 l'étonnement et la surprise.
+
+---
+
+## Donc, pour la prochaine prise de Kha — deux choses seulement
+
+1. **Les « mmm » de réflexion, tenus 1,5 à 2 secondes.** Trois fois. C'est le
+   son le plus important des quatre, et le seul qui soit à refaire.
+2. **Trois « oh ! » d'étonnement**, courts, bien séparés par deux secondes de
+   silence.
+
+Le reste de la prise du 17 est bon et ne doit pas être refait.
 
 ## Ce qui est déjà déposé, et qu'il ne faut pas refaire
 

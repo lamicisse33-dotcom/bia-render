@@ -1529,6 +1529,10 @@ export default function Home() {
     if (carteOuverteRef.current) return;
     const souffle = souffleDe("reflexion");
     if (!souffle) return;
+    /* Aucun fichier déclaré : on n'essaie même pas d'en chercher un. Sans
+       cette ligne, chaque tour partirait chercher un son qui n'existe pas —
+       un aller-retour au serveur par question, pour un 404. */
+    if (!souffle.fichiers.length) return;
     await new Promise((suite) => setTimeout(suite, 600));
     if (attenteRef.current !== jeton || stopAttenteRef.current) return;
     if (sourceRef.current) return;      // elle parle déjà : on se tait

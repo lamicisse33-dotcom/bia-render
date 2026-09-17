@@ -95,7 +95,19 @@ export const SOUFFLES: Souffle[] = [
      s'entendraient revenir en une conversation. */
   {
     emotion: "reflexion",
-    fichiers: ["/sons/reflexion-1.mp3", "/sons/reflexion-2.mp3", "/sons/reflexion-3.mp3"],
+    /* ── RETIRÉS LE 17 SEPTEMBRE 2026, À SA DEMANDE ────────────────────
+       Lamine, une heure après les avoir posés : « c'est pas bien fait,
+       elle doit le reprendre, c'est trop court, alors que ça doit être un
+       peu plus long. »
+       Il a raison, et c'est ma faute de cadrage : je lui avais écrit
+       « tenu une à deux secondes » sur la fiche, et j'ai découpé des
+       morceaux de 0,89 s sans relever qu'ils étaient sous la consigne que
+       j'avais moi-même donnée. Un « mmm » d'une seconde s'entend comme un
+       hoquet ; c'est la tenue qui fait la réflexion.
+       LA LISTE VIDE SUFFIT À L'ÉTEINDRE. Le mécanisme reste entier —
+       éprouvé, branché, prêt. Quand Kha aura refait la prise, on remet les
+       trois noms ici et elle recommence à réfléchir tout haut. */
+    fichiers: [],
     /* Le visage ne bouge pas : il est déjà pensif pendant qu'elle réfléchit,
        et c'est exactement l'expression qu'il faut. Une suite d'images ici ne
        ferait que contredire l'état où elle se trouve. */
