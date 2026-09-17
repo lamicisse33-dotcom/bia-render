@@ -508,13 +508,68 @@ export const FLUX_DU_GUETTEUR = 250;
         taire immédiatement.
 
    Si un jour il préfère l'inverse, ça se retourne ICI, sur cette ligne, et
-   nulle part ailleurs. */
+   nulle part ailleurs.
+
+   ═══ ET IL A PRÉFÉRÉ L'INVERSE, LE 18 SEPTEMBRE AU SOIR ══════════════════
+
+   Lamine : « quand je parle, parfois elle me coupe sans que je termine. Je
+   parle, elle parle en même temps que moi, et quand elle parle son micro est
+   fermé. Donc ça devait être le contraire. »
+
+   ── CE QUE JE DOIS DIRE AVANT TOUT : DEUX DE SES RÈGLES S'ANNULAIENT ─────
+
+   Le 9, le 12 et le 15 septembre, il a demandé trois fois la même chose :
+   « même quand elle parle, si je parle, le micro doit saisir ce que j'ai dit,
+   elle doit se taire. » Je l'ai construit — le guetteur, `couvreSaVoix`, les
+   250 ms à tenir, le rattrapage de ses mots, `recoller()`.
+
+   Et le 12 au soir, il a demandé autre chose : cacher le point orange. Je
+   l'ai fait aussi, en lâchant le micro à la fin de chaque parole.
+
+   LE SECOND A TUÉ LE PREMIER. Sans flux de micro pendant qu'elle parle, le
+   guetteur n'a plus rien à écouter : `flux?.active` est faux, l'analyseur est
+   mort, `couvreSaVoix` lit zéro et ne déclenche jamais. L'interruption à la
+   voix est morte le 12 septembre au soir, et j'ai continué d'en parler comme
+   d'une chose qui marchait.
+
+   CE N'EST PAS LUI QUI S'EST CONTREDIT, C'EST MOI QUI N'AI RIEN DIT. Les
+   deux demandes étaient bonnes ; elles étaient incompatibles, et c'était mon
+   travail de le lui dire au moment où j'ai posé la seconde, pas six jours
+   plus tard quand il le sent au téléphone.
+
+   Le 17 septembre, ChatGPT avait remis cette ligne à `false`. Je l'ai refusé
+   en invoquant sa règle du point orange — au lieu de lui poser la question.
+   Sur ce point précis, ChatGPT avait raison et j'avais tort.
+
+   ── ET LE PRIX A BAISSÉ ENTRE-TEMPS ─────────────────────────────────────
+
+   Le point orange du 12 septembre était celui du NAVIGATEUR. Depuis le 16,
+   BIA est une vraie application iPhone, et lui-même l'a dit : « le grand
+   point jaune a disparu. Ça fait un tout petit point jaune, presque
+   invisible, très discret. » Ce qu'on rallume aujourd'hui n'est plus ce
+   qu'on avait éteint.
+
+   ── ET ÇA RÉPARE AUSSI LE PREMIER SYMPTÔME, SANS TOUCHER À SES NOMBRES ──
+
+   « Elle me coupe sans que je termine » : le micro se ferme après 0,9 à 1,5 s
+   de silence — ses chiffres du 15 septembre, choisis pour gagner du temps.
+   Une respiration au milieu d'une phrase wolof suffit donc à fermer.
+
+   Mais AVEC LE MICRO OUVERT, se faire couper n'est plus une perte : il
+   continue de parler, sa voix couvre la sienne, elle se tait, et ses mots
+   sont rattrapés et recollés devant la suite. Le défaut devient réparable de
+   lui-même, au lieu de l'obliger à répéter.
+
+   On ne touche donc PAS à ses 900 / 1200 / 1500 ms. Un seul changement, et on
+   mesure — s'il se fait encore couper après ça, on remontera les nombres en
+   connaissance de cause. */
 
 /** Lâcher le micro entre deux tours, pour que le point orange du téléphone
     ne soit allumé que pendant qu'on écoute vraiment. Son choix du
-    12 septembre. `false` rend le micro ouvert en continu — et l'interruption
-    à la voix avec. */
-export const MICRO_LACHE_ENTRE_LES_TOURS = true;
+    12 septembre, REVENU LE 18 : `false` garde le micro ouvert en continu — et
+    l'interruption à la voix avec, qui était morte tant que ceci valait
+    `true`. Voir le bloc ci-dessus. */
+export const MICRO_LACHE_ENTRE_LES_TOURS = false;
 
 /* ═══ CE QU'ON DEMANDE AU TÉLÉPHONE ══════════════════════════════════════ */
 
