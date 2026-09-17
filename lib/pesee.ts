@@ -94,4 +94,86 @@ export function peseeDeLaConsigne() {
   };
 }
 
-export function oublierLaPesee(): void { blocs = new Map(); tours = 0; }
+/* ── CINQ MINUTES OU UNE HEURE : L'ÉCART ENTRE DEUX TOURS TRANCHE ──────────
+
+   J'ai mis le cache à une heure de durée de vie sans regarder ce que ça
+   coûtait. Les tarifs, vérifiés le 18 septembre 2026 dans la documentation :
+
+       écriture d'un cache de 5 minutes   1,25 × le tarif d'entrée
+       écriture d'un cache d'une heure    2,00 ×
+       relecture                          0,10 ×
+       et une relecture PROLONGE la durée de vie, gratuitement
+
+   Ce dernier point décide de tout, et c'est celui que j'avais ignoré. Tant
+   que deux questions se suivent à moins de cinq minutes, un cache de cinq
+   minutes ne meurt jamais : il se prolonge tout seul, à chaque tour. Une
+   conversation suivie coûte alors 1,25 d'écriture au lieu de 2,00 — le cache
+   d'une heure ne sert à RIEN et se paie 60 % plus cher.
+
+   Le cache d'une heure ne gagne que dans un cas : reprendre à froid plusieurs
+   fois dans la même heure. Deux départs à froid par heure, et il redevient le
+   moins cher (2,00 contre 2 × 1,25).
+
+   ── DONC ON MESURE L'ÉCART, AU LIEU D'EN DÉBATTRE ─────────────────────────
+
+   On note le temps écoulé depuis le tour précédent, et on range en trois :
+   moins de cinq minutes (le cache court tient tout seul), entre cinq minutes
+   et une heure (seul le cache long tient), au-delà (les deux sont morts, on
+   repaie une écriture quoi qu'il arrive).
+
+   La règle qui en sort tient en une ligne : si les reprises entre 5 min et
+   1 h sont rares, on passe à cinq minutes et on économise 0,75 × le préfixe
+   à chaque départ.
+
+   ET ÇA S'AMÉLIORERA TOUT SEUL. Depuis que le socle ne dépend plus de la
+   question, il est IDENTIQUE pour tout le monde : à plusieurs utilisateurs,
+   il est relu en permanence et ne meurt plus jamais. Le cache long perd son
+   dernier intérêt le jour où BIA n'est plus utilisée par une seule personne.
+
+   Ça vit en mémoire et repart à zéro au réveil du serveur, comme le reste. */
+
+let dernierTour = 0;
+const ecarts = { moins_de_5_min: 0, de_5_min_a_1_h: 0, plus_d_1_h: 0, premier: 0 };
+
+/** À appeler au début d'un tour, avant de composer la consigne. */
+export function noterLEcart(maintenant = Date.now()): void {
+  if (!dernierTour) ecarts.premier += 1;
+  else {
+    const minutes = (maintenant - dernierTour) / 60000;
+    if (minutes < 5) ecarts.moins_de_5_min += 1;
+    else if (minutes < 60) ecarts.de_5_min_a_1_h += 1;
+    else ecarts.plus_d_1_h += 1;
+  }
+  dernierTour = maintenant;
+}
+
+/**
+ * Ce que chaque durée de vie coûterait, en multiples du tarif d'entrée du
+ * préfixe. On ne rend pas un verdict : on rend les deux nombres, et le plus
+ * petit gagne.
+ */
+export function ecartsEntreLesTours() {
+  const n = ecarts.premier + ecarts.moins_de_5_min + ecarts.de_5_min_a_1_h + ecarts.plus_d_1_h;
+  if (!n) return null;
+  /* Un tour qui trouve le cache vivant se relit à 0,1 ; sinon on réécrit. */
+  const froids5 = ecarts.premier + ecarts.de_5_min_a_1_h + ecarts.plus_d_1_h;
+  const froids1h = ecarts.premier + ecarts.plus_d_1_h;
+  return {
+    ...ecarts,
+    tours: n,
+    cout_si_5_min: Number((froids5 * 1.25 + (n - froids5) * 0.1).toFixed(2)),
+    cout_si_1_h: Number((froids1h * 2 + (n - froids1h) * 0.1).toFixed(2)),
+    /* En multiples du tarif d'entrée du préfixe, sur l'ensemble des tours. */
+    unite: "× le tarif d'entrée du préfixe, cumulé sur tous les tours",
+  };
+}
+
+export function oublierLaPesee(): void {
+  blocs = new Map();
+  tours = 0;
+  dernierTour = 0;
+  ecarts.premier = 0;
+  ecarts.moins_de_5_min = 0;
+  ecarts.de_5_min_a_1_h = 0;
+  ecarts.plus_d_1_h = 0;
+}

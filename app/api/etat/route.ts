@@ -12,7 +12,7 @@ import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
 import { etatRepertoire } from "@/lib/repertoire";
 import { resumeCorpus } from "@/lib/corpus";
 import { combienDeSouvenirs, resumeSouvenirs } from "@/lib/souvenirs";
-import { peseeDeLaConsigne } from "@/lib/pesee";
+import { ecartsEntreLesTours, peseeDeLaConsigne } from "@/lib/pesee";
 import { resumeReflexion } from "@/lib/reflechir";
 import { listeDesRates, resumeDesRates } from "@/lib/rates-du-repertoire";
 import { verifierCode } from "@/lib/codes";
@@ -175,6 +175,7 @@ export async function GET(request: Request) {
        peser la pile : 36 000 jetons envoyés pour 114 reçus. Ce tableau existe
        pour que ça se voie le soir même. Voir lib/pesee.ts. */
     consigne_pesee: peseeDeLaConsigne(),
+    ecarts_entre_les_tours: ecartsEntreLesTours(),
     souvenirs: resumeSouvenirs(),
     /* ── ET LE VRAI NOMBRE, CELUI DE LA TABLE ─────────────────────────────
        Le 18 septembre à 23 h, la page disait « Souvenirs gardés : 0 » une

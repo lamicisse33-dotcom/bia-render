@@ -21,13 +21,13 @@ import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgen
 import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
 import { noterPassage, noterTentative, parleDeMemoire } from "@/lib/lecons-vues";
 import { consigneDeLaListe, detacherCorrigee, type EtatDeLaListe } from "@/lib/mal-dit";
-import { peser, unTourDePlus } from "@/lib/pesee";
+import { peser, noterLEcart, unTourDePlus } from "@/lib/pesee";
 import { lecconQuiRepond, lecconsActives, leconsSousLaMain } from "@/lib/lecons";
 import { demandeDeNombre, repondreAuNombre } from "@/lib/nombre-demande";
 import { consigneDesSouvenirs, garder, retrouver, souvenirsActifs, type Souvenir } from "@/lib/souvenirs";
 import { SERVICES } from "@/lib/services-textes";
 import { ajouterCorrection, cequElleAAppris, retirerCorrection } from "@/lib/lexique";
-import { REPERTOIRE_PRET, consigneRepertoire, dejaDiteJusteAvant, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
+import { REGLES_REPERTOIRE, REPERTOIRE_PRET, consigneRepertoireCandidates, dejaDiteJusteAvant, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
 import { DIFFUSER_LE_MODELE, teteDeLaReponse } from "@/lib/diffusion";
@@ -1959,7 +1959,44 @@ ${cosmetiques}
        la réponse enregistrée qu'elle vient de dire — sinon le modèle la
        rechoisit, et c'est la boucle du 16 septembre : « à la prochaine fois,
        papa, à la prochaine fois, papa ». Voir consigneRepertoire(). */
-    if(repertoireActif())socle+=consigneRepertoire(elleADit[elleADit.length-1]||"");
+    /* ── LES RÈGLES DANS LE CACHE, LES CANDIDATES DANS LE VARIABLE ───────
+
+       L'audit du 18 septembre a trouvé ici le plus gros gaspillage de sa
+       facture : le catalogue COMPLET — 84 réponses, 17 852 signes, 4 463
+       jetons — partait à chaque question. Sur ses 63 tours de la nuit, trois
+       ont été servis par le répertoire.
+
+       Et le bloc était collé au socle, la poche mise en cache, alors que son
+       contenu dépendait de la dernière phrase dite : un texte qui change
+       dans une poche qu'on met en cache, c'est le préfixe entier qu'on
+       reconstruit, et l'écriture d'un cache d'une heure coûte DEUX FOIS le
+       tarif d'entrée. Le poids se voyait ; ça, non.
+
+       Maintenant : les règles ne changent jamais, elles restent en cache et
+       le socle redevient parfaitement figé ; les candidates changent, elles
+       vont plein tarif — mais elles pèsent 851 signes au lieu de 17 852, et
+       elles ne partent pas du tout quand rien ne se présente.
+
+       MESURÉ sur les 1 027 formulations déclarées, avant de le mettre en
+       ligne. Ce qui compte n'est pas ce qu'on économise, c'est ce qu'on perd
+       en économisant :
+
+           mots faux    tri local    filet court    perdu
+                0 %        99 %           1 %         0 %
+               30 %        84 %          13 %         3 %
+               50 %        72 %          21 %         7 %
+
+       Et le cas qui décide, celui des questions trop longues pour le tri
+       local — « dis-moi s'il te plaît … je voudrais savoir » : le filet les
+       rattrape à 98 %, là où le tri local n'en prend aucune.
+
+       PROPOSER SIX AU LIEU DE QUATRE-VINGT-QUATRE EST AUSSI PLUS SÛR. Une
+       réponse enregistrée servie à côté est la faute qu'on ne rattrape pas ;
+       elle devient moins probable, pas plus. */
+    if(repertoireActif()){
+      socle+=REGLES_REPERTOIRE;
+      variable+=consigneRepertoireCandidates(question,elleADit[elleADit.length-1]||"");
+    }
 
     const aMontrer=await catalogue();
     if(aMontrer)variable+=`\n\nCE QUE TU PEUX MONTRER À L'ÉCRAN
@@ -2111,6 +2148,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        même, au lieu d'apparaître sur une facture trois jours plus tard.
        Voir lib/pesee.ts. */
     unTourDePlus();
+    noterLEcart();
     peser("1. socle (en cache)", socle);
     peser("2. registre (en cache)", registre);
     peser("3. variable (plein tarif)", variable);

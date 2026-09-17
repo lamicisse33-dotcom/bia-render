@@ -981,6 +981,258 @@ export function dejaDiteJusteAvant(entree: Entree, filDitParElle: string[]): boo
    n'est plus qu'un mot-clé, et le refuser ferait prononcer « #au-revoir » à
    voix haute. On l'empêche donc de la choisir : la ligne disparaît de la
    liste pour ce tour-ci, et revient au suivant. */
+/* ── 17 852 SIGNES ENVOYÉS À CHAQUE QUESTION POUR EN SERVIR TROIS ──────────
+
+   Lamine, le 17 septembre 2026 : « j'ai acheté du crédit 50 $ il n'y a même
+   pas trois jours, c'est pas possible. »
+
+   L'audit du 18 a trouvé où ça partait. Le catalogue complet — les 84
+   réponses enregistrées, leurs formulations et leur texte wolof — faisait
+   17 852 signes, soit 4 463 jetons, ENVOYÉS À CHAQUE QUESTION. Sur ses 63
+   tours de la nuit, trois ont été servis par le répertoire. Deux cent quatre-
+   vingt mille jetons de catalogue pour trois réponses.
+
+   ── ET IL CASSAIT LE CACHE, CE QUI EST PIRE QUE SON POIDS ─────────────────
+
+   Le bloc était collé au SOCLE, la poche mise en cache. Mais son contenu
+   dépend de la dernière phrase qu'elle a dite — c'est le verrou qui l'empêche
+   de redire au revoir deux fois. Un texte qui change dans une poche qu'on met
+   en cache, c'est un cache qui se reconstruit : on repaie le préfixe entier,
+   et l'écriture d'un cache d'une heure coûte DEUX FOIS le tarif d'entrée.
+
+   Le poids était visible. Celui-là ne l'était pas.
+
+   ── DONC ON COUPE EN DEUX, ET CHAQUE MOITIÉ VA OÙ ELLE DOIT ───────────────
+
+   LES RÈGLES ne changent jamais : elles restent dans le socle, en cache, et
+   le socle redevient parfaitement figé.
+
+   LES CANDIDATES changent à chaque question : elles passent dans la poche
+   variable, mais on n'en met plus 84 — seulement celles que la question
+   désigne vraiment. Aucune candidate, aucun bloc.
+
+   CE QUI N'EST PAS TOUCHÉ : trouverDansRepertoire() répond toujours sans
+   modèle quand la question est franche, et c'est toujours le chemin le plus
+   rapide et le seul gratuit. Ce qu'on allège ici, c'est le FILET — ce qui
+   permet au modèle de rattraper une question trop longue ou trop tournée pour
+   le tri local. Le filet reste, il n'est plus tissé sur toute la largeur. */
+
+/** Ce qu'on ne compte pas comme un mot qui désigne : trop répandu pour
+    distinguer deux entrées l'une de l'autre. */
+const MOTS_QUI_NE_DESIGNENT_RIEN = new Set([
+  "que", "qui", "quoi", "est", "les", "des", "une", "aux", "pour", "avec",
+  "dans", "sur", "pas", "plus", "tout", "tous", "toi", "moi", "vous", "nous",
+  "son", "sa", "ses", "mon", "ma", "mes", "ton", "ta", "tes", "leur", "ce",
+  "cette", "comment", "quel", "quelle", "fait", "faire", "dit", "dire",
+  "peux", "peut", "veux", "veut", "sais", "sait", "suis", "etre", "avoir",
+  "the", "and", "you",
+  /* Wolof : les outils grammaticaux les plus fréquents. Ce ne sont pas des
+     mots que j'invente — ils sont relevés dans ses propres formulations. */
+  "nga", "naa", "laa", "ngi", "ndax", "ci", "ak", "bi", "ba", "yi", "mi",
+  "moo", "mooy", "lan", "ana", "am", "na", "la", "ko", "sa", "man", "yow",
+]);
+
+/** Les mots d'une phrase qui servent à la désigner. */
+function motsQuiDesignent(texte: string): string[] {
+  return normaliser(texte)
+    .split(" ")
+    .filter((m) => m.length >= 3 && !MOTS_QUI_NE_DESIGNENT_RIEN.has(m));
+}
+
+/* ── UN MOT QUI EST PARTOUT NE DÉSIGNE PERSONNE ────────────────────────────
+
+   « famille » apparaît dans une entrée : le lire dans la question désigne
+   cette entrée, fortement. « bonjour » apparaît dans huit : le lire ne dit
+   presque rien. On pèse donc chaque mot par sa RARETÉ dans le répertoire,
+   au lieu de compter les mots communs comme s'ils se valaient.
+
+   Cet index se construit une fois au démarrage, pas à chaque question. */
+const OU_APPARAIT = new Map<string, Set<string>>();
+for (const e of TOUT) {
+  const vus = new Set<string>();
+  for (const t of [...e.formes, e.francais]) for (const m of motsQuiDesignent(t)) vus.add(m);
+  for (const m of vus) {
+    const ou = OU_APPARAIT.get(m) || new Set<string>();
+    ou.add(e.cle);
+    OU_APPARAIT.set(m, ou);
+  }
+}
+
+/** Combien de réponses enregistrées on propose au modèle, au maximum. */
+export const CANDIDATES_AU_PLUS = 6;
+
+/**
+ * Les réponses enregistrées que cette question-là pourrait appeler.
+ *
+ * On ne cherche PAS à décider — c'est `trouverDansRepertoire` qui décide, et
+ * il a déjà répondu avant qu'on arrive ici. On cherche à ne pas priver le
+ * modèle d'une réponse qui existe, tout en cessant de lui envoyer les
+ * quatre-vingts autres.
+ */
+export function candidatesDuRepertoire(question: string, derniereDite = ""): Entree[] {
+  if (!REPERTOIRE_PRET) return [];
+  const mots = new Set(motsQuiDesignent(question));
+  if (!mots.size) return [];
+  const fil = derniereDite ? [derniereDite] : [];
+
+  const notes: Array<{ e: Entree; note: number }> = [];
+  for (const e of TOUT) {
+    /* Le verrou du 16 septembre tient ici aussi : ce qu'elle vient de dire
+       ne lui est pas reproposé. Sinon elle redit au revoir en boucle. */
+    if (fil.length && dejaDiteJusteAvant(e, fil)) continue;
+    const siens = new Set(motsQuiDesignent([...e.formes, e.francais].join(" ")));
+    let note = 0;
+    for (const m of mots) {
+      if (!siens.has(m)) continue;
+      const repandu = OU_APPARAIT.get(m)?.size || 1;
+      /* Plus le mot est rare dans le répertoire, plus il désigne. */
+      note += Math.log(1 + TOUT.length / repandu);
+    }
+    if (note > 0) notes.push({ e, note });
+  }
+
+  notes.sort((a, b) => b.note - a.note);
+  const retenues = notes.slice(0, CANDIDATES_AU_PLUS).map((n) => n.e);
+
+  /* ── ET UNE PASSE AU SON, PARCE QUE LES MOTS NE SUFFISENT PAS ──────────
+
+     Mesuré sur les 1 027 formulations, en abîmant un mot sur trois comme le
+     fait la reconnaissance vocale sur le wolof :
+
+         mots faux    tri local    filet par les mots    perdu
+              0 %        99 %             1 %             0 %
+             30 %        84 %            10 %             6 %   ← ici
+             50 %        72 %            13 %            15 %
+
+     Six pour cent, c'est six questions sur cent auxquelles une réponse
+     enregistrée existait et n'a même pas été PROPOSÉE au modèle. Un mot
+     écorché n'est plus le même mot : la comparaison par mots entiers le perd
+     entièrement, alors qu'il reste reconnaissable à l'oreille.
+
+     On complète donc les places libres par ce que la question SONNE, en
+     comparant des suites de trois lettres. C'est grossier, et c'est voulu :
+     on ne décide rien ici, on propose. Une candidate de trop coûte trois
+     lignes de consigne ; une candidate manquante coûte la réponse. */
+  if (retenues.length < CANDIDATES_AU_PLUS) {
+    const dejaLa = new Set(retenues.map((e) => e.cle));
+    const dit = troisParTrois(sonne(question));
+    if (dit.size) {
+      const parLeSon: Array<{ e: Entree; note: number }> = [];
+      for (const e of TOUT) {
+        if (dejaLa.has(e.cle)) continue;
+        if (fil.length && dejaDiteJusteAvant(e, fil)) continue;
+        let meilleure = 0;
+        for (const f of e.formes) {
+          const sien = troisParTrois(sonne(f));
+          if (!sien.size) continue;
+          let communs = 0;
+          for (const t of sien) if (dit.has(t)) communs++;
+          /* Part des suites de la formulation qu'on retrouve dans ce qui a
+             été entendu. On rapporte à la FORMULATION, pas à la question :
+             une question longue ne doit pas diluer une formule courte. */
+          const part = communs / sien.size;
+          if (part > meilleure) meilleure = part;
+        }
+        /* En dessous de la moitié, ce n'est plus une ressemblance. */
+        if (meilleure >= 0.5) parLeSon.push({ e, note: meilleure });
+      }
+      parLeSon.sort((a, b) => b.note - a.note);
+      for (const p of parLeSon) {
+        if (retenues.length >= CANDIDATES_AU_PLUS) break;
+        retenues.push(p.e);
+      }
+    }
+  }
+
+  return retenues;
+}
+
+/** Les suites de trois lettres d'une phrase. Deux mots qui se ressemblent en
+    partagent beaucoup, même si l'un a perdu une lettre en chemin. */
+function troisParTrois(texte: string): Set<string> {
+  const t = String(texte || "").replace(/\s+/g, " ").trim();
+  const s = new Set<string>();
+  for (let i = 0; i + 3 <= t.length; i++) s.add(t.slice(i, i + 3));
+  return s;
+}
+
+/* ── LES RÈGLES, QUI NE CHANGENT JAMAIS ────────────────────────────────────
+
+   Ce texte est le même à toutes les questions et pour toutes les personnes :
+   il a sa place dans le socle, relu depuis le cache au dixième du prix. Il
+   ne contient plus une seule ligne de catalogue — c'est ce qui rend le socle
+   à nouveau parfaitement figé. */
+export const REGLES_REPERTOIRE = `
+
+═══ CE QUI EST DÉJÀ ENREGISTRÉ DE SA VOIX ═══
+
+Certaines réponses existent déjà en son, dans sa vraie voix, prêtes à être
+dites. Quand l'une d'elles t'est proposée — sous le titre « RÉPONSES
+ENREGISTRÉES QUI POURRAIENT CONVENIR », plus bas — et que la question de la
+personne est CELLE-LÀ — même dite autrement, même mal orthographiée, même en
+wolof écrit à la française — tu ne rédiges RIEN : tu réponds uniquement par
+l'étiquette, seule, sur une ligne. Exemple de réponse complète de ta part :
+#la-famille
+
+C'EST UNE PRIORITÉ. Si une de ces réponses répond vraiment à la question, tu
+la préfères toujours à une phrase de ton cru : c'est sa voix à elle, déjà
+enregistrée, et elle arrive sans attente.
+
+MAIS SEULEMENT SI ELLE RÉPOND VRAIMENT. « Salaam, dama bëgg ab devis » n'est
+pas une salutation : c'est une demande de devis. Au moindre doute, réponds
+normalement — une réponse enregistrée servie à côté est bien pire qu'une
+phrase que tu écris toi-même. Et si aucune ne t'est proposée, c'est qu'aucune
+ne convient : tu réponds toi-même, sans le signaler.
+
+#au-revoir NE SE DIT QUE SI LA PERSONNE PREND CONGÉ. Ce n'est pas une porte de
+sortie quand la conversation devient difficile, ni quand tu préfères ne pas
+répondre. Si un sujet te met mal à l'aise — une querelle politique, une
+question sur laquelle tu ne veux pas prendre parti — tu le DIS, avec tes mots,
+et tu restes. Prendre congé de quelqu'un qui ne partait pas, c'est lui
+raccrocher au nez.
+
+LES LIGNES MARQUÉES ✦ SONT POUR LES PREMIERS MOTS SEULEMENT. Ce sont celles
+qui parlent de la personne : comment elle va, ce qu'elle ressent, ce qu'elle
+te demande de raconter. Tant que tu ne la connais pas, la réponse enregistrée
+est la bonne — elle arrive tout de suite, dans la vraie voix. Mais dès que la
+conversation est engagée, ou que tu as des notes sur elle, tu RÉPONDS
+TOI-MÊME, avec ce que tu sais d'elle et de ce qui vient d'être dit. Une
+consolation enregistrée servie deux fois n'est plus une consolation, et
+quelqu'un qui te dit sa fatigue au bout d'une heure n'attend pas la phrase
+qu'il a déjà entendue en arrivant.
+═══ fin des règles ═══`;
+
+/** La ligne d'une entrée, telle qu'on la propose au modèle. */
+function ligneDe(e: Entree): string {
+  return `${PERSONNELLES.has(e.cle) ? "✦ " : ""}#${e.cle} — quand on demande : ${e.formes.slice(0, 4).join(" / ")}\n    elle dit alors : « ${e.wolof} »`;
+}
+
+/**
+ * Le petit bloc qui va dans la poche variable : rien que les candidates.
+ *
+ * Vide quand aucune ne se présente — et c'est le cas le plus fréquent. Un
+ * bloc vide ne s'écrit pas : « aucune candidate » et « pas de répertoire » ne
+ * doivent pas se ressembler dans la consigne.
+ */
+export function consigneRepertoireCandidates(question: string, derniereDite = ""): string {
+  const candidates = candidatesDuRepertoire(question, derniereDite);
+  if (!candidates.length) return "";
+  return `
+
+RÉPONSES ENREGISTRÉES QUI POURRAIENT CONVENIR
+${candidates.map(ligneDe).join("\n")}
+
+Aucune n'est obligatoire. Si aucune ne répond vraiment à ce qui vient d'être
+demandé, tu réponds toi-même, avec tes mots.`;
+}
+
+/* ── L'ANCIEN BLOC ENTIER ──────────────────────────────────────────────────
+
+   Il n'est plus envoyé au modèle. Il reste ici parce qu'il est le seul point
+   de comparaison honnête : c'est lui qui permet de mesurer, sur les 1 027
+   formulations déclarées, si la version courte prive le modèle d'une réponse
+   que la version longue lui offrait. Une optimisation qu'on ne peut plus
+   comparer à ce qu'elle remplace n'est pas une optimisation, c'est un pari. */
 export function consigneRepertoire(derniereDite = ""): string {
   if (!REPERTOIRE_PRET) return "";
   const fil = derniereDite ? [derniereDite] : [];
