@@ -12,6 +12,7 @@ import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
 import { etatRepertoire } from "@/lib/repertoire";
 import { resumeCorpus } from "@/lib/corpus";
 import { combienDeSouvenirs, resumeSouvenirs } from "@/lib/souvenirs";
+import { peseeDeLaConsigne } from "@/lib/pesee";
 import { resumeReflexion } from "@/lib/reflechir";
 import { listeDesRates, resumeDesRates } from "@/lib/rates-du-repertoire";
 import { verifierCode } from "@/lib/codes";
@@ -168,6 +169,12 @@ export async function GET(request: Request) {
        une seule phrase avait été gardée. `part_qui_retrouve` distingue les
        deux pannes qui se ressemblent : « rien n'est écrit » et « la recherche
        ne trouve rien ». Voir lib/souvenirs.ts. */
+    /* ── CE QUE PÈSE SA CONSIGNE, BLOC PAR BLOC ───────────────────────────
+       Posé le 17 septembre 2026, après que Lamine a vu 50 $ partir en trois
+       jours. J'avais ajouté à sa consigne pendant une semaine sans jamais
+       peser la pile : 36 000 jetons envoyés pour 114 reçus. Ce tableau existe
+       pour que ça se voie le soir même. Voir lib/pesee.ts. */
+    consigne_pesee: peseeDeLaConsigne(),
     souvenirs: resumeSouvenirs(),
     /* ── ET LE VRAI NOMBRE, CELUI DE LA TABLE ─────────────────────────────
        Le 18 septembre à 23 h, la page disait « Souvenirs gardés : 0 » une

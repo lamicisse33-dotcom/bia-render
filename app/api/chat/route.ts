@@ -21,6 +21,7 @@ import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgen
 import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
 import { noterPassage, noterTentative, parleDeMemoire } from "@/lib/lecons-vues";
 import { consigneDeLaListe, detacherCorrigee, type EtatDeLaListe } from "@/lib/mal-dit";
+import { peser, unTourDePlus } from "@/lib/pesee";
 import { lecconQuiRepond, lecconsActives, leconsSousLaMain } from "@/lib/lecons";
 import { demandeDeNombre, repondreAuNombre } from "@/lib/nombre-demande";
 import { consigneDesSouvenirs, garder, retrouver, souvenirsActifs, type Souvenir } from "@/lib/souvenirs";
@@ -1521,6 +1522,32 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       ? retrouver(quiParle,question)
       : Promise.resolve([] as Souvenir[]);
 
+    /* ── TROIS POCHES, ET C'EST TOUTE L'ÉCONOMIE ──────────────────────────
+
+       Pesé le 17 septembre 2026, après que Lamine a vu 50 $ partir en trois
+       jours : 36 000 jetons envoyés pour 114 reçus.
+
+       Le socle était déjà mis en cache. Mais j'avais rangé dans la partie
+       CHANGEANTE des textes qui ne changent jamais : ses instructions de
+       maître (6 300 signes), le bloc de version (900), la règle de neutralité
+       pour les autres (760). Près de deux mille jetons de texte figé, repayés
+       PLEIN TARIF à chaque question, alors qu'un jeton relu depuis le cache
+       coûte le dixième.
+
+       Trois poches, donc, et la règle est simple :
+
+         `socle`    — vrai pour tout le monde, toujours.        → en cache
+         `registre` — vrai pour CETTE personne, tout le temps.  → en cache
+         `variable` — vrai pour CETTE question seulement.       → plein tarif
+
+       Ce qui décide n'est pas l'importance du bloc : c'est s'il change d'une
+       question à l'autre. Un texte qui ne change pas n'a rien à faire dans la
+       poche qu'on repaie.
+
+       ET C'EST LA QUESTION À SE POSER À CHAQUE AJOUT : « est-ce que ça change
+       entre deux questions ? » Si non, ça va dans `registre`. C'est la règle
+       que je n'avais pas et qui a coûté la facture. */
+    let registre="";
     let variable="";
 
     /* ── QUAND C'EST LAMINE QUI PARLE ───────────────────────────────────────
@@ -1548,7 +1575,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        se taisaient ; ce serait absurde de lui apprendre à se taire par
        tendresse. */
     if(verdict.maitre){
-      variable+=`\n\nC'EST LAMINE QUI TE PARLE
+      registre+=`\n\nC'EST LAMINE QUI TE PARLE
 Tu parles en ce moment à Lamine, de KHALAM, à Dakar. C'est lui qui t'a faite :
 il a écrit tes mots wolof un par un, il a corrigé tes phrases des nuits
 entières, et c'est sa femme Kha qui t'a prêté sa voix.
@@ -1696,7 +1723,7 @@ tu n'es pas sûr qu'il te demande de garder quelque chose, tu le lui DEMANDES
          La date et l'heure du déploiement disent ça, et il peut les
          recouper : il sait quand il a poussé. Le code technique reste dans
          /api/etat pour moi, et elle ne le prononce que s'il le réclame. */
-      variable+=`\n\nSUR QUELLE VERSION TU TOURNES
+      registre+=`\n\nSUR QUELLE VERSION TU TOURNES
 Ta version est une DATE : tu tournes sur celle du ${DEPUIS}.
 
 S'il te demande ta version, une mise à jour, ou si ce qu'il a envoyé est
@@ -1714,7 +1741,26 @@ veut savoir ce qui a changé, dis-lui de demander à Claude.
 NE CONFONDS PAS avec ce qu'il t'apprend à la voix, juste en dessous : la
 version, c'est ta construction ; ce qu'il t'apprend, c'est ta mémoire.`;
 
-      try{
+      /* ── ET ELLE NE RÉCITE SES LEÇONS QUE QUAND IL LES DEMANDE ────────
+
+         Pesé le 17 septembre 2026 : quarante leçons, c'est près de mille
+         jetons, envoyés PLEIN TARIF à chaque question — y compris quand il
+         demande l'heure.
+
+         Ce bloc ne sert qu'à une chose : qu'elle sache réciter ce qu'il lui a
+         appris quand il le lui demande. Ce n'est PAS ce qui lui fait parler
+         wolof — ça, c'est le lexique, plus bas, et il reste à chaque tour.
+
+         Alors on ne l'envoie que lorsqu'il parle de mémoire. `parleDeMemoire`
+         existe depuis le 14 septembre et il est LARGE exprès : « mémorise »,
+         « retiens », « apprends », « oublie », « corrige ». Ici une fausse
+         alerte coûte mille jetons une fois ; un silence lui ferait croire
+         qu'elle a tout perdu. Le déséquilibre penche du bon côté.
+
+         MESURÉ SUR SES 63 TOURS DE CETTE NUIT : 22 tours sur 63 parlaient de
+         mémoire. Les 41 autres portaient ce bloc pour rien. */
+      const ilParleDeMemoire=parleDeMemoire(question);
+      if(ilParleDeMemoire) try{
         /* ── « QU'ELLE ME RÉPÈTE TOUT CE QU'ELLE A MÉMORISÉ » ─────────────
            Lamine, le 14 septembre 2026 au soir. Douze lignes ne suffisaient
            pas : une séance d'apprentissage en produit facilement plus, et il
@@ -1759,7 +1805,7 @@ S'IL DEMANDE TOUT — « répète-moi tout ce que tu as mémorisé », « relis-
        — le même verdict qui ouvre la mémoire et l'apprentissage. Personne ne
        peut se déclarer Lamine pour débloquer ses avis. */
     if(!verdict.maitre){
-      variable+=`\n\nLA POLITIQUE ET LA RELIGION, AVEC LES AUTRES
+      registre+=`\n\nLA POLITIQUE ET LA RELIGION, AVEC LES AUTRES
 Tu parles à quelqu'un qui n'est pas Lamine. Sur les partis, les hommes
 politiques et les religions, tu n'as pas d'avis à donner et tu n'en donnes pas.
 
@@ -2054,8 +2100,20 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        les deux tiennent ensemble et personne ne repaie. */
     const consigne=[
       {type:"text",text:socle,cache_control:{type:"ephemeral",ttl:"1h"}},
+      /* La poche du registre : figée pour cette personne, donc mise en cache
+         elle aussi. Deux registres seulement — lui, et tous les autres —
+         donc deux entrées de plus, qui tiennent l'heure entière. */
+      ...(registre.trim()?[{type:"text",text:registre,cache_control:{type:"ephemeral",ttl:"1h"}}]:[]),
       ...(variable.trim()?[{type:"text",text:variable}]:[]),
     ];
+    /* ── ET ON PÈSE, PARCE QUE C'EST CE QUI MANQUAIT ──────────────────────
+       Le jour où j'ajoute un bloc, la pile se voit sur la page d'état le soir
+       même, au lieu d'apparaître sur une facture trois jours plus tard.
+       Voir lib/pesee.ts. */
+    unTourDePlus();
+    peser("1. socle (en cache)", socle);
+    peser("2. registre (en cache)", registre);
+    peser("3. variable (plein tarif)", variable);
 
     /* ── UN SEUL ENDROIT QUI FABRIQUE L'APPEL AU MODÈLE ────────────────────
 
