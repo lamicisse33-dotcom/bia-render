@@ -172,6 +172,19 @@ export function faut_il_se_taire(
    phrase sans rapport, dite bien plus tard. Passé ce délai, on l'oublie. */
 export const DUREE_DU_RATTRAPAGE = 15_000;
 
+/* ── ET S'IL NE DIT PLUS RIEN, LE DÉPÔT NE RESTE PAS PAR TERRE ──────────────
+
+   Le 19 septembre 2026. Le guetteur écoute maintenant aussi pendant qu'elle
+   réfléchit, et quand il coupe un tour il met la question de côté. Le micro
+   ordinaire se rouvre pour entendre la suite. Mais s'il n'y a pas de suite —
+   c'était un bruit, ou il avait vraiment fini — ce micro n'entend rien, et
+   sans ce délai la question attendrait le silence qui clôt la conversation.
+
+   Une seconde et demie sans un son, et on renvoie ce qu'on a. C'est le prix
+   d'un faux déclenchement, dit franchement : une seconde et demie d'attente
+   de plus. Jamais une question perdue. */
+export const RELANCE_DU_DEPOT = 1500;
+
 /**
  * Recolle ce qu'on a rattrapé pendant qu'elle parlait devant ce que le micro
  * vient d'entendre. Rend `entendu` inchangé s'il n'y a rien à recoller.

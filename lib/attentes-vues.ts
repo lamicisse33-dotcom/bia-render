@@ -203,3 +203,41 @@ export function resumeTours() {
 }
 
 export function oublierTours() { tours = []; }
+
+/* ── QUAND IL LUI COUPE LA PAROLE — OU LA RÉFLEXION ────────────────────────
+
+   Le 19 septembre 2026. Le guetteur écoute maintenant aussi pendant qu'elle
+   réfléchit, pour qu'une phrase reprise après une respiration ne tombe plus
+   dans le vide. RÈGLE 1 : ce qui touche le micro se mesure avant de dire que
+   c'est bon, et c'est ce champ-là qu'on lira.
+
+   `pendant` : « parole » (elle parlait, comme avant) ou « reflexion » (le
+   nouveau cas). `recolle` : a-t-on eu à la fois un début et une suite — donc
+   une phrase reconstituée — ou seulement l'un des deux. `sans_mots` : le
+   volume a coupé, mais l'oreille n'a rien reconnu — un bruit, ou son écho.
+   Un `sans_mots` élevé pendant la réflexion dirait que la barre est trop
+   basse, et qu'on tue des tours pour des portes qui claquent. */
+type Coupure = { pendant: "parole" | "reflexion"; recolle: boolean; sans_mots: boolean; quand: number };
+let coupures: Coupure[] = [];
+
+export function noterCoupure(c: Partial<Coupure>) {
+  coupures = [...coupures, {
+    pendant: (c.pendant === "reflexion" ? "reflexion" : "parole") as Coupure["pendant"],
+    recolle: Boolean(c.recolle),
+    sans_mots: Boolean(c.sans_mots),
+    quand: Date.now(),
+  }].slice(-TOURS_GARDES);
+}
+
+export function resumeCoupures() {
+  if (!coupures.length) return null;
+  const par = (f: (c: Coupure) => boolean) => coupures.filter(f).length;
+  return {
+    coupures: coupures.length,
+    pendant_quelle_parlait: par((c) => c.pendant === "parole"),
+    pendant_quelle_reflechissait: par((c) => c.pendant === "reflexion"),
+    phrases_recollees: par((c) => c.recolle),
+    sans_mots_reconnus: par((c) => c.sans_mots),
+    derniere: coupures[coupures.length - 1],
+  };
+}

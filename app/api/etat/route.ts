@@ -4,7 +4,7 @@ import { ecouteConfig, resumeEcoutes, resumeOreilleSoynade } from "@/lib/ecoute"
 import { lexiqueConfig, combien, combienParApplication, parAuteur } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
 import { resumeLecons } from "@/lib/lecons-vues";
-import { resumeAttentes, resumeLectures, resumeTours } from "@/lib/attentes-vues";
+import { resumeAttentes, resumeCoupures, resumeLectures, resumeTours } from "@/lib/attentes-vues";
 import { resumeEtapes, dernierEssaiOreille, dernierEssaiVoix } from "@/lib/etapes";
 import { resumeEmotions } from "@/lib/emotions-vues";
 import { depense, resumeDuFil } from "@/lib/depense";
@@ -189,6 +189,10 @@ export async function GET(request: Request) {
     /* Le fil de la conversation, mis en cache depuis le 19 septembre. Si
        `mis_en_cache` monte et que `cache_lu` du modèle monte avec, ça sert. */
     fil_en_cache: resumeDuFil(),
+    /* Le micro : quand il lui coupe la parole, et — depuis le 19 septembre —
+       quand il reprend sa phrase pendant qu'elle réfléchit. C'est ici qu'on
+       lira si « elle me coupe sans que je termine » est réparé. */
+    coupures: resumeCoupures(),
     ecarts_entre_les_tours: ecartsEntreLesTours(),
     souvenirs: resumeSouvenirs(),
     /* ── ET LE VRAI NOMBRE, CELUI DE LA TABLE ─────────────────────────────

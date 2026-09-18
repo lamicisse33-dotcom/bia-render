@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { noterVue, noterLecture, noterTour } from "@/lib/attentes-vues";
+import { noterCoupure, noterVue, noterLecture, noterTour } from "@/lib/attentes-vues";
 
 /* Le téléphone dit combien de temps il a attendu. Rien d'autre.
 
@@ -15,6 +15,7 @@ export async function POST(requete: Request) {
        lib/tour.ts. */
     if (corps && corps.type === "lecture") noterLecture(corps);
     else if (corps && corps.type === "tour") noterTour(corps);
+    else if (corps && corps.type === "coupure") noterCoupure(corps);
     else noterVue(corps);
   } catch {}
   return NextResponse.json({ ok: true });

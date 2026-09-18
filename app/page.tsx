@@ -59,7 +59,7 @@ import { fluxVivant,
 } from "@/lib/micro";
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie } from "@/lib/ralentir";
 import {
-  DUREE_DU_RATTRAPAGE, GARDER_CE_QUIL_DIT_PENDANT_QUELLE_PARLE, faut_il_se_taire, recoller, type Prononce,
+  DUREE_DU_RATTRAPAGE, GARDER_CE_QUIL_DIT_PENDANT_QUELLE_PARLE, RELANCE_DU_DEPOT, faut_il_se_taire, recoller, type Prononce,
 } from "@/lib/sa-propre-voix";
 import Installer from "./installer";
 import Ecran from "./ecran";
@@ -679,6 +679,19 @@ export default function Home() {
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const busyRef = useRef(false);
   const historyRef = useRef<Message[]>([]);
+  /* ── LA QUESTION EN VOL, POUR NE PAS LA PERDRE S'IL LA CONTINUE ─────────
+
+     Lamine, le 18 septembre 2026 : « quand je parle, parfois elle me coupe
+     sans que je termine. » Le micro se ferme sur une respiration, la
+     demi-phrase part à la transcription, et pendant les cinq secondes où
+     elle réfléchit, RIEN n'écoute : la fin de sa phrase tombe dans le vide,
+     et elle répond à la moitié.
+
+     Le guetteur écoute maintenant aussi pendant qu'elle réfléchit. S'il
+     reprend, on tue le tour — et on garde ici ce qu'il avait déjà dit, pour
+     le recoller devant la suite. Voir le guetteur, plus bas. Vide quand
+     aucun tour vocal n'est en vol. */
+  const questionEnVolRef = useRef<string>("");
   const filRef = useRef<HTMLDivElement | null>(null);
   const champRef = useRef<HTMLInputElement | null>(null);
   const photoRef = useRef<HTMLInputElement | null>(null);
@@ -2440,6 +2453,11 @@ export default function Home() {
     busyRef.current = true;
     setSaisie("");
     setHistory((items) => [...items, { role: "user", text: clean }]);
+    /* Ce qu'il vient de dire, gardé tant qu'elle réfléchit : s'il continue
+       sa phrase pendant ce temps, le guetteur le recollera devant la suite
+       au lieu de la laisser répondre à la moitié. Une question tapée n'a
+       pas de suite à l'oral. */
+    questionEnVolRef.current = parole ? clean : "";
     setMode("thinking");
     setFace("pensive");
     setPanne("");
@@ -2964,6 +2982,12 @@ export default function Home() {
       // fabriquer la voix, et c'est lui qui prendra le relais quand elle
       // sera prête.
       busyRef.current = false;
+      /* La réflexion est finie, dans un sens ou dans l'autre : s'il parle
+         maintenant, c'est une nouvelle phrase, pas la suite de l'ancienne.
+         Mais SEULEMENT si c'est encore ce tour-ci qui parle — un tour tué
+         par le guetteur a déjà remis sa question dans le dépôt, et un
+         `finally` en retard ne doit pas l'effacer. */
+      if (estLeTour(monTour)) questionEnVolRef.current = "";
     }
   }, [speak, attendreEnParlant, finirAttente, ouvrirUnTour, estLeTour]);
 
@@ -3823,6 +3847,17 @@ export default function Home() {
            de deux minutes et demie, ce n'est plus une conversation, c'est une
            lampe rouge et de la batterie. On referme, et le bouton revient. */
         if (aParle && depuis > INTERVENTION_MAXIMALE) { arreterEnregistrement(); return; }
+        /* ── UN DÉPÔT QUI ATTEND, ET PERSONNE NE PARLE ──────────────────────
+
+           Le guetteur a tué un tour pendant qu'elle réfléchissait et a mis
+           sa question de côté. Deux cas : il continue sa phrase — alors on
+           l'entend d'ici une seconde, et la transcription recollera ; ou
+           c'était un bruit, ou il avait fini — alors ce micro n'entendra
+           rien, et sa question attendrait le silence de deux minutes et
+           demie qui clôt la conversation. Il parlerait dans le vide : c'est
+           exactement le défaut qu'on répare. Passé ce délai sans un son, on
+           ferme, et `onstop` renvoie le dépôt tel quel. */
+        if (!aParle && motsRattrapesRef.current && depuis > RELANCE_DU_DEPOT) { arreterEnregistrement(); return; }
         if (!aParle && depuis > SILENCE_QUI_CLÔT_LA_CONVERSATION) {
           conversationRef.current = false;
           setConversation(false);
@@ -3964,6 +3999,17 @@ export default function Home() {
                jour où le filtre jetterait une vraie voix, on n'aurait aucun
                moyen de le savoir. */
             console.warn(`BIA — bruit écarté sans le transcrire : ${Math.round(dureeParlee)} ms, ${Math.round(partVocaleMoyenne * 100)} % dans la bande de la voix`);
+          }
+          /* Rien entendu, mais une question attend dans le dépôt : elle
+             repart d'ici, sans passer par le retour au repos — en
+             conversation, le micro se rouvre 180 ms après le repos, et
+             l'effet qui devait renvoyer le dépôt trouve toujours un micro
+             ouvert et se tait. C'est le chemin qui manquait. */
+          const reste = motsRattrapesRef.current;
+          if (reste && Date.now() - reste.quand <= DUREE_DU_RATTRAPAGE && !busyRef.current) {
+            motsRattrapesRef.current = null;
+            void askBia(reste.texte, true);
+            return;
           }
           setMode((m) => (m === "listening" ? "ready" : m));
           return;
@@ -4510,6 +4556,17 @@ export default function Home() {
        chemin ouvert — et c'était celui du prénom. */
     ouvrirUnTour();
     nouvelEnregistrement();
+    /* ── ET LA PLACE SE LIBÈRE TOUT DE SUITE ──────────────────────────────
+
+       `busyRef` restait levé jusqu'au `finally` de la réponse qu'on vient
+       de périmer — trois secondes pendant lesquelles askBia() refusait toute
+       nouvelle question SANS RIEN DIRE. Tant que le guetteur ne coupait que
+       pendant qu'elle parlait, la réponse était déjà arrivée et ça ne se
+       voyait pas. Depuis qu'il coupe aussi pendant qu'elle réfléchit, la
+       suite de sa phrase arriverait pendant ces trois secondes et serait
+       jetée. Le tour est mort : la place est libre. Le `finally` en retard
+       la remettra à faux une seconde fois, sans effet. */
+    busyRef.current = false;
     /* ── ET ON ARRÊTE L'ENREGISTREUR, PAS SEULEMENT SON NUMÉRO ────────────
 
        Tourner le numéro rendait l'enregistrement périmé sans l'arrêter : le
@@ -4818,12 +4875,39 @@ export default function Home() {
 
      Avec des écouteurs, il n'y a pas d'écho du tout : la barre retombe au
      seuil ordinaire et elle se tait au premier mot. */
+  /* ── ET PENDANT QU'ELLE RÉFLÉCHIT AUSSI, DEPUIS LE 19 SEPTEMBRE ──────────
+
+     Lamine, le 18 : « quand je parle, parfois elle me coupe sans que je
+     termine. » Le silence qui ferme le micro a été réglé cinq fois en une
+     semaine, et il le sera encore : aucun nombre ne sépare une respiration
+     d'une fin de phrase. Le vrai défaut était ailleurs — entre la fermeture
+     du micro et le premier mot de sa réponse, cinq à sept secondes, PERSONNE
+     n'écoutait. Le guetteur ne s'armait que pendant qu'elle parlait.
+
+     S'il reprenait sa phrase pendant qu'elle réfléchissait, la fin tombait
+     dans le vide et elle répondait à la moitié. Ce n'est pas le seuil qui
+     coupait : c'est le trou d'après.
+
+     Donc le guetteur s'arme dès qu'elle réfléchit. S'il parle, on tue le
+     tour — la réponse à la demi-phrase ne sera jamais dite — et on recolle
+     ce qu'il avait déjà dit (questionEnVolRef) devant ce qu'il ajoute. Une
+     phrase, un tour, une réponse. Et si c'était un bruit et pas lui, sa
+     question repart telle quelle : au pire il attend une seconde de plus,
+     jamais il ne parle dans le vide.
+
+     La même barre sert : pendant qu'elle réfléchit, sa voix à elle est à
+     zéro (ou c'est la phrase d'attente, qui compte comme sa voix), donc la
+     barre retombe au seuil ordinaire — c'est le cas « avec des écouteurs »
+     décrit ci-dessus. */
   useEffect(() => {
-    if (!conversation || mode !== "speaking") return;
+    if (!conversation || (mode !== "speaking" && mode !== "thinking")) return;
     const analyse = analyseRef.current;
     if (!analyse) return;
     const tampon = new Uint8Array(analyse.frequencyBinCount);
     let tenu = 0;
+    /* Figé à l'armement : c'est CE guetteur-là qui sait dans quel état il a
+       été posé, même si l'état a changé entre-temps. */
+    const pendantLaReflexion = mode === "thinking";
 
     /* ── ET ON GARDE CE QU'IL DIT, AU LIEU DE LE LUI FAIRE REDIRE ──────────
 
@@ -4884,16 +4968,67 @@ export default function Home() {
        contenu ; il décide seulement s'il vaut la peine de demander des mots. */
     let dejaRepris = false;
     const reprendreSesMots = async () => {
-      if (!guetteur || dejaRepris) return;
+      if (dejaRepris) return;
       dejaRepris = true;
       const dits = ditsRef.current;
+      /* ── CE QU'IL AVAIT DÉJÀ DIT, PRIS AVANT TOUT LE RESTE ──────────────
+         Pendant la réflexion, le tour qu'on vient de tuer portait sa
+         demi-phrase. On la prend MAINTENANT — avant tout `await`, avant
+         qu'un `finally` en retard puisse la vider. Et on retire la
+         demi-phrase du fil : elle y était entrée comme une question entière,
+         elle repartira entière, une seule fois. */
+      const debut = pendantLaReflexion ? questionEnVolRef.current.trim() : "";
+      if (pendantLaReflexion) {
+        questionEnVolRef.current = "";
+        if (debut) setHistory((items) => {
+          const dernier = items[items.length - 1];
+          return dernier && dernier.role === "user" && dernier.text === debut ? items.slice(0, -1) : items;
+        });
+      }
+      /* ── LE DÉBUT EST DÉPOSÉ TOUT DE SUITE, LES MOTS VIENDRONT APRÈS ────
+
+         Course, trouvée en relisant : le micro ordinaire se rouvre 180 ms
+         après la coupure. S'il ne dit qu'un mot et se tait, sa transcription
+         peut revenir AVANT celle du guetteur — et trouver un dépôt vide. La
+         demi-phrase serait perdue, puis redéposée trop tard, et posée deux
+         fois. On dépose donc le début MAINTENANT, de façon synchrone ; les
+         mots du guetteur viendront l'enrichir s'ils arrivent à temps. S'ils
+         arrivent trop tard, on perd un mot — jamais la question. */
+      const depot: Prononce | null = debut ? { texte: debut, quand: Date.now() } : null;
+      if (depot) motsRattrapesRef.current = depot;
+      /* Le dépôt. Pendant la réflexion, le début n'est JAMAIS perdu : au
+         pire c'est lui seul qui repart, et elle répond avec une seconde de
+         retard au lieu de ne pas répondre du tout. */
+      const deposer = (suite: string) => {
+        const texte = recoller(debut ? { texte: debut, quand: Date.now() } : null, suite);
+        /* On n'enrichit que le dépôt qu'on a posé nous-mêmes : s'il a déjà
+           été consommé par la transcription ordinaire, le reposer ferait
+           répondre deux fois à la même phrase. */
+        if (texte && (!depot || motsRattrapesRef.current === depot)) motsRattrapesRef.current = { texte, quand: Date.now() };
+        /* RÈGLE 1 : ce qui touche le micro se lit sur /api/etat, champ
+           `coupures`. Sans cette ligne on ferait dix tours sans savoir si le
+           guetteur a coupé pour lui ou pour une porte. */
+        void fetch("/api/mesure", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            type: "coupure",
+            pendant: pendantLaReflexion ? "reflexion" : "parole",
+            recolle: Boolean(debut && suite.trim()),
+            sans_mots: !suite.trim(),
+          }),
+        }).catch(() => {});
+      };
+      /* Pas de guetteur armé (flux mort, réglage éteint) : on n'a pas ses
+         mots, mais on a toujours sa question. Elle repart. */
+      if (!guetteur) { deposer(""); return; }
       /* On réclame le morceau en cours — sinon il dort dans le navigateur
          jusqu'au prochain tour de 400 ms, et c'est justement celui-là qui
          porte ses mots. Puis on laisse les envois se poser. */
       try { if (guetteur.state === "recording") guetteur.requestData(); } catch { }
       await new Promise((r) => setTimeout(r, FLUX_DU_GUETTEUR));
       await Promise.allSettled(envois);
-      if (morceauxGuet === 0) return;
+      if (morceauxGuet === 0) { deposer(""); return; }
       const f = new FormData();
       f.append("tour", tourGuet);
       f.append("indice_langue", langueRef.current || "");
@@ -4906,15 +5041,15 @@ export default function Home() {
           /* SON PROPRE ÉCHO NE RELANCE RIEN. Sans cette garde, elle se
              répondrait à elle-même en payant un tour à chaque fois — et
              c'est exactement le risque de garder le micro ouvert. */
-          if (!verdict.couper) return;
+          if (!verdict.couper) { deposer(""); return; }
           /* Elle a déjà été coupée par le volume ; il reste à ne pas lui
              faire redire sa phrase. On ne lance PAS de tour d'ici : le micro
              ordinaire vient de se rouvrir et tient la suite de la même
              phrase. On dépose le début, et c'est lui qui les recollera.
              Voir recoller() dans lib/sa-propre-voix.ts. */
-          motsRattrapesRef.current = { texte: verdict.dit, quand: Date.now() };
+          deposer(verdict.dit);
         })
-        .catch(() => { /* pas de mots : il redira, comme avant */ });
+        .catch(() => { deposer(""); /* pas de mots : au pire il redira, comme avant */ });
     };
 
     const guet = setInterval(() => {
