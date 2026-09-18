@@ -386,9 +386,14 @@ export const IMPOSER_LA_LANGUE_DES_LE_PREMIER_APPEL = false;
 
    On ne remplace pas une oreille par l'autre : on les répartit.
 
-     — le fil est en FRANÇAIS  → ElevenLabs. C'est le seul endroit où il n'a
-       jamais échoué : sur le français, sa détection ne s'est pas trompée une
-       fois en une semaine de relevés.
+     — le fil est en FRANÇAIS  → ElevenLabs. C'est là qu'il est le moins
+       mauvais, et c'est la seule raison de l'y garder.
+       ⚠ J'AVAIS ÉCRIT « il ne s'est jamais trompé sur le français ». C'EST
+       FAUX, et ce sont les chiffres du 19 septembre au soir qui le disent :
+       sur SIX écoutes d'un fil français, DEUX ont dérapé — indonésien et
+       soundanais. Les reprises les ont rattrapées, donc rien n'a cassé ;
+       mais l'affirmation était trop forte et je l'ai donnée pour acquise.
+       Le jour où Soynade saura le français, la question se repose.
      — le fil est en WOLOF (le défaut, BIA est wolof d'abord) → Soynade. Leur
        modèle EST wolof ; `language=wo` y est un paramètre normal, pas le
        contournement qui a rendu du charabia le 18 au soir sur un moteur qui
@@ -412,7 +417,32 @@ export const IMPOSER_LA_LANGUE_DES_LE_PREMIER_APPEL = false;
 
    `false` ici, ou STT_PROVIDER=elevenlabs dans Render, et tout revient comme
    avant sans toucher une autre ligne. C'est la leçon du 18 au soir : un
-   changement d'oreille doit se défaire en un geste. */
+   changement d'oreille doit se défaire en un geste.
+
+   ── ET CE QUE ÇA A DONNÉ, LE JOUR MÊME ────────────────────────────────────
+
+   Les compteurs, après vingt-et-un tours de vraie conversation :
+
+       écoutes chez Soynade        17
+       replis sur ElevenLabs        0
+       textes vides                 0
+       refus                        0
+
+   Pas une fois le filet n'a servi. Et le temps total n'a pas bougé — 8 865 ms
+   contre 8 872 la veille — alors que chaque écoute prend 519 ms de plus :
+   le reste s'est resserré et l'absorbe.
+
+   MAIS AUCUN DE CES CHIFFRES NE DIT SI ELLE COMPREND MIEUX. Ça, seule son
+   oreille à lui pouvait le mesurer. Lamine, le 19 septembre au soir :
+
+     « Je remarque qu'elle me comprend mieux et qu'elle s'exprime mieux en
+       wolof maintenant. »
+
+   LES DEUX MOITIÉS DE CETTE PHRASE TIENNENT ENSEMBLE, et c'est la leçon à
+   garder : le modèle ne recevait que du charabia, donc il devait deviner la
+   question AVANT d'y répondre — et il répondait dans une langue reconstruite
+   sur une ruine. Il reçoit maintenant du wolof propre. Réparer l'oreille a
+   amélioré la bouche, sans qu'on touche à un seul mot de sa consigne. */
 export const OREILLE_DE_SOYNADE = (process.env.STT_PROVIDER || "soynade") !== "elevenlabs";
 
 const compteSoynade = { appels: 0, replis: 0, vides: 0, ms: 0, dernierRefus: "" };
