@@ -83,6 +83,11 @@ export type Bornes = {
       partent avant la fin complète du modèle ». C'est la mesure du chantier
       qu'on vient de faire — sans elle, on aurait dix tours et aucune preuve. */
   surLaTete: boolean;
+  /** Ce que le SERVEUR dit avoir mis à fabriquer le premier morceau de voix
+      (Soynade + encodage), en ms. Posé depuis la réponse de /api/voix. Le
+      reste de `voix_ms`, c'est le réseau et le décodage — et c'est ce qu'on
+      ne pouvait pas voir avant le 19 septembre. */
+  fabrication: number;
 };
 
 export type Tour = {
@@ -101,6 +106,12 @@ export type Tour = {
   modele_ms: number;
   /** Modèle → premier morceau de voix en main. */
   voix_ms: number;
+  /** La part de voix_ms passée CHEZ SOYNADE (et à encoder), dite par le
+      serveur. */
+  voix_fabrication_ms: number;
+  /** Et la part passée sur le réseau et dans le décodage du téléphone.
+      C'est celle-là que le passage du wav au mp3 doit faire fondre. */
+  voix_transfert_ms: number;
   /** Son en main → première syllabe réellement émise. */
   demarrage_ms: number;
   /** Le temps qu'aucune borne n'a couvert. Zéro quand tout est mesuré. */
@@ -112,7 +123,7 @@ export type Tour = {
 
 export function tourVide(voie: "parole" | "ecrit" = "parole"): Bornes {
   return { voie, parole: 0, micro: 0, ecoute: 0, modele: 0, enMain: 0, syllabe: 0,
-    source: "", attente: false, surLaTete: false };
+    source: "", attente: false, surLaTete: false, fabrication: 0 };
 }
 
 /* Une borne ne se pose qu'UNE FOIS. Un tour peut repasser par le même point —
@@ -172,6 +183,10 @@ export function finir(b: Bornes, quand = Date.now()): Tour | null {
     demarrage_ms: ecart(b.enMain, b.syllabe),
   };
   const somme = Object.values(morceaux).reduce((a, n) => a + n, 0);
+  /* La fabrication ne peut pas dépasser la voix entière : si le serveur dit
+     plus que ce que le téléphone a attendu, c'est une borne d'un autre tour,
+     et on ne lui fait pas confiance. */
+  const fabrication = Math.min(Math.max(0, Number(b.fabrication) || 0), morceaux.voix_ms);
   /* ── LE CONTRÔLE QUI AURAIT ATTRAPÉ LE DÉFAUT TOUT SEUL ────────────────
 
      Les morceaux ne peuvent pas dépasser le tour : c'est de l'arithmétique,
@@ -189,6 +204,8 @@ export function finir(b: Bornes, quand = Date.now()): Tour | null {
     attente: b.attente,
     surLaTete: b.surLaTete,
     ...morceaux,
+    voix_fabrication_ms: fabrication,
+    voix_transfert_ms: morceaux.voix_ms - fabrication,
     /* Le temps qu'aucune borne n'a couvert. Zéro quand tout est mesuré ;
        non nul quand un chemin ne pose pas toutes ses bornes — la voix du
        navigateur, par exemple. Visible plutôt que réparti en douce sur les
@@ -223,7 +240,8 @@ export function ouPasseLeTemps(tours: Tour[]): Part[] {
     ["le silence avant la coupure du micro", par((t) => t.queue_ms)],
     ["la transcription", par((t) => t.transcription_ms)],
     ["le modèle", par((t) => t.modele_ms)],
-    ["la fabrication de la voix", par((t) => t.voix_ms)],
+    ["la fabrication de la voix (chez Soynade)", par((t) => t.voix_fabrication_ms || 0)],
+    ["le transport de la voix (réseau + décodage)", par((t) => (t.voix_fabrication_ms ? t.voix_transfert_ms : t.voix_ms) || 0)],
     ["le démarrage du son", par((t) => t.demarrage_ms)],
   ];
   const somme = morceaux.reduce((a, [, ms]) => a + ms, 0) || 1;

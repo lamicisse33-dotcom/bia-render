@@ -154,6 +154,10 @@ export function noterTour(t: Partial<Tour>) {
     transcription_ms: entier(t.transcription_ms),
     modele_ms: entier(t.modele_ms),
     voix_ms: entier(t.voix_ms),
+    /* Bornés par voix_ms : un serveur ne peut pas avoir fabriqué plus
+       longtemps que le téléphone n'a attendu. */
+    voix_fabrication_ms: Math.min(entier(t.voix_fabrication_ms), entier(t.voix_ms)),
+    voix_transfert_ms: entier(t.voix_ms) - Math.min(entier(t.voix_fabrication_ms), entier(t.voix_ms)),
     demarrage_ms: entier(t.demarrage_ms),
     ailleurs_ms: entier(t.ailleurs_ms),
     vecu_ms: vecu,

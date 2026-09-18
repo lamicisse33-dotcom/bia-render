@@ -110,6 +110,35 @@ export function resumeDuFil() {
   };
 }
 
+/* ── CE QUI PART VERS LE TÉLÉPHONE, EN OCTETS ─────────────────────────────
+
+   Render facture la bande passante sortante au-delà de 5 Go, et le compteur
+   était à 70 % le 19 septembre sans qu'on sache qui mangeait. Le wav des
+   réponses vivantes était le suspect ; maintenant il est encodé en mp3 avant
+   de partir, et on compte les deux : ce qu'on AURAIT envoyé, ce qu'on envoie. */
+const octetsDeVoix = { reponses: 0, wav: 0, mp3: 0, encodage_ms: 0, encodages_rates: 0 };
+
+export function noterOctetsDeVoix(wav: number, mp3: number, encodageMs: number) {
+  octetsDeVoix.reponses += 1;
+  octetsDeVoix.wav += Number(wav) || 0;
+  octetsDeVoix.mp3 += Number(mp3) || 0;
+  octetsDeVoix.encodage_ms += Number(encodageMs) || 0;
+  if (!mp3) octetsDeVoix.encodages_rates += 1;
+}
+
+export function resumeDesOctetsDeVoix() {
+  if (!octetsDeVoix.reponses) return null;
+  const mo = (n: number) => Number((n / 1_048_576).toFixed(2));
+  return {
+    morceaux: octetsDeVoix.reponses,
+    megaoctets_si_wav: mo(octetsDeVoix.wav),
+    megaoctets_envoyes: mo(octetsDeVoix.mp3 || octetsDeVoix.wav),
+    fois_moins: octetsDeVoix.mp3 ? Number((octetsDeVoix.wav / octetsDeVoix.mp3).toFixed(1)) : 1,
+    encodage_ms_moyen: Math.round(octetsDeVoix.encodage_ms / octetsDeVoix.reponses),
+    encodages_rates: octetsDeVoix.encodages_rates,
+  };
+}
+
 const voix = new Map<string, Voix>();
 const modele = new Map<string, Modele>();
 let depuis = Date.now();
@@ -187,6 +216,7 @@ export function depense() {
       dollars: null,
       pourquoi_pas_de_dollars: "le tarif de transcription de Soynade n'est pas connu — à leur demander",
     })),
+    octets_de_voix: resumeDesOctetsDeVoix(),
     dollars: { voix: sou(dollarsVoix), modele: sou(dollarsModele), total: sou(total) },
     /* Ce qu'on veut vraiment savoir : ce que coûte UNE question, et ce que
        coûterait une journée entière à ce rythme. */
@@ -212,6 +242,11 @@ export function oublierDepense() {
   fil.sans_borne = 0;
   fil.messages = 0;
   fil.tours = 0;
+  octetsDeVoix.reponses = 0;
+  octetsDeVoix.wav = 0;
+  octetsDeVoix.mp3 = 0;
+  octetsDeVoix.encodage_ms = 0;
+  octetsDeVoix.encodages_rates = 0;
   modele.clear();
   depuis = Date.now();
 }

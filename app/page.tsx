@@ -2176,7 +2176,7 @@ export default function Home() {
             body: JSON.stringify({ texte: answer, partie, ou, langue: langueDite,
               tete: !suite && partie === 0 }),
           });
-          if (r.ok) return await r.json() as { parties: number; audio: string | null; type_mime?: string };
+          if (r.ok) return await r.json() as { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number };
           dernier = String(r.status);
           if (r.status === 401 || r.status === 403) break;
         } catch (e) { dernier = String(e).slice(0, 60); }
@@ -2205,7 +2205,12 @@ export default function Home() {
       const second = demander(1);
       let bloc = await premier;
       if (!suite) noterAttente();   // le son est là : l'attente est finie, on la note
-      if (ou === "réponse") poserBorne(bornesRef.current, "enMain");
+      if (ou === "réponse") {
+        poserBorne(bornesRef.current, "enMain");
+        /* Ce que le serveur a mis à fabriquer la tête : le reste de voix_ms,
+           c'est le réseau. Voir lib/tour.ts. */
+        if (!suite && bloc.fabrication_ms) bornesRef.current.fabrication = Number(bloc.fabrication_ms) || 0;
+      }
       await prendreLaParole();
       if (!bloc.audio) {
         if (enLecon) { renoncer(); return; }

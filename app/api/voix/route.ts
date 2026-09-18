@@ -4,7 +4,8 @@ import { decouper, synthetiser } from "@/lib/voix";
 import { detecterLangue } from "@/lib/langue";
 import { pourLaVoix } from "@/lib/nombres";
 import { noterPanne } from "@/lib/panne";
-import { noterVoix } from "@/lib/depense";
+import { noterOctetsDeVoix, noterVoix } from "@/lib/depense";
+import { versMp3 } from "@/lib/mp3";
 
 /* Rend UN morceau de la réponse en audio. Le client demande le morceau 0,
    le joue, et réclame le suivant pendant qu'il parle : la voix démarre donc
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
        devis lu à voix haute, ou la page de réglage. */
     noterVoix(morceaux[partie].length, String(body.ou || "").slice(0, 24) || "réponse");
 
+    const partiFabriquer = Date.now();
     const parole = await synthetiser(morceaux[partie], langue, {
       exaggeration: body.exaggeration,
       temperature: body.temperature,
@@ -70,13 +72,55 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ parties: morceaux.length, audio: null, moteur: "navigateur", langue });
     }
 
+    /* ── SIX FOIS MOINS D'OCTETS VERS LE TÉLÉPHONE ─────────────────────────
+
+       Trouvé le 19 septembre 2026 en cherchant la lenteur. Chaque réponse
+       partait vers le téléphone en WAV PCM 24 kHz 16 bits — 48 ko par
+       seconde de parole — puis en base64, qui ajoute un tiers. Mesuré : quatre
+       secondes de voix font 256 ko. En mp3 à 64 kbit/s : 43 ko.
+
+       Sur le wifi du Mac ça ne se voit pas. Sur un téléphone à Dakar, c'est
+       jusqu'à une seconde et demie par phrase — et c'est aussi la bande
+       passante de Render qui était à 70 % de son plafond.
+
+       L'encodage coûte 120 à 300 ms ici, mesuré. C'est le prix, il est dit,
+       et il est compté avec le reste : si un jour Soynade sait rendre du mp3
+       directement, cette ligne disparaît et on le verra sur `encodage_ms`.
+
+       Même procédé que pour les 270 fichiers du seau (lib/mp3.ts) : c'est
+       sa décision du 12 septembre — « vas-y, il faut le convertir en MP3 » —
+       appliquée aux réponses vivantes, qu'elle n'avait jamais touchées. */
+    let audio = parole.audio;
+    let typeMime = parole.typeMime;
+    let encodageMs = 0;
+    if (typeMime === "audio/wav") {
+      const t = Date.now();
+      try {
+        const brut = parole.audio.buffer.slice(parole.audio.byteOffset, parole.audio.byteOffset + parole.audio.byteLength) as ArrayBuffer;
+        const mp3 = versMp3(brut);
+        encodageMs = Date.now() - t;
+        noterOctetsDeVoix(parole.audio.length, mp3.length, encodageMs);
+        audio = Buffer.from(mp3.buffer, mp3.byteOffset, mp3.byteLength);
+        typeMime = "audio/mpeg";
+      } catch (e) {
+        /* L'encodeur a échoué : on envoie le wav, comme avant. Une voix
+           lourde vaut mieux qu'une voix absente — et ça se voit au compteur. */
+        noterOctetsDeVoix(parole.audio.length, 0, Date.now() - t);
+        console.error("BIA — l'encodage mp3 a échoué, wav envoyé :", (e as Error).message);
+      }
+    }
+
     return NextResponse.json({
       parties: morceaux.length,
       partie,
       langue,
       moteur: parole.moteur,
-      type_mime: parole.typeMime,
-      audio: parole.audio.toString("base64"),
+      type_mime: typeMime,
+      audio: audio.toString("base64"),
+      /* Ce que le serveur a mis à fabriquer ce morceau, Soynade et encodage
+         compris. Le téléphone en déduit ce que le RÉSEAU lui a coûté. */
+      fabrication_ms: Date.now() - partiFabriquer,
+      encodage_ms: encodageMs,
     });
   } catch (err) {
     /* ── UNE VOIX QUI ÉCHOUE NE LAISSAIT AUCUNE TRACE ────────────────────
