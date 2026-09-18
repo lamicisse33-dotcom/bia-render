@@ -185,6 +185,47 @@ export const DUREE_DU_RATTRAPAGE = 15_000;
    de plus. Jamais une question perdue. */
 export const RELANCE_DU_DEPOT = 1500;
 
+/* ── ELLE NE PARLE JAMAIS PAR-DESSUS LUI ────────────────────────────────────
+
+   Lamine, le 19 septembre 2026 :
+
+     « Elle ne doit pas me couper quand je parle. Même si la réponse est
+       arrivée, elle doit la stocker en attendant que je termine, tout le
+       temps en enregistrant ce que je suis en train de dire. Ça va donner
+       encore plus de rapidité parce que dès que je termine de parler, elle
+       va me servir ce qu'elle devait me servir. »
+
+   Il a raison sur les deux points, et le second est le plus fin : une
+   réponse qui attend derrière une porte est une réponse déjà fabriquée —
+   voix comprise. Quand il se tait, elle sort à l'instant. Rien n'est jeté,
+   rien n'est refait.
+
+   ── MAIS DEUX CAS SE CACHENT DERRIÈRE « JE CONTINUE À PARLER » ─────────────
+
+   1. Le micro s'est fermé sur une respiration, au milieu de sa phrase, et il
+      la CONTINUE. La réponse derrière la porte répond à une demi-phrase :
+      elle est fausse. On la jette, on recolle les deux moitiés, on repose la
+      question entière. C'est « elle me coupe sans que je termine », et c'est
+      ce que le 17 septembre a voulu régler : « deux réponses pour une
+      phrase, et deux fois le prix ».
+
+   2. Sa phrase était finie, elle réfléchit trop longtemps, et il en dit une
+      AUTRE. La réponse derrière la porte est bonne : on la sert dès qu'il se
+      tait, et la nouvelle phrase part ensuite.
+
+   CE QUI LES SÉPARE, C'EST LE TEMPS. Le micro se ferme après 0,9 à 1,5 s de
+   silence. S'il reprend dans les deux secondes et demie qui suivent, la
+   pause totale fait moins de quatre secondes : c'est une respiration, il
+   continuait. Au-delà, sa phrase était finie. Ce n'est pas une certitude,
+   c'est une frontière — et elle est mesurée (champ `coupures`, `recolle`). */
+export const REPRISE_QUI_CONTINUE = 2500;
+
+/* La porte ne reste jamais fermée plus longtemps que ça : un drapeau qui
+   resterait levé — analyseur mort, onglet mis en veille — la rendrait muette
+   pour toujours. Trente secondes, c'est plus qu'une intervention ordinaire ;
+   passé ce délai elle parle, et on le verra au compteur. */
+export const PORTE_AU_PLUS = 30_000;
+
 /**
  * Recolle ce qu'on a rattrapé pendant qu'elle parlait devant ce que le micro
  * vient d'entendre. Rend `entendu` inchangé s'il n'y a rien à recoller.
