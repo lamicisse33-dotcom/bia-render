@@ -168,6 +168,67 @@ export function ecartsEntreLesTours() {
   };
 }
 
+/* ── QUI PÈSE DANS LA POCHE QU'ON REPAIE ────────────────────────────────────
+
+   Au 19 septembre 2026, la balance dit que la poche variable fait 7 872
+   signes à chaque question, cent pour cent des tours, plein tarif. Elle ne
+   dit pas QUI. Treize blocs y écrivent — les leçons, les souvenirs, les
+   gestes, les corrections, ce qu'elle peut montrer à l'écran, les candidates
+   du répertoire — et je ne sais toujours pas lequel est gros.
+
+   « Peser la pile » sans savoir ce qu'il y a dedans, c'est le même
+   aveuglement d'un cran plus haut. C'est la faute de la semaine, répétée à
+   l'échelle du dessous.
+
+   ── POURQUOI ON DÉCOUPE AU LIEU DE PESER À LA SOURCE ───────────────────────
+
+   Treize `variable+=` dans la route, dont plusieurs sont des expressions qui
+   courent sur vingt lignes. Les emballer un par un, c'est treize occasions de
+   casser une consigne qui marche, pour un compteur.
+
+   Or ces blocs s'annoncent tous eux-mêmes : ils commencent par une ligne
+   vide puis un titre en capitales — « CE QUE TU PEUX MONTRER À L'ÉCRAN »,
+   « COMMENT ON DIT ICI ». On découpe donc le texte FINAL sur ses propres
+   titres. Aucune ligne de la route ne bouge, et les noms qui sortent sont
+   ceux qu'on lit dans la consigne.
+
+   ── ET LE PREMIER JET SE TROMPAIT DÉJÀ ────────────────────────────────────
+
+   J'exigeais que la ligne de titre soit ENTIÈREMENT en capitales. Or plusieurs
+   titres de la consigne finissent en minuscules :
+
+       COMMENT ON DIT ICI (corrections de locuteurs natifs)
+
+   Ce bloc-là se fondait silencieusement dans le précédent, qui paraissait
+   alors deux fois plus lourd qu'il n'est. Un compteur qui attribue le poids
+   d'un bloc à son voisin est pire que pas de compteur : on optimiserait le
+   mauvais.
+
+   Trouvé en essayant la fonction sur un échantillon avant de la brancher — et
+   c'est exactement ce que la règle 2 demande. On exige donc SIX signes de
+   capitales EN TÊTE de ligne, et le reste fait ce qu'il veut.
+
+   CE QUE ÇA NE SAIT TOUJOURS PAS FAIRE, dit d'avance : un bloc sans titre du
+   tout se retrouve compté avec celui qui le précède. On le verra à un poids
+   qui ne colle pas, et on ajoutera un titre — pas un contournement.
+
+   Et le total des morceaux est très légèrement inférieur au tout : les deux
+   sauts de ligne qui séparent deux blocs disparaissent au découpage. Deux
+   signes par bloc, dit ici pour que personne n'y cherche une fuite. */
+const UN_TITRE = /\n\n(?=[A-ZÀ-ÜŒ][A-ZÀ-ÜŒ0-9 '’-]{5,}[^\n]*\n)/;
+
+export function peserParTitres(prefixe: string, texte: string): void {
+  const t = String(texte || "");
+  if (!t.trim()) return;
+  for (const part of t.split(UN_TITRE)) {
+    if (!part.trim()) continue;
+    /* Le titre, c'est la première ligne non vide. Tronqué : on veut un
+       tableau lisible sur un téléphone, pas la phrase entière. */
+    const titre = (part.split("\n").find((l) => l.trim()) || "sans titre").trim().slice(0, 46);
+    peser(`${prefixe} · ${titre}`, part);
+  }
+}
+
 export function oublierLaPesee(): void {
   blocs = new Map();
   tours = 0;

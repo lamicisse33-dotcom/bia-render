@@ -21,7 +21,7 @@ import { consigneUrgences, estUnNumeroDUrgence, estUnSecours } from "@/lib/urgen
 import { ACCUSES, CLE_ACCORD, langueDeLAccord, lireLOrdre } from "@/lib/instructions";
 import { noterPassage, noterTentative, parleDeMemoire } from "@/lib/lecons-vues";
 import { consigneDeLaListe, detacherCorrigee, type EtatDeLaListe } from "@/lib/mal-dit";
-import { peser, noterLEcart, unTourDePlus } from "@/lib/pesee";
+import { peser, peserParTitres, noterLEcart, unTourDePlus } from "@/lib/pesee";
 import { lecconQuiRepond, lecconsActives, leconsSousLaMain } from "@/lib/lecons";
 import { demandeDeNombre, repondreAuNombre } from "@/lib/nombre-demande";
 import { consigneDesSouvenirs, garder, retrouver, souvenirsActifs, type Souvenir } from "@/lib/souvenirs";
@@ -2152,6 +2152,12 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     peser("1. socle (en cache)", socle);
     peser("2. registre (en cache)", registre);
     peser("3. variable (plein tarif)", variable);
+    /* ── ET QUI PÈSE DEDANS ────────────────────────────────────────────
+       Le total ne suffit pas : treize blocs écrivent dans cette poche et on
+       ne savait pas lequel est gros. On découpe sur les titres que ces blocs
+       s'écrivent eux-mêmes — aucune ligne au-dessus ne bouge. Voir
+       peserParTitres() dans lib/pesee.ts. */
+    peserParTitres("   ↳ variable", variable);
 
     /* ── UN SEUL ENDROIT QUI FABRIQUE L'APPEL AU MODÈLE ────────────────────
 

@@ -1,8 +1,21 @@
 import { noterEtape } from "./etapes";
-/* Parole -> texte, repris de l'Interprète.
-   ElevenLabs Scribe accepte directement le webm du navigateur : pas de
-   conversion, donc pas de ffmpeg à installer sur Render. Soynade, lui,
-   exige un wav 16 kHz — c'est pourquoi il n'est pas proposé ici. */
+import { voixConfig } from "./voix";
+/* Parole -> texte.
+
+   ── CE QUI ÉTAIT ÉCRIT ICI, ET QUI ÉTAIT FAUX ──────────────────────────────
+
+   « Soynade exige un wav 16 kHz — c'est pourquoi il n'est pas proposé ici. »
+   Je l'avais lu dans leur documentation et jamais vérifié. Le 19 septembre
+   2026, l'essai leur a envoyé le même son dans quatre emballages : les quatre
+   sont passés, le webm d'Android et le mp4 d'iPhone compris.
+
+   Cette phrase a écarté pendant une semaine le seul moteur qui entend le
+   wolof. Elle a coûté plus cher que n'importe quel bogue de ce dépôt : c'est
+   une page lue à la place d'un appel fait.
+
+   DEPUIS : le fil en français va chez ElevenLabs, tout le reste chez Soynade,
+   qui gagne de trente et un points sur le wolof. Aucune conversion, le
+   téléphone n'est pas touché. Voir transcrire(), plus bas. */
 
 const env = process.env;
 
@@ -348,11 +361,134 @@ async function unEssai(
   ci-dessus avant de le remettre à `true`. */
 export const IMPOSER_LA_LANGUE_DES_LE_PREMIER_APPEL = false;
 
+/* ── L'OREILLE CHANGE DE MAISON, LE 19 SEPTEMBRE 2026 ──────────────────────
+
+   Mesuré deux fois, sur les dix enregistrements STUDIO de Kha dont on connaît
+   le texte mot pour mot — voir /api/essai-oreille :
+
+       Soynade       36 % de mots faux      917 ms
+       ElevenLabs    55 puis 67 %           583 ms
+       et chez ElevenLabs : ZÉRO wolof reconnu sur vingt écoutes, deux fois.
+
+   Trente et un points d'écart. Soynade est 334 ms plus lent : pour trente et
+   un points, c'est donné.
+
+   ── CE QUI REND ÇA POSSIBLE SANS RIEN CONVERTIR ───────────────────────────
+
+   Leur documentation annonce `wav, mp3, flac`. Elle est INCOMPLÈTE : l'essai
+   du 19 leur a envoyé le même son dans quatre emballages, et les quatre sont
+   passés — webm/opus d'Android compris, mp4/aac d'iPhone compris. C'est
+   exactement pour ça qu'on appelle au lieu de lire une page.
+
+   Donc : pas de ffmpeg, pas de conversion, le téléphone n'est pas touché.
+
+   ── CHAQUE MOTEUR LÀ OÙ IL EST MESURÉ LE MEILLEUR ─────────────────────────
+
+   On ne remplace pas une oreille par l'autre : on les répartit.
+
+     — le fil est en FRANÇAIS  → ElevenLabs. C'est le seul endroit où il n'a
+       jamais échoué : sur le français, sa détection ne s'est pas trompée une
+       fois en une semaine de relevés.
+     — le fil est en WOLOF (le défaut, BIA est wolof d'abord) → Soynade. Leur
+       modèle EST wolof ; `language=wo` y est un paramètre normal, pas le
+       contournement qui a rendu du charabia le 18 au soir sur un moteur qui
+       ne connaît pas la langue.
+
+   LA DIFFÉRENCE AVEC LA FAUTE D'HIER, ET ELLE EST ENTIÈRE : hier j'imposais
+   le wolof à un moteur incapable de le transcrire. Aujourd'hui je l'envoie à
+   un moteur entraîné pour ça. Le geste se ressemble ; ce qu'il produit, non.
+
+   ── ET ON N'EST JAMAIS SOURD ──────────────────────────────────────────────
+
+   Si Soynade refuse, tombe en panne, ou rend un texte VIDE, l'ancienne
+   oreille reprend le tour entier — la même échelle qu'avant, intacte. Une
+   panne chez eux coûte de la qualité, jamais le silence.
+
+   Et les deux se comptent séparément dans /api/etat : combien d'écoutes
+   chacun, combien de replis, en combien de temps. Si le repli monte, ça se
+   verra avant que Lamine ne le sente.
+
+   ── L'INTERRUPTEUR ────────────────────────────────────────────────────────
+
+   `false` ici, ou STT_PROVIDER=elevenlabs dans Render, et tout revient comme
+   avant sans toucher une autre ligne. C'est la leçon du 18 au soir : un
+   changement d'oreille doit se défaire en un geste. */
+export const OREILLE_DE_SOYNADE = (process.env.STT_PROVIDER || "soynade") !== "elevenlabs";
+
+const compteSoynade = { appels: 0, replis: 0, vides: 0, ms: 0, dernierRefus: "" };
+
+export function resumeOreilleSoynade() {
+  if (!compteSoynade.appels) return null;
+  return {
+    ecoutes: compteSoynade.appels,
+    /* Les deux chiffres qui disent s'il faut revenir en arrière. */
+    replis_sur_elevenlabs: compteSoynade.replis,
+    dont_texte_vide: compteSoynade.vides,
+    ms_moyen: Math.round(compteSoynade.ms / compteSoynade.appels),
+    dernier_refus: compteSoynade.dernierRefus,
+  };
+}
+
+/** Un appel à l'oreille de Soynade. Le webm du téléphone part TEL QUEL :
+    mesuré accepté le 19 septembre, contrairement à leur documentation. */
+async function chezSoynade(audio: Blob, nomFichier: string, langue: "wo" | "fr"): Promise<Ecoute | null> {
+  const s = voixConfig.soynade;
+  if (!s.apiKey) return null;
+  const form = new FormData();
+  form.append("file", audio, nomFichier || "parole.webm");
+  form.append("language", langue);
+  form.append("response_format", "json");
+  form.append("temperature", "0.1");
+  const parti = Date.now();
+  compteSoynade.appels++;
+  try {
+    const r = await fetch(`${s.baseUrl.replace(/\/$/, "")}/v1/audio/transcriptions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${s.apiKey}` },
+      body: form,
+    });
+    compteSoynade.ms += Date.now() - parti;
+    if (!r.ok) {
+      compteSoynade.dernierRefus = `${r.status} : ${(await r.text().catch(() => "")).slice(0, 160)}`;
+      compteSoynade.replis++;
+      return null;
+    }
+    const d = await r.json().catch(() => null) as
+      { text?: string; transcription?: string; transcript?: string } | null;
+    const texte = String(d?.text ?? d?.transcription ?? d?.transcript ?? "").trim();
+    if (!texte) {
+      /* VIDE N'EST PAS FAUX, ET LES DEUX SE COMPTENT À PART. Un vide se
+         rattrape chez l'autre ; un texte faux, non — c'est la leçon du filet
+         posé sous le mauvais trou, le 18 au soir. */
+      compteSoynade.vides++;
+      compteSoynade.replis++;
+      return null;
+    }
+    noterEtape("ecoute", parti, Date.now(), Date.now(), texte.length);
+    return { texte, langue, moteur: "soynade-oolel", entendue: langue };
+  } catch (err) {
+    compteSoynade.ms += Date.now() - parti;
+    compteSoynade.dernierRefus = (err as Error).message.slice(0, 160);
+    compteSoynade.replis++;
+    return null;
+  }
+}
+
 export async function transcrire(
   audio: Blob, nomFichier: string, indice?: string | null, mots?: string[],
 ): Promise<Ecoute> {
   const c = ecouteConfig.elevenlabs;
   if (!c.apiKey) throw new Error("ELEVENLABS_API_KEY manquante");
+
+  /* Le fil en français reste chez ElevenLabs : c'est le seul terrain où il
+     n'a jamais échoué. Tout le reste — et le défaut est le wolof — part chez
+     Soynade, qui gagne de trente et un points dessus. */
+  if (OREILLE_DE_SOYNADE && indice !== "fr") {
+    const chezEux = await chezSoynade(audio, nomFichier, "wo");
+    if (chezEux) return chezEux;
+    /* Refus, panne ou texte vide : l'ancienne oreille reprend le tour entier,
+       échelle intacte. On perd de la qualité, jamais le son. */
+  }
 
   /* ── ON N'EST JAMAIS SOURD PARCE QU'UN MODÈLE EST FERMÉ ────────────────
 

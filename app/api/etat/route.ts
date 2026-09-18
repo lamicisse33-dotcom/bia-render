@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { hoquetsDeLaVoix, voixConfig, voixSansCredit } from "@/lib/voix";
-import { ecouteConfig, resumeEcoutes } from "@/lib/ecoute";
+import { ecouteConfig, resumeEcoutes, resumeOreilleSoynade } from "@/lib/ecoute";
 import { lexiqueConfig, combien, combienParApplication, parAuteur } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
 import { resumeLecons } from "@/lib/lecons-vues";
@@ -145,6 +145,11 @@ export async function GET(request: Request) {
     /* Ce que le moteur d'écoute a cru entendre, et combien de fois il a
        fallu le reprendre. Voir lib/ecoute.ts. */
     ecoutes: resumeEcoutes(),
+    /* ── L'OREILLE DE SOYNADE, À PART ────────────────────────────────────
+       Branchée le 19 septembre. Les deux chiffres qui disent s'il faut
+       revenir en arriere : combien de replis sur ElevenLabs, et combien
+       d'entre eux pour un texte vide. Voir lib/ecoute.ts. */
+    oreille_soynade: resumeOreilleSoynade(),
     emotions: resumeEmotions(),
     /* CE QUE ÇA COÛTE, COMPTÉ ET NON DEVINÉ. Les signes réellement envoyés à
        Soynade, par route, et les jetons que le modèle dit avoir consommés —
