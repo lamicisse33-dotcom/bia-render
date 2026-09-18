@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { ecouteConfig } from "@/lib/ecoute";
@@ -213,6 +215,76 @@ async function chezSoynade(audio: ArrayBuffer, nom: string): Promise<UneEcoute> 
   }
 }
 
+/* ── LA QUESTION QUI DÉCIDE DE L'ARCHITECTURE ──────────────────────────────
+
+   Lamine, le 19 septembre au matin : « vas-y, ne m'attends pas, fais ce qu'il
+   faut. »
+
+   Ce qu'il faut, c'est arrêter d'attendre une réponse par mail sur une
+   question qu'un appel tranche.
+
+   LE PROBLÈME. Le téléphone enregistre en `webm/opus` sur Android et en
+   `mp4/aac` sur iPhone. La documentation de Soynade annonce `wav`, `mp3`,
+   `flac` — aucun des deux. Si leur API accepte quand même ce que le téléphone
+   produit, il n'y a RIEN à convertir et on branche leur oreille aujourd'hui.
+   Sinon il faut ffmpeg sur Render : une dépendance de plus, environ 50 ms par
+   tour, et un déploiement par image au lieu du build ordinaire.
+
+   Entre les deux, il y a une demi-journée de travail et une décision
+   d'architecture. Elle se tranche en quatre appels.
+
+   ── CE QU'ON ENVOIE, ET CE QUE ÇA NE MESURE PAS ───────────────────────────
+
+   Le MÊME son, dans quatre emballages — voir public/essai/LISEZ-MOI.md. C'est
+   un « mmm » de Kha, sans un seul mot : il n'y a donc PAS de texte attendu et
+   PAS de taux de mots faux ici. On ne lit qu'une chose, et c'est la seule qui
+   compte pour cette question : accepté, ou refusé, et le motif.
+
+   La qualité se mesure ailleurs dans le même essai, sur les dix
+   enregistrements PARLÉS dont on connaît le texte. Confondre les deux serait
+   exactement la faute du 18 au soir — un filet posé sous le mauvais trou.
+
+   ── ET LE POIDS, QUI DÉCIDE DU LIEU DE LA CONVERSION ──────────────────────
+
+       opus 24 kbps    4 ko
+       aac 32 kbps     5 ko
+       wav 16 kHz     29 ko      ← sept fois plus
+
+   C'est pour ça qu'on ne convertit pas DANS le téléphone : sur une connexion
+   mobile à Dakar, ces sept fois se paient en secondes d'attente à chaque
+   phrase. Si conversion il faut, elle est sur le serveur. */
+const EMBALLAGES = [
+  { nom: "webm / opus", fichier: "format-webm-opus.webm", type: "audio/webm", imite: "ce qu'enregistre un Android" },
+  { nom: "mp4 / aac", fichier: "format-mp4-aac.m4a", type: "audio/mp4", imite: "ce qu'enregistre un iPhone" },
+  { nom: "wav 16 kHz", fichier: "format-wav16.wav", type: "audio/wav", imite: "la conversion proposée" },
+  { nom: "mp3", fichier: "format-mp3.mp3", type: "audio/mpeg", imite: "le témoin, on sait qu'il passe" },
+];
+
+async function quelsFormats() {
+  const lignes = [];
+  for (const e of EMBALLAGES) {
+    let octets: Buffer | null = null;
+    try { octets = readFileSync(join(process.cwd(), "public", "essai", e.fichier)); }
+    catch (err) {
+      lignes.push({ format: e.nom, imite: e.imite, absent: (err as Error).message.slice(0, 120) });
+      continue;
+    }
+    const brut = octets.buffer.slice(octets.byteOffset, octets.byteOffset + octets.byteLength) as ArrayBuffer;
+    const chez = async (qui: "soynade" | "elevenlabs") => {
+      const r = qui === "soynade"
+        ? await chezSoynade(brut, e.fichier)
+        : await ecouterVraiment(brut, e.fichier, null);
+      return r.refus ? { accepte: false, motif: r.refus.slice(0, 160) } : { accepte: true, ms: r.ms };
+    };
+    lignes.push({
+      format: e.nom, imite: e.imite, octets: octets.byteLength,
+      soynade: voixConfig.soynade.apiKey ? await chez("soynade") : { accepte: false, motif: "clé absente" },
+      elevenlabs: await chez("elevenlabs"),
+    });
+  }
+  return lignes;
+}
+
 export async function POST(request: NextRequest) {
   const verdict = verifierCode(request.headers.get("x-bia-code"));
   if (!verdict.ok || !verdict.maitre) {
@@ -387,6 +459,33 @@ export async function POST(request: NextRequest) {
     })(),
     soynade_mots_faux_pour_cent: moyenne(abouties.map((l) => l.soynade.mots_faux_pour_cent)),
     soynade_ms: moyenne(abouties.map((l) => l.soynade.ms)),
+
+    /* ── ET CE QUI DÉCIDE S'IL FAUT FFMPEG SUR RENDER ───────────────────
+
+       Quatre emballages du même son. On ne lit que « accepté » ou « refusé » :
+       ce son n'a pas de mots, donc aucune qualité ne se mesure ici. */
+    formats: await (async () => {
+      const f = await quelsFormats();
+      const soyOk = (n: string) => {
+        const l = f.find((x) => x.format === n) as { soynade?: { accepte?: boolean } } | undefined;
+        return Boolean(l?.soynade?.accepte);
+      };
+      const duTelephone = soyOk("webm / opus") || soyOk("mp4 / aac");
+      return {
+        verdict: !voixConfig.soynade.apiKey
+          ? "clé Soynade absente : rien à conclure"
+          : duTelephone
+            ? `SOYNADE ACCEPTE CE QUE LE TÉLÉPHONE ENREGISTRE (webm ${soyOk("webm / opus") ? "oui" : "non"}, `
+              + `mp4 ${soyOk("mp4 / aac") ? "oui" : "non"}). Aucune conversion à installer : on peut brancher `
+              + `leur oreille directement.`
+            : `SOYNADE REFUSE LES DEUX FORMATS DU TÉLÉPHONE. Il faut donc convertir sur le serveur — `
+              + `ffmpeg sur Render, wav 16 kHz mono, environ 50 ms par tour. Le wav pèse 29 ko contre `
+              + `4 ko pour l'opus : c'est pourquoi la conversion reste au serveur et pas au téléphone.`,
+        lignes: f,
+        /* Dit une fois, pour qu'on ne cherche pas un taux de mots faux ici. */
+        note: "un « mmm » sans mots : on ne lit que « accepté » ou « refusé », aucune qualité",
+      };
+    })(),
 
     lignes,
   };

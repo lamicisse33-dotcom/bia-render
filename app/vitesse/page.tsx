@@ -64,6 +64,13 @@ type EssaiOreille = {
   soynade?: string;
   soynade_mots_faux_pour_cent?: number | null;
   soynade_ms?: number | null;
+  /* Quels emballages l'oreille accepte. C'est ce qui decide s'il faut
+     installer ffmpeg sur le serveur ou pas. */
+  formats?: { verdict?: string; note?: string; lignes?: Array<{
+    format: string; imite?: string; octets?: number; absent?: string;
+    soynade?: { accepte?: boolean; motif?: string; ms?: number };
+    elevenlabs?: { accepte?: boolean; motif?: string; ms?: number };
+  }> } | null;
   mots_faux_avec_les_mots_pour_cent?: number | null;
   mots_faux_sans_les_mots_pour_cent?: number | null;
   langues_reconnues?: Record<string, number>;
@@ -443,6 +450,9 @@ function EssaiOreilleBloc({ essai, enCours, lancer }:
   /* Le rouge dit « il y a une decision a prendre », pas « c'est casse ». Un
      match nul entre deux oreilles inutilisables en est une. */
   const mauvais = (p?: string) => Boolean(p && /REFUS|ZÉRO|AGGRAVENT|aucun effet|PAS MESURÉ|MATCH NUL|reste meilleur/.test(p));
+  /* Le detail des quatre emballages : une ligne par format, avec son poids.
+     C'est court, et ca evite d'aller lire le JSON pour savoir lequel passe. */
+  const oui = (a?: { accepte?: boolean }) => (a?.accepte ? "oui" : "non");
   return (
     <section style={{ marginBottom: 26, paddingTop: 4 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -470,6 +480,7 @@ function EssaiOreilleBloc({ essai, enCours, lancer }:
             { titre: "Le wolof", phrase: essai.le_wolof },
             { titre: "Ce que les cent mots apportent", phrase: essai.ce_que_les_cent_mots_apportent },
             { titre: "Soynade contre ElevenLabs", phrase: essai.soynade },
+            { titre: "Les formats du téléphone", phrase: essai.formats?.verdict },
           ].map((l) => (
             <div key={l.titre} style={{
               border: `1px solid ${mauvais(l.phrase) ? "#5a2a24" : "#2a2420"}`,
@@ -480,6 +491,35 @@ function EssaiOreilleBloc({ essai, enCours, lancer }:
               <div style={{ font: "400 14px/1.5 system-ui", opacity: 0.92 }}>{l.phrase || "—"}</div>
             </div>
           ))}
+          {essai.formats?.lignes?.length ? (
+            <div style={{ border: "1px solid #2a2420", background: "#141210",
+              borderRadius: 10, padding: "11px 13px" }}>
+              <div style={{ font: "600 13px/1.3 system-ui", marginBottom: 6, color: "#e8b25f" }}>
+                Le même son, quatre emballages
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse", font: "400 13px/1.5 system-ui" }}>
+                <thead>
+                  <tr style={{ opacity: 0.55, textAlign: "left" }}>
+                    <th style={{ fontWeight: 400 }}>format</th>
+                    <th style={{ fontWeight: 400 }}>poids</th>
+                    <th style={{ fontWeight: 400 }}>Soynade</th>
+                    <th style={{ fontWeight: 400 }}>ElevenLabs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {essai.formats.lignes.map((l) => (
+                    <tr key={l.format} style={{ borderTop: "1px solid #221d19" }}>
+                      <td>{l.format}<span style={{ opacity: 0.5 }}> · {l.imite}</span></td>
+                      <td>{l.octets ? `${Math.round(l.octets / 1024)} ko` : "—"}</td>
+                      <td style={{ color: l.soynade?.accepte ? "#8fbf7a" : "#e08b7a" }}>{oui(l.soynade)}</td>
+                      <td style={{ color: l.elevenlabs?.accepte ? "#8fbf7a" : "#e08b7a" }}>{oui(l.elevenlabs)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p style={{ margin: "8px 0 0", opacity: 0.5, fontSize: 12 }}>{essai.formats.note}</p>
+            </div>
+          ) : null}
           <p style={{ margin: 0, opacity: 0.55, fontSize: 12.5, lineHeight: 1.5 }}>
             {essai.sons_ecoutes} son(s) écouté(s) · {essai.mots_donnes} mots donnés · moteur{" "}
             {essai.moteur} · mots faux : {essai.mots_faux_sans_les_mots_pour_cent ?? "—"} % sans
