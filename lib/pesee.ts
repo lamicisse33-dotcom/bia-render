@@ -215,7 +215,21 @@ export function ecartsEntreLesTours() {
    Et le total des morceaux est très légèrement inférieur au tout : les deux
    sauts de ligne qui séparent deux blocs disparaissent au découpage. Deux
    signes par bloc, dit ici pour que personne n'y cherche une fuite. */
-const UN_TITRE = /\n\n(?=[A-ZÀ-ÜŒ][A-ZÀ-ÜŒ0-9 '’-]{5,}[^\n]*\n)/;
+/* ── ET LE SOCLE S'ANNONCE AUTREMENT QUE LA POCHE VARIABLE ─────────────────
+
+   Le 19 septembre 2026, la balance dit que le socle fait 41 897 signes par
+   tour — plus que tout le reste réuni. Même relu au dixième du tarif, il pèse
+   autant que la poche variable entière. Et on ne sait pas ce qu'il y a
+   dedans.
+
+   Or ses blocs ne portent pas de titre nu : ils portent des barres.
+
+       ═══ CE QUE TU SAIS DE KHALAM ═══
+
+   Le motif qui découpait la poche variable ne les voyait pas, et rendait donc
+   le socle en un seul morceau de quarante mille signes. On accepte les deux
+   formes — le titre nu, et le titre entre barres. */
+const UN_TITRE = /\n\n(?=(?:═+\s*)?[A-ZÀ-ÜŒ][A-ZÀ-ÜŒ0-9 '’-]{5,}[^\n]*\n)/;
 
 export function peserParTitres(prefixe: string, texte: string): void {
   const t = String(texte || "");

@@ -2163,6 +2163,26 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        s'écrivent eux-mêmes — aucune ligne au-dessus ne bouge. Voir
        peserParTitres() dans lib/pesee.ts. */
     peserParTitres("   ↳ variable", variable);
+    /* ── ET LE SOCLE AUSSI, PARCE QU'IL EST DEVENU LE PLUS GROS ──────────
+
+       Le 19 septembre : 41 897 signes par tour. Relu au dixième du tarif,
+       il coûte quand même à peu près autant que la poche variable entière,
+       et c'est maintenant le premier poste. On ne peut pas l'alléger sans
+       savoir ce qu'il y a dedans — et c'est exactement la faute qu'on a
+       payée le 17. On pèse d'abord. */
+    peserParTitres("   ↳ socle", socle);
+    peserParTitres("   ↳ registre", registre);
+    /* ── ET LE FIL, QUE LA BALANCE N'A JAMAIS VU ─────────────────────────
+
+       La facture dit 4 290 jetons par tour au plein tarif. La poche variable
+       n'en fait que 1 965. Il manque plus de deux mille jetons par tour, et
+       ils sont ici : les messages de la conversation, qui grossissent à
+       chaque échange et ne sont mis en cache nulle part.
+
+       Un bloc qu'on ne pèse pas est un bloc qui grossit sans qu'on le voie.
+       C'est écrit en haut de ce fichier, et ça vaut pour celui-là aussi. */
+    peser("4. le fil de la conversation (plein tarif)",
+      history.map(m=>m.content).join("")+question);
 
     /* ── UN SEUL ENDROIT QUI FABRIQUE L'APPEL AU MODÈLE ────────────────────
 

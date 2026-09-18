@@ -51,6 +51,37 @@ type Modele = {
   cache_ecrit: number;
 };
 
+/* ── CE QU'ON NE SAIT PAS ENCORE CHIFFRER, ET QU'ON COMPTE QUAND MÊME ──────
+
+   Trouvé le 19 septembre 2026 en cherchant où passe l'argent : la
+   TRANSCRIPTION n'a JAMAIS figuré sur cette facture. Ni du temps
+   d'ElevenLabs, ni depuis qu'on est passé chez Soynade. Elle prend pourtant
+   22 % de l'attente de chaque échange — c'est le troisième poste de temps,
+   et le seul à zéro dollar affiché.
+
+   Un poste à zéro sur une facture, ce n'est pas une bonne nouvelle : c'est
+   un poste qu'on ne regarde pas. C'est exactement ce qui a produit les
+   cinquante dollars en trois jours.
+
+   ── POURQUOI ON NE MET PAS DE PRIX ────────────────────────────────────────
+
+   Parce que je ne le connais pas. Le tarif de la transcription de Soynade
+   n'est écrit nulle part dans ce projet, et je ne vais pas en inventer un :
+   un compteur qui ment est pire que pas de compteur — c'est écrit dix lignes
+   plus haut, et ça vaut ici.
+
+   On compte donc ce qu'on sait compter : le nombre d'écoutes et les octets
+   d'audio envoyés. Le jour où Soynade répond, il y a UNE ligne à écrire. */
+const oreille = new Map<string, { appels: number; octets: number }>();
+
+/** Une écoute envoyée à transcrire. `ou` nomme le moteur. */
+export function noterOreille(octets: number, ou = "soynade") {
+  const d = oreille.get(ou) || { appels: 0, octets: 0 };
+  d.appels += 1;
+  d.octets += Number(octets) || 0;
+  oreille.set(ou, d);
+}
+
 const voix = new Map<string, Voix>();
 const modele = new Map<string, Modele>();
 let depuis = Date.now();
@@ -120,6 +151,14 @@ export function depense() {
     depuis: new Date(depuis).toISOString(),
     voix: laVoix,
     modele: leModele,
+    /* Sans prix, mais compté — et dit comme tel. */
+    oreille: [...oreille.entries()].map(([ou, d]) => ({
+      ou,
+      ecoutes: d.appels,
+      megaoctets: Number((d.octets / 1_048_576).toFixed(2)),
+      dollars: null,
+      pourquoi_pas_de_dollars: "le tarif de transcription de Soynade n'est pas connu — à leur demander",
+    })),
     dollars: { voix: sou(dollarsVoix), modele: sou(dollarsModele), total: sou(total) },
     /* Ce qu'on veut vraiment savoir : ce que coûte UNE question, et ce que
        coûterait une journée entière à ce rythme. */
@@ -140,6 +179,7 @@ export function depense() {
 /** Remettre les compteurs à zéro, pour mesurer une journée précise. */
 export function oublierDepense() {
   voix.clear();
+  oreille.clear();
   modele.clear();
   depuis = Date.now();
 }

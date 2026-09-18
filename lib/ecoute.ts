@@ -1,5 +1,6 @@
 import { noterEtape } from "./etapes";
 import { voixConfig } from "./voix";
+import { noterOreille } from "./depense";
 /* Parole -> texte.
 
    ── CE QUI ÉTAIT ÉCRIT ICI, ET QUI ÉTAIT FAUX ──────────────────────────────
@@ -471,6 +472,10 @@ async function chezSoynade(audio: Blob, nomFichier: string, langue: "wo" | "fr")
   form.append("temperature", "0.1");
   const parti = Date.now();
   compteSoynade.appels++;
+  /* La transcription n'avait jamais figuré sur la facture, alors qu'elle
+     prend 22 % de l'attente. Voir lib/depense.ts : on compte les octets, le
+     prix viendra de Soynade. */
+  noterOreille(audio.size, "soynade");
   try {
     const r = await fetch(`${s.baseUrl.replace(/\/$/, "")}/v1/audio/transcriptions`, {
       method: "POST",
