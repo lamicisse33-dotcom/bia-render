@@ -88,6 +88,11 @@ export type Bornes = {
       reste de `voix_ms`, c'est le réseau et le décodage — et c'est ce qu'on
       ne pouvait pas voir avant le 19 septembre. */
   fabrication: number;
+  /** Le temps passé DERRIÈRE LA PORTE : la voix était en main, mais il
+      parlait encore, et on l'a attendu. Ce n'est ni de la fabrication ni du
+      démarrage — c'est lui. Sans cette case, ce temps tombait dans
+      « le démarrage du son » et faisait croire à une lenteur. */
+  porte: number;
 };
 
 export type Tour = {
@@ -112,8 +117,10 @@ export type Tour = {
   /** Et la part passée sur le réseau et dans le décodage du téléphone.
       C'est celle-là que le passage du wav au mp3 doit faire fondre. */
   voix_transfert_ms: number;
-  /** Son en main → première syllabe réellement émise. */
+  /** Son en main → première syllabe réellement émise, la porte déduite. */
   demarrage_ms: number;
+  /** Le temps qu'elle l'a attendu, voix en main, parce qu'il parlait. */
+  attente_porte_ms: number;
   /** Le temps qu'aucune borne n'a couvert. Zéro quand tout est mesuré. */
   ailleurs_ms: number;
   /** Sa dernière syllabe à lui → la première syllabe d'elle. TOUT le tour. */
@@ -123,7 +130,7 @@ export type Tour = {
 
 export function tourVide(voie: "parole" | "ecrit" = "parole"): Bornes {
   return { voie, parole: 0, micro: 0, ecoute: 0, modele: 0, enMain: 0, syllabe: 0,
-    source: "", attente: false, surLaTete: false, fabrication: 0 };
+    source: "", attente: false, surLaTete: false, fabrication: 0, porte: 0 };
 }
 
 /* Une borne ne se pose qu'UNE FOIS. Un tour peut repasser par le même point —
@@ -175,12 +182,16 @@ export function finir(b: Bornes, quand = Date.now()): Tour | null {
   if (!debut) return null;
   const vecu = ecart(debut, b.syllabe);
   if (!vecu || vecu > TROP_LONG) return null;
+  /* La porte ne peut pas avoir duré plus que l'écart en main → syllabe où
+     elle s'est passée. */
+  const porte = Math.min(Math.max(0, Number(b.porte) || 0), ecart(b.enMain, b.syllabe));
   const morceaux = {
     queue_ms: ecart(b.parole, b.micro),
     transcription_ms: ecart(b.micro, b.ecoute),
     modele_ms: ecart(b.ecoute || b.micro, b.modele),
     voix_ms: ecart(b.modele, b.enMain),
-    demarrage_ms: ecart(b.enMain, b.syllabe),
+    demarrage_ms: ecart(b.enMain, b.syllabe) - porte,
+    attente_porte_ms: porte,
   };
   const somme = Object.values(morceaux).reduce((a, n) => a + n, 0);
   /* La fabrication ne peut pas dépasser la voix entière : si le serveur dit
@@ -243,6 +254,7 @@ export function ouPasseLeTemps(tours: Tour[]): Part[] {
     ["la fabrication de la voix (chez Soynade)", par((t) => t.voix_fabrication_ms || 0)],
     ["le transport de la voix (réseau + décodage)", par((t) => (t.voix_fabrication_ms ? t.voix_transfert_ms : t.voix_ms) || 0)],
     ["le démarrage du son", par((t) => t.demarrage_ms)],
+    ["l'attente qu'il finisse de parler (la porte)", par((t) => t.attente_porte_ms || 0)],
   ];
   const somme = morceaux.reduce((a, [, ms]) => a + ms, 0) || 1;
   return morceaux

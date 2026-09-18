@@ -4,8 +4,21 @@ import { decouper, synthetiser } from "@/lib/voix";
 import { detecterLangue } from "@/lib/langue";
 import { pourLaVoix } from "@/lib/nombres";
 import { noterPanne } from "@/lib/panne";
-import { noterOctetsDeVoix, noterVoix } from "@/lib/depense";
+import { noterOctetsDeVoix, noterVoix, noterVoixEnCache } from "@/lib/depense";
 import { versMp3 } from "@/lib/mp3";
+
+/** Les sons déjà fabriqués, par texte. Deux cents, c'est une journée de
+    conversation ; au-delà on jette la plus ancienne. */
+const VOIX_GARDEES = 200;
+const voixDejaFaites = new Map<string, { audio: Buffer; typeMime: string; moteur: string }>();
+
+/** La clé d'un son : le texte, la langue, et les réglages s'il y en a. Sans
+    clé pour la page de réglage, qui fait varier les réglages exprès. */
+function cleDeVoix(texte: string, langue: string, body: { ou?: string; exaggeration?: number; temperature?: number; cfgWeight?: number; vitesse?: number; audioPrompt?: string | null }): string | null {
+  if (body.ou === "réglage" || body.audioPrompt) return null;
+  const reglages = [body.exaggeration, body.temperature, body.cfgWeight, body.vitesse].map((r) => (r === undefined ? "" : String(r))).join("|");
+  return `${langue}|${reglages}|${texte}`;
+}
 
 /* Rend UN morceau de la réponse en audio. Le client demande le morceau 0,
    le joue, et réclame le suivant pendant qu'il parle : la voix démarre donc
@@ -45,6 +58,38 @@ export async function POST(request: NextRequest) {
     const langue = body.langue === "fr" || body.langue === "wo"
       ? body.langue
       : detecterLangue(morceaux[partie]);
+
+    /* ── UNE PHRASE DÉJÀ FABRIQUÉE NE SE REPAIE PAS ────────────────────────
+
+       Le 19 septembre 2026, sur la facture : la phrase d'attente — deux
+       textes qui ne changent jamais — partait chez Soynade à CHAQUE
+       conversation, 15 % de la dépense de voix, et 3,5 secondes à chaque
+       début. Kha doit l'enregistrer, et ce sera la vraie réponse. En
+       attendant, et pour toute phrase que BIA redit à l'identique, on garde
+       ce qu'on a déjà payé : même texte, même langue, mêmes réglages → même
+       son, servi à l'instant, non facturé.
+
+       ÇA VIT EN MÉMOIRE et disparaît quand l'instance s'endort — donc ça
+       n'économise que dans la journée, et ça se compte (voix_en_cache).
+       Le seau reste à Kha : on n'y écrit pas un son fabriqué. */
+    const cle = cleDeVoix(morceaux[partie], langue, body);
+    const dejaFaite = cle ? voixDejaFaites.get(cle) : undefined;
+    if (dejaFaite) {
+      voixDejaFaites.delete(cle!);
+      voixDejaFaites.set(cle!, dejaFaite);   // la plus récente en dernier : c'est la première qu'on jette qui est la plus vieille
+      noterVoixEnCache(true);
+      return NextResponse.json({
+        parties: morceaux.length,
+        partie,
+        langue,
+        moteur: `${dejaFaite.moteur} (déjà faite)`,
+        type_mime: dejaFaite.typeMime,
+        audio: dejaFaite.audio.toString("base64"),
+        fabrication_ms: 0,
+        encodage_ms: 0,
+      });
+    }
+    noterVoixEnCache(false);
 
     // Les réglages ne viennent de la requête que depuis la page /reglage ;
     // ailleurs, ce sont ceux du serveur qui s'appliquent.
@@ -107,6 +152,17 @@ export async function POST(request: NextRequest) {
            lourde vaut mieux qu'une voix absente — et ça se voit au compteur. */
         noterOctetsDeVoix(parole.audio.length, 0, Date.now() - t);
         console.error("BIA — l'encodage mp3 a échoué, wav envoyé :", (e as Error).message);
+      }
+    }
+
+    /* On garde ce qu'on vient de payer. Pas les essais de la page de
+       réglage : ils changent de réglages exprès, et ne reviennent jamais. */
+    if (cle) {
+      voixDejaFaites.set(cle, { audio, typeMime, moteur: parole.moteur });
+      while (voixDejaFaites.size > VOIX_GARDEES) {
+        const plusVieille = voixDejaFaites.keys().next().value;
+        if (plusVieille === undefined) break;
+        voixDejaFaites.delete(plusVieille);
       }
     }
 

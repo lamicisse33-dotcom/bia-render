@@ -2248,10 +2248,14 @@ export default function Home() {
          on se tait. Voir lib/sa-propre-voix.ts, REPRISE_QUI_CONTINUE. */
       if (!suite && ou === "réponse" && porteRef.current) {
         const tourAuDepart = numeroDuTourRef.current;
+        const devantLaPorte = Date.now();
         await Promise.race([
           porteRef.current.attendre,
           new Promise<void>((r) => setTimeout(r, PORTE_AU_PLUS)),
         ]);
+        /* Ce temps-là est le sien, pas celui de la voix : on le range à
+           part, sinon il gonflerait « le démarrage du son ». */
+        bornesRef.current.porte = Date.now() - devantLaPorte;
         if (numeroDuTourRef.current !== tourAuDepart) return;
       }
       await prendreLaParole();

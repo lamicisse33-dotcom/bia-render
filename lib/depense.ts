@@ -139,6 +139,14 @@ export function resumeDesOctetsDeVoix() {
   };
 }
 
+/* Les sons servis depuis la mémoire au lieu d'être refabriqués : ce qu'on
+   n'a PAS payé. Si `servies` reste à zéro, le cache ne sert à rien et on le
+   retirera — un mécanisme qu'on ne mesure pas est un mécanisme qu'on croit. */
+const voixEnCache = { servies: 0, fabriquees: 0 };
+export function noterVoixEnCache(servie: boolean) {
+  if (servie) voixEnCache.servies += 1; else voixEnCache.fabriquees += 1;
+}
+
 const voix = new Map<string, Voix>();
 const modele = new Map<string, Modele>();
 let depuis = Date.now();
@@ -217,6 +225,7 @@ export function depense() {
       pourquoi_pas_de_dollars: "le tarif de transcription de Soynade n'est pas connu — à leur demander",
     })),
     octets_de_voix: resumeDesOctetsDeVoix(),
+    voix_en_cache: voixEnCache.servies + voixEnCache.fabriquees ? { ...voixEnCache } : null,
     dollars: { voix: sou(dollarsVoix), modele: sou(dollarsModele), total: sou(total) },
     /* Ce qu'on veut vraiment savoir : ce que coûte UNE question, et ce que
        coûterait une journée entière à ce rythme. */
@@ -247,6 +256,8 @@ export function oublierDepense() {
   octetsDeVoix.mp3 = 0;
   octetsDeVoix.encodage_ms = 0;
   octetsDeVoix.encodages_rates = 0;
+  voixEnCache.servies = 0;
+  voixEnCache.fabriquees = 0;
   modele.clear();
   depuis = Date.now();
 }
