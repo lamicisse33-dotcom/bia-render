@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { ecouteConfig } from "@/lib/ecoute";
+import { voixConfig } from "@/lib/voix";
 import { pourScribe } from "@/lib/mots-a-entendre";
 import { motsCorriges } from "@/lib/lexique";
 import { TOUT, empreintesDesSons, normaliser, sonDe } from "@/lib/repertoire";
@@ -58,6 +59,32 @@ import { noterEssaiOreille } from "@/lib/etapes";
         mesuré, moi compris. On transcrit DEUX FOIS chaque son — avec les mots
         et sans — et on compare au texte connu. Si l'écart ne bouge pas, ces
         mots coûtent 20 % de surcoût pour rien et il faut les retirer.
+
+     ── ET LA QUATRIÈME, AJOUTÉE LE 19 SEPTEMBRE AU MATIN ─────────────────
+
+     Le premier essai, le 18 au soir, a répondu à la question 2 sans appel :
+     ZÉRO wolof sur vingt écoutes d'enregistrements STUDIO de Kha, et 65 % de
+     mots faux avec l'aide des cent mots (92 % sans). ElevenLabs annonce 25 à
+     50 % : il ne tient même pas sa propre annonce.
+
+     Lamine a écrit à Soynade. Leur réponse, le 19 à 01 h 48 :
+
+       « ElevenLabs Scribe annonce supporter le Wolof, mais n'est pas au point
+         d'après nos tests. Avez-vous essayé l'ASR de Soynade ? Nous proposons
+         un modèle qui supporte l'ASR et qui est largement meilleur que
+         ElevenLabs Scribe. »
+
+     « Largement meilleur » est une phrase de commerçant jusqu'à ce qu'on la
+     mesure — même quand elle vient de gens honnêtes, et ceux-là le sont : ils
+     ont commencé par dire du mal d'un concurrent qu'ils auraient pu laisser
+     croire bon.
+
+     4. QUELLE OREILLE ENTEND LE MIEUX SON WOLOF ? Les deux, sur les MÊMES
+        dix enregistrements, avec le même texte connu et le même calcul. Le
+        chiffre décidera, pas l'annonce — ni la leur, ni celle d'ElevenLabs.
+
+     RIEN N'EST BRANCHÉ SUR BIA PAR CET ESSAI. Il mesure deux oreilles ; c'est
+     lib/ecoute.ts, et lui seul, qui décide de celle qui écoute vraiment.
 
    ── CE QUE ÇA NE FAIT PAS ──────────────────────────────────────────────────
 
@@ -120,6 +147,72 @@ async function ecouterVraiment(
   }
 }
 
+/* ── L'OREILLE DE SOYNADE ──────────────────────────────────────────────────
+
+   Leur documentation, lue le 19 septembre au matin :
+
+       POST https://api.soynade.ai/v1/audio/transcriptions
+       Authorization: Bearer $SOYNADE_API_KEY
+       -F file=@… -F language=wo -F response_format=json -F temperature=0.1
+
+   Trois choses qui tombent bien, et une à surveiller :
+
+     — le mp3 est accepté, donc les sons du répertoire partent TELS QUELS,
+       sans conversion ni ffmpeg à installer sur Render ;
+     — `language=wo` est un paramètre normal chez eux, pas un contournement :
+       leur modèle EST wolof, il n'a pas à devenir wolof ;
+     — la clé est déjà sur le serveur, c'est celle de la voix de Kha.
+
+   CE QU'IL FAUT SURVEILLER : c'est le MÊME compte que la voix, et son crédit
+   était épuisé hier soir. Un 402 ici ne voudra donc pas dire « leur oreille
+   est mauvaise », mais « le compte est à sec » — et l'essai le dira en clair
+   au lieu de laisser croire à un échec du modèle.
+
+   On ne demande PAS de température différente de la leur : 0,1 est ce que
+   leur exemple donne, et on mesure ce qu'ils livrent, pas ce que j'aurais
+   réglé. */
+async function chezSoynade(audio: ArrayBuffer, nom: string): Promise<UneEcoute> {
+  const s = voixConfig.soynade;
+  const form = new FormData();
+  form.append("file", new Blob([audio], { type: "audio/mpeg" }), nom);
+  form.append("language", "wo");
+  form.append("response_format", "json");
+  form.append("temperature", "0.1");
+  const parti = Date.now();
+  try {
+    const r = await fetch(`${s.baseUrl.replace(/\/$/, "")}/v1/audio/transcriptions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${s.apiKey}` },
+      body: form,
+    });
+    const ms = Date.now() - parti;
+    if (!r.ok) {
+      const brut = (await r.text().catch(() => "")).slice(0, 200);
+      return {
+        texte: "", langue: "", ms,
+        refus: r.status === 402
+          ? `402 — le crédit du compte Soynade est épuisé, ce n'est pas l'oreille qui échoue : ${brut}`
+          : `${r.status} : ${brut}`,
+      };
+    }
+    /* On ne sait pas encore quel champ porte le texte : leur documentation ne
+       le dit pas. On accepte donc les trois noms usuels, et si aucun ne
+       répond on garde la réponse brute plutôt que de rendre un vide muet —
+       c'est comme ça qu'on voit un format qui a changé. */
+    const d = await r.json().catch(() => null) as
+      { text?: string; transcription?: string; transcript?: string } | null;
+    const texte = String(d?.text ?? d?.transcription ?? d?.transcript ?? "").trim();
+    return {
+      texte,
+      langue: texte ? "wo (demandé)" : "",
+      ms,
+      ...(texte ? {} : { refus: `réponse sans texte reconnaissable : ${JSON.stringify(d).slice(0, 160)}` }),
+    };
+  } catch (err) {
+    return { texte: "", langue: "", ms: Date.now() - parti, refus: (err as Error).message.slice(0, 200) };
+  }
+}
+
 export async function POST(request: NextRequest) {
   const verdict = verifierCode(request.headers.get("x-bia-code"));
   if (!verdict.ok || !verdict.maitre) {
@@ -168,6 +261,12 @@ export async function POST(request: NextRequest) {
        puis sans. Personne n'avait jamais mesuré ce qu'ils apportent. */
     const avec = await ecouterVraiment(audio, `${e.cle}.mp3`, mots);
     const sans = await ecouterVraiment(audio, `${e.cle}.mp3`, null);
+    /* LA TROISIÈME OREILLE, sur le MÊME son et le même texte connu. C'est la
+       seule façon de comparer deux fournisseurs sans se fier à leurs
+       annonces. Sautée si la clé n'est pas là — on le dira. */
+    const soy = voixConfig.soynade.apiKey
+      ? await chezSoynade(audio, `${e.cle}.mp3`)
+      : { texte: "", langue: "", ms: 0, refus: "SOYNADE_API_KEY absente sur le serveur" };
 
     lignes.push({
       cle: e.cle,
@@ -183,6 +282,11 @@ export async function POST(request: NextRequest) {
         ...(sans.refus ? { refus: sans.refus } : {}),
         ...(sans.texte ? { mots_faux_pour_cent: motsFaux(e.wolof, sans.texte).part } : {}),
       },
+      soynade: {
+        entendu: soy.texte, ms: soy.ms,
+        ...(soy.refus ? { refus: soy.refus } : {}),
+        ...(soy.texte ? { mots_faux_pour_cent: motsFaux(e.wolof, soy.texte).part } : {}),
+      },
     });
   }
 
@@ -192,6 +296,7 @@ export async function POST(request: NextRequest) {
   const abouties = lignes.filter((l) => !l.absent) as Array<{
     avec_les_mots: { refus?: string; langue: string; mots_faux_pour_cent?: number; ms: number };
     sans_les_mots: { refus?: string; langue: string; mots_faux_pour_cent?: number; ms: number };
+    soynade: { refus?: string; mots_faux_pour_cent?: number; ms: number };
   }>;
   const refusAvec = abouties.filter((l) => l.avec_les_mots.refus);
   const moyenne = (v: Array<number | undefined>) => {
@@ -247,6 +352,41 @@ export async function POST(request: NextRequest) {
     /* ElevenLabs annonce le wolof entre 25 et 50 % de mots faux. On dira s'il
        tient son annonce, au lieu de la répéter. */
     son_annonce: "ElevenLabs range le wolof en « moderate » : 25 à 50 % de mots faux annoncés",
+
+    /* ── 4. QUELLE OREILLE ENTEND LE MIEUX SON WOLOF ────────────────────
+
+       Soynade, le 19 septembre à 01 h 48 : « largement meilleur que
+       ElevenLabs Scribe ». On ne le répète pas, on le chiffre — sur les mêmes
+       dix enregistrements, le même texte connu, le même calcul. */
+    soynade: (() => {
+      const bons = abouties.filter((l) => typeof l.soynade.mots_faux_pour_cent === "number");
+      const refus = abouties.filter((l) => l.soynade.refus);
+      if (!bons.length) {
+        const motif = refus[0]?.soynade.refus || "aucun appel abouti";
+        return /crédit .* épuisé|402/.test(motif)
+          ? `PAS MESURÉ : le crédit du compte Soynade est épuisé. Ce n'est pas leur oreille qui `
+            + `échoue — recharge le compte et relance cet essai. (${motif.slice(0, 120)})`
+          : `PAS MESURÉ : ${motif.slice(0, 180)}`;
+      }
+      const leur = moyenne(bons.map((l) => l.soynade.mots_faux_pour_cent));
+      const nous = fauxAvec;
+      const msLeur = moyenne(bons.map((l) => l.soynade.ms));
+      const msNous = moyenne(abouties.map((l) => l.avec_les_mots.ms));
+      if (leur === null || nous === null) return `Soynade : ${leur} % de mots faux sur ${bons.length} son(s)`;
+      const ecart = nous - leur;
+      return ecart >= 10
+        ? `SOYNADE GAGNE, et largement : ${leur} % de mots faux contre ${nous} % chez ElevenLabs `
+          + `(avec les cent mots). ${ecart} points d'écart sur ${bons.length} enregistrements. `
+          + `Temps : ${msLeur} ms contre ${msNous} ms. C'est l'oreille qu'il faut brancher.`
+        : ecart <= -10
+          ? `ElevenLabs reste meilleur : ${nous} % contre ${leur} % chez Soynade. Leur annonce ne `
+            + `se vérifie pas sur ce wolof-là — on garde l'oreille actuelle et on cherche ailleurs.`
+          : `MATCH NUL à ${Math.abs(ecart)} point(s) près : ${leur} % chez Soynade, ${nous} % chez `
+            + `ElevenLabs. Aucun des deux n'est utilisable à ce niveau de fautes ; le gain viendra `
+            + `d'ailleurs — du répertoire, qui tolère un quart de mots faux et retrouve quand même.`;
+    })(),
+    soynade_mots_faux_pour_cent: moyenne(abouties.map((l) => l.soynade.mots_faux_pour_cent)),
+    soynade_ms: moyenne(abouties.map((l) => l.soynade.ms)),
 
     lignes,
   };

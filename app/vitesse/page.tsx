@@ -59,6 +59,11 @@ type EssaiOreille = {
   les_cent_mots?: string;
   le_wolof?: string;
   ce_que_les_cent_mots_apportent?: string;
+  /* La quatrieme question, ajoutee le 19 septembre : quelle oreille entend le
+     mieux son wolof. Soynade dit « largement meilleur » ; on le chiffre. */
+  soynade?: string;
+  soynade_mots_faux_pour_cent?: number | null;
+  soynade_ms?: number | null;
   mots_faux_avec_les_mots_pour_cent?: number | null;
   mots_faux_sans_les_mots_pour_cent?: number | null;
   langues_reconnues?: Record<string, number>;
@@ -435,7 +440,9 @@ function Appels({ e }: { e?: { ecoute: Appel | null; modele: Appel | null;
    pour savoir si son oreille marche. */
 function EssaiOreilleBloc({ essai, enCours, lancer }:
   { essai?: EssaiOreille | null; enCours: boolean; lancer: () => void }) {
-  const mauvais = (p?: string) => Boolean(p && /REFUS|ZÉRO|AGGRAVENT|aucun effet/.test(p));
+  /* Le rouge dit « il y a une decision a prendre », pas « c'est casse ». Un
+     match nul entre deux oreilles inutilisables en est une. */
+  const mauvais = (p?: string) => Boolean(p && /REFUS|ZÉRO|AGGRAVENT|aucun effet|PAS MESURÉ|MATCH NUL|reste meilleur/.test(p));
   return (
     <section style={{ marginBottom: 26, paddingTop: 4 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -462,6 +469,7 @@ function EssaiOreilleBloc({ essai, enCours, lancer }:
             { titre: "Les cent mots corrigés", phrase: essai.les_cent_mots },
             { titre: "Le wolof", phrase: essai.le_wolof },
             { titre: "Ce que les cent mots apportent", phrase: essai.ce_que_les_cent_mots_apportent },
+            { titre: "Soynade contre ElevenLabs", phrase: essai.soynade },
           ].map((l) => (
             <div key={l.titre} style={{
               border: `1px solid ${mauvais(l.phrase) ? "#5a2a24" : "#2a2420"}`,
@@ -476,6 +484,9 @@ function EssaiOreilleBloc({ essai, enCours, lancer }:
             {essai.sons_ecoutes} son(s) écouté(s) · {essai.mots_donnes} mots donnés · moteur{" "}
             {essai.moteur} · mots faux : {essai.mots_faux_sans_les_mots_pour_cent ?? "—"} % sans
             eux, {essai.mots_faux_avec_les_mots_pour_cent ?? "—"} % avec.{" "}
+            {essai.soynade_mots_faux_pour_cent != null
+              ? ` Soynade : ${essai.soynade_mots_faux_pour_cent} % de mots faux en ${essai.soynade_ms} ms.`
+              : ""}{" "}
             {essai.son_annonce}. Langues reconnues :{" "}
             {Object.entries(essai.langues_reconnues || {}).map(([k, n]) => `${k} ${n}`).join(" · ") || "aucune"}.
           </p>
