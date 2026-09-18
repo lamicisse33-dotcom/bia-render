@@ -436,8 +436,56 @@ export const TENIR_POUR_COUPER = 250;
  * @param seuil le seuil de parole calculé pour cette pièce
  */
 export function couvreSaVoix(creuxDuMicro: number, saVoix: number, seuil: number): boolean {
+  return creuxDuMicro > barreDeCoupure(seuil, saVoix);
+}
+
+/* ── LA BARRE, MESURÉE AU LIEU D'ÊTRE SUPPOSÉE ──────────────────────────────
+
+   Lamine, le 19 septembre 2026 : « pendant qu'elle parle, si j'essaye de
+   l'interrompre en parlant, c'est seulement son volume qui va se diminuer
+   automatiquement mais elle ne va pas se taire. »
+
+   La baisse de volume, ce n'est pas nous : c'est le téléphone, qui atténue
+   le haut-parleur dès qu'il entend une voix dans le micro. Et c'est
+   justement ce qui trahit le défaut. La barre à franchir montait avec SA
+   voix à elle — vingt-huit points à pleine voix — en supposant que sa voix
+   dans le haut-parleur revient dans le micro à pleine force. Or à l'instant
+   où il parle, le téléphone l'a déjà baissée : l'écho réel est petit, la
+   barre est restée haute, et il faut crier pour passer par-dessus un écho
+   qui n'est plus là.
+
+   ── DONC ON MESURE L'ÉCHO, ON NE LE DEVINE PLUS ────────────────────────────
+
+   Pendant qu'elle parle et que personne d'autre ne parle, ce que le micro
+   entend, C'EST l'écho. On en tient une moyenne lente. La barre devient :
+   le seuil de la pièce, plus cet écho mesuré avec une marge. Avec des
+   écouteurs, l'écho mesuré est nul et la barre tombe au seuil. Sur un
+   haut-parleur atténué par le téléphone, elle tombe presque autant. Sur un
+   haut-parleur fort et sans atténuation, elle monte — jusqu'au plafond
+   d'avant, jamais au-dessus : cette barre ne peut pas être PLUS haute que
+   celle d'hier, seulement plus juste.
+
+   `echoMesure` est l'amplitude moyenne entendue pendant qu'elle parle (0 à
+   127). Quand on ne l'a pas encore — première tranche de sa phrase — on
+   retombe sur la supposition d'hier. */
+export const MARGE_SUR_L_ECHO = 1.5;
+
+export function barreDeCoupure(seuil: number, saVoix: number, echoMesure?: number): number {
   const elle = Number.isFinite(saVoix) && saVoix > 0 ? Math.min(saVoix, 1) : 0;
-  return creuxDuMicro > seuil + elle * ECHO_A_PLEINE_VOIX;
+  if (!elle) return seuil;
+  const suppose = elle * ECHO_A_PLEINE_VOIX;
+  if (!Number.isFinite(echoMesure as number) || (echoMesure as number) < 0) return seuil + suppose;
+  return seuil + Math.min(suppose, (echoMesure as number) * MARGE_SUR_L_ECHO);
+}
+
+/** La moyenne lente de l'écho : un pas par tour de veille. Lente exprès —
+    quand il se met à parler, il franchit la barre bien avant qu'elle ait le
+    temps de monter avec lui. */
+export const PAS_DE_L_ECHO = 0.03;
+
+export function suivreLEcho(moyenne: number, creux: number): number {
+  if (!Number.isFinite(moyenne) || moyenne < 0) return creux;
+  return moyenne + (creux - moyenne) * PAS_DE_L_ECHO;
 }
 
 /* ═══ LA VEILLE ══════════════════════════════════════════════════════════ */

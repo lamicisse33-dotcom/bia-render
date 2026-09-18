@@ -54,7 +54,7 @@ import { fluxVivant,
   INTERVENTION_MAXIMALE, MICRO_LACHE_ENTRE_LES_TOURS, MICRO_SUR_SON_PROPRE_CONTEXTE, REGLAGES_DU_MICRO,
   SILENCE_QUI_CLÔT_LA_CONVERSATION, TENIR_POUR_COUPER, TOUR_DE_VEILLE,
   TOURS_MUETS_AVANT_DE_DOUTER, FLUX_DU_GUETTEUR,
-  couvreSaVoix, partVocale, silenceQuiSuffit, suivreLeBruit,
+  barreDeCoupure, partVocale, silenceQuiSuffit, suivreLEcho, suivreLeBruit,
   vautLaPeine, vraimentUneVoix,
 } from "@/lib/micro";
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie } from "@/lib/ralentir";
@@ -5052,17 +5052,44 @@ export default function Home() {
         .catch(() => { deposer(""); /* pas de mots : au pire il redira, comme avant */ });
     };
 
+    /* ── L'ÉCHO MESURÉ, ET CE QU'ON A VU ─────────────────────────────────
+
+       Lamine, le 19 septembre : « si j'essaye de l'interrompre en parlant,
+       c'est seulement son volume qui va se diminuer automatiquement mais
+       elle ne va pas se taire. » La barre supposait un écho à pleine force
+       au moment même où le téléphone venait de baisser le haut-parleur. On
+       mesure donc l'écho — ce que le micro entend pendant qu'elle parle —
+       et la barre suit. Voir barreDeCoupure() dans lib/micro.ts.
+
+       ET ON NOTE CE QU'ON A VU. Un compteur de coupures dit quand on a
+       coupé ; il ne dit jamais quand on aurait dû. Le plus fort entendu
+       contre la barre la plus haute : c'est ça qui tranchera, pas mon
+       raisonnement. */
+    let echoMoyen = -1;
+    const vu = { tours: 0, creux_max: 0, barre_max: 0, tours_au_dessus: 0, a_coupe: false };
+
     const guet = setInterval(() => {
       analyse.getByteTimeDomainData(tampon);
       let creux = 0;
       for (const v of tampon) creux = Math.max(creux, Math.abs(v - 128));
-      if (couvreSaVoix(creux, sonDelleRef.current, seuilRef.current || 8)) {
+      const elle = sonDelleRef.current;
+      const seuil = seuilRef.current || 8;
+      /* L'écho ne se mesure que pendant qu'elle parle, et seulement sous la
+         barre : ce qui passe au-dessus, c'est lui, pas elle. */
+      const barre = barreDeCoupure(seuil, elle, echoMoyen >= 0 ? echoMoyen : undefined);
+      if (elle > 0 && creux <= barre) echoMoyen = suivreLEcho(echoMoyen, creux);
+      vu.tours += 1;
+      if (creux > vu.creux_max) vu.creux_max = creux;
+      if (barre > vu.barre_max) vu.barre_max = barre;
+      if (creux > barre) {
+        vu.tours_au_dessus += 1;
         tenu += TOUR_DE_VEILLE;
         /* On la fait taire : `taire()` coupe le son, remet le repos — et
            c'est le retour au repos qui rouvre le micro, par l'effet
            ci-dessus. Un seul chemin, pas deux. */
         if (tenu >= TENIR_POUR_COUPER) {
           tenu = 0;
+          vu.a_coupe = true;
           taireRef.current?.();
           /* Les mots arrivent APRÈS, sans faire attendre la coupure. */
           void reprendreSesMots();
@@ -5072,6 +5099,21 @@ export default function Home() {
     return () => {
       clearInterval(guet);
       if (guetteur && guetteur.state !== "inactive") { try { guetteur.stop(); } catch { } }
+      /* La phase est finie : on dit ce qu'on a entendu. Une phase sans un
+         seul tour de veille (démontée aussitôt posée) ne dit rien. */
+      if (vu.tours > 3) {
+        void fetch("/api/mesure", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            type: "guet",
+            pendant: pendantLaReflexion ? "reflexion" : "parole",
+            arme: Boolean(guetteur),
+            echo_moyen: echoMoyen >= 0 ? echoMoyen : 0,
+            ...vu,
+          }),
+        }).catch(() => {});
+      }
     };
   }, [conversation, mode]);
 

@@ -4,7 +4,7 @@ import { ecouteConfig, resumeEcoutes, resumeOreilleSoynade } from "@/lib/ecoute"
 import { lexiqueConfig, combien, combienParApplication, parAuteur } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
 import { resumeLecons } from "@/lib/lecons-vues";
-import { resumeAttentes, resumeCoupures, resumeLectures, resumeTours } from "@/lib/attentes-vues";
+import { resumeAttentes, resumeCoupures, resumeGuets, resumeLectures, resumeTours } from "@/lib/attentes-vues";
 import { resumeEtapes, dernierEssaiOreille, dernierEssaiVoix } from "@/lib/etapes";
 import { resumeEmotions } from "@/lib/emotions-vues";
 import { depense, resumeDuFil } from "@/lib/depense";
@@ -193,6 +193,9 @@ export async function GET(request: Request) {
        quand il reprend sa phrase pendant qu'elle réfléchit. C'est ici qu'on
        lira si « elle me coupe sans que je termine » est réparé. */
     coupures: resumeCoupures(),
+    /* Et ce que le guetteur ENTENDAIT : le seul moyen de savoir s'il a raté
+       une coupure qu'il aurait dû faire. */
+    guet: resumeGuets(),
     ecarts_entre_les_tours: ecartsEntreLesTours(),
     souvenirs: resumeSouvenirs(),
     /* ── ET LE VRAI NOMBRE, CELUI DE LA TABLE ─────────────────────────────

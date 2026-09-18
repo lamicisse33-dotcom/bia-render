@@ -241,3 +241,56 @@ export function resumeCoupures() {
     derniere: coupures[coupures.length - 1],
   };
 }
+
+/* ── CE QUE LE GUETTEUR A VU, PHASE PAR PHASE ───────────────────────────────
+
+   Le 19 septembre 2026, sur « elle ne va pas se taire ». Le compteur des
+   coupures dit quand il a coupé ; il ne dit rien des fois où il AURAIT DÛ.
+   Pour ça il faut voir ce que le micro entendait pendant qu'elle parlait :
+   le plus fort entendu, la barre à franchir, combien de tours de veille
+   l'ont franchie. Si `creux_max` reste sous `barre_max` pendant qu'il
+   essaie de la couper, la barre est trop haute — et c'est écrit ici, pas
+   dans sa bouche. */
+type Guet = {
+  pendant: "parole" | "reflexion";
+  arme: boolean;
+  tours: number;
+  creux_max: number;
+  echo_moyen: number;
+  barre_max: number;
+  tours_au_dessus: number;
+  a_coupe: boolean;
+  quand: number;
+};
+let guets: Guet[] = [];
+
+export function noterGuet(g: Partial<Guet>) {
+  const n = (x: unknown) => { const v = Math.round(Number(x)); return Number.isFinite(v) && v >= 0 ? v : 0; };
+  guets = [...guets, {
+    pendant: (g.pendant === "reflexion" ? "reflexion" : "parole") as Guet["pendant"],
+    arme: Boolean(g.arme),
+    tours: n(g.tours),
+    creux_max: n(g.creux_max),
+    echo_moyen: n(g.echo_moyen),
+    barre_max: n(g.barre_max),
+    tours_au_dessus: n(g.tours_au_dessus),
+    a_coupe: Boolean(g.a_coupe),
+    quand: Date.now(),
+  }].slice(-30);
+}
+
+export function resumeGuets() {
+  if (!guets.length) return null;
+  const parole = guets.filter((g) => g.pendant === "parole");
+  return {
+    phases: guets.length,
+    non_armes: guets.filter((g) => !g.arme).length,
+    pendant_quelle_parlait: parole.length,
+    /* Le verdict tient dans ces trois-là : s'il essaie de la couper et que
+       creux_max reste sous barre_max, la barre est trop haute. */
+    creux_max_median: mediane(parole.map((g) => g.creux_max)),
+    barre_max_median: mediane(parole.map((g) => g.barre_max)),
+    echo_moyen_median: mediane(parole.map((g) => g.echo_moyen)),
+    dernieres: guets.slice(-8),
+  };
+}
