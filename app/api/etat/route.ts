@@ -13,6 +13,7 @@ import { etatRepertoire } from "@/lib/repertoire";
 import { resumeCorpus } from "@/lib/corpus";
 import { combienDeSouvenirs, resumeSouvenirs } from "@/lib/souvenirs";
 import { ecartsEntreLesTours, peseeDeLaConsigne } from "@/lib/pesee";
+import { resumeRelations } from "@/lib/relations";
 import { resumeReflexion } from "@/lib/reflechir";
 import { listeDesRates, resumeDesRates } from "@/lib/rates-du-repertoire";
 import { verifierCode } from "@/lib/codes";
@@ -181,6 +182,10 @@ export async function GET(request: Request) {
        peser la pile : 36 000 jetons envoyés pour 114 reçus. Ce tableau existe
        pour que ça se voie le soir même. Voir lib/pesee.ts. */
     consigne_pesee: peseeDeLaConsigne(),
+    /* Le tri des situations de relations. Le 19 septembre, ce bloc pesait
+       16 704 signes chaque fois qu'il partait. RÈGLE 1 : c'est ici qu'on
+       lit s'il a maigri, pas dans ce que j'affirme. */
+    relations: resumeRelations(),
     ecarts_entre_les_tours: ecartsEntreLesTours(),
     souvenirs: resumeSouvenirs(),
     /* ── ET LE VRAI NOMBRE, CELUI DE LA TABLE ─────────────────────────────

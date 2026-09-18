@@ -6,7 +6,7 @@ import { savoirProduits } from "@/lib/produits";
 import { catalogue } from "@/lib/vitrine";
 import { chercherImages, chercherVideos, consigneTrouver, videosActives } from "@/lib/trouver";
 import type { Trouve } from "@/lib/trouver";
-import { SOCLE_RELATIONS, consigneRelations, estSujetRelation } from "@/lib/relations";
+import { SOCLE_RELATIONS, consigneRelationsProches, estSujetRelation } from "@/lib/relations";
 import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterEtape } from "@/lib/etapes";
 import { noterModele } from "@/lib/depense";
@@ -1824,7 +1824,12 @@ quelqu'un parce que le sujet est glissant.`;
        quinze mille caractères à chaque question tripleraient le coût et
        noieraient son attention. */
     const filDitPar=(body.history||[]).map(item=>String(item.text||""));
-    if(estSujetRelation(question,filDitPar))variable+=await consigneRelations();
+    /* Le 19 septembre : on n'envoie plus les soixante-dix situations, on
+       envoie celles que la question désigne. 16 704 signes → moins de deux
+       mille, et un repli sur la base entière si rien n'est reconnu. Voir le
+       calcul dans lib/relations.ts — et le compteur `relations` de /api/etat,
+       qui est ce qui tranchera. */
+    if(estSujetRelation(question,filDitPar))variable+=await consigneRelationsProches(question,filDitPar);
 
     /* ── ET ON RÉCUPÈRE SA MÉMOIRE, MAINTENANT QU'ELLE A EU LE TEMPS ───────
        Lancée bien plus haut. Ce qui en sort, ce sont ses phrases à LUI, mot
