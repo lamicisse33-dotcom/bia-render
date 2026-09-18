@@ -82,6 +82,34 @@ export function noterOreille(octets: number, ou = "soynade") {
   oreille.set(ou, d);
 }
 
+/* ── LE FIL MIS EN CACHE, ET SI ÇA A SERVI ────────────────────────────────
+
+   Une borne de cache posée sur le dernier message déjà dit. Elle ne se pose
+   que tant que la fenêtre des douze messages n'a pas commencé à glisser —
+   au-delà, le début du fil change à chaque tour, le cache ne retrouve rien,
+   et on paierait l'écriture sans jamais la relire.
+
+   On compte les deux cas. RÈGLE : un réglage qu'on ne compte pas est un
+   réglage qu'on croit. Le verdict se lit dans `cache_lu` du modèle, qui doit
+   monter, et dans `entree`, qui doit descendre. */
+const fil = { avec_borne: 0, sans_borne: 0, messages: 0, tours: 0 };
+
+export function noterFil(borne: boolean, messages: number) {
+  fil.tours += 1;
+  fil.messages += Number(messages) || 0;
+  if (borne) fil.avec_borne += 1; else fil.sans_borne += 1;
+}
+
+export function resumeDuFil() {
+  if (!fil.tours) return null;
+  return {
+    tours: fil.tours,
+    mis_en_cache: fil.avec_borne,
+    trop_long_pour_le_cache: fil.sans_borne,
+    messages_moyens: Number((fil.messages / fil.tours).toFixed(1)),
+  };
+}
+
 const voix = new Map<string, Voix>();
 const modele = new Map<string, Modele>();
 let depuis = Date.now();
@@ -180,6 +208,10 @@ export function depense() {
 export function oublierDepense() {
   voix.clear();
   oreille.clear();
+  fil.avec_borne = 0;
+  fil.sans_borne = 0;
+  fil.messages = 0;
+  fil.tours = 0;
   modele.clear();
   depuis = Date.now();
 }

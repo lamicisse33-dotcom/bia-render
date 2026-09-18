@@ -9,7 +9,7 @@ import type { Trouve } from "@/lib/trouver";
 import { SOCLE_RELATIONS, consigneRelationsProches, estSujetRelation } from "@/lib/relations";
 import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterEtape } from "@/lib/etapes";
-import { noterModele } from "@/lib/depense";
+import { noterFil, noterModele } from "@/lib/depense";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { BUDGET_DE_REFLEXION, PLAFOND_AVEC_REFLEXION, meriteReflexion, noterReflexion } from "@/lib/reflechir";
@@ -2242,13 +2242,66 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       r === "eteinte" ? { thinking: { type: "disabled" } }
       : r === "allumee" ? { thinking: { type: "enabled", budget_tokens: BUDGET_DE_REFLEXION } }
       : {};
+    /* ── LE FIL DE LA CONVERSATION SE PAYAIT PLEIN TARIF À CHAQUE TOUR ────
+
+       Trouvé le 19 septembre 2026 en cherchant où passe l'argent. La facture
+       disait 4 290 jetons par tour au plein tarif ; la poche variable n'en
+       fait que 1 965. Les deux mille trois cents qui manquaient, les voici :
+       les messages de la conversation. Renvoyés en entier à CHAQUE question,
+       grossissant à chaque échange, et mis en cache nulle part.
+
+       Le socle est en cache depuis le 11 septembre. Le fil, jamais — parce
+       que personne ne l'avait pesé. C'est la faute du 17 septembre, un cran
+       plus bas : ce qu'on ne pèse pas grossit sans qu'on le voie.
+
+       ── CE QU'ON POSE, ET POURQUOI LÀ ─────────────────────────────────────
+
+       Une borne de cache sur le DERNIER message déjà dit. Au tour suivant,
+       tout ce qui la précède est relu au dixième du tarif, et seul l'échange
+       neuf s'écrit. La question du moment reste hors cache : elle ne sera
+       jamais relue, la mettre en cache serait la payer un quart de plus pour
+       rien.
+
+       L'ORDRE COMPTE, et la documentation est formelle : « Cache entries with
+       longer TTL must appear before shorter TTLs. » Le socle et le registre
+       tiennent une heure et sont dans la consigne système, donc AVANT. Le fil
+       prend la durée par défaut, cinq minutes — c'est ce qu'il faut : deux
+       questions d'une même conversation se suivent de quelques secondes, et
+       une relecture prolonge la durée de vie gratuitement.
+
+       ── ET LA BORNE NE SE POSE PAS TOUJOURS ───────────────────────────────
+
+       Au-delà de douze messages, la fenêtre GLISSE : les plus anciens sortent
+       et le début du fil n'est plus le même d'un tour à l'autre. Le cache ne
+       retrouverait rien, et on paierait l'écriture (un quart de plus) sans
+       jamais la relire — donc PIRE qu'aujourd'hui, pas mieux.
+
+       On ne pose donc la borne que tant que la fenêtre n'a pas commencé à
+       glisser. Au-delà, on revient exactement au comportement d'avant. Et on
+       compte les deux cas, parce qu'un réglage qu'on ne compte pas est un
+       réglage qu'on croit. */
+    const FENETRE_DU_FIL = 12;
+    const filEnCache = (fil: typeof history) => {
+      if (!fil.length || fil.length >= FENETRE_DU_FIL) {
+        noterFil(false, fil.length);
+        return fil;
+      }
+      noterFil(true, fil.length);
+      const dernier = fil.length - 1;
+      return fil.map((m, i) =>
+        i === dernier
+          ? { role: m.role, content: [{ type: "text", text: m.content, cache_control: { type: "ephemeral" } }] }
+          : m,
+      );
+    };
+
     const corpsDuModele = (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion;
     }) => JSON.stringify({
       model,
       max_tokens: o.plafond,
       system: consigne,
-      messages: [...history, { role: "user", content: question }],
+      messages: [...filEnCache(history), { role: "user", content: question }],
       ...(o.avecOutil ? { tools: [OUTIL_RECHERCHE] } : {}),
       ...champDeReflexion(o.reflexion),
       ...(emettre ? { stream: true } : {}),

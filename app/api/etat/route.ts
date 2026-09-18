@@ -7,7 +7,7 @@ import { resumeLecons } from "@/lib/lecons-vues";
 import { resumeAttentes, resumeLectures, resumeTours } from "@/lib/attentes-vues";
 import { resumeEtapes, dernierEssaiOreille, dernierEssaiVoix } from "@/lib/etapes";
 import { resumeEmotions } from "@/lib/emotions-vues";
-import { depense } from "@/lib/depense";
+import { depense, resumeDuFil } from "@/lib/depense";
 import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
 import { etatRepertoire } from "@/lib/repertoire";
 import { resumeCorpus } from "@/lib/corpus";
@@ -186,6 +186,9 @@ export async function GET(request: Request) {
        16 704 signes chaque fois qu'il partait. RÈGLE 1 : c'est ici qu'on
        lit s'il a maigri, pas dans ce que j'affirme. */
     relations: resumeRelations(),
+    /* Le fil de la conversation, mis en cache depuis le 19 septembre. Si
+       `mis_en_cache` monte et que `cache_lu` du modèle monte avec, ça sert. */
+    fil_en_cache: resumeDuFil(),
     ecarts_entre_les_tours: ecartsEntreLesTours(),
     souvenirs: resumeSouvenirs(),
     /* ── ET LE VRAI NOMBRE, CELUI DE LA TABLE ─────────────────────────────
