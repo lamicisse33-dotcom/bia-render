@@ -4,7 +4,7 @@ import { transcrire } from "@/lib/ecoute";
 import { motsCorriges } from "@/lib/lexique";
 import { pourScribe } from "@/lib/mots-a-entendre";
 import { noterPanne } from "@/lib/panne";
-import { annoncerLaFin, cleValide, oublierLeDepot, recoudre } from "@/lib/morceaux-de-parole";
+import { annoncerLaFin, attendreLesMorceaux, cleValide, noterAttenteDesMorceaux, oublierLeDepot, recoudre } from "@/lib/morceaux-de-parole";
 import { corpusActif, garderLaVoix } from "@/lib/corpus";
 
 export async function POST(request: NextRequest) {
@@ -43,6 +43,12 @@ export async function POST(request: NextRequest) {
           { erreur: "dépôt incomplet", motif: annonce.motif, renvoyer: true }, { status: 409 },
         );
       }
+      /* Le dernier morceau voyage en même temps que cette demande : on
+         l'attend ici, à quelques millisecondes de lui, au lieu de faire
+         attendre le téléphone un aller-retour de plus. Voir
+         attendreLesMorceaux() dans lib/morceaux-de-parole.ts. */
+      const attente = await attendreLesMorceaux(tour);
+      noterAttenteDesMorceaux(attente.attendu_ms, attente.complet);
       const fil = recoudre(tour);
       if (!fil.ok) {
         /* On le DIT au téléphone au lieu de rendre un texte vide : il saura

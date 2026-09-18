@@ -4258,14 +4258,27 @@ export default function Home() {
           legere.append("total", String(morceaux.length));
           const indice = forme.get("indice_langue");
           if (indice !== null) legere.append("indice_langue", String(indice));
-          await Promise.all(envois);
-          const complet = !perdu && deposes === morceaux.length && morceaux.length > 0;
+          /* ── LE DERNIER MORCEAU ET LA DEMANDE VOYAGENT ENSEMBLE ──────────
+
+             Le 19 septembre 2026. On attendait que le dernier morceau soit
+             monté, PUIS on envoyait la demande : deux allers-retours
+             Dakar–Francfort à la file, là où un seul suffit. Maintenant la
+             demande part tout de suite, et c'est le SERVEUR qui attend le
+             morceau retardataire — à quelques millisecondes de lui, pas à
+             trois cents.
+
+             `complet` ne veut plus dire « tout est arrivé » mais « tout est
+             PARTI, et rien n'a été refusé jusqu'ici ». Si un envoi échoue
+             après coup, le serveur ne verra jamais le morceau, répondra 409
+             au bout d'une seconde et demie, et on renverra le fichier entier
+             comme avant. Le filet n'a pas bougé ; seul l'ordre a changé. */
+          const complet = !perdu && morceaux.length > 0;
 
           const envoyer = (corps: FormData) => fetch("/api/ecouter", {
             method: "POST", headers: { "x-bia-code": codeRef.current }, body: corps,
           });
           let r = await envoyer(complet ? legere : forme);
-          if (complet && r.status === 409) r = await envoyer(forme);
+          if (complet && r.status === 409) { await Promise.allSettled(envois); r = await envoyer(forme); }
           if (!estCetEnregistrement(idEnr)) return;
           const d = await r.json() as { texte?: string; panne?: boolean; motif?: string; au_fil_de_leau?: boolean };
           if (!estCetEnregistrement(idEnr)) return;

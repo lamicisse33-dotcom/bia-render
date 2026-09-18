@@ -76,8 +76,44 @@ type EssaiOreille = {
   langues_reconnues?: Record<string, number>;
   son_annonce?: string;
 };
+/* ── LE MICRO ET LE PRIX, LISIBLES SANS TAPER /api/etat ─────────────────────
+
+   Sa règle du 11 septembre : « tout ce qui sert à la personne va dans
+   l'interface, jamais sur une page qu'il faut taper à la main ». Les compteurs
+   du 19 — coupures, ce que le guetteur a vu, le cache du fil, les sons déjà
+   faits — vivaient dans /api/etat, du JSON brut. Ils décident pourtant de
+   deux choses qu'il vient vérifier lui-même : est-ce qu'elle le coupe, et
+   combien ça coûte. Ils passent ici, en mots. */
+type Coupures = {
+  coupures: number;
+  pendant_quelle_parlait: number;
+  pendant_quelle_reflechissait: number;
+  phrases_recollees: number;
+  sans_mots_reconnus: number;
+} | null;
+type Guet = {
+  phases: number;
+  non_armes: number;
+  pendant_quelle_parlait: number;
+  creux_max_median: number;
+  barre_max_median: number;
+  echo_moyen_median: number;
+} | null;
+type Depense = {
+  par_echange?: number | null;
+  part_en_cache?: number | null;
+  dollars?: { voix: number; modele: number; total: number };
+  voix_en_cache?: { servies: number; fabriquees: number } | null;
+  octets_de_voix?: { morceaux: number; megaoctets_si_wav: number; megaoctets_envoyes: number; fois_moins: number; encodage_ms_moyen: number; encodages_rates: number } | null;
+} | null;
+type FilEnCache = { tours: number; mis_en_cache: number; trop_long_pour_le_cache: number; messages_moyens: number } | null;
+
 type Etat = {
   version?: string;
+  coupures?: Coupures;
+  guet?: Guet;
+  depense?: Depense;
+  fil_en_cache?: FilEnCache;
   essai_oreille?: EssaiOreille | null;
   lecture?: Lecture | null;
   essai_voix?: Essai | null;
@@ -327,6 +363,9 @@ const BOITE_OREILLE = "bia-essai-oreille";
             <EssaiSoynade essai={etat?.essai_voix} enCours={enCours} lancer={lancerLEssai} gardeDu={gardeDu} />
 
             <Barres parts={t.ou_passe_le_temps} envoi={envoiDuSon} />
+
+            <LeMicro c={etat?.coupures} g={etat?.guet} />
+            <LePrix d={etat?.depense} f={etat?.fil_en_cache} />
 
             <Appels e={etat?.etapes} />
 
@@ -661,6 +700,109 @@ function EssaiSoynade({ essai, enCours, lancer, gardeDu }:
    morceaux. » Il a raison : maintenant qu'elle parle avant d'avoir tout
    fabriqué, un morceau qui n'arrive pas à temps s'entend comme un trou. Le
    téléphone mesure déjà ce trou ; il n'était affiché nulle part. */
+/* ── LE MICRO, EN MOTS ────────────────────────────────────────────────────────
+
+   Deux questions, et chacune a son chiffre :
+
+   « Elle me coupe sans que je termine » → les coupures pendant qu'elle
+   réfléchit, et parmi elles les phrases recollées (il continuait) contre
+   celles où il disait autre chose.
+
+   « Elle ne se tait pas quand je parle » → ce que le guetteur ENTENDAIT
+   pendant qu'elle parlait : le plus fort entendu contre la barre à franchir.
+   Si le plus fort reste sous la barre, la barre est trop haute — et on le
+   voit ici, pas dans sa bouche. */
+function LeMicro({ c, g }: { c?: Coupures; g?: Guet }) {
+  if (!c && !g) return null;
+  const verdictBarre = !g || !g.pendant_quelle_parlait
+    ? null
+    : g.creux_max_median > g.barre_max_median
+      ? { texte: `ta voix passe la barre (${g.creux_max_median} contre ${g.barre_max_median}) : elle t'entend quand tu la coupes`, ok: true }
+      : { texte: `ta voix reste SOUS la barre (${g.creux_max_median} contre ${g.barre_max_median}) : il faut la baisser`, ok: false };
+  return (
+    <section style={{ background: "#1a1511", border: "1px solid #2e2620", borderRadius: 14, padding: "14px 16px", marginBottom: 14 }}>
+      <h2 style={{ font: "600 15px/1.3 system-ui", margin: "0 0 8px" }}>Le micro</h2>
+      {c ? (
+        <>
+          <p style={{ margin: "0 0 4px", fontSize: 14 }}>
+            {c.coupures} fois tu as repris la parole — {c.pendant_quelle_parlait} pendant qu'elle parlait,{" "}
+            {c.pendant_quelle_reflechissait} pendant qu'elle réfléchissait
+          </p>
+          {c.pendant_quelle_reflechissait > 0 && (
+            <p style={{ margin: "0 0 4px", fontSize: 14, opacity: 0.85 }}>
+              pendant qu'elle réfléchissait : {c.phrases_recollees} fois tu continuais ta phrase (recollée),{" "}
+              {c.pendant_quelle_reflechissait - c.phrases_recollees} fois tu disais autre chose (la réponse a attendu)
+            </p>
+          )}
+          <p style={{ margin: "0 0 4px", fontSize: 13, color: c.sans_mots_reconnus > c.coupures / 2 ? "#d79a8c" : "#7fc48f" }}>
+            {c.sans_mots_reconnus === 0
+              ? "à chaque fois, des mots ont été reconnus"
+              : `${c.sans_mots_reconnus} fois sans mots reconnus — ${c.sans_mots_reconnus > c.coupures / 2 ? "trop : la barre coupe sur du bruit ou son écho" : "un bruit, ou son écho"}`}
+          </p>
+        </>
+      ) : (
+        <p style={{ margin: "0 0 4px", fontSize: 14, opacity: 0.7 }}>tu ne l'as pas encore coupée depuis le redémarrage</p>
+      )}
+      {g && (
+        <>
+          {g.non_armes > 0 && (
+            <p style={{ margin: "6px 0 0", fontSize: 13, color: "#d79a8c" }}>
+              {g.non_armes} fois sur {g.phases}, le guetteur n'a PAS pu s'armer sur ce téléphone
+            </p>
+          )}
+          {verdictBarre && (
+            <p style={{ margin: "6px 0 0", fontSize: 13, color: verdictBarre.ok ? "#7fc48f" : "#d79a8c" }}>
+              {verdictBarre.texte} · écho mesuré {g.echo_moyen_median}
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/* ── LE PRIX, EN MOTS ─────────────────────────────────────────────────────────
+
+   « Est-ce que tu trouves que c'est baissé ? » — le 19 septembre. Le chiffre
+   qui répond est par_echange ; le reste dit d'où vient la baisse, pour qu'on
+   sache quel mécanisme sert et lequel on peut retirer. */
+function LePrix({ d, f }: { d?: Depense; f?: FilEnCache }) {
+  if (!d || d.par_echange == null) return null;
+  const o = d.octets_de_voix;
+  const v = d.voix_en_cache;
+  return (
+    <section style={{ background: "#1a1511", border: "1px solid #2e2620", borderRadius: 14, padding: "14px 16px", marginBottom: 22 }}>
+      <h2 style={{ font: "600 15px/1.3 system-ui", margin: "0 0 8px" }}>Ce que ça coûte</h2>
+      <p style={{ margin: "0 0 2px", font: "600 26px/1.1 system-ui", color: "#e8b25f" }}>
+        {d.par_echange.toFixed(3)} $ par échange
+      </p>
+      {d.dollars && (
+        <p style={{ margin: "0 0 8px", fontSize: 13, opacity: 0.75 }}>
+          voix {d.dollars.voix.toFixed(2)} $ · modèle {d.dollars.modele.toFixed(2)} $ depuis le redémarrage
+          {d.part_en_cache != null ? ` · ${d.part_en_cache} % du modèle relu depuis le cache` : ""}
+        </p>
+      )}
+      {f && (
+        <p style={{ margin: "0 0 4px", fontSize: 13, opacity: 0.85 }}>
+          le fil de la conversation a été mis en cache sur {f.mis_en_cache} tour(s) sur {f.tours}
+          {f.trop_long_pour_le_cache ? ` (${f.trop_long_pour_le_cache} trop long(s))` : ""}
+        </p>
+      )}
+      {v && (
+        <p style={{ margin: "0 0 4px", fontSize: 13, opacity: 0.85 }}>
+          {v.servies} son(s) servi(s) sans repayer Soynade, {v.fabriquees} fabriqué(s)
+        </p>
+      )}
+      {o && (
+        <p style={{ margin: 0, fontSize: 13, opacity: 0.85 }}>
+          {o.megaoctets_envoyes} Mo envoyés au téléphone au lieu de {o.megaoctets_si_wav} Mo ({o.fois_moins} fois moins)
+          {o.encodages_rates ? ` · ${o.encodages_rates} encodage(s) raté(s)` : ""}
+        </p>
+      )}
+    </section>
+  );
+}
+
 function Coutures({ l }: { l?: Lecture | null }) {
   if (!l || !l.reponses) return null;
   const mauvais = l.couture_max_ms > 120;

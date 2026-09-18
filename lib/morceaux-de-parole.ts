@@ -111,6 +111,11 @@ export function poserMorceau(
   if (!d) {
     d = { morceaux: new Map(), type, nom, total: null, touche: Date.now(), octets: 0 };
     depots.set(cle, d);
+  } else if (d.morceaux.size === 0) {
+    /* Le dépôt a été créé par l'annonce de fin, sans son : c'est le premier
+       morceau qui dit le vrai type et le vrai nom. */
+    d.type = type;
+    d.nom = nom;
   }
   /* Un morceau qui arrive deux fois ne compte qu'une fois : le téléphone a le
      droit de réessayer sans fabriquer un doublon dans le son. */
@@ -128,14 +133,59 @@ export function poserMorceau(
 
 /** Dit combien de morceaux il y aura en tout. Envoyé avec le dernier. */
 export function annoncerLaFin(cle: string, total: number): Resultat {
-  const d = depots.get(cle);
-  if (!d) return { ok: false, motif: "dépôt inconnu ou expiré" };
   if (!Number.isInteger(total) || total <= 0 || total > MORCEAUX_AU_PLUS) {
     return { ok: false, motif: "nombre de morceaux invalide" };
+  }
+  let d = depots.get(cle);
+  /* ── LA FIN PEUT ARRIVER AVANT LE PREMIER MORCEAU ───────────────────────
+
+     Depuis le 19 septembre, le téléphone n'attend plus que le dernier
+     morceau soit monté pour demander la transcription : les deux voyagent
+     en même temps. Sur une phrase d'un seul morceau, l'annonce de fin peut
+     donc précéder le morceau lui-même. Un dépôt vide, avec son total, est
+     alors créé ici ; le morceau le remplira, et attendreLesMorceaux() le
+     verra. Le type et le nom viendront avec lui. */
+  if (!d) {
+    balayer();
+    d = { morceaux: new Map(), type: "audio/webm", nom: "parole.webm", total: null, touche: Date.now(), octets: 0 };
+    depots.set(cle, d);
   }
   d.total = total;
   d.touche = Date.now();
   return { ok: true };
+}
+
+/* ── ATTENDRE LES DERNIERS MORCEAUX, AU LIEU DE LES FAIRE ATTENDRE ─────────
+
+   Mesuré le 19 septembre 2026 : Soynade transcrit en 1 246 ms côté serveur,
+   mais le téléphone en compte 2 231 entre la fermeture du micro et le texte.
+   Une seconde d'écart, et une partie tient dans l'ordre des choses : le
+   téléphone attendait que le DERNIER morceau soit monté, PUIS envoyait la
+   demande de transcription. Deux allers-retours Dakar–Francfort à la suite,
+   là où un seul suffit : le dernier morceau et la demande peuvent voyager
+   ensemble, et c'est le serveur qui attend le retardataire — ici, à quelques
+   millisecondes de lui.
+
+   On attend au plus ATTENTE_DES_DERNIERS_MORCEAUX. Au-delà, on rend la main
+   et la route répond 409 comme avant : le téléphone renvoie le fichier
+   entier, et Lamine ne voit rien. Le filet n'a pas bougé. */
+export const ATTENTE_DES_DERNIERS_MORCEAUX = 1500;
+const PAS_D_ATTENTE = 40;
+
+function complet(d: Depot): boolean {
+  if (d.total === null) return false;
+  for (let i = 0; i < d.total; i++) if (!d.morceaux.has(i)) return false;
+  return true;
+}
+
+export async function attendreLesMorceaux(cle: string, auPlusMs = ATTENTE_DES_DERNIERS_MORCEAUX): Promise<{ complet: boolean; attendu_ms: number }> {
+  const depart = Date.now();
+  for (;;) {
+    const d = depots.get(cle);
+    if (d && complet(d)) return { complet: true, attendu_ms: Date.now() - depart };
+    if (Date.now() - depart >= auPlusMs) return { complet: false, attendu_ms: Date.now() - depart };
+    await new Promise((r) => setTimeout(r, PAS_D_ATTENTE));
+  }
 }
 
 export type Recousu = { blob: Blob; nom: string; morceaux: number; octets: number };
@@ -206,6 +256,29 @@ export function apercu(cle: string): { ok: true; son: Recousu } | { ok: false; m
 }
 
 export function oublierLeDepot(cle: string) { depots.delete(cle); }
+
+/* Ce que le serveur a attendu le dernier morceau, et combien de fois il a
+   attendu pour rien. RÈGLE 1 : si `attendus_en_vain` monte, le pari est
+   perdu et on remet l'ancien ordre. */
+const attentes = { fois: 0, ms: 0, en_vain: 0, ms_max: 0 };
+export function noterAttenteDesMorceaux(ms: number, complet: boolean) {
+  attentes.fois += 1;
+  attentes.ms += ms;
+  if (ms > attentes.ms_max) attentes.ms_max = ms;
+  if (!complet) attentes.en_vain += 1;
+}
+export function resumeAttenteDesMorceaux() {
+  if (!attentes.fois) return null;
+  return {
+    demandes: attentes.fois,
+    attendu_ms_moyen: Math.round(attentes.ms / attentes.fois),
+    attendu_ms_max: attentes.ms_max,
+    attendus_en_vain: attentes.en_vain,
+    /* Ce que ça remplace : un aller-retour entier du téléphone, ~300 ms
+       depuis Dakar. Si attendu_ms_moyen est bien en dessous, c'est gagné. */
+    ce_que_ca_remplace: "un aller-retour téléphone–serveur avant la demande de transcription",
+  };
+}
 
 /** Ce que /api/etat rend, pour qu'on voie si le chemin rapide sert vraiment. */
 export function resumeDepots() {

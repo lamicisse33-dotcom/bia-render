@@ -14,6 +14,7 @@ import { resumeCorpus } from "@/lib/corpus";
 import { combienDeSouvenirs, resumeSouvenirs } from "@/lib/souvenirs";
 import { ecartsEntreLesTours, peseeDeLaConsigne } from "@/lib/pesee";
 import { resumeRelations } from "@/lib/relations";
+import { resumeAttenteDesMorceaux } from "@/lib/morceaux-de-parole";
 import { resumeReflexion } from "@/lib/reflechir";
 import { listeDesRates, resumeDesRates } from "@/lib/rates-du-repertoire";
 import { verifierCode } from "@/lib/codes";
@@ -192,6 +193,10 @@ export async function GET(request: Request) {
     /* Le micro : quand il lui coupe la parole, et — depuis le 19 septembre —
        quand il reprend sa phrase pendant qu'elle réfléchit. C'est ici qu'on
        lira si « elle me coupe sans que je termine » est réparé. */
+    /* Le dernier morceau de parole et la demande de transcription voyagent
+       ensemble depuis le 19 septembre ; le serveur attend le retardataire.
+       Si attendus_en_vain monte, on remet l'ancien ordre. */
+    attente_des_morceaux: resumeAttenteDesMorceaux(),
     coupures: resumeCoupures(),
     /* Et ce que le guetteur ENTENDAIT : le seul moyen de savoir s'il a raté
        une coupure qu'il aurait dû faire. */
