@@ -87,12 +87,59 @@ const normaliser = (t: string) =>
   String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9-]+/g, " ");
 
+/* ── LE TROU QUE LA LISTE DE MOTS NE VOYAIT PAS ─────────────────────────────
+
+   Trouvé le 19 septembre 2026 en éprouvant le tri, sur cette phrase :
+
+       « il m'a frappée hier soir »   →   AUCUNE détection.
+
+   La liste contient « frapper » et « frappe ». Elle ne contient pas
+   « frappée ». Un mot entier comparé à un mot entier ne pardonne pas une
+   lettre, et c'est justement dans les situations dangereuses que la phrase
+   arrive au féminin, au passé, écrite vite.
+
+   CE QUI N'ÉTAIT PAS EN DANGER, ET IL FAUT LE DIRE : le plancher de sécurité
+   (SOCLE_RELATIONS, plus haut) part à TOUS les tours, sans dépendre d'aucune
+   détection. Elle savait donc quoi faire. Ce qu'elle perdait, ce sont les
+   formulations de Lamine en wolof pour le dire — et sur ce sujet-là, la
+   formulation n'est pas un ornement.
+
+   ── POURQUOI ON PEUT SE PERMETTRE DE PENCHER VERS LE TROP MAINTENANT ───────
+
+   Avant, une détection en trop coûtait seize mille sept cents signes. Depuis
+   le tri, elle en coûte deux mille trois cents. Le calcul qui justifiait la
+   prudence a changé de sens : on élargit.
+
+   On ne le fait que sur des RACINES, et seulement là où manquer coûte cher. */
+const RACINES = [
+  "frapp", "battu", "cogn", "gifl", "viol", "menac", "harcel", "forc",
+  "chantag", "danger", "securit", "urgence", "secours",
+  "divorc", "separ", "tromp", "jalou", "polygam", "belle-", "mari",
+];
+
+/* Les mots qui commencent pareil et ne parlent pas de ça. Liste courte et
+   honnête : ce sont ceux que j'ai trouvés en lisant les racines à voix
+   haute, pas une garantie d'exhaustivité. Un faux positif de plus coûte
+   aujourd'hui deux mille trois cents signes — pas seize mille sept cents. */
+const FAUX_AMIS = new Set([
+  "violon", "violoniste", "violet", "violette", "violine",
+  "marine", "marin", "marinade", "mariner", "marinier", "marigot",
+  "cognac", "cogner-la-porte", "force", "forces", "forceps",
+  "separateur", "divorce-express",
+]);
+
 /** Le sujet touche-t-il aux relations ? */
 export function estSujetRelation(question: string, historique: string[] = []): boolean {
   // Les trois derniers échanges suffisent : au-delà, le sujet a changé.
   const texte = normaliser([question, ...historique.slice(-6)].join(" "));
   const mots = new Set(texte.split(" ").filter(Boolean));
-  return MOTS.some((m) => (m.includes("-") ? texte.includes(m) : mots.has(m)));
+  if (MOTS.some((m) => (m.includes("-") ? texte.includes(m) : mots.has(m)))) return true;
+  /* Une racine se cherche en TÊTE de mot, jamais au milieu, et le mot ne doit
+     pas être beaucoup plus long qu'elle — sinon « séparateur » passerait pour
+     « séparer ». Ça ne suffit pas à tout attraper : d'où FAUX_AMIS. */
+  return [...mots].some(
+    (m) => !FAUX_AMIS.has(m) && RACINES.some((r) => m.startsWith(r) && m.length <= r.length + 4),
+  );
 }
 
 /** Le bloc à ajouter à la consigne, base ENTIÈRE comprise.
