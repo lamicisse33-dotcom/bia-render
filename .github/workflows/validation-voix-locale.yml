@@ -1,0 +1,36 @@
+name: Validation voix locale
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Installer les dépendances web
+        run: npm ci
+
+      - name: Compiler Next.js
+        run: npm run build
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Vérifier la syntaxe Python locale
+        run: |
+          python -m py_compile outils/wolof_local_tts.py
+          python -m py_compile outils/wolof_local_server.py
