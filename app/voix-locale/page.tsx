@@ -2,32 +2,40 @@
 
 import { useEffect, useRef, useState } from "react";
 
+type Voix = "slt" | "clb";
+
 export default function VoixLocale() {
   const [texte, setTexte] = useState(
     "Waaw, dégg naa la bu baax. Maa ngi fi pour dimbali la."
   );
-  const [voice, setVoice] = useState<"slt" | "clb">("slt");
+  const [voice, setVoice] = useState<Voix>("slt");
   const [etat, setEtat] = useState("Vérification du moteur local…");
   const [occupe, setOccupe] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
 
+  function changerVoix(value: string) {
+    setVoice(value === "clb" ? "clb" : "slt");
+  }
+
   async function verifier() {
     try {
       const r = await fetch("/api/voix-locale", { cache: "no-store" });
       const d = await r.json();
+
       setEtat(
         r.ok && d.ok
-          ? "Moteur wolof local prêt."
-          : d.erreur || "Moteur local indisponible."
+          ? "✅ Moteur wolof local prêt"
+          : `❌ ${d.erreur || "Moteur local indisponible"}`
       );
     } catch {
-      setEtat("Moteur local indisponible.");
+      setEtat("❌ Moteur wolof local indisponible");
     }
   }
 
   useEffect(() => {
     void verifier();
+
     return () => {
       if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     };
@@ -50,23 +58,29 @@ export default function VoixLocale() {
 
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
-        throw new Error(d.erreur || "voix locale indisponible");
+        throw new Error(d.erreur || "Voix locale indisponible");
       }
 
       const blob = await r.blob();
+
       if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+
       const url = URL.createObjectURL(blob);
       urlRef.current = url;
 
       if (!audioRef.current) audioRef.current = new Audio();
-      audioRef.current.src = url;
-      audioRef.current.onended = () => setEtat("Lecture terminée.");
 
-      const ms = performance.now() - debut;
-      setEtat(`Audio local reçu en ${(ms / 1000).toFixed(2)} s — lecture…`);
+      audioRef.current.src = url;
+      audioRef.current.onended = () => setEtat("✅ Lecture terminée");
+
+      const secondes = ((performance.now() - debut) / 1000).toFixed(2);
+      setEtat(`✅ Voix wolof reçue en ${secondes} s — lecture…`);
+
       await audioRef.current.play();
     } catch (e) {
-      setEtat(e instanceof Error ? e.message : "Erreur.");
+      setEtat(
+        `❌ ${e instanceof Error ? e.message : "Erreur inconnue"}`
+      );
     } finally {
       setOccupe(false);
     }
@@ -78,46 +92,43 @@ export default function VoixLocale() {
         minHeight: "100vh",
         background: "#050505",
         color: "#f5f5f5",
-        padding: 24,
-        fontFamily: "system-ui, sans-serif",
+        padding: 30,
+        fontFamily: "Arial, sans-serif",
       }}
     >
-      <div style={{ maxWidth: 760, margin: "0 auto" }}>
-        <h1 style={{ marginBottom: 8 }}>Wolof Local TTS</h1>
-        <p style={{ opacity: 0.75, marginTop: 0 }}>
-          Test séparé de BIA : aucune API vocale distante.
-        </p>
+      <div style={{ maxWidth: 800, margin: "0 auto" }}>
+        <h1>DYDY — Wolof Local</h1>
+        <p>{etat}</p>
 
         <textarea
           value={texte}
           onChange={(e) => setTexte(e.target.value)}
-          rows={8}
+          rows={10}
           style={{
             width: "100%",
             boxSizing: "border-box",
-            fontSize: 18,
-            lineHeight: 1.5,
             padding: 16,
-            borderRadius: 14,
-            border: "1px solid #444",
+            fontSize: 20,
+            lineHeight: 1.5,
             background: "#111",
             color: "#fff",
+            border: "1px solid #444",
+            borderRadius: 14,
           }}
         />
 
         <div
           style={{
             display: "flex",
-            gap: 12,
-            alignItems: "center",
+            gap: 15,
             flexWrap: "wrap",
-            marginTop: 16,
+            marginTop: 20,
           }}
         >
           <select
             value={voice}
-            onChange={(e) => setVoice(e.target.value as "slt" | "clb")}
-            style={{ fontSize: 16, padding: "10px 12px" }}
+            onChange={(e) => changerVoix(e.target.value)}
+            style={{ fontSize: 18, padding: 10 }}
           >
             <option value="slt">Voix SLT</option>
             <option value="clb">Voix CLB</option>
@@ -128,11 +139,8 @@ export default function VoixLocale() {
             onClick={() => void parler()}
             disabled={occupe}
             style={{
-              fontSize: 17,
-              fontWeight: 700,
-              padding: "11px 18px",
-              borderRadius: 999,
-              border: 0,
+              fontSize: 19,
+              padding: "12px 22px",
               cursor: occupe ? "wait" : "pointer",
             }}
           >
@@ -142,20 +150,11 @@ export default function VoixLocale() {
           <button
             type="button"
             onClick={() => void verifier()}
-            style={{
-              fontSize: 15,
-              padding: "10px 14px",
-              borderRadius: 999,
-              border: "1px solid #555",
-              background: "transparent",
-              color: "#fff",
-            }}
+            style={{ fontSize: 16, padding: "10px 16px" }}
           >
             Vérifier le moteur
           </button>
         </div>
-
-        <p style={{ marginTop: 20, opacity: 0.9 }}>{etat}</p>
       </div>
     </main>
   );
