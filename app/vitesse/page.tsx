@@ -104,7 +104,7 @@ type Depense = {
   part_en_cache?: number | null;
   dollars?: { voix: number; modele: number; total: number };
   voix_en_cache?: { servies: number; fabriquees: number } | null;
-  octets_de_voix?: { morceaux: number; megaoctets_si_wav: number; megaoctets_envoyes: number; fois_moins: number; encodage_ms_moyen: number; encodages_rates: number } | null;
+  octets_de_voix?: { morceaux: number; megaoctets_si_wav: number; megaoctets_envoyes: number; fois_moins: number; encodage_ms_moyen: number; encodages_rates: number; mp3_direct_de_soynade?: number; megaoctets_mp3_direct?: number } | null;
 } | null;
 type FilEnCache = { tours: number; mis_en_cache: number; trop_long_pour_le_cache: number; messages_moyens: number } | null;
 
@@ -793,10 +793,15 @@ function LePrix({ d, f }: { d?: Depense; f?: FilEnCache }) {
           {v.servies} son(s) servi(s) sans repayer Soynade, {v.fabriquees} fabriqué(s)
         </p>
       )}
-      {o && (
+      {o && o.morceaux > 0 && (
         <p style={{ margin: 0, fontSize: 13, opacity: 0.85 }}>
-          {o.megaoctets_envoyes} Mo envoyés au téléphone au lieu de {o.megaoctets_si_wav} Mo ({o.fois_moins} fois moins)
+          {o.megaoctets_envoyes} Mo envoyés au téléphone au lieu de {o.megaoctets_si_wav} Mo ({o.fois_moins} fois moins), encodés ici en {o.encodage_ms_moyen} ms
           {o.encodages_rates ? ` · ${o.encodages_rates} encodage(s) raté(s)` : ""}
+        </p>
+      )}
+      {o && (o.mp3_direct_de_soynade || 0) > 0 && (
+        <p style={{ margin: "4px 0 0", fontSize: 13, opacity: 0.85 }}>
+          {o.mp3_direct_de_soynade} morceau(x) reçu(s) en mp3 directement de Soynade ({o.megaoctets_mp3_direct} Mo), sans encodage ici
         </p>
       )}
     </section>

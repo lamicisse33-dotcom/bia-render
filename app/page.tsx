@@ -204,6 +204,24 @@ const CYCLES = {
 } as const;
 const PAS_DU_CYCLE = 380;
 const PLANCHES_SUIVANTES = ["/bia-gestes-24.webp", "/bia-mains-24.webp"] as const;
+
+/* ── TROIS FOIS MOINS D'OCTETS QUI MONTENT DE DAKAR ───────────────────────
+
+   Soynade, le 19 septembre 2026 : « le modèle a été entraîné sur des audios
+   échantillonnés en wav 16 kHz mono… en backend nous rééchantillonnons tous
+   les audios reçus en ce format. » Donc envoyer mieux que 16 kHz mono ne
+   sert à rien : le débit par défaut du navigateur (autour de 100 kbit/s)
+   part à la poubelle chez eux. À 32 kbit/s, l'opus d'Android et l'aac
+   d'iPhone gardent tout ce qu'une oreille de 16 kHz peut entendre, et le
+   forfait de la personne en paie le tiers. Ça se lit sur le compteur
+   `oreille` de /api/etat (octets par seconde de parole), avant et après.
+
+   Si le navigateur refuse l'option, on repart sans — comme avant. */
+const DEBIT_DU_MICRO = 32_000;
+function ouvrirEnregistreur(flux: MediaStream): MediaRecorder {
+  try { return new MediaRecorder(flux, { audioBitsPerSecond: DEBIT_DU_MICRO }); }
+  catch { return new MediaRecorder(flux); }
+}
 /* Ce que l'émotion de la réponse appelle comme mouvement, une fois la
    bouche fermée. Les rires ont leur propre chemin (rire_apaise). */
 const CYCLE_DE_L_EMOTION: Partial<Record<string, keyof typeof CYCLES>> = {
@@ -3884,7 +3902,7 @@ export default function Home() {
     try {
       const { flux, analyse, ctxMicro } = await micro();
       if (!estCetEnregistrement(idEnr)) return;
-      const enregistreur = new MediaRecorder(flux);
+      const enregistreur = ouvrirEnregistreur(flux);
       const morceaux: Blob[] = [];
       /* ── CE QUI MONTE PENDANT QU'IL PARLE ────────────────────────────────
 
@@ -5187,7 +5205,7 @@ export default function Home() {
     const envois: Promise<unknown>[] = [];
     if (armer) {
       try {
-        guetteur = new MediaRecorder(flux!);
+        guetteur = ouvrirEnregistreur(flux!);
         guetteur.ondataavailable = (e) => {
           if (!e.data.size) return;
           const i = morceauxGuet++;

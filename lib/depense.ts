@@ -126,8 +126,26 @@ export function noterOctetsDeVoix(wav: number, mp3: number, encodageMs: number) 
   if (!mp3) octetsDeVoix.encodages_rates += 1;
 }
 
+/* Les réponses arrivées DIRECTEMENT en mp3 de chez Soynade (19 septembre),
+   sans passer par l'encodeur : on les compte à part, sinon le compteur
+   d'encodage se tairait sans qu'on sache si c'est parce qu'il n'a plus rien
+   à faire ou parce qu'il est cassé. */
+const voixDirecte = { reponses: 0, octets: 0 };
+export function noterVoixDirecte(octets: number) {
+  voixDirecte.reponses += 1;
+  voixDirecte.octets += Number(octets) || 0;
+}
+
 export function resumeDesOctetsDeVoix() {
-  if (!octetsDeVoix.reponses) return null;
+  if (!octetsDeVoix.reponses && !voixDirecte.reponses) return null;
+  if (!octetsDeVoix.reponses) {
+    return {
+      morceaux: 0, megaoctets_si_wav: 0, megaoctets_envoyes: 0, fois_moins: 1,
+      encodage_ms_moyen: 0, encodages_rates: 0,
+      mp3_direct_de_soynade: voixDirecte.reponses,
+      megaoctets_mp3_direct: Number((voixDirecte.octets / 1_048_576).toFixed(2)),
+    };
+  }
   const mo = (n: number) => Number((n / 1_048_576).toFixed(2));
   return {
     morceaux: octetsDeVoix.reponses,
@@ -136,6 +154,8 @@ export function resumeDesOctetsDeVoix() {
     fois_moins: octetsDeVoix.mp3 ? Number((octetsDeVoix.wav / octetsDeVoix.mp3).toFixed(1)) : 1,
     encodage_ms_moyen: Math.round(octetsDeVoix.encodage_ms / octetsDeVoix.reponses),
     encodages_rates: octetsDeVoix.encodages_rates,
+    mp3_direct_de_soynade: voixDirecte.reponses,
+    megaoctets_mp3_direct: Number((voixDirecte.octets / 1_048_576).toFixed(2)),
   };
 }
 
@@ -221,6 +241,10 @@ export function depense() {
       ou,
       ecoutes: d.appels,
       megaoctets: Number((d.octets / 1_048_576).toFixed(2)),
+      /* Le poids moyen d'une écoute. Avant le 19 septembre (débit par
+         défaut) : autour de 50 ko pour quatre secondes. À 32 kbit/s, ça
+         doit tomber vers 16 ko. C'est le chiffre qui dit si l'option a pris. */
+      ko_par_ecoute: d.appels ? Math.round(d.octets / d.appels / 1024) : 0,
       dollars: null,
       pourquoi_pas_de_dollars: "le tarif de transcription de Soynade n'est pas connu — à leur demander",
     })),

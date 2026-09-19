@@ -4,7 +4,7 @@ import { decouper, synthetiser } from "@/lib/voix";
 import { detecterLangue } from "@/lib/langue";
 import { pourLaVoix } from "@/lib/nombres";
 import { noterPanne } from "@/lib/panne";
-import { noterOctetsDeVoix, noterVoix, noterVoixEnCache } from "@/lib/depense";
+import { noterOctetsDeVoix, noterVoix, noterVoixDirecte, noterVoixEnCache } from "@/lib/depense";
 import { versMp3 } from "@/lib/mp3";
 
 /** Les sons déjà fabriqués, par texte. Deux cents, c'est une journée de
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
       cfgWeight: body.cfgWeight,
       vitesse: body.vitesse,
       audioPrompt: body.audioPrompt,
-    }, body.tete && partie === 0 ? "voix-tete" : "voix");
+    }, body.tete && partie === 0 ? "voix-tete" : "voix", "mp3");
     if (!parole) {
       /* Aucun fournisseur de voix n'est configuré : le téléphone lira
          lui-même. Ce n'est pas une panne, mais il faut pouvoir le VOIR —
@@ -138,6 +138,10 @@ export async function POST(request: NextRequest) {
     let audio = parole.audio;
     let typeMime = parole.typeMime;
     let encodageMs = 0;
+    /* Depuis le 19 septembre, Soynade rend le mp3 lui-même : ce bloc ne
+       sert plus que si un wav revient quand même (refus du format, autre
+       moteur). On compte les deux cas pour le voir sur /api/etat. */
+    if (typeMime === "audio/mpeg") noterVoixDirecte(audio.length);
     if (typeMime === "audio/wav") {
       const t = Date.now();
       try {

@@ -225,7 +225,28 @@ function noterLeRefusDePaiement(statut: number, detail: string) {
   dernierMotifDeCredit = `Soynade ${statut} : ${detail.slice(0, 200)}`;
 }
 
-async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages, etiquette = "voix"): Promise<Parole> {
+/* Le format qu'on demande à Soynade. « mp3 » depuis le 19 septembre 2026 :
+   leur courrier du matin — « il suffit de remplacer wav par mp3 dans le
+   paramètre output_format ; la réponse contient directement l'audio MP3,
+   avec le type audio/mpeg ». C'est l'encodage sur Render (569 ms mesurés)
+   qui disparaît. Le répertoire, lui, demande toujours du wav : il fabrique
+   son propre mp3 pour le seau, et son chemin n'a pas changé. */
+export type FormatDeVoix = "wav" | "mp3";
+
+/* Ce que Soynade a VRAIMENT rendu, lu dans les octets — pas dans ce qu'on a
+   demandé, ni dans l'en-tête. Un wav commence par « RIFF » ; un mp3 par une
+   étiquette « ID3 » ou par un octet de synchronisation 0xFF 0xEx. Tout le
+   reste est inconnu et sera traité comme du wav (l'encodeur dira non). */
+export function typeMimeDesOctets(o: Buffer): "audio/wav" | "audio/mpeg" | "" {
+  if (o.length < 4) return "";
+  if (o[0] === 0x52 && o[1] === 0x49 && o[2] === 0x46 && o[3] === 0x46) return "audio/wav";
+  if (o[0] === 0x49 && o[1] === 0x44 && o[2] === 0x33) return "audio/mpeg";
+  if (o[0] === 0xff && (o[1] & 0xe0) === 0xe0) return "audio/mpeg";
+  return "";
+}
+
+async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages, etiquette = "voix",
+                          format: FormatDeVoix = "wav"): Promise<Parole> {
   const c = voixConfig.soynade;
   if (!c.apiKey) throw new Error("SOYNADE_API_KEY manquante");
 
@@ -237,10 +258,10 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages, etiq
     ? Math.min(Math.max(r.vitesse, 0.5), 1.5)
     : c.vitesse;
 
-  const corps = (avecVitesse: boolean) => JSON.stringify({
+  const corps = (avecVitesse: boolean, formatDemande: FormatDeVoix) => JSON.stringify({
     text: texte,
     language: langue === "fr" ? "fr" : "wo",
-    output_format: "wav",
+    output_format: formatDemande,
     model: c.model,
     exaggeration: borne(r?.exaggeration, c.exaggeration),
     temperature: borne(r?.temperature, c.temperature),
@@ -250,14 +271,14 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages, etiq
     ...(prompt ? { [c.audioPromptField]: prompt } : {}),
   });
 
-  const appeler = (avecVitesse: boolean) => fetch(`${c.baseUrl.replace(/\/$/, "")}/v1/text-to-speech`, {
+  const appeler = (avecVitesse: boolean, formatDemande: FormatDeVoix = format) => fetch(`${c.baseUrl.replace(/\/$/, "")}/v1/text-to-speech`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${c.apiKey}`,
       "content-type": "application/json",
-      accept: "audio/wav",
+      accept: formatDemande === "mp3" ? "audio/mpeg" : "audio/wav",
     },
-    body: corps(avecVitesse),
+    body: corps(avecVitesse, formatDemande),
   });
 
   /* ── LES TROIS INSTANTS DE LA VOIX ───────────────────────────────────
@@ -334,6 +355,14 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages, etiq
     console.error(`BIA — Soynade refuse le champ « ${c.vitesseField} » : on lit sans régler la vitesse.`);
     reponse = await appeler(false);
   }
+  /* Le mp3 est neuf chez eux (19 septembre). S'ils le refusent un jour —
+     400 ou 422 — on redemande du wav : l'encodeur de Render reprend, comme
+     avant, et ça se lira sur `encodage_ms_moyen`. */
+  if (!reponse.ok && format === "mp3" && (reponse.status === 400 || reponse.status === 422)) {
+    console.error("BIA — Soynade refuse output_format mp3 : on redemande du wav.");
+    noterRepriseDeVoix("mp3 refusé");
+    reponse = await appeler(vitesse !== 1, "wav");
+  }
 
   if (!reponse.ok) {
     const detail = (await reponse.text().catch(() => "")).slice(0, 400);
@@ -352,7 +381,8 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages, etiq
   noterEtape(etiquette, partiVoix, premierOctetVoix, Date.now(), texte.length);
   return {
     audio: octets,
-    typeMime: "audio/wav",
+    /* Ce qu'ils ont rendu, pas ce qu'on a demandé. */
+    typeMime: typeMimeDesOctets(octets) || "audio/wav",
     moteur: prompt ? "soynade-oolel-voices (voix clonée)" : "soynade-oolel-voices",
   };
 }
@@ -387,10 +417,10 @@ async function viaElevenLabs(texte: string, langue: "wo" | "fr"): Promise<Parole
    L'etiquette les separe. Seule la premiere phrase est une attente ; le reste
    est du travail de fond, et il peut durer sans que ca se sente. */
 export async function synthetiser(texte: string, langue: "wo" | "fr", r?: Reglages,
-                                  etiquette = "voix"): Promise<Parole | null> {
+                                  etiquette = "voix", format: FormatDeVoix = "wav"): Promise<Parole | null> {
   if (!texte.trim()) return null;
   switch (voixConfig.fournisseur) {
-    case "soynade": return viaSoynade(texte, langue, r, etiquette);
+    case "soynade": return viaSoynade(texte, langue, r, etiquette, format);
     case "elevenlabs": return viaElevenLabs(texte, langue);
     default: return null; // le téléphone lit lui-même
   }
