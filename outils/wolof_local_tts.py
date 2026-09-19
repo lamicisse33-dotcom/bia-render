@@ -9,7 +9,8 @@ Objectif :
 - aucun coût par phrase ;
 - même modèle wolof déjà validé ;
 - choix d'une empreinte vocale féminine ;
-- mode interactif pour garder les modèles chargés en mémoire.
+- mode interactif pour garder les modèles chargés en mémoire ;
+- découpage automatique des textes longs pour éviter la limite SpeechT5.
 
 Première utilisation :
     pip3 install torch transformers datasets scipy sentencepiece
@@ -27,10 +28,10 @@ Le modèle doit avoir été téléchargé au moins une fois avant d'utiliser --o
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional
 
 MODELE = "bilalfaye/speecht5_tts-wolof"
 VOCODEUR = "microsoft/speecht5_hifigan"
@@ -40,6 +41,11 @@ VOIX_FEMMES = {
     "slt": "cmu_us_slt_arctic",
     "clb": "cmu_us_clb_arctic",
 }
+
+# SpeechT5 utilise 600 positions côté texte. On garde une marge de sécurité.
+MAX_TOKENS_PAR_BLOC = 520
+PAUSE_ENTRE_BLOCS_SEC = 0.12
+SAMPLE_RATE = 16000
 
 
 class WolofLocalTTS:
@@ -62,15 +68,12 @@ class WolofLocalTTS:
         self.offline = offline
 
         debut = time.time()
-
         kwargs = {"local_files_only": True} if offline else {}
 
         self.processor = SpeechT5Processor.from_pretrained(MODELE, **kwargs)
         self.modele = SpeechT5ForTextToSpeech.from_pretrained(MODELE, **kwargs)
         self.vocoder = SpeechT5HifiGan.from_pretrained(VOCODEUR, **kwargs)
 
-        # Le dataset d'empreintes est léger. En mode hors ligne il doit déjà
-        # être présent dans le cache Hugging Face.
         if offline:
             try:
                 empreintes = load_dataset(
@@ -107,6 +110,62 @@ class WolofLocalTTS:
             f"(voix {voice.upper()}, empreinte {source})"
         )
 
+    def _nb_tokens(self, texte: str) -> int:
+        ids = self.processor.tokenizer(texte, return_tensors="pt")["input_ids"]
+        return int(ids.shape[1])
+
+    def _decouper_phrase_longue(self, phrase: str) -> list[str]:
+        mots = phrase.split()
+        blocs = []
+        courant = []
+
+        for mot in mots:
+            candidat = " ".join(courant + [mot]).strip()
+            if courant and self._nb_tokens(candidat) > MAX_TOKENS_PAR_BLOC:
+                blocs.append(" ".join(courant))
+                courant = [mot]
+            else:
+                courant.append(mot)
+
+        if courant:
+            blocs.append(" ".join(courant))
+
+        return blocs
+
+    def _decouper_texte(self, texte: str) -> list[str]:
+        texte = re.sub(r"\s+", " ", texte).strip()
+        if self._nb_tokens(texte) <= MAX_TOKENS_PAR_BLOC:
+            return [texte]
+
+        phrases = [
+            p.strip()
+            for p in re.split(r"(?<=[.!?;:])\s+", texte)
+            if p.strip()
+        ]
+
+        blocs = []
+        courant = ""
+
+        for phrase in phrases:
+            if self._nb_tokens(phrase) > MAX_TOKENS_PAR_BLOC:
+                if courant:
+                    blocs.append(courant)
+                    courant = ""
+                blocs.extend(self._decouper_phrase_longue(phrase))
+                continue
+
+            candidat = f"{courant} {phrase}".strip()
+            if courant and self._nb_tokens(candidat) > MAX_TOKENS_PAR_BLOC:
+                blocs.append(courant)
+                courant = phrase
+            else:
+                courant = candidat
+
+        if courant:
+            blocs.append(courant)
+
+        return blocs
+
     def synthesize(self, text: str, output_path: Path) -> Path:
         import scipy.io.wavfile as wav
 
@@ -115,28 +174,51 @@ class WolofLocalTTS:
             raise ValueError("Le texte est vide.")
 
         t = time.time()
-        entrees = self.processor(text=texte, return_tensors="pt")
-        inconnus = int(
-            (
-                entrees["input_ids"]
-                == self.processor.tokenizer.unk_token_id
-            ).sum()
-        )
+        blocs = self._decouper_texte(texte)
 
-        with self.torch.no_grad():
-            audio = self.modele.generate_speech(
-                entrees["input_ids"],
-                self.voix,
-                vocoder=self.vocoder,
+        if len(blocs) > 1:
+            print(
+                f"Texte long : découpage automatique en {len(blocs)} blocs "
+                f"(max {MAX_TOKENS_PAR_BLOC} tokens par bloc)."
             )
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        wav.write(output_path, rate=16000, data=audio.numpy())
+        audios = []
+        inconnus_total = 0
 
-        duree = len(audio) / 16000
+        for i, bloc in enumerate(blocs, start=1):
+            entrees = self.processor(text=bloc, return_tensors="pt")
+            inconnus_total += int(
+                (
+                    entrees["input_ids"]
+                    == self.processor.tokenizer.unk_token_id
+                ).sum()
+            )
+
+            with self.torch.no_grad():
+                audio = self.modele.generate_speech(
+                    entrees["input_ids"],
+                    self.voix,
+                    vocoder=self.vocoder,
+                )
+
+            audios.append(audio.detach().cpu())
+
+            if i < len(blocs):
+                pause = self.torch.zeros(
+                    int(SAMPLE_RATE * PAUSE_ENTRE_BLOCS_SEC),
+                    dtype=audio.dtype,
+                )
+                audios.append(pause)
+
+        audio_final = self.torch.cat(audios)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        wav.write(output_path, rate=SAMPLE_RATE, data=audio_final.numpy())
+
+        duree = len(audio_final) / SAMPLE_RATE
         details = (
-            f", {inconnus} token(s) inconnu(s)"
-            if inconnus
+            f", {inconnus_total} token(s) inconnu(s)"
+            if inconnus_total
             else ""
         )
 
@@ -148,7 +230,6 @@ class WolofLocalTTS:
 
     @staticmethod
     def play(path: Path) -> None:
-        # afplay est fourni par macOS.
         subprocess.run(["afplay", str(path)], check=False)
 
 
@@ -197,7 +278,8 @@ def main() -> None:
     moteur = WolofLocalTTS(voice=args.voice, offline=args.offline)
 
     if args.interactive:
-        print("\nMode interactif. Écris une phrase wolof puis Entrée.")
+        print("\nMode interactif. Écris une phrase ou un texte wolof puis Entrée.")
+        print("Les textes longs sont découpés automatiquement.")
         print("Écris 'stop' pour quitter.\n")
 
         compteur = 1
@@ -229,7 +311,7 @@ def main() -> None:
         raise SystemExit(
             "Donne un texte ou utilise --interactive. "
             "Exemple: python3 outils/wolof_local_tts.py "
-            ""Waaw, dégg naa la bu baax." --play"
+            "\"Waaw, dégg naa la bu baax.\" --play"
         )
 
     chemin = moteur.synthesize(args.text, args.output)
