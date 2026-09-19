@@ -36,12 +36,30 @@ button { font: inherit; touch-action: manipulation; }
      visage partait alors vers la droite et se faisait couper. Mesuré : posé
      à x = −79 au lieu de x = −272 sur un écran de 390. */
   place-content: center;
+  /* Une seule case de grille, de toute la hauteur : c'est ce qui rend la
+     hauteur « 100 % » de l'avatar définie. Sans ça, la ligne est « auto »,
+     le pourcentage ne se résout pas, et l'avatar fait zéro pixel. Mesuré. */
+  grid-template-rows: 100%;
+  grid-template-columns: 100%;
   overflow: hidden;
 }
 
 .avatar {
-  --avatar-scale: 1.16;
-  width: min(100vw, 920px);
+  /* ── TOUTE LA PHOTO, RIEN DE COUPÉ ──────────────────────────────────────
+     Lamine, le 19 septembre 2026 : « je veux qu'elle soit entièrement sur
+     l'écran du téléphone. Qu'il n'y ait pas de coupure. Les deux mains bien
+     visibles, les deux épaules. Comme sur la photo, exactement. »
+     Avant : 1,16 d'agrandissement ici, 1,04 sur le téléphone avec une
+     hauteur de 86 svh — plus large que l'écran, donc les mains qui saluent
+     sortaient du cadre. Maintenant la case tient dans l'écran, en largeur ET
+     en hauteur, et l'échelle reste sous 1 même au plus haut de la
+     respiration (+0,022). */
+  --avatar-scale: .985;
+  /* La case est carrée : sa hauteur est le plus petit de la place qu'on
+     lui laisse (100 % de .portrait, qui s'arrête au-dessus du micro) et
+     de la largeur de l'écran. La largeur suit, par aspect-ratio. */
+  height: min(100%, 100vw, 920px);
+  width: auto;
   /* Cases carrées de 620 px, les deux épaules dans le cadre.
      Planche de 6 colonnes sur 4 lignes. */
   aspect-ratio: 1;
@@ -349,19 +367,22 @@ button { font: inherit; touch-action: manipulation; }
 @media (max-width: 600px) and (orientation: portrait) {
   .portrait { inset: 0 0 52px; }
   .avatar {
-    /* Cadrage du téléphone : le visage entier, les épaules dans le cadre,
-       rien de coupé sur les côtés. Au-delà, on gagne en présence ce qu'on
-       perd en visage. */
-    --avatar-scale: 1.04;
+    /* Cadrage du téléphone (19 septembre) : la case entière, carrée, dans
+       la largeur de l'écran — les deux mains, les deux épaules. Voir la
+       note sur .avatar plus haut. */
+    --avatar-scale: .985;
+    height: min(100%, 100vw, 900px);
     width: auto;
-    height: min(86svh, 900px);
     max-width: none;
   }
   .microphone { width: 72px; height: 72px; bottom: max(15px, env(safe-area-inset-bottom)); }
 }
 
 @media (min-width: 601px) {
-  .avatar { height: min(calc(100svh - 34px), 920px); width: auto; }
+  /* 19 septembre : « 100svh − 34px » débordait de .portrait (qui s'arrête
+     64 px au-dessus du bas) de 30 px, coupés en haut et en bas. Mesuré :
+     766 px de case pour 736 de place. La règle de base suffit. */
+  .avatar { height: min(100%, 100vw, 920px); width: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
