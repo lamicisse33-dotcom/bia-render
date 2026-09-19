@@ -182,6 +182,21 @@ export function noterVoix(signes: number, ou = "réponse") {
   voix.set(ou, d);
 }
 
+/* ── LA VOIX LOCALE NE COÛTE RIEN : ON REND CE QU'ON AVAIT COMPTÉ ─────────
+   noterVoix() est appelé AVANT la fabrication, au tarif Soynade. Quand c'est
+   la voix locale qui a parlé, on retire ces signes du compte payant et on
+   les met ici — c'est l'argent qu'on n'a pas dépensé, et c'est lui qu'on
+   veut voir monter. */
+const voixLocale = { appels: 0, signes: 0 };
+export function rembourserVoix(signes: number, ou = "réponse") {
+  const n = Number(signes) || 0;
+  if (n <= 0) return;
+  const d = voix.get(ou);
+  if (d) { d.signes = Math.max(0, d.signes - n); d.appels = Math.max(0, d.appels - 1); }
+  voixLocale.appels += 1;
+  voixLocale.signes += n;
+}
+
 /** Ce que le modèle a réellement consommé, tel qu'il le rapporte lui-même. */
 export function noterModele(usage: unknown, ou = "chat") {
   const u = (usage ?? {}) as Record<string, unknown>;
@@ -248,6 +263,10 @@ export function depense() {
       dollars: null,
       pourquoi_pas_de_dollars: "le tarif de transcription de Soynade n'est pas connu — à leur demander",
     })),
+    /* Ce que la voix locale a pris à Soynade, en signes et en dollars évités. */
+    voix_locale: voixLocale.appels
+      ? { appels: voixLocale.appels, signes: voixLocale.signes, dollars_evites: sou(voixLocale.signes * DOLLAR_PAR_SIGNE) }
+      : null,
     octets_de_voix: resumeDesOctetsDeVoix(),
     voix_en_cache: voixEnCache.servies + voixEnCache.fabriquees ? { ...voixEnCache } : null,
     dollars: { voix: sou(dollarsVoix), modele: sou(dollarsModele), total: sou(total) },

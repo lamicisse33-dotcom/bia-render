@@ -9,6 +9,26 @@ const env = process.env;
 
 export const voixConfig = {
   fournisseur: env.TTS_PROVIDER || (env.SOYNADE_API_KEY ? "soynade" : "navigateur"),
+  /* ── LA VOIX LOCALE, GRATUITE, POUR LE WOLOF ────────────────────────────
+
+     19 septembre 2026. Un petit serveur à nous (voix-locale/), modèle
+     bilalfaye/speecht5_tts-wolof (MIT), empreinte de voix de femme. Lamine,
+     après écoute : « c'est merveilleux, c'est parfait ». Zéro par phrase.
+
+     Elle ne sert QUE le wolof : le modèle ne sait pas le français. Elle
+     s'active en posant VOIX_LOCALE_URL ; sans l'adresse, rien ne change.
+     Si elle ne répond pas (endormie, en panne, trop lente), Soynade reprend
+     la phrase — et ça se compte, voir hoquetsDeLaVoixLocale(). */
+  locale: {
+    url: (env.VOIX_LOCALE_URL || "").replace(/\/$/, ""),
+    cle: env.VOIX_LOCALE_CLE || "",
+    voix: env.VOIX_LOCALE_VOIX === "clb" ? "clb" : "slt",
+    /* Au-delà, on n'attend plus : Soynade est plus sûr qu'une voix locale qui
+       traîne. Sur le Space gratuit, une phrase courte prend 1 à 3 s ; un
+       réveil après sommeil dure une minute, et cette minute-là part chez
+       Soynade. */
+    attenteMs: nombreDeLEnvironnement(env.VOIX_LOCALE_ATTENTE_MS, 8000, "VOIX_LOCALE_ATTENTE_MS"),
+  },
   soynade: {
     apiKey: env.SOYNADE_API_KEY || "",
     baseUrl: env.SOYNADE_BASE_URL || "https://api.soynade.ai",
@@ -416,9 +436,73 @@ async function viaElevenLabs(texte: string, langue: "wo" | "fr"): Promise<Parole
 
    L'etiquette les separe. Seule la premiere phrase est une attente ; le reste
    est du travail de fond, et il peut durer sans que ca se sente. */
+/* ── CE QUE LA VOIX LOCALE A FAIT, ET CE QU'ELLE A RATÉ ─────────────────────
+   RÈGLE : un réglage qu'on ne compte pas est un réglage qu'on croit. */
+const voixLocale = { servies: 0, ratees: 0, dernier_rate: "", fabrication_ms: 0 };
+export function hoquetsDeLaVoixLocale() {
+  return {
+    branchee: Boolean(voixConfig.locale.url),
+    voix: voixConfig.locale.voix,
+    servies: voixLocale.servies,
+    ratees: voixLocale.ratees,
+    dernier_rate: voixLocale.dernier_rate,
+    fabrication_ms_moyen: voixLocale.servies ? Math.round(voixLocale.fabrication_ms / voixLocale.servies) : null,
+  };
+}
+
+/** Un appel à la voix locale. Rend null quand elle ne peut pas — c'est
+    alors à Soynade de prendre la phrase, et le raté est compté. */
+async function viaLocale(texte: string, etiquette: string): Promise<Parole | null> {
+  const c = voixConfig.locale;
+  const partiVoix = Date.now();
+  const arret = new AbortController();
+  const minuterie = setTimeout(() => arret.abort(), c.attenteMs);
+  try {
+    const reponse = await fetch(`${c.url}/speak`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "audio/wav",
+        ...(c.cle ? { Authorization: `Bearer ${c.cle}` } : {}),
+      },
+      body: JSON.stringify({ text: texte, voice: c.voix }),
+      signal: arret.signal,
+    });
+    const premierOctetVoix = Date.now();
+    if (!reponse.ok) {
+      const detail = (await reponse.text().catch(() => "")).slice(0, 120);
+      throw new Error(`voix locale ${reponse.status} : ${detail}`);
+    }
+    const octets = Buffer.from(await reponse.arrayBuffer());
+    if (typeMimeDesOctets(octets) !== "audio/wav") throw new Error("la voix locale n'a pas rendu un wav");
+    noterEtape(etiquette, partiVoix, premierOctetVoix, Date.now(), texte.length);
+    voixLocale.servies += 1;
+    voixLocale.fabrication_ms += Number(reponse.headers.get("x-fabrication-ms")) || 0;
+    return { audio: octets, typeMime: "audio/wav", moteur: `wolof-local (${c.voix})` };
+  } catch (err) {
+    voixLocale.ratees += 1;
+    voixLocale.dernier_rate = String((err as Error).name === "AbortError"
+      ? `pas de réponse en ${c.attenteMs} ms`
+      : (err as Error).message || err).slice(0, 120);
+    console.error(`BIA — la voix locale a raté (${voixLocale.dernier_rate}) : Soynade reprend.`);
+    return null;
+  } finally {
+    clearTimeout(minuterie);
+  }
+}
+
 export async function synthetiser(texte: string, langue: "wo" | "fr", r?: Reglages,
                                   etiquette = "voix", format: FormatDeVoix = "wav"): Promise<Parole | null> {
   if (!texte.trim()) return null;
+  /* Le wolof passe d'abord par la voix locale, quand elle est branchée et
+     qu'on ne demande pas des réglages Soynade exprès (page de réglage,
+     clonage). Elle rend null si elle ne peut pas : la suite est inchangée. */
+  const reglagesExpres = r && (r.audioPrompt !== undefined || r.exaggeration !== undefined
+    || r.temperature !== undefined || r.cfgWeight !== undefined || r.vitesse !== undefined);
+  if (langue === "wo" && voixConfig.locale.url && !reglagesExpres) {
+    const locale = await viaLocale(texte, etiquette);
+    if (locale) return locale;
+  }
   switch (voixConfig.fournisseur) {
     case "soynade": return viaSoynade(texte, langue, r, etiquette, format);
     case "elevenlabs": return viaElevenLabs(texte, langue);

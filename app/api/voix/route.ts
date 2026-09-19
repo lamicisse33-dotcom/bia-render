@@ -4,7 +4,7 @@ import { decouper, synthetiser } from "@/lib/voix";
 import { detecterLangue } from "@/lib/langue";
 import { pourLaVoix } from "@/lib/nombres";
 import { noterPanne } from "@/lib/panne";
-import { noterOctetsDeVoix, noterVoix, noterVoixDirecte, noterVoixEnCache } from "@/lib/depense";
+import { noterOctetsDeVoix, noterVoix, noterVoixDirecte, noterVoixEnCache, rembourserVoix } from "@/lib/depense";
 import { versMp3 } from "@/lib/mp3";
 
 /** Les sons déjà fabriqués, par texte. Deux cents, c'est une journée de
@@ -98,7 +98,8 @@ export async function POST(request: NextRequest) {
        exactement ce qu'ils facturent. L'étiquette dit d'où il vient, pour
        qu'on sache enfin QUI mange le crédit — la réponse, une attente, un
        devis lu à voix haute, ou la page de réglage. */
-    noterVoix(morceaux[partie].length, String(body.ou || "").slice(0, 24) || "réponse");
+    const ouCompter = String(body.ou || "").slice(0, 24) || "réponse";
+    noterVoix(morceaux[partie].length, ouCompter);
 
     const partiFabriquer = Date.now();
     const parole = await synthetiser(morceaux[partie], langue, {
@@ -108,6 +109,8 @@ export async function POST(request: NextRequest) {
       vitesse: body.vitesse,
       audioPrompt: body.audioPrompt,
     }, body.tete && partie === 0 ? "voix-tete" : "voix", "mp3");
+    /* La voix locale a parlé : ces signes ne coûtent rien, on les rend. */
+    if (parole && parole.moteur.startsWith("wolof-local")) rembourserVoix(morceaux[partie].length, ouCompter);
     if (!parole) {
       /* Aucun fournisseur de voix n'est configuré : le téléphone lira
          lui-même. Ce n'est pas une panne, mais il faut pouvoir le VOIR —

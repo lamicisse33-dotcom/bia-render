@@ -41,12 +41,12 @@ def main():
     import scipy.io.wavfile as wav
 
     depuis = time.time()
-    processor = SpeechT5Processor.from_pretrained(MODELE, token=False)
-    modele = SpeechT5ForTextToSpeech.from_pretrained(MODELE, token=False)
-    vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan", token=False)
+    processor = SpeechT5Processor.from_pretrained(MODELE)
+    modele = SpeechT5ForTextToSpeech.from_pretrained(MODELE)
+    vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan")
     # SpeechT5 a besoin d'une « empreinte de voix ». On prend celle de
     # l'exemple officiel ; le modèle wolof choisira quand même son accent.
-    empreintes = load_dataset("Matthijs/cmu-arctic-xvectors", split="validation", token=False)
+    empreintes = load_dataset("regisss/cmu-arctic-xvectors", split="validation")
     voix = torch.tensor(empreintes[7306]["xvector"]).unsqueeze(0)
     print(f"modèle chargé en {time.time() - depuis:.1f} s")
 
