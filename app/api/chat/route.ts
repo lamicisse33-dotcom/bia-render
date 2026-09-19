@@ -32,6 +32,7 @@ import { ajouterCorrection, cequElleAAppris, retirerCorrection } from "@/lib/lex
 import { REGLES_REPERTOIRE, REPERTOIRE_PRET, consigneRepertoireCandidates, dejaDiteJusteAvant, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
+import { gesteDe } from "@/lib/gestes-de-la-main";
 import { DIFFUSER_LE_MODELE, teteDeLaReponse } from "@/lib/diffusion";
 
 /* Il n'y a plus de réponses écrites en dur dans ce fichier.
@@ -1352,6 +1353,10 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
              le dit, pas le téléphone qui le devine : lui seul sait quelle
              entrée du répertoire a répondu. */
           salutation:SALUTATIONS.has(toute.cle),
+          /* Le geste de la main qui suit la phrase (19 septembre) : le
+             téléphone le joue quand la bouche a fini. Voir
+             lib/gestes-de-la-main.ts. */
+          geste:gesteDe(toute.cle),
         }};
       }
     }

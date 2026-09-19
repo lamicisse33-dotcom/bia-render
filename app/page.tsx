@@ -69,6 +69,7 @@ import type { PieceEcran } from "./ecran";
 import CarteVitrine, { chargerSujet } from "./vitrine";
 import CarteTrouve, { versEcran } from "./trouve";
 import type { Resultat } from "./trouve";
+import { contientUnGrosMot } from "@/lib/gestes-de-la-main";
 
 /* Un message peut porter le RENVOI vers un papier — son identifiant, pas son
    contenu. Le papier lui-même vit dans sa propre boîte, qui ne se rogne
@@ -203,6 +204,13 @@ const CYCLES = {
 } as const;
 const PAS_DU_CYCLE = 380;
 const PLANCHES_SUIVANTES = ["/bia-gestes-24.webp", "/bia-mains-24.webp"] as const;
+/* Ce que l'émotion de la réponse appelle comme mouvement, une fois la
+   bouche fermée. Les rires ont leur propre chemin (rire_apaise). */
+const CYCLE_DE_L_EMOTION: Partial<Record<string, keyof typeof CYCLES>> = {
+  etonnement: "bouche_etonne", surprise: "bouche_etonne",
+  concernee: "compassion", triste: "compassion",
+  douce: "douceur", ecoute: "comprehension",
+};
 
 /* Ce que BIA renvoie → ce qu'on affiche. Les rires ne sont pas une image
    fixe : ils s'animent, d'où les suites plus bas. */
@@ -776,6 +784,13 @@ export default function Home() {
      geste) ; tant qu'une des deux manque, les cycles restent muets et le
      visage garde ses 24 cases d'origine. Jamais un avatar noir. */
   const planchesPretesRef = useRef(false);
+  /* Le geste à faire quand la bouche aura fini : celui que le serveur a
+     donné avec une phrase du répertoire (« salut » → la main qui salue),
+     ou celui que l'émotion appelle. Et le geste à faire TOUT DE SUITE,
+     pendant qu'elle réfléchit : la main sur la bouche quand la personne
+     vient de dire un gros mot. */
+  const gesteApresRef = useRef<keyof typeof CYCLES | "">("");
+  const gesteImmediatRef = useRef<keyof typeof CYCLES | "">("");
   useEffect(() => {
     let restantes = PLANCHES_SUIVANTES.length;
     for (const fichier of PLANCHES_SUIVANTES) {
@@ -1237,10 +1252,19 @@ export default function Home() {
       }
     };
     const apaise = planchesPretesRef.current && (emo === "rire" || emo === "fourire");
+    /* Le geste d'après la phrase : celui du serveur d'abord, sinon celui
+       que l'émotion appelle sur la planche du visage. Rien sans planches. */
+    const geste = planchesPretesRef.current ? (gesteApresRef.current || CYCLE_DE_L_EMOTION[emo] || "") : "";
+    gesteApresRef.current = "";
     if (suite) {
       let t = 0;
       for (const [f, d] of suite) { setTimeout(() => setFace(f), t); t += d; }
-      if (apaise) descendrePar(CYCLES.rire_apaise, t + 600); else atterrir(t + 1400);
+      if (apaise) descendrePar(CYCLES.rire_apaise.slice(1), t + 600);
+      else if (geste) descendrePar(CYCLES[geste], t + 400);
+      else atterrir(t + 1400);
+    } else if (geste) {
+      setFace(EMOTION_VERS_FACE[emo] || "yeux_ouverts");
+      descendrePar(CYCLES[geste], 500);
     } else {
       setFace(EMOTION_VERS_FACE[emo] || "yeux_ouverts");
       atterrir(3800);
@@ -2622,6 +2646,10 @@ export default function Home() {
        au lieu de la laisser répondre à la moitié. Une question tapée n'a
        pas de suite à l'oral. */
     questionEnVolRef.current = parole ? clean : "";
+    gesteApresRef.current = "";
+    /* Un gros mot : la main sur la bouche tout de suite, pendant qu'elle
+       réfléchit — c'est le moment où le visage est libre. */
+    gesteImmediatRef.current = contientUnGrosMot(clean) ? "bouche_grosmot" : "";
     setMode("thinking");
     setFace("pensive");
     setPanne("");
@@ -3103,6 +3131,9 @@ export default function Home() {
          je vois ça » — quoi qu'on lui dise. Posé ici, avant de jouer le son :
          c'est le serveur qui l'a dit, il n'y a rien à deviner. */
       if ((data as { salutation?: boolean }).salutation) apresSalutationRef.current = true;
+      /* Le geste de la main qui va avec cette phrase, joué quand la bouche
+         aura fini (voir stopMouth et lib/gestes-de-la-main.ts). */
+      { const g = String((data as { geste?: string }).geste || ""); gesteApresRef.current = g in CYCLES ? (g as keyof typeof CYCLES) : ""; }
       /* ── ELLE A DÉJÀ COMMENCÉ : ON NE LUI FAIT DIRE QUE LA SUITE ───────
 
          La tête est partie pendant que le modèle écrivait. Ce qui reste, on
@@ -3385,6 +3416,11 @@ export default function Home() {
     function geste() {
       const tirage = Math.random();
       if (planchesPretesRef.current) {
+        if (gesteImmediatRef.current) {
+          const g = gesteImmediatRef.current; gesteImmediatRef.current = "";
+          enchainer(CYCLES[g], 0, repos);
+          return;
+        }
         /* Avec les planches suivantes : elle réfléchit, elle écoute, et si
            l'attente s'étire au-delà de quatre secondes, la paume ouverte —
            « un instant ». Le retour au repos passe par la dernière image du
@@ -3406,7 +3442,10 @@ export default function Home() {
       }
     }
 
-    repos();
+    /* Avec les planches, le premier mouvement part tout de suite : l'attente
+       fait rarement plus de quelques secondes, et c'est le début qu'il faut
+       occuper. Sans elles, comme avant : un repos d'abord. */
+    if (planchesPretesRef.current) geste(); else repos();
     return () => { vivant = false; clearTimeout(minuterie); };
   }, [mode]);
 
