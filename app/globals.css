@@ -57,6 +57,21 @@ button { font: inherit; touch-action: manipulation; }
   transition: filter .18s ease;
 }
 
+/* ── LE VISAGE QU'ON QUITTE S'EFFACE AU LIEU DE DISPARAÎTRE ─────────────
+   Posé par-dessus le nouveau, dans la même case de la grille, et fondu en
+   un cinquième de seconde. Il respire comme l'autre, sinon on verrait deux
+   visages décalés pendant le fondu. */
+.portrait > .avatar { grid-area: 1 / 1; }
+.avatar-avant {
+  z-index: 1;
+  pointer-events: none;
+  animation: breathe 4.8s ease-in-out infinite, fondu-avant .22s ease-out forwards;
+}
+@keyframes fondu-avant {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
 /* Les 24 cases. background-position en pourcentage : 5 intervalles en
    largeur (6 colonnes), 3 en hauteur (4 lignes). */
 .avatar[data-face="bouche_fermee"] { background-position: 0% 0.0000%; }

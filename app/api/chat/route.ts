@@ -10,6 +10,8 @@ import { SOCLE_RELATIONS, consigneRelationsProches, estSujetRelation } from "@/l
 import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterEtape } from "@/lib/etapes";
 import { noterFil, noterModele } from "@/lib/depense";
+
+import { FIL_AU_PLUS } from "@/lib/fenetre-du-fil";
 import { noterEmotion } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { BUDGET_DE_REFLEXION, PLAFOND_AVEC_REFLEXION, meriteReflexion, noterReflexion } from "@/lib/reflechir";
@@ -1479,7 +1481,36 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
 
     // Douze échanges au lieu de six, et le résumé des plus anciens : c'est
     // ce qui permet à BIA de suivre un fil au lieu de tout oublier.
-    const history=(body.history||[]).slice(-12).map(item=>({role:item.role==="bia"?"assistant":"user",content:String(item.text||"").slice(0,1500)}));
+    /* ── LA FENÊTRE NE GLISSE PLUS À CHAQUE TOUR, ELLE SAUTE ─────────────
+
+       Lu en ligne le 19 septembre 2026, trois tours après le déploiement du
+       cache du fil :
+
+           fil_en_cache : mis_en_cache 0, trop_long_pour_le_cache 3,
+                          messages_moyens 12
+
+       Le cache du fil ne s'est JAMAIS armé. Ma garde disait « pas de borne
+       au-delà de douze messages, la fenêtre glisse » — et le fil du
+       téléphone est gardé d'une conversation à l'autre, donc il fait
+       TOUJOURS douze messages ou plus. J'avais supposé des conversations
+       courtes ; elles ne le sont jamais. Le cas que je croyais rare était
+       le seul cas.
+
+       Le défaut n'était pas la garde, c'était la fenêtre : `slice(-12)`
+       avance d'un cran à chaque échange, donc le DÉBUT du fil change à
+       chaque tour, et un cache ne retrouve jamais son préfixe.
+
+       On fait donc sauter la fenêtre par paliers au lieu de la faire
+       glisser : le début reste le même pendant PAS_DU_FIL messages (quatre
+       échanges), puis avance d'un coup. Entre deux sauts, le préfixe est
+       identique, le cache le relit au dixième, et seul l'échange neuf
+       s'écrit. La fenêtre fait alors de douze à dix-huit messages au lieu
+       de douze pile — un peu plus de texte, mais relu, pas repayé. Le
+       découpage se fait sur le téléphone : voir lib/fenetre-du-fil.ts. */
+    /* C'est le TÉLÉPHONE qui découpe la fenêtre (lib/fenetre-du-fil.ts) :
+       lui seul connaît la vraie longueur du fil. Ici, un plafond, et rien
+       d'autre — redécouper glisserait sous ses indices. */
+    const history=(body.history||[]).slice(-FIL_AU_PLUS).map(item=>({role:item.role==="bia"?"assistant":"user",content:String(item.text||"").slice(0,1500)}));
 
     /* Le socle des relations accompagne CHAQUE question, même une question de
        mathématiques : quelqu'un peut demander l'heure et finir par raconter
@@ -2280,9 +2311,11 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        glisser. Au-delà, on revient exactement au comportement d'avant. Et on
        compte les deux cas, parce qu'un réglage qu'on ne compte pas est un
        réglage qu'on croit. */
-    const FENETRE_DU_FIL = 12;
     const filEnCache = (fil: typeof history) => {
-      if (!fil.length || fil.length >= FENETRE_DU_FIL) {
+      /* Depuis que la fenêtre saute par paliers (voir plus haut), son début
+         est stable quatre tours sur cinq : la borne se pose toujours. Un fil
+         vide n'a rien à mettre en cache. */
+      if (!fil.length) {
         noterFil(false, fil.length);
         return fil;
       }

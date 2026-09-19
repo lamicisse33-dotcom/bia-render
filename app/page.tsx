@@ -41,6 +41,7 @@ import { franc, lecture, sorteEvoquee, totauxDe } from "@/lib/documents";
 import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
 import { lireMesures, noterMesure } from "@/lib/chrono";
 import { finir as finirLeTour, poser as poserBorne, tourVide, type Bornes } from "@/lib/tour";
+import { fenetreDuFil } from "@/lib/fenetre-du-fil";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 import { lireLeRire } from "@/lib/rires";
@@ -143,6 +144,11 @@ const EMOTION_VERS_FACE: Record<string, Face> = {
 
 /* Un rire ne tient pas sur une seule image. On enchaîne quelques cases pour
    que le visage bouge — c'est ce qui donne l'impression du vrai. */
+/* Le chemin du retour au repos, après n'importe quelle émotion : la douceur,
+   puis les yeux mi-clos, puis les yeux ouverts. C'est ce qui remplace la
+   coupe franche que Lamine trouvait brusque. */
+const ATTERRISSAGE: Array<[Face, number]> = [["douce", 420], ["yeux_mi", 240], ["yeux_ouverts", 0]];
+
 const SUITES: Partial<Record<string, Array<[Face, number]>>> = {
   rire:    [["joie",320],["rire",620],["rire_tete",720],["rire",560],["joie",480]],
   /* Le grand rire, quand aucun son n'est disponible : même arc que la suite
@@ -251,6 +257,19 @@ function phoneticWolof(text: string) {
 export default function Home() {
   const [history, setHistory] = useState<Message[]>([]);
   const [face, setFace] = useState<Face>("yeux_ouverts");
+  /* Le visage qu'on vient de quitter, pour le fondu. Les bouches sont exclues
+     des deux côtés : la parole reste nette. */
+  const [visageAvant, setVisageAvant] = useState<{ face: Face; n: number } | null>(null);
+  const facePrecedente = useRef<Face | null>(null);
+  useEffect(() => {
+    const avant = facePrecedente.current;
+    facePrecedente.current = face;
+    if (!avant || avant === face) return;
+    if (avant.startsWith("bouche_") || face.startsWith("bouche_")) { setVisageAvant(null); return; }
+    setVisageAvant({ face: avant, n: Date.now() });
+    const t = setTimeout(() => setVisageAvant(null), 260);
+    return () => clearTimeout(t);
+  }, [face]);
   const [mode, setMode] = useState<"ready" | "listening" | "thinking" | "speaking" | "error">("ready");
   /* ── LA CONVERSATION VOCALE ────────────────────────────────────────────
      Demandée par Lamine le 12 septembre 2026 : « un premier appui ouvre la
@@ -678,6 +697,9 @@ export default function Home() {
   const recognitionRef = useRef<Recognition | null>(null);
   const mouthTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /* Les minuteries de l'atterrissage, pour pouvoir les annuler si une autre
+     émotion arrive entre-temps. */
+  const atterrissage = useRef<ReturnType<typeof setTimeout>[]>([]);
   const busyRef = useRef(false);
   const historyRef = useRef<Message[]>([]);
   /* ── LA QUESTION EN VOL, POUR NE PAS LA PERDRE S'IL LA CONTINUE ─────────
@@ -1107,13 +1129,25 @@ export default function Home() {
 
     const emo = emotionRef.current || "neutre";
     const suite = SUITES[emo];
+    /* ── ELLE REDESCEND, ELLE NE RETOMBE PAS ────────────────────────────
+       Après l'émotion, on ne saute plus au repos : on y descend par la
+       douceur puis les yeux mi-clos, comme un visage qui se calme. Deux
+       images qui existaient déjà ; il manquait le chemin entre les deux. */
+    const atterrir = (apres: number) => {
+      atterrissage.current.forEach(clearTimeout);
+      atterrissage.current = ATTERRISSAGE.reduce<ReturnType<typeof setTimeout>[]>((liste, [f, d], i) => {
+        const depart = apres + ATTERRISSAGE.slice(0, i).reduce((n, [, dd]) => n + dd, 0);
+        liste.push(setTimeout(() => setFace(f), depart));
+        return liste;
+      }, []);
+    };
     if (suite) {
       let t = 0;
       for (const [f, d] of suite) { setTimeout(() => setFace(f), t); t += d; }
-      resetTimer.current = setTimeout(() => setFace("yeux_ouverts"), t + 1800);
+      atterrir(t + 1400);
     } else {
       setFace(EMOTION_VERS_FACE[emo] || "yeux_ouverts");
-      resetTimer.current = setTimeout(() => setFace("yeux_ouverts"), 4200);
+      atterrir(3800);
     }
   }, []);
 
@@ -2532,7 +2566,10 @@ export default function Home() {
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
         body: JSON.stringify({
           message: clean,
-          history: historyRef.current.slice(-12),
+          /* Une fenêtre qui saute par paliers, pas qui glisse : c'est ce
+             qui permet au cache du fil de retrouver son préfixe quatre tours
+             sur cinq. Voir lib/fenetre-du-fil.ts. */
+          history: fenetreDuFil(historyRef.current),
           /* ── LE POINT QUI CLIGNOTE, ET QU'ELLE NE VOYAIT PAS ───────────
              Lamine, le 16 septembre 2026 : « ça continue à clignoter en bas.
              Je lui ai demandé d'arrêter d'écrire, elle dit qu'elle n'écrit
@@ -4512,6 +4549,8 @@ export default function Home() {
     debrancherMicroRef.current = null;
     if (mouthTimer.current) clearInterval(mouthTimer.current);
     if (resetTimer.current) clearTimeout(resetTimer.current);
+    atterrissage.current.forEach(clearTimeout);
+    atterrissage.current = [];
     window.speechSynthesis?.cancel();
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
     try { sourceRef.current?.stop(); } catch {}
@@ -6608,6 +6647,17 @@ export default function Home() {
     <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
       <div className={eclipse ? "portrait eclipse" : rallume ? "portrait rallume" : "portrait"}
         aria-hidden="true">
+        {/* ── DEUX COUCHES, POUR QUE LE VISAGE NE SAUTE PLUS ─────────────
+            Lamine, le 19 septembre 2026 : « quand elle finit de rire, elle
+            ferme automatiquement son visage, c'est brusque, ça colle pas ».
+            Une seule image qui change de case, c'est une coupe franche.
+            L'ancien visage reste donc dessus un cinquième de seconde et
+            s'efface, pendant que le nouveau est déjà dessous. Les bouches
+            n'y passent pas : une bouche qui fond dans la suivante ferait
+            une bouillie sur la parole. Voir visageAvant. */}
+        {visageAvant && (
+          <div key={visageAvant.n} className="avatar avatar-avant" data-face={visageAvant.face} />
+        )}
         <div className="avatar" data-face={face} />
       </div>
 
