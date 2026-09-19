@@ -36,8 +36,12 @@ def main():
     import scipy.io.wavfile as wav
 
     depuis = time.time()
-    modele = VitsModel.from_pretrained("facebook/mms-tts-wol")
-    tokenizer = AutoTokenizer.from_pretrained("facebook/mms-tts-wol")
+    # token=False : on n'envoie AUCUN jeton Hugging Face. Le Mac de Lamine en
+    # a un d'enregistré, périmé ; envoyé, il fait répondre « Repository Not
+    # Found… Invalid username or password » même sur ce modèle public
+    # (vu le 19 septembre). Le modèle est public, il n'en a pas besoin.
+    modele = VitsModel.from_pretrained("facebook/mms-tts-wol", token=False)
+    tokenizer = AutoTokenizer.from_pretrained("facebook/mms-tts-wol", token=False)
     print(f"modèle chargé en {time.time() - depuis:.1f} s")
 
     dossier = Path(__file__).parent / "essai-mms"
