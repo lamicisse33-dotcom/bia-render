@@ -131,7 +131,78 @@ const CASES = {
   ecoute: 16, concernee: 17, triste: 18, malice: 19, pensive: 20,
   rire: 21, rire_tete: 22, fourire: 23, rire_retenu: 24,
 } as const;
-type Face = keyof typeof CASES;
+
+/* Les deux planches suivantes (19 septembre 2026) : six mouvements de quatre
+   images chacune, numérotés comme dans PLANCHES-A-DEMANDER-A-CHATGPT.md.
+   Le numéro est celui de la case dans SA planche ; le CSS sait quelle
+   planche va avec quel nom. Tant que les fichiers ne sont pas dans public/,
+   rien ne les appelle — ils attendent les CYCLES ci-dessous. */
+const CASES_DES_PLANCHES_SUIVANTES = {
+  /* bia-gestes-24.webp */
+  ecoute_1: 1,
+  ecoute_2: 2,
+  ecoute_3: 3,
+  ecoute_4: 4,
+  reflexion_1: 5,
+  reflexion_2: 6,
+  reflexion_3: 7,
+  reflexion_4: 8,
+  rire_apaise_1: 9,
+  rire_apaise_2: 10,
+  rire_apaise_3: 11,
+  rire_apaise_4: 12,
+  comprehension_1: 13,
+  comprehension_2: 14,
+  comprehension_3: 15,
+  comprehension_4: 16,
+  douceur_1: 17,
+  douceur_2: 18,
+  douceur_3: 19,
+  douceur_4: 20,
+  compassion_1: 21,
+  compassion_2: 22,
+  compassion_3: 23,
+  compassion_4: 24,
+  /* bia-mains-24.webp */
+  salut_1: 1,
+  salut_2: 2,
+  salut_3: 3,
+  salut_4: 4,
+  aurevoir_1: 5,
+  aurevoir_2: 6,
+  aurevoir_3: 7,
+  aurevoir_4: 8,
+  coeur_1: 9,
+  coeur_2: 10,
+  coeur_3: 11,
+  coeur_4: 12,
+  bouche_etonne_1: 13,
+  bouche_etonne_2: 14,
+  bouche_etonne_3: 15,
+  bouche_etonne_4: 16,
+  bouche_grosmot_1: 17,
+  bouche_grosmot_2: 18,
+  bouche_grosmot_3: 19,
+  bouche_grosmot_4: 20,
+  paume_1: 21,
+  paume_2: 22,
+  paume_3: 23,
+  paume_4: 24,
+} as const;
+type Face = keyof typeof CASES | keyof typeof CASES_DES_PLANCHES_SUIVANTES;
+
+/* Un mouvement = ses quatre cases dans l'ordre : montée, tenue, variation,
+   redescente. Joués à PAS_DU_CYCLE ms par image, avec le fondu de
+   visageAvant entre deux. */
+const cycle = (nom: string): Face[] => [1, 2, 3, 4].map((k) => `${nom}_${k}` as Face);
+const CYCLES = {
+  ecoute: cycle("ecoute"), reflexion: cycle("reflexion"), rire_apaise: cycle("rire_apaise"),
+  comprehension: cycle("comprehension"), douceur: cycle("douceur"), compassion: cycle("compassion"),
+  salut: cycle("salut"), aurevoir: cycle("aurevoir"), coeur: cycle("coeur"),
+  bouche_etonne: cycle("bouche_etonne"), bouche_grosmot: cycle("bouche_grosmot"), paume: cycle("paume"),
+} as const;
+const PAS_DU_CYCLE = 380;
+const PLANCHES_SUIVANTES = ["/bia-gestes-24.webp", "/bia-mains-24.webp"] as const;
 
 /* Ce que BIA renvoie → ce qu'on affiche. Les rires ne sont pas une image
    fixe : ils s'animent, d'où les suites plus bas. */
@@ -700,6 +771,19 @@ export default function Home() {
   /* Les minuteries de l'atterrissage, pour pouvoir les annuler si une autre
      émotion arrive entre-temps. */
   const atterrissage = useRef<ReturnType<typeof setTimeout>[]>([]);
+  /* Les deux planches suivantes sont-elles arrivées ? On les charge une fois
+     au démarrage (c'est aussi ce qui les met en cache avant le premier
+     geste) ; tant qu'une des deux manque, les cycles restent muets et le
+     visage garde ses 24 cases d'origine. Jamais un avatar noir. */
+  const planchesPretesRef = useRef(false);
+  useEffect(() => {
+    let restantes = PLANCHES_SUIVANTES.length;
+    for (const fichier of PLANCHES_SUIVANTES) {
+      const img = new Image();
+      img.onload = () => { restantes -= 1; if (restantes === 0) planchesPretesRef.current = true; };
+      img.src = fichier;
+    }
+  }, []);
   const busyRef = useRef(false);
   const historyRef = useRef<Message[]>([]);
   /* ── LA QUESTION EN VOL, POUR NE PAS LA PERDRE S'IL LA CONTINUE ─────────
@@ -1141,10 +1225,22 @@ export default function Home() {
         return liste;
       }, []);
     };
+    /* Le chemin en quatre images d'une planche suivante, quand elle est là :
+       posé à la place de l'atterrissage, puis l'atterrissage derrière. */
+    const descendrePar = (noms: readonly Face[], apres: number) => {
+      atterrissage.current.forEach(clearTimeout);
+      atterrissage.current = noms.map((f, i) => setTimeout(() => setFace(f), apres + i * PAS_DU_CYCLE));
+      let quand = apres + noms.length * PAS_DU_CYCLE;
+      for (const [f, d] of ATTERRISSAGE) { /* même arc que atterrir, à la suite */
+        atterrissage.current.push(setTimeout(() => setFace(f), quand));
+        quand += d;
+      }
+    };
+    const apaise = planchesPretesRef.current && (emo === "rire" || emo === "fourire");
     if (suite) {
       let t = 0;
       for (const [f, d] of suite) { setTimeout(() => setFace(f), t); t += d; }
-      atterrir(t + 1400);
+      if (apaise) descendrePar(CYCLES.rire_apaise, t + 600); else atterrir(t + 1400);
     } else {
       setFace(EMOTION_VERS_FACE[emo] || "yeux_ouverts");
       atterrir(3800);
@@ -3279,8 +3375,27 @@ export default function Home() {
       poser("pensive", entre(2600, 5200), geste);
     }
 
+    /* Un mouvement de quatre images, une à la fois, puis la suite. */
+    function enchainer(noms: readonly Face[], i: number, puis: () => void) {
+      if (i >= noms.length) { puis(); return; }
+      poser(noms[i], PAS_DU_CYCLE, () => enchainer(noms, i + 1, puis));
+    }
+    const debut = Date.now();
+
     function geste() {
       const tirage = Math.random();
+      if (planchesPretesRef.current) {
+        /* Avec les planches suivantes : elle réfléchit, elle écoute, et si
+           l'attente s'étire au-delà de quatre secondes, la paume ouverte —
+           « un instant ». Le retour au repos passe par la dernière image du
+           cycle, proche du visage calme. */
+        const longue = Date.now() - debut > 4000;
+        if (longue && tirage < 0.35) enchainer(CYCLES.paume, 0, repos);
+        else if (tirage < 0.55) enchainer(CYCLES.reflexion, 0, repos);
+        else if (tirage < 0.85) enchainer(CYCLES.ecoute, 0, repos);
+        else poser("yeux_mi", 130, () => poser("yeux_fermes", 170, () => poser("yeux_mi", 120, repos)));
+        return;
+      }
       if (tirage < 0.42) {
         // Un regard qui glisse, et qui revient sans se presser.
         poser("regard_cote", entre(1400, 2400), repos);
