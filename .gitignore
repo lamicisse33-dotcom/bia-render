@@ -12,6 +12,7 @@ sons-mis-de-cote
 .DS_Store
 
 # Les 72 images originales de ChatGPT (115 Mo) restent sur le Mac, pas dans le depot
-planches-brutes/BIA-72*
+planches-brutes/BIA-*
 planches-brutes/*.zip
+planches-brutes/*.jpg
 public/planches/
