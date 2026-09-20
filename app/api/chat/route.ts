@@ -467,11 +467,38 @@ const EMOTIONS=new Set(["neutre","douce","joie","rire","fourire","etonnement","s
    première ligne, et ce lecteur accepte les écarts : « émotion » accentué,
    des crochets simples, un tiret ou un espace à la place des deux points. */
 const BALISE=/\[{1,2}\s*[ée]motion\s*[:\-—]?\s*([A-Za-zÀ-ÿ_]+)\s*\]{1,2}/i;
+/* ── ET LA BALISE N'ARRIVAIT TOUJOURS PAS : ON L'AMORCE ────────────────────
+
+   Mesuré le 20 septembre 2026, sur /api/etat, version 0c0040a : douze
+   échanges, douze « neutre », onze sans balise. La consigne était intacte,
+   le lecteur aussi. Ce qui s'est passé : le fil envoyé au modèle contient ses
+   propres réponses d'avant, NETTOYÉES de leur balise (c'est ce qu'on affiche
+   et ce qu'on garde). Quinze réponses sans balise devant les yeux pèsent plus
+   lourd qu'un paragraphe de consigne : il imite ce qu'il voit.
+
+   On ne demande donc plus, on COMMENCE À SA PLACE. Le dernier message envoyé
+   est un début de réponse d'assistant : « [[emotion: ». Il n'a plus qu'à
+   écrire le mot et fermer les crochets — il ne peut pas oublier ce qu'il a
+   déjà commencé. L'API ne renvoie pas ce début : on le recolle nous-mêmes
+   devant son premier mot, dans les deux chemins (flux et bloc), et le
+   téléphone le reçoit en premier pour que son lecteur voie une balise
+   entière.
+
+   Deux cas où on ne peut pas : la réflexion (l'API refuse un début de
+   réponse quand le modèle doit penser avant) et l'outil de recherche (on ne
+   lui force pas la main quand il doit d'abord chercher). Là, la consigne
+   seule reste en jeu, et /api/etat continue de compter `sans_balise` —
+   c'est ce chiffre qui dira si l'amorce suffit. */
+const AMORCE_EMOTION="[[emotion:";
+/* Ce qui peut rester devant la réponse quand le modèle a RÉÉCRIT toute la
+   balise après l'amorce (« [[emotion:[[emotion:joie]] ») ou l'a fermée vide
+   (« [[emotion:]] ») : un bout de balise sans émotion, à ne pas prononcer. */
+const RESTE_D_AMORCE=/^\s*\[{1,2}\s*[ée]motion\s*[:\-—]?\s*\]{0,2}\s*/i;
 function detacherEmotion(texte:string){
   const m=texte.match(BALISE);
   const brut=m?m[1].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""):"";
   return {
-    reply:texte.replace(new RegExp(BALISE.source,"gi"),"").trim(),
+    reply:texte.replace(new RegExp(BALISE.source,"gi"),"").replace(RESTE_D_AMORCE,"").trim(),
     emotion:EMOTIONS.has(brut)?brut:"neutre",
     balise:Boolean(m),
   };
@@ -863,10 +890,23 @@ export async function POST(request:NextRequest){
    On ne mesure PAS l'instant où la connexion s'ouvre : un flux répond tout de
    suite et peut rester muet une seconde entière. C'est le premier MOT qui
    compte. `depart` est pris avant l'appel, par l'appelant. */
-async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void,depart=0){
+async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void,depart=0,amorce=""){
   const lecteur=reponse.body?.getReader();
   if(!lecteur) return {content:[],usage:undefined,stop_reason:"",types:[] as string[]};
   let premierMot=0;
+  /* L'AMORCE (voir AMORCE_EMOTION) : le début de réponse qu'on a écrit à sa
+     place n'est pas renvoyé par l'API. On le recolle devant son premier mot,
+     et on l'envoie au téléphone AVANT ce mot, pour que le lecteur du flux y
+     voie une balise entière. Une seule fois, et seulement s'il a écrit
+     quelque chose — une réponse vide doit rester vide, pour être refaite. */
+  let amorceRendue=!amorce;
+  const rendreLAmorce=()=>{
+    if(amorceRendue) return;
+    amorceRendue=true;
+    if(!blocs.length) blocs.push("");
+    blocs[0]=amorce+blocs[0];
+    try{ emettre(amorce); }catch{}
+  };
   const decodeur=new TextDecoder();
   const blocs:string[]=[];
   let reste="",usage:Record<string,unknown>={};
@@ -896,6 +936,7 @@ async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void,depart
       }
       if(ev.type==="content_block_delta"&&ev.delta?.type==="text_delta"&&ev.delta.text){
         if(!blocs.length) blocs.push("");
+        rendreLAmorce();
         if(!premierMot)premierMot=Date.now();
         blocs[blocs.length-1]+=ev.delta.text;
         /* Si le téléphone a raccroché, on ne s'arrête pas pour autant : le
@@ -2333,13 +2374,21 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       );
     };
 
+    /* L'AMORCE DE L'ÉMOTION (voir AMORCE_EMOTION) : partout sauf avec la
+       réflexion (l'API la refuse) et avec l'outil de recherche. */
+    const amorceDe = (o: { avecOutil: boolean; reflexion: Reflexion }) =>
+      o.reflexion !== "allumee" && !o.avecOutil ? AMORCE_EMOTION : "";
     const corpsDuModele = (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion;
     }) => JSON.stringify({
       model,
       max_tokens: o.plafond,
       system: consigne,
-      messages: [...filEnCache(history), { role: "user", content: question }],
+      messages: [
+        ...filEnCache(history),
+        { role: "user", content: question },
+        ...(amorceDe(o) ? [{ role: "assistant", content: amorceDe(o) }] : []),
+      ],
       ...(o.avecOutil ? { tools: [OUTIL_RECHERCHE] } : {}),
       ...champDeReflexion(o.reflexion),
       ...(emettre ? { stream: true } : {}),
@@ -2396,7 +2445,11 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     /* L'HORLOGE PART ICI, avant la connexion : voir lireLeFlux() et
        lib/etapes.ts. Le premier token se mesure depuis ce point. */
     const partiModele=Date.now();
-    const response=await appelerLeModele({plafond:PLAFOND,avecOutil:cherche,reflexion:reflechit?"allumee":"eteinte"});
+    const premiersReglages={plafond:PLAFOND,avecOutil:cherche,reflexion:(reflechit?"allumee":"eteinte") as Reflexion};
+    const response=await appelerLeModele(premiersReglages);
+    /* L'amorce qui accompagne la réponse en main : elle change avec les
+       réglages de chaque reprise, et le lecteur doit recoller la bonne. */
+    let amorce=amorceDe(premiersReglages);
 
     /* SI L'OUTIL EST REFUSÉ, ON RÉPOND QUAND MÊME.
 
@@ -2431,7 +2484,9 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
          n'était pas un avis sur la réflexion, et le booléen d'avant le
          faisait passer pour tel. Le plafond monte quand même, au cas où le
          modèle réfléchirait de lui-même — c'est ce qui la vidait. */
-      reponse = await appelerLeModele({plafond:PLAFOND_AVEC_REFLEXION,avecOutil:false,reflexion:"sans-champ"});
+      const sansReglages={plafond:PLAFOND_AVEC_REFLEXION,avecOutil:false,reflexion:"sans-champ" as Reflexion};
+      reponse = await appelerLeModele(sansReglages);
+      amorce = amorceDe(sansReglages);
     }
 
     /* ── « SUR CERTAINES QUESTIONS ELLE DIT QUE SON MOTEUR NE RÉPOND PAS » ──
@@ -2467,8 +2522,8 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       console.error("BIA — le modèle bégaie, on retente une fois :", reponse.status, detail.slice(0, 200));
       noterPanne(reponse.status, `${detail.slice(0, 200)} — retenté après ${attente} ms`, "chat");
       await new Promise((f) => setTimeout(f, attente));
-      const reprise = await appelerLeModele({plafond:PLAFOND,avecOutil:cherche,reflexion:reflechit?"allumee":"eteinte"});
-      if (reprise.ok) reponse = reprise;
+      const reprise = await appelerLeModele(premiersReglages);
+      if (reprise.ok) { reponse = reprise; amorce = amorceDe(premiersReglages); }
     }
 
     if(!reponse.ok){
@@ -2481,7 +2536,16 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     type Reponse={content?:Array<{type:string;text?:string}>;usage?:unknown;
       stop_reason?:string;types?:string[]};
-    let data:Reponse=emettre?await lireLeFlux(reponse,emettre,partiModele):await reponse.json() as Reponse;
+    /* Le chemin sans flux recolle l'amorce lui-même, devant le premier bloc
+       de texte non vide — même règle que dans lireLeFlux. */
+    const avecAmorce=(d:Reponse,a:string):Reponse=>{
+      if(!a) return d;
+      const blocs=d.content||[];
+      const i=blocs.findIndex(b=>b.type==="text"&&(b.text||"").trim());
+      if(i<0) return d;
+      return {...d,content:blocs.map((b,j)=>j===i?{...b,text:a+(b.text||"")}:b)};
+    };
+    let data:Reponse=emettre?await lireLeFlux(reponse,emettre,partiModele,amorce):avecAmorce(await reponse.json() as Reponse,amorce);
     /* Ce n'est plus une estimation : c'est le modèle lui-même qui dit ce
        qu'il a consommé, et combien lui est revenu du cache. Ça se lit dans
        /api/etat, champ « depense ». */
@@ -2549,9 +2613,11 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
            — la phrase elle-même était trop longue pour le plafond.
          900 jetons, le temps d'une seule reprise : on ne paie que ce qui est
          écrit, et la consigne lui demande toujours deux phrases. */
-      const sansOutil=await appelerLeModele({plafond:900,avecOutil:false,reflexion:"eteinte"});
+      const reglagesDeSecours={plafond:900,avecOutil:false,reflexion:"eteinte" as Reflexion};
+      const sansOutil=await appelerLeModele(reglagesDeSecours);
       if(sansOutil.ok){
-        const second:Reponse=emettre?await lireLeFlux(sansOutil,emettre):await sansOutil.json() as Reponse;
+        const amorceDeSecours=amorceDe(reglagesDeSecours);
+        const second:Reponse=emettre?await lireLeFlux(sansOutil,emettre,0,amorceDeSecours):avecAmorce(await sansOutil.json() as Reponse,amorceDeSecours);
         noterModele(second.usage,"chat");
         const texte=texteDe(second);
         /* On ne garde la seconde que si elle dit quelque chose : une deuxième
@@ -2582,13 +2648,19 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        LA BOUCLE SE CASSE EN AMONT, là où le modèle CHOISIT : la phrase qu'elle
        vient de dire ne lui est plus proposée. Voir consigneRepertoire() et
        dejaDiteJusteAvant() dans lib/repertoire.ts. */
-    const choisie=(repertoireActif()&&!dejaParle)?etiquetteSeule(complet):null;
+    /* SANS LA BALISE D'ÉMOTION. Avec l'amorce, chaque réponse commence par
+       « [[emotion:x]] » — y compris quand le modèle choisit une réponse
+       enregistrée : « [[emotion:joie]]\n#salut ». Chercher l'étiquette dans
+       le texte brut ne la trouvait plus, et BIA aurait dit « dièse salut » à
+       voix haute. On cherche donc dans le texte débarrassé de sa balise. */
+    const sansEmotion=detacherEmotion(complet).reply;
+    const choisie=(repertoireActif()&&!dejaParle)?etiquetteSeule(sansEmotion):null;
     /* Une étiquette seule qu'on ne connaît pas : le modèle a voulu se servir
        du répertoire et s'est trompé de nom. La réponse part quand même — mais
        on le NOTE, sinon BIA dirait « #la-famile » à voix haute sans que
        personne ne sache d'où ça vient. Ça se lit dans /api/etat. */
-    if(!choisie&&/^#[a-z0-9-]{2,40}\.?$/.test(complet.trim())){
-      noterPanne("étiquette de répertoire inconnue",complet.trim(),"chat");
+    if(!choisie&&/^#[a-z0-9-]{2,40}\.?$/.test(sansEmotion.trim())){
+      noterPanne("étiquette de répertoire inconnue",sansEmotion.trim(),"chat");
     }
     if(choisie){
       oublierPanne();
