@@ -14,6 +14,38 @@ export type Vue = { emotion: string; balise: boolean; debut: string; quand: stri
 const GARDEES = 30;
 let vues: Vue[] = [];
 
+/* ── L'AMORCE, ET CE QUE LE MODÈLE EN A FAIT ────────────────────────────────
+
+   20 septembre 2026 au soir. L'amorce d'émotion (un début de réponse
+   « [[emotion: » envoyé en rôle assistant, voir app/api/chat/route.ts) est
+   partie en production ; juste après, Lamine : « elle n'arrête pas de dire
+   que mon moteur ne répond pas ». Un début de réponse d'assistant est un
+   réglage que TOUS les modèles n'acceptent pas — et s'il est refusé, la route
+   d'alors le renvoyait tel quel dans la reprise, qui échouait pareil.
+
+   Donc : on compte les amorces envoyées, et dès que le modèle en refuse une
+   (400 dont le motif la nomme), on cesse de l'envoyer pour de bon sur ce
+   serveur, et /api/etat le dit en toutes lettres. Ça ne se devine pas depuis
+   le canapé, et ça ne doit jamais rendre BIA muette. */
+let amorcesEnvoyees = 0;
+let amorceRefuseeMotif = "";
+
+export function noterAmorceEnvoyee() { amorcesEnvoyees++; }
+export function noterAmorceRefusee(motif: string) { amorceRefuseeMotif = String(motif || "refusée").slice(0, 200); }
+/* Un 400 dont le motif ne nomme pas l'amorce, mais reçu avec elle : on ne
+   sait pas. Trois de suite, et on cesse quand même — mieux vaut perdre
+   l'émotion qu'un aller-retour à chaque tour. Un 400 sans amorce n'est pas
+   compté ici : il ne dit rien sur elle. */
+let refusAvecAmorce = 0;
+export function noterRefusAvecAmorce(motif: string) {
+  refusAvecAmorce++;
+  if (refusAvecAmorce >= 3 && !amorceRefuseeMotif) noterAmorceRefusee(`3 refus (400) de suite avec l'amorce — ${motif}`);
+}
+export function amorceRefusee() { return Boolean(amorceRefuseeMotif); }
+export function resumeAmorce() {
+  return { envoyees: amorcesEnvoyees, refus_400_avec: refusAvecAmorce, refusee: amorceRefuseeMotif || null };
+}
+
 export function noterEmotion(emotion: string, reponse: string, balise = false) {
   const entree: Vue = {
     emotion: String(emotion || "neutre"),
@@ -34,5 +66,5 @@ export function resumeEmotions() {
   const compte: Record<string, number> = {};
   for (const v of vues) compte[v.emotion] = (compte[v.emotion] || 0) + 1;
   const sansBalise = vues.filter((v) => !v.balise).length;
-  return { echanges: vues.length, compte, sans_balise: sansBalise, dernieres: vues.slice(-5) };
+  return { echanges: vues.length, compte, sans_balise: sansBalise, amorce: resumeAmorce(), dernieres: vues.slice(-5) };
 }

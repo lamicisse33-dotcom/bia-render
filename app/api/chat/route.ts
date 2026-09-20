@@ -12,7 +12,7 @@ import { noterEtape } from "@/lib/etapes";
 import { noterFil, noterModele } from "@/lib/depense";
 
 import { FIL_AU_PLUS } from "@/lib/fenetre-du-fil";
-import { noterEmotion } from "@/lib/emotions-vues";
+import { noterEmotion, noterAmorceEnvoyee, noterAmorceRefusee, noterRefusAvecAmorce, amorceRefusee } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { BUDGET_DE_REFLEXION, PLAFOND_AVEC_REFLEXION, meriteReflexion, noterReflexion } from "@/lib/reflechir";
 import { consigneDeSesGestes, gestesDe } from "@/lib/ses-gestes";
@@ -2375,11 +2375,13 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     };
 
     /* L'AMORCE DE L'ÉMOTION (voir AMORCE_EMOTION) : partout sauf avec la
-       réflexion (l'API la refuse) et avec l'outil de recherche. */
-    const amorceDe = (o: { avecOutil: boolean; reflexion: Reflexion }) =>
-      o.reflexion !== "allumee" && !o.avecOutil ? AMORCE_EMOTION : "";
+       réflexion (l'API la refuse), avec l'outil de recherche, dans la reprise
+       « sans aucun réglage facultatif » (c'en est un), et plus jamais dès que
+       le modèle en a refusé une — voir noterAmorceRefusee(). */
+    const amorceDe = (o: { avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean }) =>
+      o.reflexion !== "allumee" && !o.avecOutil && !o.sansAmorce && !amorceRefusee() ? AMORCE_EMOTION : "";
     const corpsDuModele = (o: {
-      plafond: number; avecOutil: boolean; reflexion: Reflexion;
+      plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
     }) => JSON.stringify({
       model,
       max_tokens: o.plafond,
@@ -2394,11 +2396,11 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       ...(emettre ? { stream: true } : {}),
     });
     const appelerLeModele = (o: {
-      plafond: number; avecOutil: boolean; reflexion: Reflexion;
+      plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
     }) => fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: corpsDuModele(o),
+      body: (amorceDe(o) && noterAmorceEnvoyee(), corpsDuModele(o)),
     });
 
     /* Plafond descendu de 500 à 300 le 11 septembre 2026 : « elle doit dire
@@ -2479,12 +2481,22 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       const detail = await reponse.clone().text().catch(() => "");
       console.error("BIA — un réglage est refusé, on repart sans :", detail.slice(0, 300));
       noterPanne("réglage refusé (400)", detail, "chat");
+      /* SI C'EST L'AMORCE QUI EST REFUSÉE, on ne la renverra plus jamais sur
+         ce serveur : un modèle qui n'accepte pas un début de réponse ne
+         l'acceptera pas mieux au tour suivant, et chaque essai coûterait un
+         aller-retour avant la vraie réponse. Ça se lit sur /api/etat →
+         emotions.amorce. Le 20 septembre au soir, c'est ce qui l'a rendue
+         muette : « mon moteur ne répond pas » à chaque tour. */
+      if (amorce) {
+        if (/prefill|pr[ée]-?fill|assistant message|final assistant|last message|must end with|end with a user|trailing whitespace/i.test(detail)) noterAmorceRefusee(detail.slice(0, 200));
+        else noterRefusAvecAmorce(detail.slice(0, 120));
+      }
       /* « sans-champ » et non « allumée » : ici on retire TOUS les réglages
          facultatifs pour qu'un réglage refusé ne la rende pas muette. Ce
          n'était pas un avis sur la réflexion, et le booléen d'avant le
          faisait passer pour tel. Le plafond monte quand même, au cas où le
          modèle réfléchirait de lui-même — c'est ce qui la vidait. */
-      const sansReglages={plafond:PLAFOND_AVEC_REFLEXION,avecOutil:false,reflexion:"sans-champ" as Reflexion};
+      const sansReglages={plafond:PLAFOND_AVEC_REFLEXION,avecOutil:false,reflexion:"sans-champ" as Reflexion,sansAmorce:true};
       reponse = await appelerLeModele(sansReglages);
       amorce = amorceDe(sansReglages);
     }
