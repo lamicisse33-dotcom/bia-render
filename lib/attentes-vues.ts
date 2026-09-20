@@ -295,3 +295,25 @@ export function resumeGuets() {
     dernieres: guets.slice(-8),
   };
 }
+
+/* ── LE VERROU D'ÉCRAN : CE QUI LUI ARRIVE ─────────────────────────────────
+   Depuis le 20 septembre 2026. Tant que `tenu` ne monte pas et que `refuse`
+   ou `api_absente` montent, l'écran s'éteint chez lui malgré le code. */
+type Veille = { quoi: string; detail: string; quand: number };
+let veilles: Veille[] = [];
+export function noterVeille(v: { quoi?: unknown; detail?: unknown }) {
+  const quoi = String(v.quoi || "").slice(0, 20);
+  if (!quoi) return;
+  veilles = [...veilles, { quoi, detail: String(v.detail || "").slice(0, 80), quand: Date.now() }].slice(-60);
+}
+export function resumeVeilles() {
+  if (!veilles.length) return null;
+  const compte: Record<string, number> = {};
+  for (const v of veilles) compte[v.quoi] = (compte[v.quoi] || 0) + 1;
+  const refus = veilles.filter((v) => v.quoi === "refuse" || v.quoi === "secours_refuse").map((v) => v.detail).filter(Boolean);
+  return {
+    ...compte,
+    derniers_motifs_de_refus: [...new Set(refus)].slice(-4),
+    dernier: veilles[veilles.length - 1],
+  };
+}

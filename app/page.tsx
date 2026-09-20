@@ -70,6 +70,7 @@ import CarteVitrine, { chargerSujet } from "./vitrine";
 import CarteTrouve, { versEcran } from "./trouve";
 import type { Resultat } from "./trouve";
 import { contientUnGrosMot } from "@/lib/gestes-de-la-main";
+import { lancerLeSecours, noterVeille } from "@/lib/veille";
 
 /* Un message peut porter le RENVOI vers un papier — son identifiant, pas son
    contenu. Le papier lui-même vit dans sa propre boîte, qui ne se rogne
@@ -1158,20 +1159,46 @@ export default function Home() {
      permanence est ce qui vide un téléphone le plus vite. C'est son choix, et
      il le sait — mais le verrou tombe dès qu'on quitte BIA, donc ça ne dure
      que le temps qu'on est avec elle. */
+  /* 20 septembre : il redemande la même chose, donc ça ne tenait pas chez
+     lui — et rien ne le comptait. Maintenant chaque issue est mesurée
+     (/api/etat → veille), et un secours prend le relais quand l'API manque
+     ou refuse. Voir lib/veille.ts. */
   useEffect(() => {
-    type Verrou = { release: () => Promise<void>; released?: boolean };
+    type Verrou = { release: () => Promise<void>; released?: boolean; addEventListener?: (t: string, f: () => void) => void };
     const api = (navigator as unknown as {
       wakeLock?: { request: (t: string) => Promise<Verrou> };
     }).wakeLock;
-    if (!api) return;
     let verrou: Verrou | null = null;
     let vivant = true;
+    let arreterLeSecours: (() => void) | null = null;
+    let secoursVoulu = !api;
+    if (!api) noterVeille("api_absente");
+
+    /* Le secours ne peut partir que sur un geste : on l'arme sur le premier
+       toucher, et seulement si on en a besoin à ce moment-là. */
+    const auGeste = () => {
+      if (!vivant || !secoursVoulu || arreterLeSecours) return;
+      arreterLeSecours = lancerLeSecours();
+    };
+    window.addEventListener("pointerdown", auGeste, { passive: true });
 
     const tenir = async () => {
-      if (!vivant || document.visibilityState !== "visible") return;
+      if (!vivant || !api || document.visibilityState !== "visible") return;
       if (verrou && !verrou.released) return;
-      try { verrou = await api.request("screen"); }
-      catch { /* refusé (batterie faible, onglet caché) : on réessaiera */ }
+      try {
+        verrou = await api.request("screen");
+        noterVeille("tenu");
+        secoursVoulu = false;
+        /* Le téléphone peut le relâcher de lui-même (batterie faible, écran
+           couvert). On le saura, et on redemandera au retour. */
+        verrou.addEventListener?.("release", () => { if (vivant) noterVeille("relache"); });
+      } catch (e) {
+        /* Refusé : NotAllowedError le plus souvent (mode économie d'énergie,
+           page cachée). On le dit, et le secours prend le relais au prochain
+           toucher. */
+        noterVeille("refuse", String((e as Error)?.name || e));
+        secoursVoulu = true;
+      }
     };
     const auRetour = () => { if (document.visibilityState === "visible") void tenir(); };
 
@@ -1180,7 +1207,9 @@ export default function Home() {
     return () => {
       vivant = false;
       document.removeEventListener("visibilitychange", auRetour);
+      window.removeEventListener("pointerdown", auGeste);
       void verrou?.release().catch(() => { });
+      arreterLeSecours?.();
     };
   }, []);
 
