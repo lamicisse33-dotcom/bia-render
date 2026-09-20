@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { noterCoupure, noterGuet, noterVue, noterLecture, noterTour, noterVeille } from "@/lib/attentes-vues";
+import { noterCoupure, noterGuet, noterVue, noterLecture, noterTour, noterVeille, noterPrechauffage } from "@/lib/attentes-vues";
 
 /* Le téléphone dit combien de temps il a attendu. Rien d'autre.
 
@@ -18,6 +18,7 @@ export async function POST(requete: Request) {
     else if (corps && corps.type === "coupure") noterCoupure(corps);
     else if (corps && corps.type === "guet") noterGuet(corps);
     else if (corps && corps.type === "veille") noterVeille(corps);
+    else if (corps && corps.type === "prechauffage") noterPrechauffage(corps);
     else noterVue(corps);
   } catch {}
   return NextResponse.json({ ok: true });

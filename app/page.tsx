@@ -3517,6 +3517,49 @@ export default function Home() {
     return () => { vivant = false; };
   }, [code, audioParole]);
 
+  /* ── ET LES SONS DU RÉPERTOIRE QUI OUVRENT ET FERMENT LES CONVERSATIONS ──
+
+     Mesuré le 19 septembre 2026 : 2,5 s pour aller chercher un son dans le
+     seau la première fois. Le « salut » d'ouverture arrivait donc en 6 s.
+     Après le code, on demande la liste (une vingtaine d'adresses, voir
+     CLES_A_PRECHAUFFER) et on range dans bia-sons-v1 ce qui n'y est pas
+     encore — un par un, sans presser, et pas dans la mémoire vive : ce
+     n'est pas pour tout de suite, c'est pour le jour où on en aura besoin.
+     Le cache garde d'une ouverture à l'autre : ça ne coûte qu'une fois par
+     appareil. Ce que ça a coûté et servi se lit sur /api/etat → prechauffage. */
+  useEffect(() => {
+    if (!code) return;
+    let vivant = true;
+    void (async () => {
+      /* On laisse passer les paroles d'attente (ci-dessus) et la salutation
+         d'ouverture : elles passent avant. */
+      await new Promise((r) => setTimeout(r, 4000));
+      if (!vivant) return;
+      const bilan = { demandes: 0, deja_la: 0, chargees: 0, ratees: 0, ms: 0, octets: 0 };
+      const debut = Date.now();
+      try {
+        const liste = await (await fetch("/api/repertoire/prechauffer", { cache: "force-cache" })).json() as { sons?: Array<{ adresse: string }> };
+        const boite = await caches.open("bia-sons-v1").catch(() => null);
+        if (!boite) return;
+        for (const { adresse } of liste.sons || []) {
+          if (!vivant) return;
+          bilan.demandes += 1;
+          try {
+            if (await boite.match(adresse)) { bilan.deja_la += 1; continue; }
+            const r = await fetch(adresse);
+            if (!r.ok) { bilan.ratees += 1; continue; }
+            bilan.octets += Number(r.headers.get("content-length")) || 0;
+            await boite.put(adresse, r);
+            bilan.chargees += 1;
+          } catch { bilan.ratees += 1; }
+        }
+      } catch { /* pas de réseau, pas de liste : rien à préchauffer */ }
+      bilan.ms = Date.now() - debut;
+      if (bilan.demandes) void fetch("/api/mesure", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "prechauffage", ...bilan }), keepalive: true }).catch(() => { });
+    })();
+    return () => { vivant = false; };
+  }, [code]);
+
   /* ── ELLE SALUE À L'OUVERTURE, ET DIT « JE SUIS LÀ » ────────────────────
 
      Lamine, le 12 septembre 2026 : « dès qu'on ouvre l'application elle doit

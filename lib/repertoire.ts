@@ -7,6 +7,7 @@ import type { Entree } from "./repertoire-textes";
 import { NOUVELLES, RELU_BASE } from "./base-textes";
 import { SERVICES } from "./services-textes";
 import { FORMES_NEUVES } from "./formes-neuves";
+import { SONS_QUI_DISENT_AUTRE_CHOSE } from "./a-refaire";
 
 /* ── CE QU'ELLE DIT SOUVENT, PAYÉ UNE SEULE FOIS ────────────────────────────
 
@@ -1426,4 +1427,39 @@ export function etatRepertoire() {
     seau: SEAU,
     actif: repertoireActif() && REPERTOIRE_PRET,
   };
+}
+
+/* ── LES SONS QU'IL FAUT AVOIR EN MAIN AVANT LE PREMIER MOT ─────────────────
+
+   Mesuré le 19 septembre 2026 : un tour du répertoire à 6 s, dont 2,5 s à
+   aller chercher le son dans le seau — la première fois seulement, ensuite
+   le téléphone le garde (bia-sons-v1). Mais « la première fois », c'est
+   justement le « salut » d'ouverture, celui qui donne le ton.
+
+   Donc on préchauffe : dès que le code est entré, le téléphone va chercher
+   en arrière-plan les sons qui ouvrent et ferment presque toutes les
+   conversations. Une fois par appareil, pas par ouverture — le cache garde.
+   Une vingtaine de fichiers légers ; ce que ça pèse se lit sur /api/etat.
+
+   Les clés sont celles du répertoire (lib/repertoire-textes.ts) ; c'est à
+   Lamine de dire lesquelles méritent d'être là avant les autres. */
+export const CLES_A_PRECHAUFFER: string[] = [
+  "salut", "bonsoir", "ca-va", "la-famille", "bienvenue",
+  "merci", "de-rien", "pardon", "oui", "non", "attends",
+  "au-revoir", "bonne-nuit", "bonne-journee", "a-demain",
+  "qui-es-tu", "ton-nom", "je-ne-sais-pas", "repete",
+];
+
+export function adressesAPrechauffer(): Array<{ cle: string; langue: "wo" | "fr"; adresse: string }> {
+  const parCle = new Map(TOUT.map((e) => [e.cle, e] as const));
+  const liste: Array<{ cle: string; langue: "wo" | "fr"; adresse: string }> = [];
+  for (const cle of CLES_A_PRECHAUFFER) {
+    const e = parCle.get(cle);
+    if (!e) continue;
+    for (const langue of ["wo", "fr"] as const) {
+      if (SONS_QUI_DISENT_AUTRE_CHOSE.has(`${langue}/${cle}`)) continue;
+      liste.push({ cle, langue, adresse: sonDe(cle, langue, langue === "fr" ? e.francais : e.wolof) });
+    }
+  }
+  return liste;
 }

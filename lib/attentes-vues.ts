@@ -317,3 +317,27 @@ export function resumeVeilles() {
     dernier: veilles[veilles.length - 1],
   };
 }
+
+/* ── LE PRÉCHAUFFAGE DES SONS DU RÉPERTOIRE ─────────────────────────────────
+   Depuis le 20 septembre 2026. `deja_la` qui domine = le cache tient d'une
+   ouverture à l'autre, comme prévu ; `chargees` = premières ouvertures ;
+   `ratees` qui monte = un son manque dans le seau (à enregistrer). */
+type Prechauffage = { demandes: number; deja_la: number; chargees: number; ratees: number; ms: number; octets: number; quand: number };
+let prechauffages: Prechauffage[] = [];
+export function noterPrechauffage(p: Partial<Prechauffage>) {
+  const n = (x: unknown) => { const v = Math.round(Number(x)); return Number.isFinite(v) && v >= 0 ? v : 0; };
+  prechauffages = [...prechauffages, {
+    demandes: n(p.demandes), deja_la: n(p.deja_la), chargees: n(p.chargees), ratees: n(p.ratees), ms: n(p.ms), octets: n(p.octets), quand: Date.now(),
+  }].slice(-40);
+}
+export function resumePrechauffages() {
+  if (!prechauffages.length) return null;
+  const somme = (k: keyof Prechauffage) => prechauffages.reduce((a, p) => a + (p[k] as number), 0);
+  return {
+    ouvertures: prechauffages.length,
+    demandes: somme("demandes"), deja_la: somme("deja_la"), chargees: somme("chargees"), ratees: somme("ratees"),
+    ko_charges: Math.round(somme("octets") / 1024),
+    ms_moyen: Math.round(somme("ms") / prechauffages.length),
+    dernier: prechauffages[prechauffages.length - 1],
+  };
+}

@@ -4,7 +4,7 @@ import { ecouteConfig, resumeEcoutes, resumeOreilleSoynade } from "@/lib/ecoute"
 import { lexiqueConfig, combien, combienParApplication, parAuteur } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
 import { resumeLecons } from "@/lib/lecons-vues";
-import { resumeAttentes, resumeCoupures, resumeGuets, resumeLectures, resumeTours, resumeVeilles } from "@/lib/attentes-vues";
+import { resumeAttentes, resumeCoupures, resumeGuets, resumeLectures, resumeTours, resumeVeilles, resumePrechauffages } from "@/lib/attentes-vues";
 import { resumeEtapes, dernierEssaiOreille, dernierEssaiVoix } from "@/lib/etapes";
 import { resumeEmotions } from "@/lib/emotions-vues";
 import { depense, resumeDuFil } from "@/lib/depense";
@@ -206,6 +206,8 @@ export async function GET(request: Request) {
     guet: resumeGuets(),
     /* Le verrou d'écran (20 septembre) : tenu, refusé, relâché, secours. */
     veille: resumeVeilles(),
+    /* Les sons du répertoire mis en main avant le premier mot (20 septembre). */
+    prechauffage: resumePrechauffages(),
     ecarts_entre_les_tours: ecartsEntreLesTours(),
     souvenirs: resumeSouvenirs(),
     /* ── ET LE VRAI NOMBRE, CELUI DE LA TABLE ─────────────────────────────
