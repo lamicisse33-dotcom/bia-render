@@ -1,6 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+Moteur TTS wolof local réutilisable.
+
+Objectif :
+- aucune API distante pour la synthèse ;
+- aucun coût par phrase ;
+- même modèle wolof déjà validé ;
+- choix d'une empreinte vocale féminine ;
+- mode interactif pour garder les modèles chargés en mémoire ;
+- découpage automatique des textes longs pour éviter la limite SpeechT5.
+
+Première utilisation :
+    pip3 install torch transformers datasets scipy sentencepiece
+
+Exemples :
+    python3 outils/wolof_local_tts.py "Waaw, dégg naa la bu baax." --play
+    python3 outils/wolof_local_tts.py --interactive --play
+    python3 outils/wolof_local_tts.py "Nanga def ?" --voice clb -o /tmp/test.wav
+    python3 outils/wolof_local_tts.py "Jërëjëf" --offline --play
+
+Important :
+Le modèle doit avoir été téléchargé au moins une fois avant d'utiliser --offline.
+"""
+
+from __future__ import annotations
+
 import argparse
 import re
 import subprocess
@@ -16,468 +42,281 @@ VOIX_FEMMES = {
     "clb": "cmu_us_clb_arctic",
 }
 
-# SpeechT5 est limité à environ 600 positions texte.
-# On garde volontairement une marge.
+# SpeechT5 utilise 600 positions côté texte. On garde une marge de sécurité.
 MAX_TOKENS_PAR_BLOC = 520
 PAUSE_ENTRE_BLOCS_SEC = 0.12
 SAMPLE_RATE = 16000
 
 
 class WolofLocalTTS:
+    def __init__(self, voice: str = "slt", offline: bool = False):
+        if voice not in VOIX_FEMMES:
+            raise ValueError(
+                f"Voix inconnue: {voice}. Choix: {', '.join(VOIX_FEMMES)}"
+            )
 
-    def __init__(self, voice="slt"):
         import torch
         from datasets import load_dataset
         from transformers import (
-            SpeechT5Processor,
             SpeechT5ForTextToSpeech,
             SpeechT5HifiGan,
+            SpeechT5Processor,
         )
 
         self.torch = torch
+        self.voice_name = voice
+        self.offline = offline
 
         debut = time.time()
+        kwargs = {"local_files_only": True} if offline else {}
 
-        self.processor = SpeechT5Processor.from_pretrained(MODELE)
+        self.processor = SpeechT5Processor.from_pretrained(MODELE, **kwargs)
+        self.modele = SpeechT5ForTextToSpeech.from_pretrained(MODELE, **kwargs)
+        self.vocoder = SpeechT5HifiGan.from_pretrained(VOCODEUR, **kwargs)
 
-        self.modele = SpeechT5ForTextToSpeech.from_pretrained(
-            MODELE
-        )
-
-        self.vocoder = SpeechT5HifiGan.from_pretrained(
-            VOCODEUR
-        )
-
-        empreintes = load_dataset(
-            XVECS,
-            split="validation"
-        )
+        if offline:
+            try:
+                empreintes = load_dataset(
+                    XVECS,
+                    split="validation",
+                    download_mode="reuse_dataset_if_exists",
+                )
+            except Exception as exc:
+                raise RuntimeError(
+                    "Le cache local des x-vectors n'est pas disponible. "
+                    "Lance une fois sans --offline."
+                ) from exc
+        else:
+            empreintes = load_dataset(XVECS, split="validation")
 
         prefixe = VOIX_FEMMES[voice]
-
         vecteur = None
         source = None
 
         for ligne in empreintes:
             nom = ligne.get("filename", "")
-
             if prefixe in nom:
                 vecteur = ligne["xvector"]
                 source = nom
                 break
 
         if vecteur is None:
-            raise RuntimeError(
-                f"Empreinte vocale introuvable : {prefixe}"
-            )
+            raise RuntimeError(f"Aucune empreinte trouvée pour {prefixe}")
 
-        self.voix = torch.tensor(
-            vecteur
-        ).unsqueeze(0)
+        self.voix = torch.tensor(vecteur).unsqueeze(0)
 
         print(
-            f"Moteur wolof prêt en "
-            f"{time.time() - debut:.1f} s "
-            f"— voix {voice.upper()}"
+            f"Moteur wolof prêt en {time.time() - debut:.1f} s "
+            f"(voix {voice.upper()}, empreinte {source})"
         )
 
-        print(
-            f"Empreinte : {source}"
-        )
+    def _nb_tokens(self, texte: str) -> int:
+        ids = self.processor.tokenizer(texte, return_tensors="pt")["input_ids"]
+        return int(ids.shape[1])
 
-    def nombre_tokens(self, texte):
-
-        ids = self.processor.tokenizer(
-            texte,
-            return_tensors="pt"
-        )["input_ids"]
-
-        return int(
-            ids.shape[1]
-        )
-
-    def decouper_phrase_longue(
-        self,
-        phrase
-    ):
-
+    def _decouper_phrase_longue(self, phrase: str) -> list[str]:
         mots = phrase.split()
-
         blocs = []
         courant = []
 
         for mot in mots:
-
-            candidat = " ".join(
-                courant + [mot]
-            )
-
-            if (
-                courant
-                and
-                self.nombre_tokens(
-                    candidat
-                )
-                > MAX_TOKENS_PAR_BLOC
-            ):
-
-                blocs.append(
-                    " ".join(courant)
-                )
-
+            candidat = " ".join(courant + [mot]).strip()
+            if courant and self._nb_tokens(candidat) > MAX_TOKENS_PAR_BLOC:
+                blocs.append(" ".join(courant))
                 courant = [mot]
-
             else:
-
                 courant.append(mot)
 
         if courant:
-
-            blocs.append(
-                " ".join(courant)
-            )
+            blocs.append(" ".join(courant))
 
         return blocs
 
-    def decouper_texte(
-        self,
-        texte
-    ):
-
-        texte = re.sub(
-            r"\s+",
-            " ",
-            texte
-        ).strip()
-
-        if (
-            self.nombre_tokens(texte)
-            <= MAX_TOKENS_PAR_BLOC
-        ):
-
+    def _decouper_texte(self, texte: str) -> list[str]:
+        texte = re.sub(r"\s+", " ", texte).strip()
+        if self._nb_tokens(texte) <= MAX_TOKENS_PAR_BLOC:
             return [texte]
 
         phrases = [
             p.strip()
-            for p in re.split(
-                r"(?<=[.!?;:])\s+",
-                texte
-            )
+            for p in re.split(r"(?<=[.!?;:])\s+", texte)
             if p.strip()
         ]
 
         blocs = []
-
         courant = ""
 
         for phrase in phrases:
-
-            if (
-                self.nombre_tokens(phrase)
-                > MAX_TOKENS_PAR_BLOC
-            ):
-
+            if self._nb_tokens(phrase) > MAX_TOKENS_PAR_BLOC:
                 if courant:
-
-                    blocs.append(
-                        courant
-                    )
-
+                    blocs.append(courant)
                     courant = ""
-
-                blocs.extend(
-                    self.decouper_phrase_longue(
-                        phrase
-                    )
-                )
-
+                blocs.extend(self._decouper_phrase_longue(phrase))
                 continue
 
-            candidat = (
-                f"{courant} {phrase}"
-            ).strip()
-
-            if (
-                courant
-                and
-                self.nombre_tokens(
-                    candidat
-                )
-                > MAX_TOKENS_PAR_BLOC
-            ):
-
-                blocs.append(
-                    courant
-                )
-
+            candidat = f"{courant} {phrase}".strip()
+            if courant and self._nb_tokens(candidat) > MAX_TOKENS_PAR_BLOC:
+                blocs.append(courant)
                 courant = phrase
-
             else:
-
                 courant = candidat
 
         if courant:
-
-            blocs.append(
-                courant
-            )
+            blocs.append(courant)
 
         return blocs
 
-    def synthesize(
-        self,
-        texte,
-        sortie
-    ):
-
+    def synthesize(self, text: str, output_path: Path) -> Path:
         import scipy.io.wavfile as wav
 
-        texte = texte.strip()
-
+        texte = text.strip()
         if not texte:
-            raise ValueError(
-                "Le texte est vide."
+            raise ValueError("Le texte est vide.")
+
+        t = time.time()
+        blocs = self._decouper_texte(texte)
+
+        if len(blocs) > 1:
+            print(
+                f"Texte long : découpage automatique en {len(blocs)} blocs "
+                f"(max {MAX_TOKENS_PAR_BLOC} tokens par bloc)."
             )
-
-        debut = time.time()
-
-        blocs = self.decouper_texte(
-            texte
-        )
-
-        print(
-            f"{len(blocs)} bloc(s) à générer"
-        )
 
         audios = []
+        inconnus_total = 0
 
-        for numero, bloc in enumerate(
-            blocs,
-            start=1
-        ):
-
-            print(
-                f"Bloc {numero}/{len(blocs)} "
-                f"— {self.nombre_tokens(bloc)} tokens"
-            )
-
-            entrees = self.processor(
-                text=bloc,
-                return_tensors="pt"
+        for i, bloc in enumerate(blocs, start=1):
+            entrees = self.processor(text=bloc, return_tensors="pt")
+            inconnus_total += int(
+                (
+                    entrees["input_ids"]
+                    == self.processor.tokenizer.unk_token_id
+                ).sum()
             )
 
             with self.torch.no_grad():
-
-                audio = (
-                    self.modele.generate_speech(
-                        entrees["input_ids"],
-                        self.voix,
-                        vocoder=self.vocoder
-                    )
+                audio = self.modele.generate_speech(
+                    entrees["input_ids"],
+                    self.voix,
+                    vocoder=self.vocoder,
                 )
 
-            audios.append(
-                audio.detach().cpu()
-            )
+            audios.append(audio.detach().cpu())
 
-            if numero < len(blocs):
-
+            if i < len(blocs):
                 pause = self.torch.zeros(
-                    int(
-                        SAMPLE_RATE
-                        *
-                        PAUSE_ENTRE_BLOCS_SEC
-                    ),
-                    dtype=audio.dtype
+                    int(SAMPLE_RATE * PAUSE_ENTRE_BLOCS_SEC),
+                    dtype=audio.dtype,
                 )
+                audios.append(pause)
 
-                audios.append(
-                    pause
-                )
+        audio_final = self.torch.cat(audios)
 
-        audio_final = self.torch.cat(
-            audios
-        )
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        wav.write(output_path, rate=SAMPLE_RATE, data=audio_final.numpy())
 
-        sortie = Path(sortie)
-
-        sortie.parent.mkdir(
-            parents=True,
-            exist_ok=True
-        )
-
-        wav.write(
-            sortie,
-            SAMPLE_RATE,
-            audio_final.numpy()
-        )
-
-        duree = (
-            len(audio_final)
-            /
-            SAMPLE_RATE
+        duree = len(audio_final) / SAMPLE_RATE
+        details = (
+            f", {inconnus_total} token(s) inconnu(s)"
+            if inconnus_total
+            else ""
         )
 
         print(
-            f"\n{duree:.1f} s de voix générées "
-            f"en {time.time() - debut:.2f} s"
+            f"{duree:.1f} s de voix générées en "
+            f"{time.time() - t:.2f} s{details} → {output_path}"
         )
-
-        print(
-            f"→ {sortie}"
-        )
-
-        return sortie
+        return output_path
 
     @staticmethod
-    def play(chemin):
-
-        subprocess.run(
-            [
-                "afplay",
-                str(chemin)
-            ]
-        )
+    def play(path: Path) -> None:
+        subprocess.run(["afplay", str(path)], check=False)
 
 
-def main():
-
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "texte",
-        nargs="?"
+def parser_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Synthèse vocale wolof locale, sans API."
     )
-
+    parser.add_argument(
+        "text",
+        nargs="?",
+        help="Texte wolof à lire.",
+    )
     parser.add_argument(
         "--voice",
-        choices=[
-            "slt",
-            "clb"
-        ],
-        default="slt"
+        choices=sorted(VOIX_FEMMES),
+        default="slt",
+        help="Empreinte vocale féminine (défaut: slt).",
     )
-
-    parser.add_argument(
-        "--play",
-        action="store_true"
-    )
-
-    parser.add_argument(
-        "--interactive",
-        action="store_true"
-    )
-
     parser.add_argument(
         "-o",
         "--output",
-        default="outils/wolof-local-output.wav"
+        type=Path,
+        default=Path("outils/wolof-local-output.wav"),
+        help="Fichier WAV de sortie.",
     )
-
-    args = parser.parse_args()
-
-    moteur = WolofLocalTTS(
-        args.voice
+    parser.add_argument(
+        "--play",
+        action="store_true",
+        help="Lire automatiquement le WAV avec afplay sur macOS.",
     )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Garder le moteur chargé et saisir plusieurs phrases.",
+    )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Refuser de télécharger les modèles. Nécessite un cache existant.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parser_args()
+    moteur = WolofLocalTTS(voice=args.voice, offline=args.offline)
 
     if args.interactive:
-
-        print()
-        print(
-            "Mode interactif."
-        )
-
-        print(
-            "Écris du wolof puis Entrée."
-        )
-
-        print(
-            "Les textes longs seront "
-            "découpés automatiquement."
-        )
-
-        print(
-            "Écris stop pour quitter."
-        )
-
-        print()
+        print("\nMode interactif. Écris une phrase ou un texte wolof puis Entrée.")
+        print("Les textes longs sont découpés automatiquement.")
+        print("Écris 'stop' pour quitter.\n")
 
         compteur = 1
-
         while True:
-
             try:
-
-                texte = input(
-                    "wolof> "
-                ).strip()
-
-            except (
-                KeyboardInterrupt,
-                EOFError
-            ):
-
+                texte = input("wolof> ").strip()
+            except (EOFError, KeyboardInterrupt):
                 print()
                 break
 
-            if texte.lower() in {
-                "stop",
-                "exit",
-                "quit"
-            }:
-
+            if texte.lower() in {"stop", "quit", "exit"}:
                 break
-
             if not texte:
-
                 continue
 
-            sortie = Path(
-                args.output
-            )
-
+            sortie = args.output
             if compteur > 1:
-
                 sortie = sortie.with_name(
-                    f"{sortie.stem}"
-                    f"-{compteur}"
-                    f"{sortie.suffix}"
+                    f"{sortie.stem}-{compteur}{sortie.suffix}"
                 )
 
-            chemin = moteur.synthesize(
-                texte,
-                sortie
-            )
-
+            chemin = moteur.synthesize(texte, sortie)
             if args.play:
-
-                moteur.play(
-                    chemin
-                )
-
+                moteur.play(chemin)
             compteur += 1
-
         return
 
-    if not args.texte:
-
-        print(
-            "Donne un texte ou "
-            "utilise --interactive."
+    if not args.text:
+        raise SystemExit(
+            "Donne un texte ou utilise --interactive. "
+            "Exemple: python3 outils/wolof_local_tts.py "
+            "\"Waaw, dégg naa la bu baax.\" --play"
         )
 
-        return
-
-    chemin = moteur.synthesize(
-        args.texte,
-        args.output
-    )
-
+    chemin = moteur.synthesize(args.text, args.output)
     if args.play:
-
-        moteur.play(
-            chemin
-        )
+        moteur.play(chemin)
 
 
 if __name__ == "__main__":

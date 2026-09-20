@@ -1,3 +1,27 @@
+# ── TEST DE VOIX FÉMININES WOLOF EN LOCAL ────────────────────────────────────
+#
+# Objectif :
+#   garder la prononciation wolof validée avec bilalfaye/speecht5_tts-wolof,
+#   mais comparer deux empreintes vocales féminines.
+#
+# Installation (si nécessaire) :
+#   pip3 install torch transformers datasets scipy sentencepiece
+#
+# Exécution depuis bia-render :
+#   python3 outils/essai-voix-wolof-femmes.py
+#
+# Sortie :
+#   outils/essai-voix-femmes/slt/*.wav
+#   outils/essai-voix-femmes/clb/*.wav
+#
+# Les deux voix sont des locutrices du corpus CMU ARCTIC :
+#   slt = US female
+#   clb = US female
+#
+# Important :
+#   le modèle linguistique wolof ne change pas. Seule l'empreinte de voix
+#   change, afin de préserver la prononciation déjà validée.
+
 import time
 from pathlib import Path
 
@@ -16,12 +40,14 @@ VOIX_FEMMES = {
     "clb": "cmu_us_clb_arctic",
 }
 
+
 def trouver_xvector(dataset, prefixe):
     for ligne in dataset:
         nom = ligne.get("filename", "")
         if prefixe in nom:
             return ligne["xvector"], nom
     raise RuntimeError(f"Aucune empreinte trouvée pour {prefixe}")
+
 
 def main():
     import torch
@@ -58,6 +84,9 @@ def main():
         for nom, texte in PHRASES.items():
             t = time.time()
             entrees = processor(text=texte, return_tensors="pt")
+            inconnus = int(
+                (entrees["input_ids"] == processor.tokenizer.unk_token_id).sum()
+            )
 
             with torch.no_grad():
                 audio = modele.generate_speech(
@@ -70,15 +99,24 @@ def main():
             wav.write(chemin, rate=16000, data=audio.numpy())
             duree = len(audio) / 16000
 
+            detail_inconnus = (
+                f", {inconnus} token(s) inconnu(s)"
+                if inconnus
+                else ""
+            )
+
             print(
                 f"{nom:10s} {duree:4.1f} s, générée en "
-                f"{time.time() - t:.2f} s → {chemin}"
+                f"{time.time() - t:.2f} s{detail_inconnus} → {chemin}"
             )
 
     print("\nTest terminé.")
-    print("Écoute :")
+    print("Écoute les deux dossiers :")
     print("  outils/essai-voix-femmes/slt")
     print("  outils/essai-voix-femmes/clb")
+    print("\nChoisis uniquement le timbre le plus agréable.")
+    print("La prononciation wolof reste celle du modèle déjà validé.")
+
 
 if __name__ == "__main__":
     main()

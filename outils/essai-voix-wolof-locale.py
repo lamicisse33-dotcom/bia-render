@@ -33,6 +33,7 @@ PHRASES = {
     "au-revoir": "Ba beneen yoon. Dinala xaar.",
 }
 MODELE = "bilalfaye/speecht5_tts-wolof"
+XVECS = "regisss/cmu-arctic-xvectors"
 
 def main():
     import torch
@@ -41,28 +42,42 @@ def main():
     import scipy.io.wavfile as wav
 
     depuis = time.time()
-    processor = SpeechT5Processor.from_pretrained(MODELE)
-    modele = SpeechT5ForTextToSpeech.from_pretrained(MODELE)
-    vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan")
-    # SpeechT5 a besoin d'une « empreinte de voix ». On prend celle de
-    # l'exemple officiel ; le modèle wolof choisira quand même son accent.
-    empreintes = load_dataset("regisss/cmu-arctic-xvectors", split="validation")
+    processor = SpeechT5Processor.from_pretrained(MODELE, token=False)
+    modele = SpeechT5ForTextToSpeech.from_pretrained(MODELE, token=False)
+    vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan", token=False)
+
+    # SpeechT5 a besoin d'une « empreinte de voix » (x-vector).
+    # L'ancien dépôt Matthijs/cmu-arctic-xvectors repose sur un script de
+    # dataset Python que les versions récentes de datasets refusent.
+    # Cette copie contient les x-vectors sous un format moderne compatible.
+    empreintes = load_dataset(XVECS, split="validation")
     voix = torch.tensor(empreintes[7306]["xvector"]).unsqueeze(0)
+
     print(f"modèle chargé en {time.time() - depuis:.1f} s")
 
     dossier = Path(__file__).parent / "essai-mms"
     dossier.mkdir(exist_ok=True)
+
     for nom, texte in PHRASES.items():
         t = time.time()
         entrees = processor(text=texte, return_tensors="pt")
         inconnus = int((entrees["input_ids"] == processor.tokenizer.unk_token_id).sum())
+
         with torch.no_grad():
-            audio = modele.generate_speech(entrees["input_ids"], voix, vocoder=vocoder)
+            audio = modele.generate_speech(
+                entrees["input_ids"],
+                voix,
+                vocoder=vocoder,
+            )
+
         chemin = dossier / f"{nom}.wav"
         wav.write(chemin, rate=16000, data=audio.numpy())
         duree = len(audio) / 16000
-        print(f"{nom:10s} {duree:4.1f} s de voix, fabriquée en {time.time() - t:.2f} s"
-              f"{f', {inconnus} lettre(s) inconnue(s) du modèle' if inconnus else ''} → {chemin}")
+
+        print(
+            f"{nom:10s} {duree:4.1f} s de voix, fabriquée en {time.time() - t:.2f} s"
+            f"{f', {inconnus} lettre(s) inconnue(s) du modèle' if inconnus else ''} → {chemin}"
+        )
 
     print("\nÀ écouter dans", dossier)
     print("Ce qui compte : la prononciation des mots wolof (jàmm, mëna, beneen, xaar),")

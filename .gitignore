@@ -22,3 +22,4 @@ outils/essai-mms/
 _to_delete/
 outils/sorties-voix-locale/
 outils/essai-voix-femmes/
+__pycache__/
