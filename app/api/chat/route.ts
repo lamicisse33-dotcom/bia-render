@@ -12,7 +12,7 @@ import { noterEtape } from "@/lib/etapes";
 import { noterFil, noterModele } from "@/lib/depense";
 
 import { FIL_AU_PLUS } from "@/lib/fenetre-du-fil";
-import { noterEmotion, noterAmorceEnvoyee, noterAmorceRefusee, noterRefusAvecAmorce, amorceRefusee } from "@/lib/emotions-vues";
+import { noterEmotion, noterAmorceEnvoyee, noterAmorceRefusee, noterRefusAvecAmorce, amorceRefusee, amorcePermise, avecSaBalise, EMOTIONS } from "@/lib/emotions-vues";
 import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { BUDGET_DE_REFLEXION, PLAFOND_AVEC_REFLEXION, meriteReflexion, noterReflexion } from "@/lib/reflechir";
 import { consigneDeSesGestes, gestesDe } from "@/lib/ses-gestes";
@@ -459,7 +459,7 @@ un rire au lieu d'une femme qui rit. Si tu ris, mets [[emotion:rire]] ou
 /* La balise ne doit ni s'afficher ni se prononcer : on la retire du texte et
    on la renvoie à part. Si le modèle l'oublie, on ne devine pas — le visage
    reste simplement neutre. */
-const EMOTIONS=new Set(["neutre","douce","joie","rire","fourire","etonnement","surprise","ecoute","concernee","triste","malice","pensive"]);
+/* EMOTIONS vit dans lib/emotions-vues.ts, avec avecSaBalise(). */
 /* Mesuré le 9 septembre 2026 : sur trois échanges, la balise n'est jamais
    arrivée — trois « neutre », dont une réponse qui commençait pourtant par
    « Hahaha ». Elle était demandée en DERNIÈRE ligne, et une réponse qui bute
@@ -743,7 +743,7 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
-type Corps={message?:string;history?:Array<{role:string;text:string;gestes?:string[]}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
+type Corps={message?:string;history?:Array<{role:string;text:string;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
   /* ── L'APPRENTISSAGE À LA VOIX ──────────────────────────────────────────
      `apprend` : on est dans la boucle, elle répète ce qu'il dit.
      `aRepeter` : la dernière phrase qu'elle a répétée — c'est CELLE-LÀ qu'on
@@ -1556,7 +1556,14 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     /* C'est le TÉLÉPHONE qui découpe la fenêtre (lib/fenetre-du-fil.ts) :
        lui seul connaît la vraie longueur du fil. Ici, un plafond, et rien
        d'autre — redécouper glisserait sous ses indices. */
-    const history=(body.history||[]).slice(-FIL_AU_PLUS).map(item=>({role:item.role==="bia"?"assistant":"user",content:String(item.text||"").slice(0,1500)}));
+    /* SA BALISE D'ÉMOTION LUI REVIENT SOUS LES YEUX, en première ligne de
+       chacune de ses réponses d'avant — seulement celles où elle l'avait
+       vraiment écrite. Voir avecSaBalise() dans lib/emotions-vues.ts : c'est
+       ce qui remplace l'amorce, que le modèle refuse. */
+    const history=(body.history||[]).slice(-FIL_AU_PLUS).map(item=>{
+      const role=item.role==="bia"?"assistant":"user";
+      return {role,content:avecSaBalise(role,String(item.text||"").slice(0,1500),item.emotion)};
+    });
 
     /* Le socle des relations accompagne CHAQUE question, même une question de
        mathématiques : quelqu'un peut demander l'heure et finir par raconter
@@ -2379,7 +2386,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        « sans aucun réglage facultatif » (c'en est un), et plus jamais dès que
        le modèle en a refusé une — voir noterAmorceRefusee(). */
     const amorceDe = (o: { avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean }) =>
-      o.reflexion !== "allumee" && !o.avecOutil && !o.sansAmorce && !amorceRefusee() ? AMORCE_EMOTION : "";
+      amorcePermise() && o.reflexion !== "allumee" && !o.avecOutil && !o.sansAmorce && !amorceRefusee() ? AMORCE_EMOTION : "";
     const corpsDuModele = (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
     }) => JSON.stringify({
@@ -3004,7 +3011,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
          livresque de plus dans sa bouche vaut moins que rien. S'il veut
          qu'elle dise autre chose en fermant, il donnera le mot. */
       const parDefaut=papier&&papier!=="ferme"?"Waaw, maa ngi koy defar.":(voir||trouve||film)?"Xool.":"Waaw.";
-      return {corps:{reply:parDefaut,emotion,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,...(rayee?{corrigee:rayee}:{}),source:"geste sans phrase"}};
+      return {corps:{reply:parDefaut,emotion,balise,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,...(rayee?{corrigee:rayee}:{}),source:"geste sans phrase"}};
     }
 
     if(!reply){
@@ -3021,7 +3028,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
-    return {corps:{reply:ceQuElleDit,emotion,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,...(rayee?{corrigee:rayee}:{}),source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
+    return {corps:{reply:ceQuElleDit,emotion,balise,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,...(rayee?{corrigee:rayee}:{}),source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message, "chat");

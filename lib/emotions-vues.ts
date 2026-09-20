@@ -11,6 +11,42 @@
 
 export type Vue = { emotion: string; balise: boolean; debut: string; quand: string };
 
+/* Les douze visages qu'elle a. La liste vit ici, avec tout ce qui touche à
+   l'émotion, et la route l'importe. */
+export const EMOTIONS = new Set(["neutre", "douce", "joie", "rire", "fourire", "etonnement", "surprise", "ecoute", "concernee", "triste", "malice", "pensive"]);
+
+/* ── ELLE VOIT SA PROPRE BALISE ─────────────────────────────────────────────
+
+   20 septembre 2026, 23:12, /api/etat sur f642682 : le modèle (claude-sonnet-5)
+   refuse l'amorce — « This model does not support assistant message prefill.
+   The conversation must end with a user message. » Mot pour mot. L'amorce
+   est donc morte pour ce modèle, et il reste le défaut de départ : douze
+   « neutre » sur douze, onze sans balise.
+
+   La cause, elle, n'a pas changé : le fil qu'on lui renvoie contient ses
+   réponses d'avant NETTOYÉES de leur balise, et il imite ce qu'il voit. C'est
+   exactement le défaut du 16 septembre avec ses gestes (« elle dit qu'elle
+   n'écrit rien ») — et la même réparation : le téléphone range l'émotion
+   avec la phrase, et on la lui remet sous les yeux, en première ligne, là
+   où on lui demande de l'écrire. Quand il a posé la balise une fois, il la
+   revoit à chaque tour, et l'imitation joue enfin dans le bon sens.
+
+   ON NE REMET QUE CE QU'IL A VRAIMENT ÉCRIT : une réponse sans balise reste
+   sans balise dans le fil. Lui fabriquer des « neutre » qu'il n'a pas
+   choisis, ce serait lui apprendre le neutre. */
+export function avecSaBalise(role: string, texte: string, emotion?: string): string {
+  const e = String(emotion || "").toLowerCase();
+  if (role !== "assistant" || !EMOTIONS.has(e)) return texte;
+  if (/^\s*\[{1,2}\s*[ée]motion/i.test(texte)) return texte;
+  return `[[emotion:${e}]]\n${texte}`;
+}
+
+/* L'amorce (un début de réponse en rôle assistant) n'est envoyée que si on
+   l'a demandée exprès : claude-sonnet-5 la refuse, et chaque essai coûte un
+   aller-retour au premier tour après un redémarrage. Un modèle qui l'accepte
+   la ferait vivre avec BIA_AMORCE_EMOTION=1 — voir app/api/chat/route.ts. */
+export function amorcePermise() { return process.env.BIA_AMORCE_EMOTION === "1"; }
+
 const GARDEES = 30;
 let vues: Vue[] = [];
 

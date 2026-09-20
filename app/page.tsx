@@ -91,6 +91,11 @@ type Message = {
 
      Court exprès : ça repart au serveur à chaque question. */
   gestes?: string[];
+  /** L'émotion qu'elle a VRAIMENT écrite en tête de cette phrase (jamais
+      celle qu'on a devinée) : le serveur la lui remet sous les yeux au tour
+      suivant, sinon elle imite ses phrases nettoyées et cesse de l'écrire.
+      Voir avecSaBalise() dans lib/emotions-vues.ts. */
+  emotion?: string;
   papier?: string;
   /** La CLÉ d'un sujet de la vitrine — jamais l'image : elle pèse trop pour
       la mémoire du téléphone, et elle revient de Supabase quand il faut. */
@@ -2803,13 +2808,13 @@ export default function Home() {
       let teteDite = "";
       let teteEnCours: Promise<void> | null = null;
       let statut = response.status;
-      let data: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
+      let data: { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
 
       if (response.headers.get("content-type")?.includes("text/event-stream") && response.body) {
         const lecteur = response.body.getReader();
         const decodeur = new TextDecoder();
         let tampon = "", recu = "";
-        let fin: { corps: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string }; statut: number } | null = null;
+        let fin: { corps: { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string }; statut: number } | null = null;
         for (;;) {
           const { done, value } = await lecteur.read();
           if (done) break;
@@ -2822,7 +2827,7 @@ export default function Home() {
             const nom = lignes.find((l) => l.startsWith("event:"))?.slice(6).trim();
             const brut = lignes.find((l) => l.startsWith("data:"));
             if (!brut) continue;
-            let ev: { morceau?: string; corps?: { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string }; statut?: number };
+            let ev: { morceau?: string; corps?: { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string }; statut?: number };
             try { ev = JSON.parse(brut.slice(5).trim()); } catch { continue; }
             if (nom === "texte") {
               recu += ev.morceau || "";
@@ -2864,7 +2869,7 @@ export default function Home() {
         data = fin.corps;
         statut = fin.statut;
       } else {
-        data = (await response.json()) as { reply: string; motif?: string; emotion?: string; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
+        data = (await response.json()) as { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
       }
 
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
@@ -3117,6 +3122,8 @@ export default function Home() {
         /* Ses gestes voyagent avec sa phrase : c'est le seul moyen qu'elle
            sache, au tour suivant, ce qu'elle a fait au tour d'avant. */
         ...(data.gestes?.length ? { gestes: data.gestes } : {}),
+        /* Et son émotion aussi, quand c'est elle qui l'a écrite. */
+        ...(data.balise && data.emotion ? { emotion: data.emotion } : {}),
         ...(data.voir ? { voir: data.voir } : {}),
         ...(data.trouve?.pieces?.length ? { trouve: data.trouve } : {}),
         /* Une phrase resservie telle qu'il l'a corrigée porte la même marque
