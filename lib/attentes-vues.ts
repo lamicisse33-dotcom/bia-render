@@ -344,9 +344,14 @@ export function resumeVeilles() {
   const compte: Record<string, number> = {};
   for (const v of veilles) compte[v.quoi] = (compte[v.quoi] || 0) + 1;
   const refus = veilles.filter((v) => v.quoi === "refuse" || v.quoi === "secours_refuse").map((v) => v.detail).filter(Boolean);
+  const dernierDe = (quoi: string) => [...veilles].reverse().find((v) => v.quoi === quoi)?.detail || null;
   return {
     ...compte,
     derniers_motifs_de_refus: [...new Set(refus)].slice(-4),
+    /* 21 septembre : de quel téléphone on parle, et ce que faisait BIA
+       quand le téléphone a mis le secours en pause. */
+    appareil: dernierDe("appareil"),
+    derniere_pause_du_secours: dernierDe("secours_pause"),
     dernier: veilles[veilles.length - 1],
   };
 }

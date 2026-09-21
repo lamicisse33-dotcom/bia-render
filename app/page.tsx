@@ -70,7 +70,7 @@ import CarteVitrine, { chargerSujet } from "./vitrine";
 import CarteTrouve, { versEcran } from "./trouve";
 import type { Resultat } from "./trouve";
 import { contientUnGrosMot } from "@/lib/gestes-de-la-main";
-import { lancerLeSecours, noterVeille } from "@/lib/veille";
+import { decrireLAppareil, lancerLeSecours, noterVeille } from "@/lib/veille";
 
 /* Un message peut porter le RENVOI vers un papier — son identifiant, pas son
    contenu. Le papier lui-même vit dans sa propre boîte, qui ne se rogne
@@ -532,6 +532,11 @@ export default function Home() {
      il ne se refabrique jamais, donc il ne peut pas lire un état de React. */
   const occupeeRef = useRef(false);
   const filmOuvertRef = useRef(false);
+  /* Le mode, lisible depuis un effet qui ne se refabrique jamais (le
+     secours de veille dit ce que faisait BIA quand le téléphone l'a mis en
+     pause). */
+  const modeRef = useRef<typeof mode>("ready");
+  useEffect(() => { modeRef.current = mode; }, [mode]);
 
   /* ── LA CARTE, ET LA CONFIRMATION QUI LA PRÉCÈDE ─────────────────────────
 
@@ -1185,12 +1190,32 @@ export default function Home() {
     let arreterLeSecours: (() => void) | null = null;
     let secoursVoulu = !api;
     if (!api) noterVeille("api_absente");
+    noterVeille("appareil", decrireLAppareil());
 
-    /* Le secours ne peut partir que sur un geste : on l'arme sur le premier
-       toucher, et seulement si on en a besoin à ce moment-là. */
-    const auGeste = () => {
+    /* ── 21 SEPTEMBRE : « ÇA NE MARCHE TOUJOURS PAS » ───────────────────
+       Deux trous dans la version du 20. Le secours ne partait QUE sur un
+       toucher postérieur au refus : si le refus arrivait après le premier
+       toucher (il est asynchrone), il attendait un second toucher qui, dans
+       une conversation à la voix, ne vient jamais — refus 3, secours 2.
+       Et une fois parti, il n'était plus surveillé : une pause imposée par
+       le téléphone (micro qui s'ouvre, autre son) l'éteignait pour de bon.
+       Voir lancerLeSecours() dans lib/veille.ts pour la seconde moitié. */
+    const ceQueFaitBia = () => `${modeRef.current}${document.visibilityState !== "visible" ? " cachée" : ""}`;
+    const lancerSiPossible = () => {
       if (!vivant || !secoursVoulu || arreterLeSecours) return;
-      arreterLeSecours = lancerLeSecours();
+      /* Un geste a déjà eu lieu sur la page (activation collante) : la vidéo
+         peut partir tout de suite, sans attendre le toucher suivant. */
+      const dejaTouche = (navigator as unknown as { userActivation?: { hasBeenActive?: boolean } }).userActivation?.hasBeenActive;
+      if (!dejaTouche) return;
+      arreterLeSecours = lancerLeSecours(ceQueFaitBia);
+    };
+    const auGeste = () => {
+      if (!vivant) return;
+      if (secoursVoulu && !arreterLeSecours) arreterLeSecours = lancerLeSecours(ceQueFaitBia);
+      /* Et on redemande le verrou officiel sur le geste : certains
+         navigateurs ne l'accordent qu'avec une activation récente. S'il
+         passe, le secours s'arrête. */
+      if (api && secoursVoulu) void tenir();
     };
     window.addEventListener("pointerdown", auGeste, { passive: true });
 
@@ -1201,15 +1226,22 @@ export default function Home() {
         verrou = await api.request("screen");
         noterVeille("tenu");
         secoursVoulu = false;
+        if (arreterLeSecours) { arreterLeSecours(); arreterLeSecours = null; }
         /* Le téléphone peut le relâcher de lui-même (batterie faible, écran
            couvert). On le saura, et on redemandera au retour. */
-        verrou.addEventListener?.("release", () => { if (vivant) noterVeille("relache"); });
+        verrou.addEventListener?.("release", () => {
+          if (!vivant) return;
+          noterVeille("relache");
+          /* Relâché sans qu'on quitte la page : on ne reste pas sans rien. */
+          if (document.visibilityState === "visible") { secoursVoulu = true; lancerSiPossible(); }
+        });
       } catch (e) {
         /* Refusé : NotAllowedError le plus souvent (mode économie d'énergie,
-           page cachée). On le dit, et le secours prend le relais au prochain
-           toucher. */
+           page cachée). On le dit, et le secours prend le relais — tout de
+           suite si un geste a déjà eu lieu, sinon au prochain toucher. */
         noterVeille("refuse", String((e as Error)?.name || e));
         secoursVoulu = true;
+        lancerSiPossible();
       }
     };
     const auRetour = () => { if (document.visibilityState === "visible") void tenir(); };
