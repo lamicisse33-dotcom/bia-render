@@ -1,0 +1,11 @@
+# La porte HTTPS de la voix. Caddy demande et renouvelle le certificat
+# Let's Encrypt tout seul, dès que le DNS de {$DOMAINE} pointe ici.
+{$DOMAINE} {
+	encode gzip
+	# Une phrase longue peut prendre quelques secondes à fabriquer.
+	reverse_proxy voix:7860 {
+		transport http {
+			read_timeout 120s
+		}
+	}
+}

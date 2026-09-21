@@ -10,7 +10,10 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 COPY requirements.txt .
 # torch en version processeur : dix fois plus léger que la version graphique.
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
+# Sur ARM (Hetzner CAX, Oracle A1) l'index « cpu » de PyTorch n'a pas toujours
+# la roue : on retombe alors sur l'index ordinaire, qui l'a.
+RUN (pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
+     || pip install --no-cache-dir torch) \
  && pip install --no-cache-dir -r requirements.txt
 COPY moteur.py serveur.py ./
 

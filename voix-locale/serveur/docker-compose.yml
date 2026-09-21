@@ -1,0 +1,55 @@
+# ── LA VOIX DE BIA SUR UNE MACHINE À NOUS ────────────────────────────────────
+#
+# 21 septembre 2026. Hugging Face a rendu ses Spaces Docker payants le jour
+# où on allait s'en servir. Lamine : « faire une bonne fois ce qu'il faut,
+# comme ça on ne va plus revenir là-dessus ». Donc un petit serveur loué
+# (Hetzner, ARM 4 cœurs), Docker, et Caddy qui obtient le certificat HTTPS
+# tout seul pour voix.khalam.app. Rien qui dépende d'une plateforme.
+#
+# Deux services :
+#   voix   — le serveur FastAPI de ../serveur.py (port 7860, jamais exposé)
+#   caddy  — la porte HTTPS (80/443), qui renvoie vers voix
+#
+# Les réglages sont dans .env (écrit par installer.sh) : DOMAINE, VOIX_LOCALE_CLE.
+
+services:
+  voix:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      VOIX_LOCALE_CLE: ${VOIX_LOCALE_CLE}
+      VOIX_LOCALE_VOIX: ${VOIX_LOCALE_VOIX:-slt}
+      HF_HOME: /data/hf
+    volumes:
+      # Le modèle téléchargé (≈ 700 Mo) survit aux redémarrages et aux mises à jour.
+      - modeles:/data/hf
+    expose:
+      - "7860"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if b'\"pret\": true' in urllib.request.urlopen('http://127.0.0.1:7860/health', timeout=5).read().replace(b'\":',b'\": ') else 1)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 300s
+      retries: 5
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAINE: ${DOMAINE}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - voix
+
+volumes:
+  modeles:
+  caddy_data:
+  caddy_config:
