@@ -16,6 +16,9 @@ RUN (pip install --no-cache-dir torch --index-url https://download.pytorch.org/w
      || pip install --no-cache-dir torch) \
  && pip install --no-cache-dir -r requirements.txt
 COPY moteur.py serveur.py ./
+# L'empreinte de voix, 2 Ko, posée à côté du code : la voix démarre sans
+# demander quoi que ce soit à Hugging Face.
+COPY empreintes ./empreintes
 
 # Un utilisateur sans droits, comme les Spaces l'exigent ; /data garde le
 # modèle téléchargé d'un démarrage à l'autre quand un disque persistant existe.

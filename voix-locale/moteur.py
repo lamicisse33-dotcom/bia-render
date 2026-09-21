@@ -87,6 +87,23 @@ EMPREINTES_NPY = {
 def charger_empreinte(voice):
     prefixe = VOIX_FEMMES[voice]
     motifs = []
+    # 0. L'empreinte posée à côté du code. Ajoutée le 21 septembre 2026 après
+    #    avoir fait tourner le moteur sur le Mac de Lamine : le paquet de
+    #    référence qu'il avait validé le 20 septembre contenait déjà le
+    #    speaker.npy de la voix slt. Deux kilo-octets. Les deux marches
+    #    suivantes dépendent de Hugging Face au démarrage — c'est-à-dire
+    #    qu'une panne chez eux, ou un réseau fermé, rendrait la voix muette
+    #    sur une machine qui n'a besoin de personne. Plus maintenant.
+    local = os.path.join(os.path.dirname(os.path.abspath(__file__)), "empreintes", f"{voice}.npy")
+    if os.path.exists(local):
+        try:
+            import numpy as np
+            v = np.load(local).astype("float32").reshape(-1)
+            if v.size == 512:
+                return v.tolist(), f"locale ({os.path.basename(local)})"
+            motifs.append(f"{local} : {v.size} valeurs au lieu de 512")
+        except Exception as e:  # noqa: BLE001 — on redescend d'une marche
+            motifs.append(f"{local} : {str(e)[:120]}")
     try:
         from datasets import load_dataset
         for ligne in load_dataset(EMPREINTES, split="validation"):
