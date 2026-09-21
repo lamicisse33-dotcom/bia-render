@@ -170,7 +170,34 @@ export const PAROLE_LONGUE = 4000;
  *
  * @param dureeDeParole combien de temps elle vient de parler, en millisecondes
  */
-export function silenceQuiSuffit(dureeDeParole: number): number {
+/* ── ET L'ÉCHELLE APPREND DE SES COUPURES ───────────────────────────────────
+
+   Lamine, le 21 septembre 2026 : « quand je parle, elle me coupe très
+   souvent. Si elle me coupe, elle n'entend pas ce que j'ai dit. Ça, ce n'est
+   pas normal. » Ses trois paliers (900 / 1200 / 1500) sont faits pour un
+   « Salam » et une phrase courante. Quelqu'un qui enseigne — lui, chaque
+   jour — parle en phrases longues, avec des respirations d'une seconde au
+   milieu, et sur ces respirations le micro se ferme.
+
+   Aucun nombre fixe ne sépare une respiration d'une fin de phrase. Mais
+   CHAQUE PHRASE RECOLLÉE est une preuve : le micro s'est fermé au milieu.
+   Alors on apprend, pour cette personne, dans cette conversation : chaque
+   coupure trop tôt allonge les trois paliers de PAS_D_APPRENTISSAGE, jusqu'à
+   un plafond. Un « Salam » attendra 1,2 s au lieu de 0,9 après une coupure,
+   1,5 après deux — et lui, il ne sera plus coupé. Celui qui parle par mots
+   seuls ne déclenche jamais rien et garde ses 900 ms.
+
+   Ça se lit sur /api/etat → coupures.phrases_recollees : s'il monte encore
+   après cette version, c'est que la fermeture n'est pas le seul défaut. */
+export const PAS_D_APPRENTISSAGE = 300;
+export const SILENCE_LE_PLUS_LONG = 2100;
+
+export function silenceQuiSuffit(dureeDeParole: number, coupesTropTot = 0): number {
+  const rallonge = Math.max(0, Math.floor(coupesTropTot)) * PAS_D_APPRENTISSAGE;
+  return Math.min(SILENCE_LE_PLUS_LONG, silenceDeBase(dureeDeParole) + rallonge);
+}
+
+function silenceDeBase(dureeDeParole: number): number {
   /* ── L'ÉCHELLE ROUVERTE, ET C'EST LUI QUI L'A CHIFFRÉE ────────────────
 
      Lamine, le 15 septembre 2026, devant le tableau qui affichait 1536 ms à

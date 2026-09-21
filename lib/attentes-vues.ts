@@ -218,14 +218,39 @@ export function oublierTours() { tours = []; }
    volume a coupé, mais l'oreille n'a rien reconnu — un bruit, ou son écho.
    Un `sans_mots` élevé pendant la réflexion dirait que la barre est trop
    basse, et qu'on tue des tours pour des portes qui claquent. */
-type Coupure = { pendant: "parole" | "reflexion"; recolle: boolean; sans_mots: boolean; quand: number };
+/* ── ET POURQUOI ELLE N'A PAS RECOLLÉ ───────────────────────────────────────
+
+   Lamine, le 21 septembre 2026 : « quand je parle, elle me coupe très
+   souvent. Si elle me coupe, elle n'entend pas ce que j'ai dit. » La veille
+   au matin, le compteur disait : 6 coupures pendant qu'elle réfléchissait,
+   2 recollées. Quatre phrases perdues sur six — et le compteur ne disait
+   pas POURQUOI. Trois causes possibles, trois réparations différentes :
+     — `sans_mots`        : l'oreille n'a rien reconnu (bruit, écho) ;
+     — `pas_de_debut`     : rien à recoller devant (le tour n'avait pas de
+                            question en vol) ;
+     — `reprise_tardive`  : il a repris plus de REPRISE_QUI_CONTINUE ms
+                            après la fermeture du micro — la frontière du
+                            19 septembre a tranché « autre phrase ».
+   On note le motif, et la reprise en millisecondes : c'est le chiffre qui
+   dira si la frontière (2,5 s) est au bon endroit. */
+export type MotifDeCoupure = "recollee" | "sans_mots" | "pas_de_debut" | "reprise_tardive" | "pendant_parole";
+type Coupure = { pendant: "parole" | "reflexion"; recolle: boolean; sans_mots: boolean; motif: MotifDeCoupure; reprise_ms: number | null; quand: number };
 let coupures: Coupure[] = [];
 
+const MOTIFS = new Set<MotifDeCoupure>(["recollee", "sans_mots", "pas_de_debut", "reprise_tardive", "pendant_parole"]);
+
 export function noterCoupure(c: Partial<Coupure>) {
+  const pendant = (c.pendant === "reflexion" ? "reflexion" : "parole") as Coupure["pendant"];
+  const recolle = Boolean(c.recolle);
+  const sansMots = Boolean(c.sans_mots);
+  /* Un téléphone d'avant cette version n'envoie pas de motif : on le déduit
+     de ce qu'il envoie, pour que les vieilles pages comptent encore. */
+  const motif: MotifDeCoupure = MOTIFS.has(c.motif as MotifDeCoupure) ? (c.motif as MotifDeCoupure)
+    : recolle ? "recollee" : sansMots ? "sans_mots" : pendant === "parole" ? "pendant_parole" : "pas_de_debut";
+  const reprise = Number(c.reprise_ms);
   coupures = [...coupures, {
-    pendant: (c.pendant === "reflexion" ? "reflexion" : "parole") as Coupure["pendant"],
-    recolle: Boolean(c.recolle),
-    sans_mots: Boolean(c.sans_mots),
+    pendant, recolle, sans_mots: sansMots, motif,
+    reprise_ms: Number.isFinite(reprise) && reprise >= 0 ? Math.round(reprise) : null,
     quand: Date.now(),
   }].slice(-TOURS_GARDES);
 }
@@ -233,12 +258,20 @@ export function noterCoupure(c: Partial<Coupure>) {
 export function resumeCoupures() {
   if (!coupures.length) return null;
   const par = (f: (c: Coupure) => boolean) => coupures.filter(f).length;
+  const motifs: Record<string, number> = {};
+  for (const c of coupures) motifs[c.motif] = (motifs[c.motif] || 0) + 1;
+  const reprises = coupures.map((c) => c.reprise_ms).filter((r): r is number => r !== null).sort((a, b) => a - b);
   return {
     coupures: coupures.length,
     pendant_quelle_parlait: par((c) => c.pendant === "parole"),
     pendant_quelle_reflechissait: par((c) => c.pendant === "reflexion"),
     phrases_recollees: par((c) => c.recolle),
     sans_mots_reconnus: par((c) => c.sans_mots),
+    /* Le 21 septembre : le POURQUOI. `reprise_tardive` qui monte = la
+       frontière de 2,5 s est trop courte pour lui. */
+    motifs,
+    reprise_ms_mediane: reprises.length ? reprises[Math.floor((reprises.length - 1) / 2)] : null,
+    reprise_ms_max: reprises.length ? reprises[reprises.length - 1] : null,
     derniere: coupures[coupures.length - 1],
   };
 }

@@ -59,21 +59,70 @@ export async function ajouterCorrection(e: Entree): Promise<number> {
   return -1; // le total n'est pas renvoyé en mode minimal
 }
 
+/* ── « LE LENDEMAIN, ELLE RÉPÈTE LA MÊME ERREUR » ────────────────────────────
+
+   Lamine, le 21 septembre 2026 : « chaque jour j'essaie de l'entraîner à
+   nouveau. Parfois je la corrige sur quelque chose, le lendemain elle répète
+   la même erreur. Je ne sais pas si elle se sert carrément des corrections. »
+
+   ELLE NE S'EN SERVAIT PAS, ET VOICI LA LIGNE. Depuis le 11 septembre, les
+   mots corrigés (« ne dis pas X, dis Y ») sont tirés de la comparaison entre
+   ce qu'elle avait dit (`proposee`) et ce qu'on a écrit à la place. Mais la
+   lecture du lexique ne demandait à Supabase QUE source, corrigee, langue,
+   application — jamais `proposee`. Donc en production, motsCorriges() voyait
+   `proposee` vide sur chaque ligne, sautait chaque ligne, et rendait une
+   liste vide : le bloc « TA FAÇON DE DIRE, CORRIGÉE PAR DES GENS D'ICI »
+   n'est JAMAIS parti au modèle. Les épreuves passaient parce qu'en mémoire
+   vive, `proposee` est bien là. La pesée de la consigne sur /api/etat
+   (consigne_pesee.blocs) le montrait sans que personne ne le lise : ce bloc
+   n'y figure sur aucun tour.
+
+   Soixante-treize corrections faites au bouton « Mal dit », relues, avec
+   sa phrase fausse à côté, dormaient depuis dix jours. C'est exactement ce
+   qu'il décrit.
+
+   On lit donc `proposee`. Et comme la table est partagée avec l'Interprète
+   et que je ne veux plus JAMAIS qu'une colonne absente rende le lexique
+   muet en silence (leçon du 14 septembre, created_at), on descend
+   l'escalier : avec proposee d'abord, sans si Supabase refuse — et dans ce
+   cas /api/etat le dit (lexique_lecture). */
+let lectureDuLexique = { colonnes: "", motif: "" };
+export function lectureLexique() { return { ...lectureDuLexique }; }
+
 async function toutes(): Promise<Entree[]> {
   if (cache && Date.now() < cache.jusqua) return cache.valeurs;
   if (!lexiqueConfig.actif) return enMemoire;
 
-  const r = await fetch(
-    `${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}?select=source,corrigee,langue,application&order=id.desc&limit=800`,
-    { headers: entetes() },
-  );
-  if (!r.ok) return cache?.valeurs || [];
-  const valeurs = await r.json() as Entree[];
-  // Une minute de cache : sans ça, chaque question rappelle Supabase et
-  // ajoute un aller-retour au délai de réponse, pour un lexique qui ne
-  // change que lorsqu'un testeur corrige.
-  cache = { valeurs, jusqua: Date.now() + 60_000 };
-  return valeurs;
+  const base = `${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}`;
+  const escalier = [
+    "source,corrigee,proposee,langue,application",
+    "source,corrigee,langue,application",
+  ];
+  let refus = "";
+  for (const colonnes of escalier) {
+    let r: Response;
+    try {
+      r = await fetch(`${base}?select=${colonnes}&order=id.desc&limit=800`, { headers: entetes() });
+    } catch (err) {
+      lectureDuLexique = { colonnes, motif: (err as Error).message };
+      return cache?.valeurs || [];
+    }
+    if (!r.ok) {
+      refus = `Supabase ${r.status} : ${(await r.text().catch(() => "")).slice(0, 160)}`;
+      lectureDuLexique = { colonnes, motif: refus };
+      continue;
+    }
+    const valeurs = await r.json() as Entree[];
+    /* Si on a dû redescendre, on garde le motif du refus : c'est ce qui
+       dira, sur /api/etat, que les mots corrigés ne peuvent pas être lus. */
+    lectureDuLexique = { colonnes, motif: refus ? `marche du dessus refusée — ${refus}` : "" };
+    // Une minute de cache : sans ça, chaque question rappelle Supabase et
+    // ajoute un aller-retour au délai de réponse, pour un lexique qui ne
+    // change que lorsqu'un testeur corrige.
+    cache = { valeurs, jusqua: Date.now() + 60_000 };
+    return valeurs;
+  }
+  return cache?.valeurs || [];
 }
 
 const normaliser = (s: string)=> String(s || "").toLowerCase()

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { hoquetsDeLaVoix, hoquetsDeLaVoixLocale, voixConfig, voixSansCredit } from "@/lib/voix";
 import { ecouteConfig, resumeEcoutes, resumeOreilleSoynade } from "@/lib/ecoute";
-import { lexiqueConfig, combien, combienParApplication, parAuteur } from "@/lib/lexique";
+import { lexiqueConfig, combien, combienParApplication, parAuteur, lectureLexique, motsCorriges } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
 import { resumeLecons } from "@/lib/lecons-vues";
 import { resumeAttentes, resumeCoupures, resumeGuets, resumeLectures, resumeTours, resumeVeilles, resumePrechauffages } from "@/lib/attentes-vues";
@@ -48,6 +48,14 @@ export async function GET(request: Request) {
   const maitre = verdict.ok && verdict.maitre;
   let entrees: number | null = null;
   try { entrees = await combien(); } catch { entrees = null; }
+  let motsCorrigesCompte: number | null = null;
+  let motsCorrigesExemples: string[] = [];
+  try {
+    const mots = await motsCorriges();
+    motsCorrigesCompte = mots.length;
+    /* Trois exemples, pour que ça se lise : des mots, pas des phrases. */
+    motsCorrigesExemples = mots.slice(0, 3).map((m) => `${m.faux} → ${m.juste} (${m.fois})`);
+  } catch { motsCorrigesCompte = null; }
 
   // D'où viennent ces corrections. La table est commune aux trois
   // applications : sans ce détail, on ne sait pas si BIA en reçoit.
@@ -80,6 +88,12 @@ export async function GET(request: Request) {
        n'existe pas : on prend l'heure de démarrage du serveur, qui change à
        chaque redémarrage — même effet, sans rien à configurer. */
     version: VERSION,
+    /* 21 septembre : ce qui manquait pour voir que les mots corrigés ne
+       partaient jamais au modèle. `mots_corriges` doit être > 0 dès qu'une
+       correction « Mal dit » a changé un mot ; `lecture.colonnes` doit
+       contenir proposee. */
+    /* Les exemples sont des mots de son wolof : nombres sur le mur ouvert, mots avec son code. */
+    lexique_lecture: { ...lectureLexique(), mots_corriges: motsCorrigesCompte, ...(maitre ? { exemples: motsCorrigesExemples } : {}) },
     voix: voixConfig.fournisseur,
     ecoute: ecouteConfig.fournisseur,
     modele: process.env.BIA_LLM_MODEL || "claude-sonnet-5",

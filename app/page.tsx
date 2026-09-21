@@ -907,6 +907,13 @@ export default function Home() {
      guetteur le dépose ici ; la transcription suivante le recolle devant ce
      qu'elle rapporte. Voir recoller() dans lib/sa-propre-voix.ts. */
   const motsRattrapesRef = useRef<Prononce | null>(null);
+  /* ── COMBIEN DE FOIS ELLE L'A COUPÉ TROP TÔT, DANS CETTE CONVERSATION ────
+     Lamine, le 21 septembre 2026 : « quand je parle, elle me coupe très
+     souvent. » Chaque phrase recollée (voir finDeSaParole) en ajoute une, et
+     le silence qui ferme le micro s'allonge d'autant pour lui — voir
+     silenceQuiSuffit() dans lib/micro.ts. Remis à zéro à chaque ouverture de
+     la conversation : une autre personne, un autre rythme. */
+  const coupesTropTotRef = useRef(0);
   /* ── LA CLÉ DU DERNIER EXTRAIT DE SA VOIX ──────────────────────────────
      Le serveur garde son audio et rend une clé. Quand il appuie sur le bouton
      bleu, on la renvoie : c'est ce qui transforme un son gardé en donnée
@@ -4143,7 +4150,7 @@ export default function Home() {
              t'écoute » dès que la voix retombe, et c'est ce qui donne
              l'impression qu'elle suit. */
           setEntendParler(false);
-          const assez = silenceQuiSuffit(dernierSon - debutParole);
+          const assez = silenceQuiSuffit(dernierSon - debutParole, coupesTropTotRef.current);
           if (Date.now() - dernierSon > assez) {
             /* LA BORNE QUE PERSONNE NE COMPTAIT. `dernierSon` est l'instant
                où il a vraiment fini de parler ; le micro, lui, ne se ferme
@@ -5342,10 +5349,12 @@ export default function Home() {
       } catch { return ""; }
     };
 
-    const mesurerLaCoupure = (recolle: boolean, mots: string) => {
+    const mesurerLaCoupure = (recolle: boolean, mots: string, motif?: string, repriseMs?: number) => {
       /* RÈGLE 1 : ce qui touche le micro se lit sur /api/etat, champ
          `coupures`. Sans cette ligne on ferait dix tours sans savoir si le
-         guetteur a coupé pour lui ou pour une porte. */
+         guetteur a coupé pour lui ou pour une porte. Le 21 septembre : et
+         POURQUOI il n'a pas recollé — voir noterCoupure() dans
+         lib/attentes-vues.ts. */
       void fetch("/api/mesure", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -5354,6 +5363,8 @@ export default function Home() {
           pendant: pendantLaReflexion ? "reflexion" : "parole",
           recolle,
           sans_mots: !mots.trim(),
+          ...(motif ? { motif } : {}),
+          ...(Number.isFinite(repriseMs) ? { reprise_ms: repriseMs } : {}),
         }),
       }).catch(() => {});
     };
@@ -5399,8 +5410,15 @@ export default function Home() {
       const reprise = micro ? parleDepuis - micro : Number.POSITIVE_INFINITY;
       const mots = await motsDuGuetteur();
       const continuation = Boolean(debut) && Boolean(mots.trim()) && reprise < REPRISE_QUI_CONTINUE;
-      mesurerLaCoupure(continuation, mots);
+      const motif = continuation ? "recollee" : !mots.trim() ? "sans_mots" : !debut ? "pas_de_debut" : "reprise_tardive";
+      mesurerLaCoupure(continuation, mots, motif, Number.isFinite(reprise) ? reprise : undefined);
       if (continuation) {
+        /* ── ELLE L'A COUPÉ TROP TÔT : LE MICRO APPREND ───────────────────
+           Une phrase recollée, c'est la preuve qu'une respiration a fermé
+           le micro. Pour cette personne, dans cette conversation, on attend
+           un peu plus au prochain silence — voir silenceQuiSuffit() et
+           coupesTropTotRef. */
+        coupesTropTotRef.current += 1;
         /* On tue le tour de la demi-phrase SANS taire() : pas de retour au
            repos, donc pas de micro rouvert, donc pas de seconde et demie de
            relance. Le numéro tourne, speak() le verra en sortant de la porte
@@ -5565,6 +5583,11 @@ export default function Home() {
          réfléchit ou parle. */
       if (conversation) { taire(); fermerConversation(); return; }
       taire();
+      /* Une conversation qui s'ouvre au bouton, c'est peut-être quelqu'un
+         d'autre : le micro repart de ses paliers de base. Les reprises après
+         un film, une carte ou les services gardent ce qu'il a appris — c'est
+         la même personne, au milieu de la même conversation. */
+      coupesTropTotRef.current = 0;
       conversationRef.current = true;
       setConversation(true);
       void ecouter();
