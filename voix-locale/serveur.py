@@ -74,6 +74,7 @@ def health():
         "voix_possibles": list(VOIX_FEMMES),
         "pret": m is not None,
         "charge_en_s": getattr(m, "charge_en_s", None),
+        "empreinte": getattr(m, "empreinte_source", None),
         "demandes": demandes,
         "fabrication_ms_moyen": round(fabrication_ms_total / demandes) if demandes else None,
         "cle_exigee": bool(CLE),

@@ -56,6 +56,7 @@ class MoteurFactice:
 
     def __init__(self, voice=VOIX_PAR_DEFAUT):
         self.voice = voice
+        self.empreinte_source = "factice"
 
     def synthetiser(self, texte: str) -> bytes:
         import numpy as np
@@ -65,12 +66,51 @@ class MoteurFactice:
         return vers_wav_16_bits(onde)
 
 
+# ── L'EMPREINTE DE VOIX, PAR L'ESCALIER ───────────────────────────────────────
+#
+# 21 septembre 2026, avant de mettre le Space en ligne. La bibliothèque
+# `datasets` n'accepte plus les jeux « à script » (vu le 19) ; le labo qui a
+# produit la voix que Lamine a validée lisait le fichier .npy directement.
+# On ne dépend donc d'aucune bibliothèque pour ça : trois marches, de la plus
+# fidèle à la plus sûre, et /health dit laquelle a servi.
+#   1. le jeu parquet regisss/cmu-arctic-xvectors (toutes les voix) ;
+#   2. le fichier .npy de l'exemple officiel (Matthijs/…, voix slt) ;
+#   3. jamais une empreinte tirée au sort en silence : on lève, et le Space
+#      dit pourquoi — une voix inconnue en production serait pire qu'une
+#      panne visible.
+EMPREINTES_NPY = {
+    "slt": "spkrec-xvect/cmu_us_slt_arctic-wav-arctic_a0508.npy",
+    "clb": "spkrec-xvect/cmu_us_clb_arctic-wav-arctic_a0144.npy",
+}
+
+
+def charger_empreinte(voice):
+    prefixe = VOIX_FEMMES[voice]
+    motifs = []
+    try:
+        from datasets import load_dataset
+        for ligne in load_dataset(EMPREINTES, split="validation"):
+            if prefixe in ligne.get("filename", ""):
+                return list(ligne["xvector"]), f"{EMPREINTES} ({ligne.get('filename')})"
+        motifs.append(f"{EMPREINTES} : aucune ligne pour {prefixe}")
+    except Exception as e:  # noqa: BLE001 — on redescend d'une marche
+        motifs.append(f"{EMPREINTES} : {str(e)[:120]}")
+    try:
+        import numpy as np
+        from huggingface_hub import hf_hub_download
+        chemin = hf_hub_download("Matthijs/cmu-arctic-xvectors", repo_type="dataset",
+                                 filename=EMPREINTES_NPY[voice])
+        return np.load(chemin).astype("float32").tolist(), f"Matthijs/cmu-arctic-xvectors ({EMPREINTES_NPY[voice]})"
+    except Exception as e:  # noqa: BLE001
+        motifs.append(f"Matthijs/cmu-arctic-xvectors : {str(e)[:120]}")
+    raise RuntimeError("empreinte vocale introuvable — " + " ; ".join(motifs))
+
+
 class MoteurWolof:
     nom = "wolof-local"
 
     def __init__(self, voice=VOIX_PAR_DEFAUT):
         import torch
-        from datasets import load_dataset
         from transformers import SpeechT5ForTextToSpeech, SpeechT5HifiGan, SpeechT5Processor
 
         self.torch = torch
@@ -82,15 +122,8 @@ class MoteurWolof:
         self.modele.eval()
         self.vocoder.eval()
 
-        prefixe = VOIX_FEMMES[self.voice]
-        vecteur = None
-        for ligne in load_dataset(EMPREINTES, split="validation"):
-            if prefixe in ligne.get("filename", ""):
-                vecteur = ligne["xvector"]
-                break
-        if vecteur is None:
-            raise RuntimeError(f"empreinte vocale introuvable : {prefixe}")
-        self.empreinte = torch.tensor(vecteur).unsqueeze(0)
+        vecteur, self.empreinte_source = charger_empreinte(self.voice)
+        self.empreinte = torch.tensor(vecteur).unsqueeze(0).float()
         self.charge_en_s = round(time.time() - debut, 1)
         print(f"moteur wolof prêt en {self.charge_en_s} s — voix {self.voice}", flush=True)
 
