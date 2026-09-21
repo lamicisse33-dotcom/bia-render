@@ -37,6 +37,7 @@ moteurs = {}
 verrou = Lock()
 demandes = 0
 fabrication_ms_total = 0
+panne = None   # ce qui a empêché le moteur de se charger, en clair
 
 
 def moteur(voice: str):
@@ -49,7 +50,18 @@ def moteur(voice: str):
 
 @app.on_event("startup")
 def prechauffer():
-    moteur(VOIX_DU_SERVEUR)
+    """Charger le modèle au démarrage — mais ne jamais tuer le serveur si ça
+    rate. 21 septembre 2026 : l'installation se fait toute seule sur une
+    machine louée, sans personne devant l'écran. Un moteur qui lève ici
+    ferait sortir uvicorn, Docker redémarrerait en boucle, et /health ne
+    répondrait jamais : la panne serait muette. On la garde et on la dit."""
+    global panne
+    try:
+        moteur(VOIX_DU_SERVEUR)
+        panne = None
+    except Exception as e:  # noqa: BLE001 — une panne dite vaut mieux qu'un silence
+        panne = f"{type(e).__name__}: {e}"
+        print(f"MOTEUR EN PANNE AU DÉMARRAGE — {panne}", flush=True)
 
 
 class Demande(BaseModel):
@@ -78,6 +90,7 @@ def health():
         "demandes": demandes,
         "fabrication_ms_moyen": round(fabrication_ms_total / demandes) if demandes else None,
         "cle_exigee": bool(CLE),
+        "panne": panne,
     }
 
 
@@ -90,6 +103,8 @@ def speak(d: Demande, authorization: str | None = Header(default=None)):
         raise HTTPException(status_code=400, detail="texte vide")
     if len(texte) > 2000:
         raise HTTPException(status_code=413, detail="texte trop long (2000 signes au plus)")
+    if panne:
+        raise HTTPException(status_code=503, detail=f"moteur en panne — {panne}")
     m = moteur(d.voice)
     debut = time.time()
     with verrou:
