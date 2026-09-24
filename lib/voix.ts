@@ -49,6 +49,8 @@ export const voixConfig = {
     langue: env.VOIX_RUNPOD_LANGUE || "fr",
     exaggeration: nombreDeLEnvironnement(env.VOIX_RUNPOD_EXAGGERATION, 0.5, "VOIX_RUNPOD_EXAGGERATION"),
     cfgWeight: nombreDeLEnvironnement(env.VOIX_RUNPOD_CFG_WEIGHT, 0.5, "VOIX_RUNPOD_CFG_WEIGHT"),
+    /* température basse = modèle déterministe, ne continue pas après le texte */
+    temperature: nombreDeLEnvironnement(env.VOIX_RUNPOD_TEMPERATURE, 0.4, "VOIX_RUNPOD_TEMPERATURE"),
     attenteMs: nombreDeLEnvironnement(env.VOIX_RUNPOD_ATTENTE_MS, 150_000, "VOIX_RUNPOD_ATTENTE_MS"),
   },
   locale: {
@@ -572,6 +574,8 @@ export async function viaRunPod(texte: string, langue: "wo" | "fr", r?: Reglages
         language_id: c.langue,
         exaggeration: borne(r?.exaggeration, c.exaggeration),
         cfg_weight: borne(r?.cfgWeight, c.cfgWeight),
+        /* réduit les charabias de fin : le modèle ne prolonge plus après le texte */
+        temperature: borne(r?.temperature, c.temperature),
       } }),
       signal: arret.signal,
     });
