@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { correctionExacte, exemplesPour, motsCorriges, seSuffitAElleMeme } from "@/lib/lexique";
+import { garderLaReponse, porteUnNomDeLaPersonne, questionReutilisable, reponseGardee } from "@/lib/reponses-gardees";
 import { savoirKhalam } from "@/lib/khalam";
 import { savoirProduits } from "@/lib/produits";
 import { catalogue } from "@/lib/vitrine";
@@ -2189,6 +2190,28 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       console.error("BIA — lexique injoignable :",(err as Error).message);
     }
 
+    /* ── MÊME QUESTION, MÊME RÉPONSE — ET DONC MÊME SON, DÉJÀ PAYÉ ────────
+
+       Tranché par Lamine le 24 septembre 2026 (« oui, avec garde-fous »).
+       Une question qui revient mot pour mot reçoit la réponse de la première
+       fois : pas de jeton, et son son est déjà dans le seau des voix gardées.
+       Les garde-fous sont dans lib/reponses-gardees.ts. Une correction passe
+       toujours avant (juste au-dessus). La consigne entre dans la clé : si
+       Lamine la change, les réponses se renouvellent d'elles-mêmes. */
+    const consigneSignee=socle+"\n"+registre;
+    const reutilisable=questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
+    if(reutilisable){
+      const dejaDonnee=await reponseGardee(question,langueDe(question),consigneSignee);
+      if(dejaDonnee){
+        oublierPanne();
+        return {corps:{
+          reply:dejaDonnee.reply,
+          emotion:dejaDonnee.emotion||"neutre",
+          source:"réponse déjà donnée (gratuit)",
+        }};
+      }
+    }
+
     /* INTERNET, SEULEMENT QUAND LA QUESTION LE DEMANDE.
 
        L'outil de recherche coûte environ six francs à chaque usage, plus les
@@ -3028,6 +3051,13 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     oublierPanne();
     noterEmotion(emotion, reply, balise);
+    /* La première réponse à une question réutilisable est gardée — sauf si
+       elle porte un geste, une recherche, ou le prénom de la personne. */
+    if(reutilisable&&!cherche&&!papier&&!appel&&!voir&&!carteRattrapee&&!film&&!trouve&&!filmRate&&!rayee
+      &&!(Array.isArray(sesGestes)&&sesGestes.length)
+      &&!porteUnNomDeLaPersonne(ceQuElleDit,(body.history||[]).filter(h=>h.role!=="bia").map(h=>String(h.text||"")))){
+      void garderLaReponse(question,langueDe(question),consigneSignee,ceQuElleDit,String(emotion||"neutre"));
+    }
     return {corps:{reply:ceQuElleDit,emotion,balise,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,...(rayee?{corrigee:rayee}:{}),source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);

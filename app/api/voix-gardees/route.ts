@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
+import { retirerLaReponse } from "@/lib/reponses-gardees";
 import { CHEMIN_VALIDE, lireDansLeSeau, listeDesVoixGardees, resumeVoixGardees, retirerDuSeau } from "@/lib/voix-gardees";
 
 /* LE STOCK DES VOIX GARDÉES — réservé au code maître.
@@ -8,6 +9,7 @@ import { CHEMIN_VALIDE, lireDansLeSeau, listeDesVoixGardees, resumeVoixGardees, 
    GET ?chemin=wo/<e>.mp3   → le son lui-même (ou son .json : le texte)
    DELETE ?empreinte=<e>    → retire un son mal prononcé ; il sera refait
                               la prochaine fois qu'on le demandera
+   DELETE ?reponse=<e>      → retire une réponse gardée (lib/reponses-gardees.ts)
 
    C'est ce que lit outils/sauvegarder-voix-gardees.mjs pour recopier tout
    le stock sur le Mac. */
@@ -38,6 +40,11 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   if (!maitre(request)) return NextResponse.json({ erreur: "code maître" }, { status: 401 });
+  const rep = request.nextUrl.searchParams.get("reponse");
+  if (rep) {
+    const ok = await retirerLaReponse(rep);
+    return NextResponse.json({ retire: ok }, { status: ok ? 200 : 400 });
+  }
   const e = request.nextUrl.searchParams.get("empreinte") || "";
   const ok = await retirerDuSeau(e);
   return NextResponse.json({ retire: ok }, { status: ok ? 200 : 400 });

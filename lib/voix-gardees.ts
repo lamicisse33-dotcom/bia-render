@@ -41,7 +41,7 @@ import { lexiqueConfig } from "./lexique";
 import { voixConfig } from "./voix";
 import { nombreDeLEnvironnement } from "./nombre-env";
 
-const SEAU = process.env.SUPABASE_BUCKET_VOIX || "voix-gardees";
+export const SEAU = process.env.SUPABASE_BUCKET_VOIX || "voix-gardees";
 const OCTETS_AU_PLUS = nombreDeLEnvironnement(process.env.BIA_VOIX_GARDEES_MO, 250, "BIA_VOIX_GARDEES_MO") * 1024 * 1024;
 const LECTURE_MS = 1500;
 /** Prix Soynade, pour dire en clair ce que le seau a fait économiser. */
@@ -50,7 +50,7 @@ const DOLLARS_PAR_SIGNE = 0.22 / 1000;
 export const voixGardeesActives = () =>
   lexiqueConfig.actif && (process.env.BIA_VOIX_GARDEES || "oui") !== "non";
 
-function entetes(type?: string) {
+export function entetes(type?: string) {
   return {
     apikey: lexiqueConfig.cle,
     Authorization: `Bearer ${lexiqueConfig.cle}`,
@@ -127,7 +127,7 @@ let octetsDansLeSeau = 0;
 let chargement: Promise<void> | null = null;
 let seauPret = false;
 
-async function assurerLeSeau(): Promise<void> {
+export async function assurerLeSeau(): Promise<void> {
   if (seauPret) return;
   const r = await fetch(`${lexiqueConfig.url}/storage/v1/bucket`, {
     method: "POST",

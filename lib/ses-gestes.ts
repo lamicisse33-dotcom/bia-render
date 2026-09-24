@@ -71,7 +71,15 @@ const COUPE_QUOI = 60;
 export function geste(sorte: string, quoi = ""): Geste {
   const faire = DITS[sorte];
   if (!faire) return "";
-  return faire(String(quoi || "").trim().slice(0, COUPE_QUOI));
+  const sur = String(quoi || "").trim().slice(0, COUPE_QUOI);
+  /* UN GESTE SANS OBJET N'A PAS EU LIEU. Trouvé le 24 septembre 2026 : la
+     route du chat passe TOUTES les sortes à chaque tour, avec "" pour celles
+     qui n'ont pas eu lieu — et chacune s'écrivait quand même (« tu as
+     fabriqué un papier et il est affiché à l'écran », « tu as proposé
+     d'appeler »…). Elle relisait donc, à chaque tour, des gestes qu'elle
+     n'avait jamais faits. Seul « ferme » n'a pas besoin d'objet. */
+  if (!sur && sorte !== "ferme") return "";
+  return faire(sur);
 }
 
 /** Les gestes d'un tour, dans l'ordre où ils ont pris effet, sans les vides. */

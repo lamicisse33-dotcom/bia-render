@@ -12,6 +12,7 @@ import { comptesDuJour, imagesActives, videosActives } from "@/lib/trouver";
 import { etatRepertoire } from "@/lib/repertoire";
 import { resumeCorpus } from "@/lib/corpus";
 import { resumeVoixGardees } from "@/lib/voix-gardees";
+import { resumeReponsesGardees } from "@/lib/reponses-gardees";
 import { combienDeSouvenirs, resumeSouvenirs } from "@/lib/souvenirs";
 import { ecartsEntreLesTours, peseeDeLaConsigne } from "@/lib/pesee";
 import { resumeRelations } from "@/lib/relations";
@@ -191,6 +192,7 @@ export async function GET(request: Request) {
        sans qu'on le voie serait bête. Voir lib/corpus.ts. */
     corpus: resumeCorpus(),
     voix_gardees: resumeVoixGardees(),
+    reponses_gardees: resumeReponsesGardees(),
     /* ── SA MÉMOIRE ÉCRIT-ELLE VRAIMENT ? ─────────────────────────────────
        Posé le 15 septembre 2026, deux heures après la mémoire elle-même :
        je lui avais confirmé que tout était en ligne sans pouvoir lui dire si
