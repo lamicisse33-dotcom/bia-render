@@ -6,6 +6,7 @@ import { pourLaVoix } from "@/lib/nombres";
 import { noterPanne } from "@/lib/panne";
 import { noterOctetsDeVoix, noterVoix, noterVoixDirecte, noterVoixEnCache, rembourserVoix } from "@/lib/depense";
 import { versMp3 } from "@/lib/mp3";
+import { prononcer } from "@/lib/prononciation";
 import { empreinteDeVoix, garderLaVoixFabriquee, noterFabriquee, noterServieDeMemoire, voixGardee } from "@/lib/voix-gardees";
 
 /** Les sons déjà fabriqués, par texte. Deux cents, c'est une journée de
@@ -50,7 +51,9 @@ export async function POST(request: NextRequest) {
     const langueDuTexte = body.langue === "fr" || body.langue === "wo"
       ? body.langue
       : detecterLangue(brut);
-    const morceaux = decouper(pourLaVoix(brut, langueDuTexte));
+    /* Puis le carnet de prononciation (data/prononciation.txt) : ce que la
+       voix doit dire autrement que ce qui s'écrit. Voir lib/prononciation.ts. */
+    const morceaux = decouper(prononcer(pourLaVoix(brut, langueDuTexte)));
     const partie = Math.max(0, Math.floor(Number(body.partie) || 0));
     if (!morceaux.length || partie >= morceaux.length) {
       return NextResponse.json({ parties: morceaux.length, audio: null });

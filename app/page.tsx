@@ -5747,6 +5747,15 @@ export default function Home() {
       quand: Date.now(),
     });
     setCompteVerdicts(compterVerdicts(liste));
+    /* « Mal dit » retire aussi les sons gardés de cette phrase (lib/voix-gardees.ts) :
+       sinon le son mal prononcé serait resservi pour toujours. Sans attendre. */
+    if (avis === "mal" && quoi !== "retiré") {
+      void fetch("/api/voix-gardees", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+        body: JSON.stringify({ texte: dernierDitParElle.text }),
+      }).catch(() => {});
+    }
     setMotVerdict(quoi === "retiré" ? "retiré"
       : avis === "bien" ? "gardé pour l'enregistrement" : "gardé à corriger");
     if (motVerdictMinuterie.current) clearTimeout(motVerdictMinuterie.current);

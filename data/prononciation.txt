@@ -1,0 +1,12 @@
+# COMMENT BIA DOIT DIRE CERTAINS MOTS À VOIX HAUTE
+#
+# Une ligne par mot :   mot tel qu'il s'écrit = comment la voix doit le dire
+#
+# Ça ne change QUE ce que la voix prononce. L'écran garde l'écriture juste.
+# Dès qu'un mot est ajouté ici, tous les sons déjà gardés qui contiennent ce
+# mot sont refaits d'eux-mêmes à la prochaine demande (le texte envoyé à la
+# voix change, donc son empreinte aussi) — rien à effacer à la main.
+#
+# Les lignes qui commencent par # sont ignorées. Majuscules sans importance.
+# Exemple (à ne pas décommenter tel quel, c'est pour montrer la forme) :
+#   waax = waakh

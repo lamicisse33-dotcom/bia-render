@@ -38,7 +38,9 @@
 
 import { createHash } from "node:crypto";
 import { lexiqueConfig } from "./lexique";
-import { voixConfig } from "./voix";
+import { decouper, voixConfig } from "./voix";
+import { pourLaVoix } from "./nombres";
+import { prononcer } from "./prononciation";
 import { nombreDeLEnvironnement } from "./nombre-env";
 
 export const SEAU = process.env.SUPABASE_BUCKET_VOIX || "voix-gardees";
@@ -305,6 +307,33 @@ export async function retirerDuSeau(empreinteOuChemin: string): Promise<boolean>
   });
   if (r.ok) for (const c of chemins) { connues?.delete(c); deposesDepuisLeReveil.delete(c); }
   return r.ok;
+}
+
+/** « MAL DIT » : retirer tous les sons d'une phrase qu'elle vient de dire.
+    On refait exactement le chemin de /api/voix (nombres en lettres, carnet de
+    prononciation, découpage) pour les deux langues possibles, parce que la
+    langue retenue pour un morceau peut être l'une ou l'autre. Retirer un son
+    qui n'existe pas ne coûte rien. La prochaine fois, la phrase est refaite. */
+export async function retirerLaPhrase(brut: string): Promise<number> {
+  if (!voixGardeesActives() || !String(brut || "").trim()) return 0;
+  const chemins = new Set<string>();
+  for (const langueDuTexte of ["wo", "fr"] as const) {
+    for (const morceau of decouper(prononcer(pourLaVoix(brut, langueDuTexte)))) {
+      for (const langue of ["wo", "fr"]) {
+        const e = empreinteDeVoix(morceau, langue, "|||");
+        for (const l of ["wo", "fr"]) { chemins.add(`${l}/${e}.mp3`); chemins.add(`${l}/${e}.json`); }
+      }
+    }
+  }
+  const liste = [...chemins];
+  const r = await fetch(`${lexiqueConfig.url}/storage/v1/object/${SEAU}`, {
+    method: "DELETE", headers: entetes("application/json"),
+    body: JSON.stringify({ prefixes: liste }),
+  });
+  if (!r.ok) return 0;
+  const retires = await r.json().catch(() => []) as unknown[];
+  for (const c of liste) { connues?.delete(c); deposesDepuisLeReveil.delete(c); }
+  return Array.isArray(retires) ? retires.filter((o) => String((o as { name?: string }).name || "").endsWith(".mp3")).length : 0;
 }
 
 /** Pour /api/etat : ce que le seau a fait gagner, en clair. */
