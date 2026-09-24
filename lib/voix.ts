@@ -648,7 +648,12 @@ export async function synthetiser(texte: string, langue: "wo" | "fr", r?: Reglag
       /* Il a raté : Soynade reprend si sa clé est là, sinon le téléphone. */
       return voixConfig.soynade.apiKey ? viaSoynade(texte, langue, r, etiquette, format) : null;
     }
-    case "soynade": return viaSoynade(texte, langue, r, etiquette, format);
+    case "soynade": {
+      /* SoYNAD principal — ElevenLabs en secours si SoYNAD échoue */
+      const soy = await viaSoynade(texte, langue, r, etiquette, format);
+      if (soy) return soy;
+      return voixConfig.elevenlabs.apiKey ? viaElevenLabs(texte, langue) : null;
+    }
     case "elevenlabs":
       /* Wolof → SoYNAD (accent natif), Français → ElevenLabs (rapidité) */
       if (langue === "wo" && voixConfig.soynade.apiKey)
