@@ -390,10 +390,12 @@ export default function PageEcouter() {
       audioRef.current.src = "";
     }
     if (enCours === son.empreinte) { setEnCours(null); return; }
+    const codeCourant = code ?? "";
+    if (!codeCourant) return;
     setEnCours(son.empreinte);
     try {
       const r = await fetch(`/api/voix-gardees?chemin=${encodeURIComponent(son.chemin)}`, {
-        headers: { "x-bia-code": code },
+        headers: { "x-bia-code": codeCourant },
       });
       if (!r.ok) { setEnCours(null); return; }
       const blob = await r.blob();
