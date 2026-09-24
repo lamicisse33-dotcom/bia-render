@@ -6,7 +6,7 @@ import { pourLaVoix } from "@/lib/nombres";
 import { noterPanne } from "@/lib/panne";
 import { noterOctetsDeVoix, noterVoix, noterVoixDirecte, noterVoixEnCache, rembourserVoix } from "@/lib/depense";
 import { versMp3 } from "@/lib/mp3";
-import { empreinteDeVoix, garderLaVoixFabriquee, voixGardee } from "@/lib/voix-gardees";
+import { empreinteDeVoix, garderLaVoixFabriquee, noterFabriquee, noterServieDeMemoire, voixGardee } from "@/lib/voix-gardees";
 
 /** Les sons déjà fabriqués, par texte. Deux cents, c'est une journée de
     conversation ; au-delà on jette la plus ancienne. */
@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
       voixDejaFaites.delete(cle!);
       voixDejaFaites.set(cle!, dejaFaite);   // la plus récente en dernier : c'est la première qu'on jette qui est la plus vieille
       noterVoixEnCache(true);
+      noterServieDeMemoire(morceaux[partie].length);
       return NextResponse.json({
         parties: morceaux.length,
         partie,
@@ -128,6 +129,7 @@ export async function POST(request: NextRequest) {
        devis lu à voix haute, ou la page de réglage. */
     const ouCompter = String(body.ou || "").slice(0, 24) || "réponse";
     noterVoix(morceaux[partie].length, ouCompter);
+    noterFabriquee(morceaux[partie].length);
 
     const partiFabriquer = Date.now();
     const parole = await synthetiser(morceaux[partie], langue, {
@@ -193,7 +195,7 @@ export async function POST(request: NextRequest) {
     /* On garde ce qu'on vient de payer. Pas les essais de la page de
        réglage : ils changent de réglages exprès, et ne reviennent jamais. */
     /* Et dans le seau, pour toujours — sans faire attendre la réponse. */
-    if (empreinte) void garderLaVoixFabriquee(empreinte, langue, audio, typeMime, parole.moteur);
+    if (empreinte) void garderLaVoixFabriquee(empreinte, langue, audio, typeMime, parole.moteur, morceaux[partie]);
     if (cle) {
       voixDejaFaites.set(cle, { audio, typeMime, moteur: parole.moteur });
       while (voixDejaFaites.size > VOIX_GARDEES) {
