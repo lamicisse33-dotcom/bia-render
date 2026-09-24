@@ -383,15 +383,27 @@ export default function PageEcouter() {
     return <PageCode onCode={c => { setCode(c); void chargerSons(c); }} />;
   }
 
-  function jouer(son: Son) {
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; }
+  async function jouer(son: Son) {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      try { URL.revokeObjectURL(audioRef.current.src); } catch { /**/ }
+      audioRef.current.src = "";
+    }
     if (enCours === son.empreinte) { setEnCours(null); return; }
-    const audio = new Audio(`/api/voix-gardees?chemin=${encodeURIComponent(son.chemin)}`);
-    audio.onended = () => setEnCours(null);
-    audio.onerror = () => setEnCours(null);
-    audioRef.current = audio;
-    audio.play().catch(() => setEnCours(null));
     setEnCours(son.empreinte);
+    try {
+      const r = await fetch(`/api/voix-gardees?chemin=${encodeURIComponent(son.chemin)}`, {
+        headers: { "x-bia-code": code },
+      });
+      if (!r.ok) { setEnCours(null); return; }
+      const blob = await r.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const audio = new Audio(blobUrl);
+      audio.onended = () => { setEnCours(null); URL.revokeObjectURL(blobUrl); };
+      audio.onerror = () => { setEnCours(null); URL.revokeObjectURL(blobUrl); };
+      audioRef.current = audio;
+      audio.play().catch(() => { setEnCours(null); URL.revokeObjectURL(blobUrl); });
+    } catch { setEnCours(null); }
   }
 
   function apresCorrection(texte: string) {
