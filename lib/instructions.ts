@@ -163,6 +163,11 @@ const ENTIERES: Array<[Quoi, string[]]> = [
        pas une tournure de plus à deviner, c'est la même, dite à quelqu'un
        qu'on respecte. */
     "memorisez", "memorisez ca", "retenez ca", "gardez ca",
+    /* LE 24 SEPTEMBRE 2026, SUR LE REGISTRE : « Memorise ko. » et
+       « mémoriser ça » sont partis au modèle au lieu d'être rangés tout de
+       suite. « ko », c'est « le » en wolof : même ordre, dans sa langue. */
+    "memorise ko", "memoriser ko", "memorisez ko", "memoriser ca",
+    "retiens ko", "garde ko",
     /* ── ET NON, PAS LE VERBE SEUL ────────────────────────────────────
        J'avais ajouté « memorise », « retiens » et « garde » tout seuls, en
        me disant qu'après une répétition il n'y a rien d'autre que ça puisse
@@ -340,6 +345,8 @@ const BORDS = [
   "d accord", "ca y est", "s il te plait",
   "voila", "bon", "ok", "okay", "oui", "alors", "donc", "et", "ben", "eh",
   "hein", "la", "papa", "allez",
+  /* « Waaw, … » : son « oui » à lui, en tête d'ordre (registre du 24 sept.). */
+  "waaw",
   /* « Voilà, mémorisez quoi » — le 15 septembre 2026, non reconnu, leçon
      perdue. Ce « quoi » final est un tic d'ici, pas un mot de la phrase :
      il ponctue, il ne dit rien. Sans lui dans cette liste, chaque ordre
