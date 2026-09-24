@@ -6,6 +6,7 @@ import { pourLaVoix } from "@/lib/nombres";
 import { noterPanne } from "@/lib/panne";
 import { noterOctetsDeVoix, noterVoix, noterVoixDirecte, noterVoixEnCache, rembourserVoix } from "@/lib/depense";
 import { versMp3 } from "@/lib/mp3";
+import { empreinteDeVoix, garderLaVoixFabriquee, voixGardee } from "@/lib/voix-gardees";
 
 /** Les sons déjà fabriqués, par texte. Deux cents, c'est une journée de
     conversation ; au-delà on jette la plus ancienne. */
@@ -89,6 +90,33 @@ export async function POST(request: NextRequest) {
         encodage_ms: 0,
       });
     }
+
+    /* ── PUIS LE SEAU : CE QUI A DÉJÀ ÉTÉ PAYÉ UN AUTRE JOUR ─────────────
+       Voir lib/voix-gardees.ts. La mémoire ci-dessus s'efface quand le
+       serveur s'endort ; le seau, jamais. */
+    const empreinte = cle ? empreinteDeVoix(morceaux[partie], langue, cle.slice(langue.length + 1, cle.length - morceaux[partie].length - 1)) : null;
+    if (empreinte) {
+      const gardee = await voixGardee(empreinte, langue, morceaux[partie].length);
+      if (gardee) {
+        voixDejaFaites.set(cle!, { audio: gardee, typeMime: "audio/mpeg", moteur: "voix gardée" });
+        while (voixDejaFaites.size > VOIX_GARDEES) {
+          const plusVieille = voixDejaFaites.keys().next().value;
+          if (plusVieille === undefined) break;
+          voixDejaFaites.delete(plusVieille);
+        }
+        noterVoixEnCache(true);
+        return NextResponse.json({
+          parties: morceaux.length,
+          partie,
+          langue,
+          moteur: "voix gardée (déjà payée)",
+          type_mime: "audio/mpeg",
+          audio: gardee.toString("base64"),
+          fabrication_ms: 0,
+          encodage_ms: 0,
+        });
+      }
+    }
     noterVoixEnCache(false);
 
     // Les réglages ne viennent de la requête que depuis la page /reglage ;
@@ -164,6 +192,8 @@ export async function POST(request: NextRequest) {
 
     /* On garde ce qu'on vient de payer. Pas les essais de la page de
        réglage : ils changent de réglages exprès, et ne reviennent jamais. */
+    /* Et dans le seau, pour toujours — sans faire attendre la réponse. */
+    if (empreinte) void garderLaVoixFabriquee(empreinte, langue, audio, typeMime, parole.moteur);
     if (cle) {
       voixDejaFaites.set(cle, { audio, typeMime, moteur: parole.moteur });
       while (voixDejaFaites.size > VOIX_GARDEES) {

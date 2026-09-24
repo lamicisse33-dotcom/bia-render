@@ -649,9 +649,16 @@ export async function synthetiser(texte: string, langue: "wo" | "fr", r?: Reglag
       return voixConfig.soynade.apiKey ? viaSoynade(texte, langue, r, etiquette, format) : null;
     }
     case "soynade": {
-      /* SoYNAD principal — ElevenLabs en secours si SoYNAD échoue */
-      const soy = await viaSoynade(texte, langue, r, etiquette, format);
-      if (soy) return soy;
+      /* SoYNAD principal — ElevenLabs en secours si SoYNAD échoue.
+         viaSoynade LÈVE une erreur quand il rate (crédit, panne) : sans ce
+         try, le secours n'était jamais atteint. Trouvé le 24 septembre 2026. */
+      try {
+        const soy = await viaSoynade(texte, langue, r, etiquette, format);
+        if (soy) return soy;
+      } catch (e) {
+        if (!voixConfig.elevenlabs.apiKey) throw e;
+        console.error("BIA — Soynade a raté, ElevenLabs prend la phrase :", (e as Error).message);
+      }
       return voixConfig.elevenlabs.apiKey ? viaElevenLabs(texte, langue) : null;
     }
     case "elevenlabs":
