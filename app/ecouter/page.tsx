@@ -106,12 +106,13 @@ function PageCode({ onCode }: { onCode: (c: string) => void }) {
 }
 
 function ModalCorrection({
-  son, code, onFermer, onFait,
+  son, code, onFermer, onFait, onRetirer,
 }: {
   son: Son;
   code: string;
   onFermer: () => void;
   onFait: (texte: string) => void;
+  onRetirer: (texte: string) => void;
 }) {
   const [mot, setMot] = useState("");
   const [dire, setDire] = useState("");
@@ -125,11 +126,6 @@ function ModalCorrection({
   async function valider(e: React.FormEvent) {
     e.preventDefault();
     setEnvoi(true);
-    await fetch("/api/voix-gardees", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-bia-code": code },
-      body: JSON.stringify({ texte: son.texte }),
-    }).catch(() => {});
     if (mot.trim() && dire.trim()) {
       await fetch("/api/prononciation", {
         method: "POST",
@@ -168,16 +164,28 @@ function ModalCorrection({
                 {" "}(actif dans ~5 minutes).
               </p>
             )}
-            <button
-              onClick={() => onFait(son.texte ?? "")}
-              style={{
-                background: "#3b82f6", color: "#fff", border: "none",
-                borderRadius: 8, padding: "10px 24px", cursor: "pointer",
-                fontWeight: 600, fontSize: 15,
-              }}
-            >
-              Fermer
-            </button>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              <button
+                onClick={() => onFait(son.texte ?? "")}
+                style={{
+                  background: "#1e3a2a", color: "#4ade80", border: "1px solid #166534",
+                  borderRadius: 8, padding: "10px 20px", cursor: "pointer",
+                  fontWeight: 600, fontSize: 14,
+                }}
+              >
+                ↩ Réécouter
+              </button>
+              <button
+                onClick={() => onRetirer(son.texte ?? "")}
+                style={{
+                  background: "#334155", color: "#94a3b8", border: "none",
+                  borderRadius: 8, padding: "10px 20px", cursor: "pointer",
+                  fontWeight: 600, fontSize: 14,
+                }}
+              >
+                Retirer le son 🗑
+              </button>
+            </div>
           </div>
         ) : (
           <>
@@ -359,6 +367,7 @@ export default function PageEcouter() {
   const [chargement, setChargement] = useState(false);
   const [enCours, setEnCours] = useState<string | null>(null);
   const [supprimes, setSupprimes] = useState<Set<string>>(new Set());
+  const [corrigees, setCorrigees] = useState<Set<string>>(new Set());
   const [recherche, setRecherche] = useState("");
   const [filtreLangue, setFiltreLangue] = useState<"tous" | "wo" | "fr">("tous");
   const [modalSon, setModalSon] = useState<Son | null>(null);
@@ -410,12 +419,33 @@ export default function PageEcouter() {
   }
 
   function apresCorrection(texte: string) {
+    // Marquer comme corrigé mais garder visible pour réécouter
+    setCorrigees(prev => {
+      const n = new Set(prev);
+      sons.forEach(s => { if (s.texte === texte) n.add(s.chemin); });
+      return n;
+    });
+    setModalSon(null);
+  }
+
+  async function retirerSon(texte: string) {
+    // Supprimer du serveur + cacher la carte
+    await fetch("/api/voix-gardees", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-bia-code": code ?? "" },
+      body: JSON.stringify({ texte }),
+    }).catch(() => {});
     setSupprimes(prev => {
       const n = new Set(prev);
       sons.forEach(s => { if (s.texte === texte) n.add(s.chemin); });
       return n;
     });
-    if (audioRef.current && modalSon && enCours === modalSon.chemin) {
+    setCorrigees(prev => {
+      const n = new Set(prev);
+      sons.forEach(s => { if (s.texte === texte) n.delete(s.chemin); });
+      return n;
+    });
+    if (audioRef.current && modalSon && enCours === modalSon?.chemin) {
       audioRef.current.pause(); setEnCours(null);
     }
     setModalSon(null);
@@ -542,17 +572,31 @@ export default function PageEcouter() {
                       <span>{formatDate(son.le)}</span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setModalSon(son)}
-                    style={{
-                      background: "transparent", border: "1px solid #7f1d1d",
-                      color: "#f87171", borderRadius: 8,
-                      padding: "6px 12px", cursor: "pointer",
-                      fontSize: 12, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap",
-                    }}
-                  >
-                    Mal dit 🔧
-                  </button>
+                  {corrigees.has(son.chemin) ? (
+                    <button
+                      onClick={() => void retirerSon(son.texte ?? "")}
+                      style={{
+                        background: "transparent", border: "1px solid #166534",
+                        color: "#4ade80", borderRadius: 8,
+                        padding: "6px 12px", cursor: "pointer",
+                        fontSize: 12, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap",
+                      }}
+                    >
+                      ✅ Retirer 🗑
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setModalSon(son)}
+                      style={{
+                        background: "transparent", border: "1px solid #7f1d1d",
+                        color: "#f87171", borderRadius: 8,
+                        padding: "6px 12px", cursor: "pointer",
+                        fontSize: 12, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap",
+                      }}
+                    >
+                      Mal dit 🔧
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -566,6 +610,7 @@ export default function PageEcouter() {
           code={code}
           onFermer={() => setModalSon(null)}
           onFait={apresCorrection}
+          onRetirer={retirerSon}
         />
       )}
     </div>
