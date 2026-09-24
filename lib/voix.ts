@@ -441,16 +441,29 @@ async function viaSoynade(texte: string, langue: "wo" | "fr", r?: Reglages, etiq
   };
 }
 
+/** Corrige la prononciation des phonèmes Wolof avant envoi à ElevenLabs.
+ *  "x" wolof = fricative vélaire (son du fond de la gorge), pas "ks" français.
+ *  On le remplace par "kh" que le modèle multilingual prononce correctement. */
+function normaliserWolof(texte: string): string {
+  return texte
+    .replace(/x/g, "kh")   // fricative vélaire : waax → waakh, xam → kham
+    .replace(/ñ/g, "ny")   // nasale palatale  : ñaan → nyaan
+    .replace(/ŋ/g, "ng");  // nasale vélaire   : rare en wolof standard
+}
+
 async function viaElevenLabs(texte: string, langue: "wo" | "fr"): Promise<Parole> {
   const c = voixConfig.elevenlabs;
   if (!c.apiKey) throw new Error("ELEVENLABS_API_KEY manquante");
   const voix = langue === "wo" ? c.voiceWo || c.voiceFr : c.voiceFr;
   if (!voix) throw new Error("Aucun identifiant de voix configuré");
 
+  /* Normalisation phonétique Wolof uniquement */
+  const texteEnvoye = langue === "wo" ? normaliserWolof(texte) : texte;
+
   const reponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voix}`, {
     method: "POST",
     headers: { "xi-api-key": c.apiKey, "content-type": "application/json", accept: "audio/mpeg" },
-    body: JSON.stringify({ text: texte, model_id: c.model, voice_settings: { stability: 0.4, similarity_boost: 0.7 } }),
+    body: JSON.stringify({ text: texteEnvoye, model_id: c.model, voice_settings: { stability: 0.4, similarity_boost: 0.7 } }),
   });
   if (!reponse.ok) throw new Error(`ElevenLabs ${reponse.status} : ${(await reponse.text()).slice(0, 400)}`);
   return { audio: Buffer.from(await reponse.arrayBuffer()), typeMime: "audio/mpeg", moteur: "elevenlabs" };
