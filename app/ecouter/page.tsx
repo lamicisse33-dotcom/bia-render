@@ -25,13 +25,15 @@ interface Correction {
   created_at: string;
 }
 
-function formatTaille(octets: number) {
+function formatTaille(octets: number | undefined) {
+  if (octets == null) return "";
   if (octets < 1024) return `${octets} o`;
   if (octets < 1024 * 1024) return `${(octets / 1024).toFixed(1)} Ko`;
   return `${(octets / 1024 / 1024).toFixed(2)} Mo`;
 }
 
-function formatDate(iso: string) {
+function formatDate(iso: string | undefined) {
+  if (!iso) return "";
   try {
     return new Date(iso).toLocaleString("fr-FR", {
       day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
@@ -167,7 +169,7 @@ function ModalCorrection({
               </p>
             )}
             <button
-              onClick={() => onFait(son.texte)}
+              onClick={() => onFait(son.texte ?? "")}
               style={{
                 background: "#3b82f6", color: "#fff", border: "none",
                 borderRadius: 8, padding: "10px 24px", cursor: "pointer",
