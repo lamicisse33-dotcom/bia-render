@@ -61,9 +61,24 @@ export function entetes(type?: string) {
 /* ── L'IDENTITÉ DE LA VOIX ─────────────────────────────────────────────── */
 
 const SANS_IDENTITE = new Set(["apiKey", "cle", "baseUrl", "attenteMs"]);
-function identiteDeLaVoix(): string {
-  const f = voixConfig.fournisseur;
-  const conf = (voixConfig as unknown as Record<string, unknown>)[f];
+
+/** LE MOTEUR QUI PARLE VRAIMENT CETTE LANGUE, en temps normal.
+    Trouvé le 24 septembre 2026 sur /api/etat : TTS_PROVIDER valait encore
+    « elevenlabs », mode où le WOLOF part chez Soynade. Les 19 sons de la
+    soirée venaient donc de Soynade, et aucun n'était gardé — on les prenait
+    pour des sons de secours. La voix principale se juge PAR LANGUE. */
+export function voixPrincipale(langue: string): "soynade" | "runpod" | "elevenlabs" | "" {
+  switch (voixConfig.fournisseur) {
+    case "soynade": return "soynade";
+    case "runpod": return "runpod";
+    case "elevenlabs": return langue === "wo" && voixConfig.soynade.apiKey ? "soynade" : "elevenlabs";
+    default: return "";
+  }
+}
+
+function identiteDeLaVoix(langue: string): string {
+  const f = voixPrincipale(langue);
+  const conf = f ? (voixConfig as unknown as Record<string, unknown>)[f] : null;
   const reglages = conf && typeof conf === "object"
     ? Object.entries(conf as Record<string, unknown>)
         .filter(([k]) => !SANS_IDENTITE.has(k))
@@ -72,10 +87,10 @@ function identiteDeLaVoix(): string {
   return `${f}:${JSON.stringify(reglages)}`;
 }
 
-/** Le moteur qui a parlé est-il bien la voix principale de BIA ? */
-export function estLaVoixPrincipale(moteur: string): boolean {
+/** Le moteur qui a parlé est-il bien la voix principale de BIA pour cette langue ? */
+export function estLaVoixPrincipale(moteur: string, langue: string): boolean {
   const m = String(moteur || "");
-  switch (voixConfig.fournisseur) {
+  switch (voixPrincipale(langue)) {
     case "soynade": return m.startsWith("soynade");
     case "runpod": return m.startsWith("khalam-voix");
     case "elevenlabs": return m.startsWith("elevenlabs");
@@ -88,7 +103,7 @@ export function estLaVoixPrincipale(moteur: string): boolean {
 export function empreinteDeVoix(texte: string, langue: string, reglages = ""): string {
   const propre = String(texte || "").trim().replace(/\s+/g, " ");
   return createHash("sha256")
-    .update(`v1|${identiteDeLaVoix()}|${langue}|${reglages}|${propre}`)
+    .update(`v1|${identiteDeLaVoix(langue)}|${langue}|${reglages}|${propre}`)
     .digest("hex");
 }
 
@@ -216,7 +231,7 @@ export async function voixGardee(empreinte: string, langue: string, signes: numb
 export async function garderLaVoixFabriquee(empreinte: string, langue: string, audio: Buffer, typeMime: string, moteur: string, texte = ""): Promise<void> {
   if (!voixGardeesActives()) return;
   if (typeMime !== "audio/mpeg") return;               // on ne range que du mp3, léger
-  if (!estLaVoixPrincipale(moteur)) return;            // pas la voix de secours
+  if (!estLaVoixPrincipale(moteur, langue)) return;            // pas la voix de secours
   if (octetsDansLeSeau + audio.length > OCTETS_AU_PLUS) {
     compte.refusees += 1; compte.dernierRefus = "seau plein — voir BIA_VOIX_GARDEES_MO";
     return;
@@ -243,7 +258,7 @@ export async function garderLaVoixFabriquee(empreinte: string, langue: string, a
       void fetch(`${lexiqueConfig.url}/storage/v1/object/${SEAU}/${langue}/${empreinte}.json`, {
         method: "POST",
         headers: { ...entetes("application/json"), "x-upsert": "true" },
-        body: JSON.stringify({ texte, langue, voix: voixConfig.fournisseur, moteur, octets: audio.length, le: new Date().toISOString() }),
+        body: JSON.stringify({ texte, langue, voix: voixPrincipale(langue), moteur, octets: audio.length, le: new Date().toISOString() }),
       }).catch(() => {});
     }
     compte.octetsDeposes += audio.length;
@@ -306,6 +321,7 @@ export function resumeVoixGardees() {
     actives: voixGardeesActives(),
     seau: SEAU,
     voix: voixConfig.fournisseur,
+    voix_gardee: { wo: voixPrincipale("wo"), fr: voixPrincipale("fr") },
     phrases_dans_le_seau: connues ? connues.size : null,
     mo_dans_le_seau: Math.round(octetsDansLeSeau / 1024 / 1024 * 10) / 10,
     plafond_mo: Math.round(OCTETS_AU_PLUS / 1024 / 1024),
