@@ -552,7 +552,7 @@ type ReponseRunPod = {
     /runsync rend la main au bout d'une minute et demie environ même si la
     machine se réveille encore : on interroge alors /status/<id> jusqu'à la
     fin, dans la limite d'attenteMs. */
-export async function viaRunPod(texte: string, _langue: "wo" | "fr", r?: Reglages, etiquette = "voix"): Promise<Parole | null> {
+export async function viaRunPod(texte: string, langue: "wo" | "fr", r?: Reglages, etiquette = "voix"): Promise<Parole | null> {
   const c = voixConfig.runpod;
   if (!c.url || !c.cle) return null;
   const partiVoix = Date.now();
@@ -565,6 +565,10 @@ export async function viaRunPod(texte: string, _langue: "wo" | "fr", r?: Reglage
       headers: entetes,
       body: JSON.stringify({ input: {
         text: texte,
+        /* Deux moteurs derrière la même voix (main.py) : le modèle affiné
+           pour le wolof, le modèle d'origine (voix de Kha clonée) pour le
+           français — l'affinage lui avait abîmé son français. */
+        voix: langue === "fr" ? "francais" : "wolof",
         language_id: c.langue,
         exaggeration: borne(r?.exaggeration, c.exaggeration),
         cfg_weight: borne(r?.cfgWeight, c.cfgWeight),
