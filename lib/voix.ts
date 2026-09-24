@@ -649,7 +649,11 @@ export async function synthetiser(texte: string, langue: "wo" | "fr", r?: Reglag
       return voixConfig.soynade.apiKey ? viaSoynade(texte, langue, r, etiquette, format) : null;
     }
     case "soynade": return viaSoynade(texte, langue, r, etiquette, format);
-    case "elevenlabs": return viaElevenLabs(texte, langue);
+    case "elevenlabs":
+      /* Wolof → SoYNAD (accent natif), Français → ElevenLabs (rapidité) */
+      if (langue === "wo" && voixConfig.soynade.apiKey)
+        return viaSoynade(texte, langue, r, etiquette, format);
+      return viaElevenLabs(texte, langue);
     default: return null; // le téléphone lit lui-même
   }
 }
