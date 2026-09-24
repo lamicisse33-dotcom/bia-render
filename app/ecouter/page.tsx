@@ -155,7 +155,7 @@ function ModalCorrection({
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
             <p style={{ color: "#4ade80", fontWeight: 700, fontSize: 16, margin: "0 0 8px" }}>
-              Son retiré !
+              Correction enregistrée !
             </p>
             {mot && dire && (
               <p style={{ color: "#94a3b8", fontSize: 14, margin: "0 0 20px" }}>
@@ -183,7 +183,7 @@ function ModalCorrection({
                   fontWeight: 600, fontSize: 14,
                 }}
               >
-                Retirer le son 🗑
+                Regénérer et remplacer 🔄
               </button>
             </div>
           </div>
@@ -429,12 +429,17 @@ export default function PageEcouter() {
   }
 
   async function retirerSon(texte: string) {
-    // Supprimer du serveur + cacher la carte
-    await fetch("/api/voix-gardees", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-bia-code": code ?? "" },
-      body: JSON.stringify({ texte }),
-    }).catch(() => {});
+    // Regénérer le son corrigé dans Supabase puis cacher la carte
+    const cheminsConcernes = sons.filter(s => s.texte === texte).map(s => s.chemin);
+    await Promise.all(
+      cheminsConcernes.map(chemin =>
+        fetch("/api/voix-gardees/regenerer", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-bia-code": code ?? "" },
+          body: JSON.stringify({ chemin }),
+        }).catch(() => {})
+      )
+    );
     setSupprimes(prev => {
       const n = new Set(prev);
       sons.forEach(s => { if (s.texte === texte) n.add(s.chemin); });
@@ -582,7 +587,7 @@ export default function PageEcouter() {
                         fontSize: 12, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap",
                       }}
                     >
-                      ✅ Retirer 🗑
+                      🔄 Regénérer
                     </button>
                   ) : (
                     <button

@@ -125,6 +125,11 @@ export async function supprimerCorrection(mot: string): Promise<void> {
   await rafraichir();
 }
 
+export async function rafraichirMaintenant(): Promise<void> {
+  derniereMAJ = 0;
+  await rafraichir();
+}
+
 export function resumePrononciation() {
   return {
     statiques: reglesStatiques.length,
