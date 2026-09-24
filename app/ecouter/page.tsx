@@ -429,7 +429,7 @@ export default function PageEcouter() {
   });
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0f172a", fontFamily: "system-ui, sans-serif", color: "#f1f5f9" }}>
+    <div style={{ height: "100vh", overflowY: "auto", background: "#0f172a", fontFamily: "system-ui, sans-serif", color: "#f1f5f9" }}>
       <div style={{
         background: "#1e293b", borderBottom: "1px solid #334155",
         padding: "16px 24px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
