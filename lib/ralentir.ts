@@ -172,10 +172,28 @@ export function ralentir(ctx: BaseAudioContext, son: AudioBuffer, vitesse: numbe
    change depuis la page de réglage, sans redéploiement et sans moi. */
 export const CLE_VITESSE = "bia-vitesse";
 
+/* ── NOTRE MOTEUR PARLE DÉJÀ POSÉMENT ──────────────────────────────────────
+
+   24 septembre 2026, première écoute de BIA avec la voix de Kha sur notre
+   propre moteur (RunPod) : « la voix est trop lente ». Sur le Mac, la même
+   phrase sans ce ralentissement lui avait paru naturelle. Le ralentissement
+   de 30 % avait été taillé pour Soynade, qui parlait vite et « agressif » ;
+   notre moteur, lui, parle déjà au rythme de Kha — le ralentir encore le
+   rend traînant.
+
+   ON NE JETTE PAS LE CURSEUR : il garde son sens, mais RELATIVEMENT au
+   moteur. Quand c'est notre moteur qui parle, la position « Posée » (0,7,
+   celle de tout le monde par défaut) devient le rythme naturel (1), « Très
+   posée » ralentit un peu, « Normale » et « Vive » accélèrent. Avec Soynade,
+   rien ne change. La page apprend quel moteur parle par /api/etat. */
+let moteurDejaPose = false;
+export function voixDejaPosee(oui: boolean) { moteurDejaPose = oui; }
+
 export function vitesseChoisie(): number {
+  let reglage = VITESSE_POSEE;
   try {
     const v = Number(localStorage.getItem(CLE_VITESSE));
-    if (Number.isFinite(v) && v >= 0.5 && v <= 1) return v;
+    if (Number.isFinite(v) && v >= 0.5 && v <= 1) reglage = v;
   } catch { /* navigateur privé : on garde la valeur par défaut */ }
-  return VITESSE_POSEE;
+  return moteurDejaPose ? Math.round((reglage / VITESSE_POSEE) * 100) / 100 : reglage;
 }

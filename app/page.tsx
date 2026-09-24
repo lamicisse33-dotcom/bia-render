@@ -58,7 +58,7 @@ import { fluxVivant,
   SILENCE_LE_PLUS_COURT, barreDeCoupure, partVocale, silenceQuiSuffit, suivreLEcho, suivreLeBruit,
   vautLaPeine, vraimentUneVoix,
 } from "@/lib/micro";
-import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie } from "@/lib/ralentir";
+import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie, voixDejaPosee } from "@/lib/ralentir";
 import {
   DUREE_DU_RATTRAPAGE, GARDER_CE_QUIL_DIT_PENDANT_QUELLE_PARLE, PORTE_AU_PLUS, RELANCE_DU_DEPOT, REPRISE_QUI_CONTINUE,
   faut_il_se_taire, recoller, type Prononce,
@@ -1148,7 +1148,12 @@ export default function Home() {
     } catch {}
     fetch("/api/etat")
       .then((r) => r.json())
-      .then((e) => { setMoteurs(e); moteursRef.current = e; versionChargee.current = String(e?.version || ""); })
+      .then((e) => {
+        setMoteurs(e); moteursRef.current = e; versionChargee.current = String(e?.version || "");
+        /* Notre moteur parle déjà posément : le curseur « Débit » se lit
+           relativement à lui (voir lib/ralentir.ts). */
+        voixDejaPosee(e?.voix === "runpod");
+      })
       .catch(() => {});
   }, []);
 
