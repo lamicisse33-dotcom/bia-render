@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       audioPrompt: body.audioPrompt,
     }, body.tete && partie === 0 ? "voix-tete" : "voix", "mp3");
     /* La voix locale a parlé : ces signes ne coûtent rien, on les rend. */
-    if (parole && parole.moteur.startsWith("wolof-local")) rembourserVoix(morceaux[partie].length, ouCompter);
+    if (parole && (parole.moteur.startsWith("wolof-local") || parole.moteur.startsWith("khalam-voix"))) rembourserVoix(morceaux[partie].length, ouCompter);
     if (!parole) {
       /* Aucun fournisseur de voix n'est configuré : le téléphone lira
          lui-même. Ce n'est pas une panne, mais il faut pouvoir le VOIR —

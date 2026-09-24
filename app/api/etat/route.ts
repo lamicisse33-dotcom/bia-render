@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { hoquetsDeLaVoix, hoquetsDeLaVoixLocale, voixConfig, voixSansCredit } from "@/lib/voix";
+import { hoquetsDeLaVoix, hoquetsDeLaVoixLocale, hoquetsDeLaVoixRunPod, voixConfig, voixSansCredit } from "@/lib/voix";
 import { ecouteConfig, resumeEcoutes, resumeOreilleSoynade } from "@/lib/ecoute";
 import { lexiqueConfig, combien, combienParApplication, parAuteur, lectureLexique, motsCorriges } from "@/lib/lexique";
 import { dernierePanne, pannes } from "@/lib/panne";
@@ -140,6 +140,7 @@ export async function GET(request: Request) {
     /* La voix wolof locale (19 septembre) : branchée ou pas, servies, ratées,
        fabrication moyenne. Ses signes remboursés sont dans depense.voix_locale. */
     voix_locale: hoquetsDeLaVoixLocale(),
+    voix_runpod: hoquetsDeLaVoixRunPod(),
     derniere_panne: dernierePanne(),
     // L'histoire, elle, ne s'efface pas : une panne passée reste lisible même
     // si tout va bien depuis. C'est la seule façon de comprendre après coup.

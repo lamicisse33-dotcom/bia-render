@@ -8,7 +8,10 @@ import { nombreDeLEnvironnement } from "./nombre-env";
 const env = process.env;
 
 export const voixConfig = {
-  fournisseur: env.TTS_PROVIDER || (env.SOYNADE_API_KEY ? "soynade" : "navigateur"),
+  /* Notre moteur d'abord, dès que son adresse est posée ; sinon Soynade si
+     sa clé est là ; sinon le téléphone lit lui-même. TTS_PROVIDER force. */
+  fournisseur: env.TTS_PROVIDER
+    || (env.VOIX_RUNPOD_URL ? "runpod" : env.SOYNADE_API_KEY ? "soynade" : "navigateur"),
   /* ── LA VOIX LOCALE, GRATUITE, POUR LE WOLOF ────────────────────────────
 
      19 septembre 2026. Un petit serveur à nous (voix-locale/), modèle
@@ -19,6 +22,35 @@ export const voixConfig = {
      s'active en posant VOIX_LOCALE_URL ; sans l'adresse, rien ne change.
      Si elle ne répond pas (endormie, en panne, trop lente), Soynade reprend
      la phrase — et ça se compte, voir hoquetsDeLaVoixLocale(). */
+  /* ── LA VOIX DE KHA, SUR NOTRE PROPRE MOTEUR ────────────────────────────
+
+     24 septembre 2026. Le moteur Chatterbox multilingue affiné sur la voix
+     de Kha tourne chez RunPod (serverless, région EU-RO-1, zéro machine au
+     repos), modèle tiré du dépôt privé Hugging Face khalam-app/bia-voice-engine.
+     Première phrase entendue par Lamine : « très clair, on dirait
+     l'enregistrement naturel ».
+
+     Il parle wolof ET français avec la même voix (le wolof passe par
+     l'identifiant de langue « fr », décision prise à l'entraînement).
+     Réglages validés sur le Mac : exaggeration 0,5, cfg_weight 0,5.
+
+     Il s'active en posant VOIX_RUNPOD_URL (https://api.runpod.ai/v2/<id>)
+     et RUNPOD_API_KEY. S'il rate, Soynade reprend la phrase si sa clé est
+     là — et le raté se compte, voir hoquetsDeLaVoixRunPod().
+
+     CE QU'IL FAUT SAVOIR SUR L'ATTENTE : une machine qui dort met 60 à 90 s
+     à se réveiller (elle recharge la voix), puis chaque phrase prend 2 à 3 s.
+     Elle se rendort après 60 s sans demande (idle_timeout dans main.py du
+     dossier bia-voice-endpoint). Le premier appel d'une conversation après
+     une pause paie donc ce réveil : attenteMs est large exprès. */
+  runpod: {
+    url: (env.VOIX_RUNPOD_URL || "").replace(/\/$/, ""),
+    cle: env.RUNPOD_API_KEY || "",
+    langue: env.VOIX_RUNPOD_LANGUE || "fr",
+    exaggeration: nombreDeLEnvironnement(env.VOIX_RUNPOD_EXAGGERATION, 0.5, "VOIX_RUNPOD_EXAGGERATION"),
+    cfgWeight: nombreDeLEnvironnement(env.VOIX_RUNPOD_CFG_WEIGHT, 0.5, "VOIX_RUNPOD_CFG_WEIGHT"),
+    attenteMs: nombreDeLEnvironnement(env.VOIX_RUNPOD_ATTENTE_MS, 150_000, "VOIX_RUNPOD_ATTENTE_MS"),
+  },
   locale: {
     url: (env.VOIX_LOCALE_URL || "").replace(/\/$/, ""),
     cle: env.VOIX_LOCALE_CLE || "",
@@ -491,6 +523,91 @@ async function viaLocale(texte: string, etiquette: string): Promise<Parole | nul
   }
 }
 
+/* ── NOTRE MOTEUR : LES CHIFFRES QUI DISENT S'IL TIENT ─────────────────────
+   Les mêmes que pour la voix locale, plus le RÉVEIL : c'est lui que Lamine
+   entend comme une lenteur, et c'est lui qu'il faudra régler (machine gardée
+   chaude, ou pas) quand BIA aura des utilisateurs. */
+const voixRunPod = { servies: 0, ratees: 0, dernier_rate: "", fabrication_ms: 0, reveils: 0, dernier_reveil_ms: 0 };
+export function hoquetsDeLaVoixRunPod() {
+  return {
+    branchee: Boolean(voixConfig.runpod.url && voixConfig.runpod.cle),
+    servies: voixRunPod.servies,
+    ratees: voixRunPod.ratees,
+    dernier_rate: voixRunPod.dernier_rate,
+    fabrication_ms_moyen: voixRunPod.servies ? Math.round(voixRunPod.fabrication_ms / voixRunPod.servies) : null,
+    reveils: voixRunPod.reveils,
+    dernier_reveil_ms: voixRunPod.dernier_reveil_ms,
+  };
+}
+
+type ReponseRunPod = {
+  id?: string; status?: string; error?: string;
+  delayTime?: number; executionTime?: number;
+  output?: { audio_base64?: string; sample_rate?: number; error?: string };
+};
+
+/** Une phrase dite par notre moteur. Rend null quand il ne peut pas — la
+    suite (Soynade ou le téléphone) est alors inchangée, et le raté est compté.
+
+    /runsync rend la main au bout d'une minute et demie environ même si la
+    machine se réveille encore : on interroge alors /status/<id> jusqu'à la
+    fin, dans la limite d'attenteMs. */
+export async function viaRunPod(texte: string, _langue: "wo" | "fr", r?: Reglages, etiquette = "voix"): Promise<Parole | null> {
+  const c = voixConfig.runpod;
+  if (!c.url || !c.cle) return null;
+  const partiVoix = Date.now();
+  const arret = new AbortController();
+  const minuterie = setTimeout(() => arret.abort(), c.attenteMs);
+  const entetes = { Authorization: `Bearer ${c.cle}`, "content-type": "application/json" };
+  try {
+    const reponse = await fetch(`${c.url}/runsync`, {
+      method: "POST",
+      headers: entetes,
+      body: JSON.stringify({ input: {
+        text: texte,
+        language_id: c.langue,
+        exaggeration: borne(r?.exaggeration, c.exaggeration),
+        cfg_weight: borne(r?.cfgWeight, c.cfgWeight),
+      } }),
+      signal: arret.signal,
+    });
+    if (!reponse.ok) throw new Error(`RunPod ${reponse.status} : ${(await reponse.text().catch(() => "")).slice(0, 120)}`);
+    let etat = (await reponse.json()) as ReponseRunPod;
+    while (etat.status && etat.status !== "COMPLETED" && etat.status !== "FAILED" && etat.status !== "CANCELLED") {
+      if (!etat.id) throw new Error("RunPod : réponse sans identifiant");
+      await new Promise((ok) => setTimeout(ok, 1000));
+      const suite = await fetch(`${c.url}/status/${etat.id}`, { headers: entetes, signal: arret.signal });
+      if (!suite.ok) throw new Error(`RunPod status ${suite.status}`);
+      etat = (await suite.json()) as ReponseRunPod;
+    }
+    if (etat.status !== "COMPLETED") throw new Error(`RunPod ${etat.status || "?"} : ${String(etat.error || "").slice(0, 120)}`);
+    const b64 = etat.output?.audio_base64;
+    if (!b64) throw new Error(`RunPod : pas d'audio (${String(etat.output?.error || "").slice(0, 120)})`);
+    const octets = Buffer.from(b64, "base64");
+    if (typeMimeDesOctets(octets) !== "audio/wav") throw new Error("notre moteur n'a pas rendu un wav");
+    const fin = Date.now();
+    noterEtape(etiquette, partiVoix, fin, fin, texte.length);
+    voixRunPod.servies += 1;
+    voixRunPod.fabrication_ms += Number(etat.executionTime) || 0;
+    /* Un délai de plus de dix secondes avant l'exécution, c'est une machine
+       qui se réveillait : on le note à part, c'est ça la vraie lenteur. */
+    if ((Number(etat.delayTime) || 0) > 10_000) {
+      voixRunPod.reveils += 1;
+      voixRunPod.dernier_reveil_ms = Number(etat.delayTime) || 0;
+    }
+    return { audio: octets, typeMime: "audio/wav", moteur: "khalam-voix (RunPod, voix de Kha)" };
+  } catch (err) {
+    voixRunPod.ratees += 1;
+    voixRunPod.dernier_rate = String((err as Error).name === "AbortError"
+      ? `pas de réponse en ${c.attenteMs} ms`
+      : (err as Error).message || err).slice(0, 160);
+    console.error(`BIA — notre moteur vocal a raté (${voixRunPod.dernier_rate}) : la suite reprend.`);
+    return null;
+  } finally {
+    clearTimeout(minuterie);
+  }
+}
+
 export async function synthetiser(texte: string, langue: "wo" | "fr", r?: Reglages,
                                   etiquette = "voix", format: FormatDeVoix = "wav"): Promise<Parole | null> {
   if (!texte.trim()) return null;
@@ -504,6 +621,12 @@ export async function synthetiser(texte: string, langue: "wo" | "fr", r?: Reglag
     if (locale) return locale;
   }
   switch (voixConfig.fournisseur) {
+    case "runpod": {
+      const notre = await viaRunPod(texte, langue, r, etiquette);
+      if (notre) return notre;
+      /* Il a raté : Soynade reprend si sa clé est là, sinon le téléphone. */
+      return voixConfig.soynade.apiKey ? viaSoynade(texte, langue, r, etiquette, format) : null;
+    }
     case "soynade": return viaSoynade(texte, langue, r, etiquette, format);
     case "elevenlabs": return viaElevenLabs(texte, langue);
     default: return null; // le téléphone lit lui-même

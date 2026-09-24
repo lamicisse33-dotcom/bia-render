@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
-import { voixConfig } from "@/lib/voix";
+import { voixConfig, viaRunPod, hoquetsDeLaVoixRunPod } from "@/lib/voix";
 import { noterEssaiVoix } from "@/lib/etapes";
 
 /* ── LE TEST QUI DÉCIDE DU RESTE ─────────────────────────────────────────────
@@ -112,7 +112,21 @@ function lesMoteurs(): Moteur[] {
   const s = voixConfig.soynade;
   const e = voixConfig.elevenlabs;
   const cleOpenAI = process.env.OPENAI_API_KEY || process.env.OPENAI_CLE || "";
+  const rp = voixConfig.runpod;
   return [
+    {
+      /* Notre moteur (voix de Kha, RunPod) : pas de flux, la réponse arrive
+         entière — le premier octet est donc la fin. C'est le réveil de la
+         machine qui fait la différence ici, pas la longueur du texte. */
+      nom: "runpod",
+      pret: Boolean(rp.url && rp.cle),
+      motif: rp.url && rp.cle ? "" : "VOIX_RUNPOD_URL ou RUNPOD_API_KEY absente",
+      appeler: async (texte) => {
+        const p = await viaRunPod(texte, "wo", undefined, "essai");
+        if (!p) throw new Error(hoquetsDeLaVoixRunPod().dernier_rate || "notre moteur n'a pas répondu");
+        return new Response(new Uint8Array(p.audio), { headers: { "content-type": p.typeMime } });
+      },
+    },
     {
       nom: "soynade",
       pret: Boolean(s.apiKey),
