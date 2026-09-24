@@ -3,13 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 interface Son {
-  chemin: string;
-  empreinte: string;
-  texte: string;
-  langue: string;
-  moteur: string;
-  octets: number;
-  le: string;
+  chemin: string;           // ex. "wo/abc123.mp3"
+  langue: string;           // "wo" | "fr"
+  texte?: string;
+  moteur?: string;
+  octets?: number;
+  le?: string;
 }
 
 interface Resume {
@@ -118,7 +117,7 @@ function ModalCorrection({
   const [etape, setEtape] = useState<"form" | "ok">("form");
 
   const mots = Array.from(new Set(
-    son.texte.split(/\s+/).filter(m => m.length > 2)
+    (son.texte ?? "").split(/\s+/).filter(m => m.length > 2)
   )).slice(0, 10);
 
   async function valider(e: React.FormEvent) {
@@ -372,7 +371,7 @@ export default function PageEcouter() {
 
   const chargerSons = useCallback(async (c: string) => {
     setChargement(true);
-    const r = await fetch("/api/voix-gardees", { headers: { "x-bia-code": c } });
+    const r = await fetch("/api/voix-gardees?avec-meta=1", { headers: { "x-bia-code": c } });
     if (r.ok) { const d = await r.json(); setSons(d.sons ?? []); setResume(d.resume ?? null); }
     setChargement(false);
   }, []);
@@ -389,10 +388,10 @@ export default function PageEcouter() {
       try { URL.revokeObjectURL(audioRef.current.src); } catch { /**/ }
       audioRef.current.src = "";
     }
-    if (enCours === son.empreinte) { setEnCours(null); return; }
+    if (enCours === son.chemin) { setEnCours(null); return; }
     const codeCourant = code ?? "";
     if (!codeCourant) return;
-    setEnCours(son.empreinte);
+    setEnCours(son.chemin);
     try {
       const r = await fetch(`/api/voix-gardees?chemin=${encodeURIComponent(son.chemin)}`, {
         headers: { "x-bia-code": codeCourant },
@@ -411,19 +410,19 @@ export default function PageEcouter() {
   function apresCorrection(texte: string) {
     setSupprimes(prev => {
       const n = new Set(prev);
-      sons.forEach(s => { if (s.texte === texte) n.add(s.empreinte); });
+      sons.forEach(s => { if (s.texte === texte) n.add(s.chemin); });
       return n;
     });
-    if (audioRef.current && modalSon && enCours === modalSon.empreinte) {
+    if (audioRef.current && modalSon && enCours === modalSon.chemin) {
       audioRef.current.pause(); setEnCours(null);
     }
     setModalSon(null);
   }
 
   const sonsFiltres = sons.filter(s => {
-    if (supprimes.has(s.empreinte)) return false;
+    if (supprimes.has(s.chemin)) return false;
     if (filtreLangue !== "tous" && s.langue !== filtreLangue) return false;
-    if (recherche && !s.texte.toLowerCase().includes(recherche.toLowerCase())) return false;
+    if (recherche && !(s.texte ?? s.chemin).toLowerCase().includes(recherche.toLowerCase())) return false;
     return true;
   });
 
@@ -501,9 +500,9 @@ export default function PageEcouter() {
             )}
 
             {sonsFiltres.map(son => {
-              const actif = enCours === son.empreinte;
+              const actif = enCours === son.chemin;
               return (
-                <div key={son.empreinte} style={{
+                <div key={son.chemin} style={{
                   background: actif ? "#172554" : "#1e293b",
                   border: `1px solid ${actif ? "#3b82f6" : "#334155"}`,
                   borderRadius: 12, padding: "14px 18px", marginBottom: 8,
@@ -524,7 +523,7 @@ export default function PageEcouter() {
                       margin: "0 0 6px", fontSize: 15, lineHeight: 1.5,
                       color: actif ? "#93c5fd" : "#e2e8f0", wordBreak: "break-word",
                     }}>
-                      {son.texte}
+                      {son.texte ?? son.chemin}
                     </p>
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 12, color: "#64748b" }}>
                       <span style={{
@@ -535,7 +534,7 @@ export default function PageEcouter() {
                         {son.langue === "wo" ? "Wolof" : "Français"}
                       </span>
                       <span style={{ border: "1px solid #334155", padding: "2px 8px", borderRadius: 4 }}>
-                        {son.moteur}
+                        {son.moteur ?? "—"}
                       </span>
                       <span>{formatTaille(son.octets)}</span>
                       <span>{formatDate(son.le)}</span>

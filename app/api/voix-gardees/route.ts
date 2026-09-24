@@ -33,6 +33,25 @@ export async function GET(request: NextRequest) {
       });
     }
     const liste = await listeDesVoixGardees();
+    // ?avec-meta=1 : enrichit chaque chemin avec les métadonnées du .json associé
+    const avecMeta = request.nextUrl.searchParams.get("avec-meta") === "1";
+    if (avecMeta) {
+      const mp3s = liste.filter((s: string) => s.endsWith(".mp3"));
+      const sons = await Promise.all(
+        mp3s.map(async (c: string) => {
+          const base: Record<string, unknown> = { chemin: c, langue: c.split("/")[0] };
+          const r = await lireDansLeSeau(c.replace(".mp3", ".json"));
+          if (r) {
+            try {
+              const meta = JSON.parse(await r.text()) as Record<string, unknown>;
+              Object.assign(base, meta);
+            } catch { /**/ }
+          }
+          return base;
+        })
+      );
+      return NextResponse.json({ resume: resumeVoixGardees(), sons });
+    }
     return NextResponse.json({ resume: resumeVoixGardees(), sons: liste });
   } catch (e) {
     return NextResponse.json({ erreur: (e as Error).message }, { status: 500 });
