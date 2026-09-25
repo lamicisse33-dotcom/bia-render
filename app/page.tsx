@@ -307,7 +307,12 @@ type Recognition = {
   onresult: ((event: any) => void) | null;
 };
 
-const welcome = "Salaam! Man maa di BIA. Waxal ak man ci wolof walla ci français.";
+const welcomeBia = "Salaam! Man maa di BIA. Waxal ak man ci wolof walla ci français.";
+/* 25 septembre 2026 : le seul texte d'accueil disait « Man maa di BIA »
+   (« je suis BIA ») quelle que soit la personne choisie — Rara se
+   présentait donc comme BIA dès l'écran vide, avant même le premier
+   message. Sa propre phrase, même forme, son propre nom. */
+const welcomeRara = "Salaam! Man maa di Rara. Waxal ak man ci wolof walla ci français.";
 
 const pause = (ms: number) => new Promise((fini) => setTimeout(fini, ms));
 
@@ -441,6 +446,12 @@ export default function Home() {
      tenue. On le garde donc dans le téléphone (localStorage), jamais sur le
      serveur. */
   const [persona, setPersona] = useState<string>("bia");
+  /* Lue dans des useCallback figés (deps vides ou sans `persona`) : sans ce
+     ref, ils garderaient pour toujours la valeur du tout premier rendu, et
+     la voix de Rara ne se déclencherait jamais après une bascule. Même
+     raison que codeRef un peu plus haut. */
+  const personaRef = useRef(persona);
+  useEffect(() => { personaRef.current = persona; }, [persona]);
   useEffect(() => {
     try {
       const gardee = window.localStorage.getItem("bia-persona");
@@ -451,6 +462,21 @@ export default function Home() {
     setPersona(valeur);
     try { window.localStorage.setItem("bia-persona", valeur); } catch {}
   };
+  /* ── SA PROPRE VOIX, DIFFÉRENTE DE CELLE DE BIA ───────────────────────
+
+     25 septembre 2026 : Lamine constate que Rara parle avec la voix de
+     BIA — normal, /api/voix clone toujours le même extrait
+     (public/voix-bia.wav) tant qu'on ne lui dit pas le contraire.
+
+     En attendant que Lamine enregistre un extrait propre à Rara, on lui
+     donne déjà une voix DIFFÉRENTE : `audioPrompt: ""`, envoyé
+     explicitement, dit à Soynade « pas de clonage cette fois » — c'est le
+     même interrupteur que la case à cocher de /reglage. Elle sonne alors
+     avec la voix de base d'Oolel, pas celle de Kha. Le jour où son propre
+     extrait existe, il suffit de remplacer cette chaîne vide par son
+     adresse publique (voir SOYNADE_AUDIO_PROMPT dans lib/voix.ts) pour
+     qu'elle ait sa vraie voix clonée. */
+  const voixAudioPrompt = () => (personaRef.current === "rara" ? "" : undefined);
   /* ── SON DÉFILÉ D'ENTRÉE ────────────────────────────────────────────────
      Demandé par Lamine le 26 septembre 2026 : à chaque bascule sur Rara,
      ses quatre photos (de la fiche qui a servi à générer son avatar)
@@ -2021,7 +2047,12 @@ export default function Home() {
        donc chez Soynade : huit secondes et quelques signes payés, à chaque
        question, pour deux phrases qui ne changent jamais. C'est exactement ce
        que le répertoire existe pour éviter, et l'attente y échappait. */
-    if (!p.wo.includes("{nom}")) {
+    /* 25 septembre 2026 : ces fichiers tout prêts sont de VRAIS
+       enregistrements de la voix de Kha — pas un clonage, la voix elle-même.
+       Rara ne les a pas encore les siens, donc ce raccourci ne doit jouer
+       que pour BIA : sinon Rara prononcerait sa phrase d'attente avec la
+       voix de Kha, quels que soient les réglages de /api/voix plus bas. */
+    if (!p.wo.includes("{nom}") && personaRef.current !== "rara") {
       const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
         ?.repertoire?.base_sons?.[langue] || "";
       for (const adresse of fichiersPossibles(p, langue, base)) {
@@ -2048,7 +2079,7 @@ export default function Home() {
       const r = await fetch("/api/voix", {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-        body: JSON.stringify({ texte, partie, ou: "attente" }),
+        body: JSON.stringify({ texte, partie, ou: "attente", audioPrompt: voixAudioPrompt() }),
       });
       if (!r.ok) throw new Error("voix indisponible");
       return await r.json() as { parties: number; audio: string | null };
@@ -2527,7 +2558,7 @@ export default function Home() {
                médiane donnait 4,6 s pour une phrase qui en coûte 1,9. Voir
                synthetiser() dans lib/voix.ts. */
             body: JSON.stringify({ texte: answer, partie, ou, langue: langueDite,
-              tete: !suite && partie === 0 }),
+              tete: !suite && partie === 0, audioPrompt: voixAudioPrompt() }),
           });
           if (r.ok) return await r.json() as { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number };
           dernier = String(r.status);
@@ -7295,7 +7326,7 @@ export default function Home() {
         </div>
 
         <div className="fil scrollbar-thin" ref={filRef}>
-          {history.length === 0 ? <p className="fil-vide">{welcome}</p> : null}
+          {history.length === 0 ? <p className="fil-vide">{persona === "rara" ? welcomeRara : welcomeBia}</p> : null}
           {history.map((m, i) => {
             /* UN PAPIER SUR LE FIL. Il reste à sa place dans la conversation,
                comme n'importe quel message — mais c'est une carte qu'on

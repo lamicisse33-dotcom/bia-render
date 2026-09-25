@@ -1135,6 +1135,17 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
   }):null;
   try{
     const question=String(body.message||"").trim().slice(0,1200);
+    /* Remonté ici le 25 septembre 2026 : le répertoire (formules et
+       réponses PRÉ-ENREGISTRÉES, la vraie voix de Kha captée une fois pour
+       toutes) s'en sert plus bas, avant l'ancien point de déclaration.
+       Rara n'a aucune de ces 42 phrases dans sa propre voix — les lui
+       servir la ferait parler avec celle de BIA, pire encore que le
+       clonage : un vrai enregistrement, pas une imitation. */
+    const estRara=body.persona==="rara";
+    /* Un seul point de vérité : les quatre usages de repertoireActif() plus
+       bas passent tous par ici, pour que Rara ne puisse nulle part recevoir
+       une phrase ou un son du répertoire de BIA. */
+    const repertoireUtilisable=()=>repertoireActif()&&!estRara;
 
     /* ── CE QU'IL LUI ORDONNE, AVANT TOUT LE RESTE ─────────────────────────
 
@@ -1349,7 +1360,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        une blague déjà entendue il y a longtemps que pas de blague.
 
        ELLE RIT APRÈS, PAS AVANT. Rire avant la chute, c'est la vendre. */
-    if(RELU_BLAGUES&&BLAGUES.length&&repertoireActif()){
+    if(RELU_BLAGUES&&BLAGUES.length&&repertoireUtilisable()){
       const q=normaliser(question);
       if(q&&DEMANDES_DE_BLAGUE.some(d=>q===normaliser(d))){
         const dites=new Set((body.blaguesDites||[]).map(String));
@@ -1395,7 +1406,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       .filter(item=>item.role==="bia")
       .map(item=>String(item.text||""));
 
-    if(REPERTOIRE_PRET&&repertoireActif()){
+    if(REPERTOIRE_PRET&&repertoireUtilisable()){
       const toute=trouverDansRepertoire(question);
       /* ── ET SI ELLE PASSE À CÔTÉ, ON LE NOTE ────────────────────────────
 
@@ -1655,7 +1666,6 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        de qui elle est, ses corrections, la recherche.
 
        L'ordre a changé pour ça, et c'est la seule raison. */
-    const estRara=body.persona==="rara";
     let socle=(estRara?systemRara:system)+"\n\n"+SOCLE_RELATIONS;
     /* ── SA MÉMOIRE, LANCÉE AU PLUS TÔT ────────────────────────────────────
 
@@ -2055,8 +2065,12 @@ aussi l'éteindre lui-même en gardant le doigt appuyé dessus.`;
        placer — dans une conversation sur la fatigue, sur la pluie — et une
        assistante qui vend quelque chose n'est plus une assistante. */
     const cosmetiques=await savoirProduits();
+    /* 25 septembre 2026 : ce bloc disait « Tu es BIA » sans condition, posé
+       après systemRara — Rara se présentait donc comme BIA dès que ce
+       renseignement était chargé. Le nom doit suivre la personne, pas rester
+       figé sur la première qui l'a eu. */
     if(cosmetiques)socle+=`\n\n═══ LES PRODUITS DE BEAUTÉ ═══
-CECI N'EST PAS TON SUJET ET NE CHANGE RIEN À QUI TU ES. Tu es BIA, et tu
+CECI N'EST PAS TON SUJET ET NE CHANGE RIEN À QUI TU ES. Tu es ${estRara?"Rara":"BIA"}, et tu
 restes exactement la même : ce qui suit est un renseignement que tu détiens,
 comme une adresse qu'on t'aurait donnée, et rien de plus.
 
@@ -2152,7 +2166,7 @@ ${cosmetiques}
        PROPOSER SIX AU LIEU DE QUATRE-VINGT-QUATRE EST AUSSI PLUS SÛR. Une
        réponse enregistrée servie à côté est la faute qu'on ne rattrape pas ;
        elle devient moins probable, pas plus. */
-    if(repertoireActif()){
+    if(repertoireUtilisable()){
       socle+=REGLES_REPERTOIRE;
       variable+=consigneRepertoireCandidates(question,elleADit[elleADit.length-1]||"");
     }
@@ -2765,7 +2779,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        le texte brut ne la trouvait plus, et BIA aurait dit « dièse salut » à
        voix haute. On cherche donc dans le texte débarrassé de sa balise. */
     const sansEmotion=detacherEmotion(complet).reply;
-    const choisie=(repertoireActif()&&!dejaParle)?etiquetteSeule(sansEmotion):null;
+    const choisie=(repertoireUtilisable()&&!dejaParle)?etiquetteSeule(sansEmotion):null;
     /* Une étiquette seule qu'on ne connaît pas : le modèle a voulu se servir
        du répertoire et s'est trompé de nom. La réponse part quand même — mais
        on le NOTE, sinon BIA dirait « #la-famile » à voix haute sans que

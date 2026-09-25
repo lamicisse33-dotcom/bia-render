@@ -17,7 +17,15 @@ const voixDejaFaites = new Map<string, { audio: Buffer; typeMime: string; moteur
 /** La clé d'un son : le texte, la langue, et les réglages s'il y en a. Sans
     clé pour la page de réglage, qui fait varier les réglages exprès. */
 function cleDeVoix(texte: string, langue: string, body: { ou?: string; exaggeration?: number; temperature?: number; cfgWeight?: number; vitesse?: number; audioPrompt?: string | null }): string | null {
-  if (body.ou === "réglage" || body.audioPrompt) return null;
+  /* 25 septembre 2026 : `if (body.audioPrompt)` laissait passer une chaîne
+     vide — envoyée par Rara pour dire « pas de clonage » (voir
+     voixAudioPrompt() dans page.tsx). Une chaîne vide est fausse en JS, donc
+     la clé ne la distinguait pas d'une requête sans audioPrompt du tout :
+     la phrase d'attente de Rara et celle de BIA, texte identique, se
+     seraient partagé le même son en cache — celui de la voix clonée de BIA.
+     `undefined` seul veut dire « les réglages du serveur » ; toute valeur
+     posée EXPRÈS, même vide, doit donc éviter le cache. */
+  if (body.ou === "réglage" || body.audioPrompt !== undefined) return null;
   const reglages = [body.exaggeration, body.temperature, body.cfgWeight, body.vitesse].map((r) => (r === undefined ? "" : String(r))).join("|");
   return `${langue}|${reglages}|${texte}`;
 }
