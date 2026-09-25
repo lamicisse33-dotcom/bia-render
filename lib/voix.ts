@@ -577,6 +577,34 @@ type ReponseRunPod = {
     /runsync rend la main au bout d'une minute et demie environ même si la
     machine se réveille encore : on interroge alors /status/<id> jusqu'à la
     fin, dans la limite d'attenteMs. */
+/* ── RÉVEILLER LA MACHINE AVANT D'AVOIR BESOIN D'ELLE ───────────────────────
+
+   Lamine, le 25 septembre 2026 : « il faut qu'on ait une vitesse aussi
+   rapide que Soynade en wolof ». Mesuré ce jour-là sur le Mac, phrase par
+   phrase, avec test-voix.sh : la machine CHAUDE répond en 2,3 à 2,7 s —
+   déjà dans la même fourchette que Soynade (3,9 s en moyenne, mesuré le
+   15 septembre). Le seul écart vient du RÉVEIL : ~24 s de file d'attente
+   + ~69 s de chargement des deux modèles, la première fois. Rien à
+   optimiser dans la génération elle-même : tout est dans le réveil.
+
+   Donc plutôt que de changer la fabrication du son, on la réveille PLUS
+   TÔT — dès que le micro s'ouvre, avant même que la personne ait fini de
+   parler, pendant qu'on ne lui doit encore rien. `/run` (et non
+   `/runsync`) rend la main tout de suite : on n'attend jamais sa réponse,
+   on se contente de l'avoir lancée. Un appel de plus sur une machine déjà
+   chaude ne coûte presque rien (elle exécute une phrase vide, vite
+   ignorée) ; sur une machine froide, il évite qu'elle commence à se
+   réveiller seulement quand le texte de la réponse est prêt. */
+export function reveillerNotreMoteur(): void {
+  const c = voixConfig.runpod;
+  if (!c.url || !c.cle) return;
+  fetch(`${c.url}/run`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${c.cle}`, "content-type": "application/json" },
+    body: JSON.stringify({ input: { text: ".", voix: "wolof", language_id: c.langue } }),
+  }).catch(() => { /* le réveil est un geste, pas une promesse : un raté ici ne bloque rien */ });
+}
+
 export async function viaRunPod(texte: string, langue: "wo" | "fr", r?: Reglages, etiquette = "voix"): Promise<Parole | null> {
   const c = voixConfig.runpod;
   if (!c.url || !c.cle) return null;

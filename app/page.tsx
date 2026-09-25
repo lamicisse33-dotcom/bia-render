@@ -1746,6 +1746,11 @@ export default function Home() {
   const voixDuTelephoneRef = useRef(false);
   /* Armée une seule fois, au premier geste : voir micro(). */
   const voixDuTelephoneArmee = useRef(false);
+  /* Dernier réveil envoyé à notre moteur (RunPod) : 0 au départ, puis on ne
+     renvoie pas avant vingt secondes -- inutile de le harceler à chaque
+     ouverture de micro d'une même conversation, il reste chaud entre deux
+     tours rapprochés. */
+  const dernierReveilMoteur = useRef(0);
   const parlerAvecLeTelephone = useCallback((answer: string) => new Promise<void>((fini) => {
     // Pas de voix du tout sur cet appareil : on rend la main tout de suite,
     // sinon BIA resterait « en train de répondre » pour toujours — et le
@@ -3965,6 +3970,21 @@ export default function Home() {
         reveil.volume = 0;
         window.speechSynthesis.speak(reveil);
       } catch { /* pas de voix sur cet appareil : le répertoire suffira */ }
+    }
+
+    /* ── ET ON RÉVEILLE AUSSI NOTRE MOTEUR, PENDANT QU'ON NE LUI DOIT ENCORE
+       RIEN ────────────────────────────────────────────────────────────────
+
+       Demande du 25 septembre 2026 : que notre moteur (RunPod) réponde
+       aussi vite que Soynade. Mesuré ce jour-là : une fois chaude, la
+       machine tient déjà la comparaison -- tout l'écart, c'est le réveil
+       (~90 s la première fois, ou après une pause). On le lance donc ici,
+       à l'ouverture du micro, sans l'attendre : le temps que la personne
+       parle, que la transcription arrive et que le modèle réponde est
+       souvent suffisant pour absorber une partie du réveil. */
+    if (Date.now() - dernierReveilMoteur.current > 20_000) {
+      dernierReveilMoteur.current = Date.now();
+      fetch("/api/voix/reveil", { method: "POST" }).catch(() => { /* tant pis, le premier appel de voix paiera le réveil */ });
     }
 
     /* ── L'ANALYSEUR A SON PROPRE CONTEXTE, POUR LA PASTILLE ORANGE ──────
