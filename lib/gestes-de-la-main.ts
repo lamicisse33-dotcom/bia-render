@@ -14,17 +14,27 @@
    dans app/page.tsx. C'est à Lamine de dire quelle phrase mérite quel geste
    — ce tableau est un premier jet, à corriger par lui. */
 
-export type Geste = "salut" | "aurevoir" | "coeur" | "bouche_etonne" | "bouche_grosmot" | "paume";
+export type Geste = "salut" | "aurevoir" | "coeur" | "bouche_etonne" | "bouche_grosmot" | "paume"
+  | "coeur_double" | "bisou" | "rire_main";
 
+/* 25 septembre 2026 : trois gestes de plus, livrés dans BIA-96-images-v2
+   (huit images chacun, tenue wax seulement pour l'instant — voir
+   lib/tenue.ts). Lamine : « elle doit rester joviale, agréable, visage
+   souriant » — coeur_double et bisou remplacent le simple coeur/aurevoir
+   aux moments les PLUS chaleureux ; le geste du quotidien (merci, au
+   revoir en pleine journée) garde le geste simple. */
 export const GESTES_DU_REPERTOIRE: Record<string, Geste> = {
   /* elle accueille */
   salut: "salut", bonsoir: "salut", "ca-va": "salut", "la-famille": "salut",
   bienvenue: "salut", "quoi-de-neuf": "salut",
-  /* la main sur le cœur : merci, pardon, sincérité */
-  merci: "coeur", "de-rien": "coeur", pardon: "coeur", alhamdoulilah: "coeur",
-  "kha-et-lamine": "coeur",
-  /* elle prend congé */
-  "au-revoir": "aurevoir", "bonne-nuit": "aurevoir", "bonne-journee": "aurevoir", "a-demain": "aurevoir",
+  /* la main sur le cœur : merci, pardon — le geste simple, quotidien */
+  merci: "coeur", "de-rien": "coeur", pardon: "coeur",
+  /* le cœur à deux mains : gratitude et affection les plus fortes */
+  alhamdoulilah: "coeur_double", "kha-et-lamine": "coeur_double",
+  /* elle prend congé, au revoir simple en pleine journée */
+  "au-revoir": "aurevoir", "bonne-journee": "aurevoir",
+  /* les adieux les plus tendres : un bisou soufflé */
+  "bonne-nuit": "bisou", "a-demain": "bisou",
   /* un instant */
   attends: "paume",
 };

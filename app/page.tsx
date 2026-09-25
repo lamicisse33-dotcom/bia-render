@@ -196,20 +196,37 @@ const CASES_DES_PLANCHES_SUIVANTES = {
   paume_3: 23,
   paume_4: 24,
 } as const;
-type Face = keyof typeof CASES | keyof typeof CASES_DES_PLANCHES_SUIVANTES;
+
+/* bia-mains2-24-wax.webp — livrée le 25 septembre 2026, en plus des six
+   gestes ci-dessus : cœur à deux mains, bisou soufflé, rire main devant la
+   bouche. Huit images par geste (au lieu de quatre) pour une animation plus
+   fluide. N'existe que dans la tenue wax pour l'instant. */
+const CASES_DE_LA_TROISIEME_PLANCHE = {
+  coeur_double_1: 1, coeur_double_2: 2, coeur_double_3: 3, coeur_double_4: 4,
+  coeur_double_5: 5, coeur_double_6: 6, coeur_double_7: 7, coeur_double_8: 8,
+  bisou_1: 9, bisou_2: 10, bisou_3: 11, bisou_4: 12,
+  bisou_5: 13, bisou_6: 14, bisou_7: 15, bisou_8: 16,
+  rire_main_1: 17, rire_main_2: 18, rire_main_3: 19, rire_main_4: 20,
+  rire_main_5: 21, rire_main_6: 22, rire_main_7: 23, rire_main_8: 24,
+} as const;
+type Face = keyof typeof CASES | keyof typeof CASES_DES_PLANCHES_SUIVANTES | keyof typeof CASES_DE_LA_TROISIEME_PLANCHE;
 
 /* Un mouvement = ses quatre cases dans l'ordre : montée, tenue, variation,
    redescente. Joués à PAS_DU_CYCLE ms par image, avec le fondu de
    visageAvant entre deux. */
 const cycle = (nom: string): Face[] => [1, 2, 3, 4].map((k) => `${nom}_${k}` as Face);
+/* Huit images au lieu de quatre — mêmes gestes affectueux (cœur, bisou,
+   rire), animation plus fluide. Voir CASES_DE_LA_TROISIEME_PLANCHE. */
+const cycle8 = (nom: string): Face[] => [1, 2, 3, 4, 5, 6, 7, 8].map((k) => `${nom}_${k}` as Face);
 const CYCLES = {
   ecoute: cycle("ecoute"), reflexion: cycle("reflexion"), rire_apaise: cycle("rire_apaise"),
   comprehension: cycle("comprehension"), douceur: cycle("douceur"), compassion: cycle("compassion"),
   salut: cycle("salut"), aurevoir: cycle("aurevoir"), coeur: cycle("coeur"),
   bouche_etonne: cycle("bouche_etonne"), bouche_grosmot: cycle("bouche_grosmot"), paume: cycle("paume"),
+  coeur_double: cycle8("coeur_double"), bisou: cycle8("bisou"), rire_main: cycle8("rire_main"),
 } as const;
 const PAS_DU_CYCLE = 380;
-const PLANCHES_SUIVANTES = ["/bia-gestes-24.webp", "/bia-mains-24.webp"] as const;
+const PLANCHES_SUIVANTES = ["/bia-gestes-24.webp", "/bia-mains-24.webp", "/bia-mains2-24-wax.webp"] as const;
 
 /* ── TROIS FOIS MOINS D'OCTETS QUI MONTENT DE DAKAR ───────────────────────
 
@@ -234,6 +251,10 @@ const CYCLE_DE_L_EMOTION: Partial<Record<string, keyof typeof CYCLES>> = {
   etonnement: "bouche_etonne", surprise: "bouche_etonne",
   concernee: "compassion", triste: "compassion",
   douce: "douceur", ecoute: "comprehension",
+  /* Le grand rire (fourire) fait ce geste au lieu du simple retour au calme
+     — elle reste joviale, visage souriant. Le petit rire (rire) garde
+     rire_apaise, voir stopMouth ci-dessous. */
+  fourire: "rire_main",
 };
 
 /* Ce que BIA renvoie → ce qu'on affiche. Les rires ne sont pas une image
@@ -1349,7 +1370,10 @@ export default function Home() {
         quand += d;
       }
     };
-    const apaise = planchesPretesRef.current && (emo === "rire" || emo === "fourire");
+    /* Petit rire → redescente douce (rire_apaise). Grand rire (fourire) →
+       le nouveau geste rire_main, via CYCLE_DE_L_EMOTION ci-dessus : elle
+       reste joviale au lieu de simplement se calmer. */
+    const apaise = planchesPretesRef.current && emo === "rire";
     /* Le geste d'après la phrase : celui du serveur d'abord, sinon celui
        que l'émotion appelle sur la planche du visage. Rien sans planches. */
     const geste = planchesPretesRef.current ? (gesteApresRef.current || CYCLE_DE_L_EMOTION[emo] || "") : "";
