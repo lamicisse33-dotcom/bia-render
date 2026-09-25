@@ -1423,11 +1423,12 @@ export default function Home() {
     /* Le geste d'après la phrase : celui du serveur d'abord, sinon celui
        que l'émotion appelle sur la planche du visage. Rien sans planches. */
     const gesteBrut = planchesPretesRef.current ? (gesteApresRef.current || CYCLE_DE_L_EMOTION[emo] || "") : "";
-    /* Prière et compter n'existent que dans la tenue "nouvelle" (voir
-       CASES_DE_LA_QUATRIEME_PLANCHE) : sur classique/wax, --planche-mains3
-       n'existe pas. Demandés ailleurs, on les ignore plutôt que d'afficher
-       une case vide — CYCLE_DE_L_EMOTION ou gesteApresRef retombe sur "". */
-    const geste = (gesteBrut === "priere" || gesteBrut === "compter") && tenue !== "nouvelle" ? "" : gesteBrut;
+    /* Prière et compter n'existent que dans la tenue "nouvelle" de BIA et
+       chez Rara (voir CASES_DE_LA_QUATRIEME_PLANCHE) : sur classique/wax,
+       --planche-mains3 n'existe pas. Demandés ailleurs, on les ignore
+       plutôt que d'afficher une case vide. */
+    const aLaQuatriemePlanche = tenue === "nouvelle" || persona === "rara";
+    const geste = (gesteBrut === "priere" || gesteBrut === "compter") && !aLaQuatriemePlanche ? "" : gesteBrut;
     gesteApresRef.current = "";
     if (suite) {
       let t = 0;

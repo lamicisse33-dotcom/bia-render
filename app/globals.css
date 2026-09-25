@@ -59,20 +59,19 @@
 
 
 /* ── RARA, LE DEUXIÈME PERSONNAGE ────────────────────────────────────────
-   [data-persona="rara"] est posé sur le portrait dès maintenant (voir
-   page.tsx), mais aucune planche dédiée n'existe encore : elle emprunte donc
-   celles de BIA en attendant. Le jour où Lamine fournit ses propres images
-   (mêmes noms de fichiers que pour la tenue wax : rara-24.webp,
-   rara-mains-24.webp, rara-gestes-24.webp), décommenter le bloc ci-dessous —
-   rien d'autre à changer, ni côté page.tsx ni côté API. */
-/*
+   Ses propres images, livrées le 26 septembre 2026 — mêmes 96 emplacements
+   que BIA (voir le commentaire sur [data-tenue="nouvelle"] plus haut),
+   recomposées avec le même script. Déclaré APRÈS les tenues de BIA dans ce
+   fichier : quand Rara est choisie, ces règles l'emportent sur data-tenue
+   (qui reste posé sur le portrait mais ne la concerne pas). */
 [data-persona="rara"] {
   --planche-visages: url("/rara-24.webp");
   --planche-mains: url("/rara-mains-24.webp");
   --planche-gestes: url("/rara-gestes-24.webp");
   --planche-mains2: url("/rara-mains2-24.webp");
+  --planche-mains3: url("/rara-mains3-24.webp");
+  --avatar-aspect: 941 / 1672;
 }
-*/
 
 /* ── LE DÉFILÉ D'ENTRÉE DE RARA ──────────────────────────────────────────
    Une image à la fois, par-dessus le portrait habituel, le temps qu'elle
