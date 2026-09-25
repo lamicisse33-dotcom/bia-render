@@ -597,6 +597,16 @@ type ReponseRunPod = {
    réveiller seulement quand le texte de la réponse est prêt. */
 export function reveillerNotreMoteur(): void {
   const c = voixConfig.runpod;
+  /* Trouvé le 25 septembre 2026, en mesurant en conversation réelle : ce
+     réveil tirait un appel RunPod à CHAQUE ouverture de micro, même
+     quand Soynade est le fournisseur actif -- synthetiser() ne retombe
+     JAMAIS sur RunPod depuis Soynade (voir le switch plus bas), donc ce
+     réveil-là ne servait à rien et n'a fait qu'ajouter du travail inutile
+     sur nos trois machines. Bilan mesuré ce jour-là : la voix a mis 17 s
+     en moyenne au lieu de 2,3-2,7 s -- très probablement notre propre
+     réveil qui se disputait les machines avec les vraies phrases. On ne
+     réveille donc plus que si RunPod est VRAIMENT le moteur qui va servir. */
+  if (voixConfig.fournisseur !== "runpod") return;
   if (!c.url || !c.cle) return;
   fetch(`${c.url}/run`, {
     method: "POST",

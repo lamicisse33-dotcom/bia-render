@@ -1746,10 +1746,15 @@ export default function Home() {
   const voixDuTelephoneRef = useRef(false);
   /* Armée une seule fois, au premier geste : voir micro(). */
   const voixDuTelephoneArmee = useRef(false);
-  /* Dernier réveil envoyé à notre moteur (RunPod) : 0 au départ, puis on ne
-     renvoie pas avant vingt secondes -- inutile de le harceler à chaque
-     ouverture de micro d'une même conversation, il reste chaud entre deux
-     tours rapprochés. */
+  /* Dernier réveil envoyé à notre moteur (RunPod) : 0 au départ. Mesuré en
+     conversation réelle le 25 septembre 2026 : vingt secondes de garde-fou
+     étaient beaucoup trop courtes -- une conversation normale rouvre le
+     micro à chaque tour (toutes les dix-vingt secondes), donc ce réveil se
+     redéclenchait à chaque tour et venait se disputer les trois machines
+     RunPod avec la vraie phrase à dire (17 s de fabrication mesurés au lieu
+     de 2,3-2,7 s). Le réveil n'a de sens qu'après une VRAIE pause -- on
+     attend donc presque la durée du sommeil de la machine (dix minutes,
+     idle_timeout dans main.py) avant d'en renvoyer un. */
   const dernierReveilMoteur = useRef(0);
   const parlerAvecLeTelephone = useCallback((answer: string) => new Promise<void>((fini) => {
     // Pas de voix du tout sur cet appareil : on rend la main tout de suite,
@@ -3982,7 +3987,7 @@ export default function Home() {
        à l'ouverture du micro, sans l'attendre : le temps que la personne
        parle, que la transcription arrive et que le modèle réponde est
        souvent suffisant pour absorber une partie du réveil. */
-    if (Date.now() - dernierReveilMoteur.current > 20_000) {
+    if (Date.now() - dernierReveilMoteur.current > 480_000) {
       dernierReveilMoteur.current = Date.now();
       fetch("/api/voix/reveil", { method: "POST" }).catch(() => { /* tant pis, le premier appel de voix paiera le réveil */ });
     }
