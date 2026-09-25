@@ -52,6 +52,36 @@
 }
 */
 
+/* ── LE DÉFILÉ D'ENTRÉE DE RARA ──────────────────────────────────────────
+   Une image à la fois, par-dessus le portrait habituel, le temps qu'elle
+   s'installe. `key={introRara}` (voir page.tsx) redémarre l'animation à
+   chaque image : c'est ce qui fait défiler plutôt qu'un simple fondu figé. */
+.intro-rara {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  background: #000;
+}
+.intro-rara img {
+  height: 100%;
+  width: auto;
+  max-width: none;
+  object-fit: contain;
+  object-position: bottom;
+  animation: intro-rara-fondu .55s ease-in-out both;
+}
+@keyframes intro-rara-fondu {
+  0% { opacity: 0; transform: scale(1.02); }
+  15% { opacity: 1; transform: scale(1); }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .choix-persona {
   position: absolute;
   top: max(14px, env(safe-area-inset-top));

@@ -441,6 +441,26 @@ export default function Home() {
     setPersona(valeur);
     try { window.localStorage.setItem("bia-persona", valeur); } catch {}
   };
+  /* ── SON DÉFILÉ D'ENTRÉE ────────────────────────────────────────────────
+     Demandé par Lamine le 26 septembre 2026 : à chaque bascule sur Rara,
+     ses quatre photos (de la fiche qui a servi à générer son avatar)
+     défilent avant que le portrait habituel ne s'installe — comme une
+     présentation, pas seulement un changement muet d'image. */
+  const [introRara, setIntroRara] = useState<number | null>(null);
+  useEffect(() => {
+    if (persona !== "rara") { setIntroRara(null); return; }
+    const DUREE_PAR_IMAGE = 550;
+    const TOTAL = 4;
+    let i = 0;
+    setIntroRara(0);
+    const minuteries: number[] = [];
+    for (let k = 1; k <= TOTAL; k++) {
+      minuteries.push(window.setTimeout(() => {
+        setIntroRara(k < TOTAL ? k : null);
+      }, DUREE_PAR_IMAGE * k));
+    }
+    return () => { minuteries.forEach(id => window.clearTimeout(id)); };
+  }, [persona]);
   const [resume, setResume] = useState("");
   const [corrige, setCorrige] = useState<number | null>(null);
   const [correction, setCorrection] = useState("");
@@ -7022,6 +7042,12 @@ export default function Home() {
           <div key={visageAvant.n} className="avatar avatar-avant" data-face={visageAvant.face} />
         )}
         <div className="avatar" data-face={face} />
+        {introRara !== null && (
+          <div className="intro-rara" aria-hidden="true">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img key={introRara} src={`/rara-intro-${introRara + 1}.webp`} alt="" />
+          </div>
+        )}
       </div>
 
       {/* ── LE CHOIX DU PERSONNAGE ─────────────────────────────────────────
