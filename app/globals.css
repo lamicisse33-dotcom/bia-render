@@ -140,10 +140,18 @@ button { font: inherit; touch-action: manipulation; }
      en hauteur, et l'échelle reste sous 1 même au plus haut de la
      respiration (+0,022). */
   --avatar-scale: .985;
-  /* La case est carrée : sa hauteur est le plus petit de la place qu'on
-     lui laisse (100 % de .portrait, qui s'arrête au-dessus du micro) et
-     de la largeur de l'écran. La largeur suit, par aspect-ratio. */
-  height: min(100%, 100vw, 920px);
+  /* ── TOUT L'ÉCRAN, DU HAUT AU BAS ────────────────────────────────────────
+     Lamine, le 26 septembre 2026 : « il faut que la photo puisse prendre
+     tout l'écran du téléphone [...] tout le noir doit prendre l'écran de
+     haut en bas. » Avant, la largeur de l'écran plafonnait la hauteur
+     (min(..., 100vw, ...)) : sur un téléphone plus haut que large, la case
+     restait carrée et petite, entourée de noir en haut et en bas. Le
+     plafond en largeur est retiré : la hauteur suit uniquement la place
+     verticale disponible. La case reste carrée (aspect-ratio: 1) et déborde
+     donc parfois en largeur — .portrait garde overflow:hidden et centre
+     l'avatar, le débordement se recadre à égalité sur les deux côtés, jamais
+     en haut ni en bas : le haut de l'image ne se coupe plus. */
+  height: min(100%, 1000px);
   width: auto;
   /* Cases carrées de 620 px, les deux épaules dans le cadre.
      Planche de 6 colonnes sur 4 lignes. */
@@ -496,11 +504,10 @@ button { font: inherit; touch-action: manipulation; }
 @media (max-width: 600px) and (orientation: portrait) {
   .portrait { inset: 0 0 52px; }
   .avatar {
-    /* Cadrage du téléphone (19 septembre) : la case entière, carrée, dans
-       la largeur de l'écran — les deux mains, les deux épaules. Voir la
-       note sur .avatar plus haut. */
+    /* 26 septembre : le plafond en largeur (100vw) est retiré ici aussi —
+       voir la note sur .avatar plus haut, c'est la même demande. */
     --avatar-scale: .985;
-    height: min(100%, 100vw, 900px);
+    height: min(100%, 900px);
     width: auto;
     max-width: none;
   }
