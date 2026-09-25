@@ -106,7 +106,19 @@ button { font: inherit; touch-action: manipulation; }
 .avatar-avant {
   z-index: 1;
   pointer-events: none;
-  animation: breathe 4.8s ease-in-out infinite, fondu-avant .22s ease-out forwards;
+  /* 25 septembre 2026, Lamine : « l'image saute pendant le silence ». Cause :
+     cette couche (l'ancien visage, qui s'efface) respirait sur SON PROPRE
+     cycle de 4,8 s, indépendant de celui du visage courant en dessous — au
+     moment du fondu, les deux n'étaient presque jamais à la même taille ni
+     à la même position, d'où le petit saut. Pendant la parole ça ne se
+     voyait pas (les bouches sautent sans fondu, voir plus haut) ; au repos,
+     rien d'autre ne bouge pour le masquer.
+     Fixée au repos de la respiration (celui du départ/retour du cycle) au
+     lieu de relancer sa propre animation : elle s'efface sans plus jouer sa
+     propre respiration, contre celle, toujours en cours, du visage qui la
+     remplace. */
+  transform: translateY(0) scale(var(--avatar-scale));
+  animation: fondu-avant .22s ease-out forwards;
 }
 @keyframes fondu-avant {
   from { opacity: 1; }
