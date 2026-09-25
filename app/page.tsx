@@ -424,7 +424,7 @@ export default function Home() {
   const [codeSaisi, setCodeSaisi] = useState("");
   const [codeErreur, setCodeErreur] = useState("");
   const [moteurs, setMoteurs] = useState<{ voix: string; ecoute: string } | null>(null);
-  const [tenue, setTenue] = useState<string>("classique");
+  const [tenue, setTenue] = useState<string>("nouvelle");
   /* ── RARA, LE DEUXIÈME PERSONNAGE ───────────────────────────────────────
      Demandé par Lamine le 25 septembre 2026 : un choix personnel, propre à
      chaque personne sur son téléphone — pas un réglage global comme la

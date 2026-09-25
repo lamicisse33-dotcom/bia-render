@@ -40,7 +40,7 @@ export default function Reglage() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const [mesures, setMesures] = useState<Mesure[]>([]);
-  const [tenue, setTenue] = useState("classique");
+  const [tenue, setTenue] = useState("nouvelle");
   const [tenueEtat, setTenueEtat] = useState("");
 
   useEffect(() => { try { setCode(localStorage.getItem("bia-code") || ""); } catch {} }, []);
@@ -145,6 +145,15 @@ export default function Reglage() {
             style={tenue === "wax" ? { fontWeight: 700, opacity: 1 } : undefined}
           >
             Wax{tenue === "wax" ? " ✓" : ""}
+          </button>
+          <button
+            className="secondaire"
+            type="button"
+            disabled={tenue === "nouvelle"}
+            onClick={() => void changerTenue("nouvelle")}
+            style={tenue === "nouvelle" ? { fontWeight: 700, opacity: 1 } : undefined}
+          >
+            Nouvelle{tenue === "nouvelle" ? " ✓" : ""}
           </button>
         </div>
         {tenueEtat ? <p className="etat">{tenueEtat}</p> : null}

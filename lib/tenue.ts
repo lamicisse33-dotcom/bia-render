@@ -11,7 +11,11 @@
  * Une seule ligne nous intéresse ici : cle = 'tenue'.
  */
 
-export const TENUE_PAR_DEFAUT = "classique";
+/* Lamine, le 26 septembre 2026 : nouveau personnage BIA (image de référence
+   différente, pas une simple mise à jour de la tenue wax) — elle devient la
+   BIA par défaut. Classique et wax restent choisissables, rien n'est
+   supprimé. */
+export const TENUE_PAR_DEFAUT = "nouvelle";
 
 let tenueActuelleEnMemoire = TENUE_PAR_DEFAUT;
 let derniereMAJ = 0;

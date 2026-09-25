@@ -36,6 +36,21 @@
   --planche-mains2: url("/bia-mains2-24-wax.webp");
 }
 
+/* ── LA NOUVELLE BIA, PAR DÉFAUT ─────────────────────────────────────────
+   Lamine, le 26 septembre 2026 : un troisième personnage BIA, une personne
+   différente de classique et de wax — devenue la tenue par défaut
+   (lib/tenue.ts). Ses photos sources sont nativement en buste allongé
+   (941 × 1672), pas carrées comme les deux autres : --avatar-aspect suit
+   cette forme au lieu du carré habituel, pour ne rien écraser ni recadrer
+   en trop. */
+[data-tenue="nouvelle"] {
+  --planche-visages: url("/bia-24-nouvelle.webp");
+  --planche-mains: url("/bia-mains-24-nouvelle.webp");
+  --planche-gestes: url("/bia-gestes-24-nouvelle.webp");
+  --planche-mains2: url("/bia-mains2-24-nouvelle.webp");
+  --avatar-aspect: 941 / 1672;
+}
+
 /* ── RARA, LE DEUXIÈME PERSONNAGE ────────────────────────────────────────
    [data-persona="rara"] est posé sur le portrait dès maintenant (voir
    page.tsx), mais aucune planche dédiée n'existe encore : elle emprunte donc
@@ -153,9 +168,11 @@ button { font: inherit; touch-action: manipulation; }
      en haut ni en bas : le haut de l'image ne se coupe plus. */
   height: min(100%, 1000px);
   width: auto;
-  /* Cases carrées de 620 px, les deux épaules dans le cadre.
-     Planche de 6 colonnes sur 4 lignes. */
-  aspect-ratio: 1;
+  /* Planche de 6 colonnes sur 4 lignes. Carrée par défaut (classique,
+     wax) ; la tenue "nouvelle" impose sa propre forme via --avatar-aspect
+     (voir [data-tenue="nouvelle"] plus haut), buste allongé au lieu de
+     carré — sans ça, ses photos seraient écrasées pour rentrer au carré. */
+  aspect-ratio: var(--avatar-aspect, 1);
   flex: none;
   background-image: var(--planche-visages);
   background-repeat: no-repeat;
