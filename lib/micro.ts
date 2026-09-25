@@ -816,11 +816,86 @@ export function partVocale(spectre: ArrayLike<number>, echantillonnage = 48000):
  *                          perdre une vraie question coûte plus cher qu'une
  *                          transcription de trop.
  */
-export function vraimentUneVoix(dureeDeParole: number, partVocaleMoyenne: number | null): boolean {
+export function vraimentUneVoix(
+  dureeDeParole: number,
+  partVocaleMoyenne: number | null,
+  hauteurMoyenne: number | null = null,
+): boolean {
   if (!vautLaPeine(dureeDeParole)) return false;
   if (!ECARTER_LES_BRUITS) return true;
-  if (partVocaleMoyenne === null || !Number.isFinite(partVocaleMoyenne)) return true;
-  return partVocaleMoyenne >= PART_VOCALE_MINIMALE;
+  if (partVocaleMoyenne !== null && Number.isFinite(partVocaleMoyenne) && partVocaleMoyenne < PART_VOCALE_MINIMALE) {
+    return false;
+  }
+  if (hauteurMoyenne !== null && Number.isFinite(hauteurMoyenne) && hauteurMoyenne < HAUTEUR_MINIMALE) {
+    return false;
+  }
+  return true;
+}
+
+/* ── LA HAUTEUR DE VOIX, POUR DÉPARTAGER UN MOTEUR D'UNE VRAIE PHRASE ──────
+
+   Lamine, le 25 septembre 2026 : la bande 200-3 500 Hz laisse encore passer
+   la rue et une télévision qui parle — leur énergie tombe dans la même
+   bande qu'une vraie voix, donc `partVocale` seule ne suffit pas partout.
+   Il a d'abord demandé une reconnaissance du locuteur (verrouillée sur sa
+   voix, puis étendue à « la voix principale, qui que ce soit »), mais BIA
+   sert plusieurs personnes et pas seulement lui : pas d'empreinte à
+   enregistrer, rien à héberger, rien qui ajoute un aller-retour réseau à
+   chaque phrase.
+
+   Une vraie voix a une HAUTEUR : les cordes vocales vibrent à un rythme
+   régulier (le fondamental, 70 à 400 Hz chez l'adulte), et ce rythme se
+   voit dans le signal brut comme une périodicité nette. Un moteur, le
+   vent, un climatiseur n'ont pas ce rythme — leur énergie est étalée, sans
+   motif qui se répète. On la mesure par autocorrélation, directement dans
+   le navigateur : on compare le signal à lui-même décalé de chaque retard
+   possible dans la fourchette d'une voix, et on garde le meilleur accord.
+   Un bruit sans hauteur nette ne s'accorde jamais bien avec lui-même ;
+   une voyelle, si.
+
+   ÇA NE DISTINGUE PAS LAMINE D'UNE AUTRE PERSONNE, ni d'une télévision qui
+   diffuse une vraie voix humaine — seulement une voix d'un bruit sans
+   hauteur. C'est la limite qu'on a acceptée en échange de zéro
+   infrastructure et zéro délai : « la voix principale » reste ici « ce qui
+   a le timbre d'une voix », pas « la voix d'une personne précise ».
+
+   Calculée sur un second analyseur, dédié, avec un tampon assez long pour
+   contenir une période complète des voix les plus graves — voir page.tsx,
+   où l'ancien analyseur (256 échantillons) était trop court pour ça. */
+export const HAUTEUR_BASSE = 70;
+export const HAUTEUR_HAUTE = 400;
+export const HAUTEUR_MINIMALE = 0.35;
+
+/**
+ * À quel point le signal se ressemble à lui-même décalé d'une période de
+ * voix (70 à 400 Hz) — proche de 1 pour une voyelle nette, proche de 0
+ * pour un bruit sans hauteur.
+ *
+ * @param tampon signal brut (0 à 255, centré sur 128), rendu par
+ *   `getByteTimeDomainData` sur l'analyseur dédié à la hauteur.
+ * @param echantillonnage la fréquence d'échantillonnage du micro (Hz)
+ */
+export function hauteurDeVoix(tampon: ArrayLike<number>, echantillonnage: number): number {
+  const n = tampon.length;
+  if (!Number.isFinite(echantillonnage) || echantillonnage <= 0) return 0;
+  const dechalageMax = Math.floor(echantillonnage / HAUTEUR_BASSE);
+  const dechalageMin = Math.max(1, Math.floor(echantillonnage / HAUTEUR_HAUTE));
+  if (dechalageMax >= n || dechalageMin >= dechalageMax) return 0; // tampon trop court
+
+  let energie = 0;
+  for (let i = 0; i < n; i++) { const v = tampon[i] - 128; energie += v * v; }
+  // Quasi-silence : en dessous, l'autocorrélation ne mesure que le bruit de
+  // quantification de l'analyseur, pas une hauteur — on ne se prononce pas.
+  if (energie < n * 16) return 0;
+
+  let meilleur = 0;
+  for (let d = dechalageMin; d <= dechalageMax; d++) {
+    let somme = 0;
+    for (let i = 0; i < n - d; i++) somme += (tampon[i] - 128) * (tampon[i + d] - 128);
+    const accord = somme / energie;
+    if (accord > meilleur) meilleur = accord;
+  }
+  return Math.max(0, Math.min(1, meilleur));
 }
 
 /* ═══ 7. UN FLUX QUI A L'AIR VIVANT ET QUI NE L'EST PLUS ═══════════════════

@@ -56,7 +56,7 @@ import { fluxVivant,
   SILENCE_QUI_CLÔT_LA_CONVERSATION, TENIR_POUR_COUPER, TOUR_DE_VEILLE,
   TOURS_MUETS_AVANT_DE_DOUTER, FLUX_DU_GUETTEUR,
   SILENCE_LE_PLUS_COURT, barreDeCoupure, partVocale, silenceQuiSuffit, suivreLEcho, suivreLeBruit,
-  vautLaPeine, vraimentUneVoix,
+  vautLaPeine, vraimentUneVoix, hauteurDeVoix,
 } from "@/lib/micro";
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie, voixDejaPosee } from "@/lib/ralentir";
 import {
@@ -985,6 +985,14 @@ export default function Home() {
      couper la parole. */
   const fluxRef = useRef<MediaStream | null>(null);
   const analyseRef = useRef<AnalyserNode | null>(null);
+  /* Second analyseur, dédié à la hauteur de voix (voir hauteurDeVoix dans
+     lib/micro.ts). Celui du dessus a un fftSize de 512, donc un tampon
+     temporel de 256 échantillons -- trop court pour capter une période
+     complète d'une voix grave (il en faudrait ~686 à 48kHz pour descendre
+     à 70Hz). Plutôt que d'agrandir l'analyseur existant, très finement
+     réglé et chargé d'histoire (échos, contextes suspendus...), on en
+     crée un second, branché sur la même source, réservé à cet usage. */
+  const analysePeriodiqueRef = useRef<AnalyserNode | null>(null);
   /* Vrai tant que la conversation vocale est ouverte. C'est un ref ET un état :
      l'état pour l'affichage, le ref pour onstop et les veilles, qui ont été
      posés avant et ne verraient jamais un état changé depuis. */
@@ -3985,8 +3993,8 @@ export default function Home() {
 
        `active` ne suffit donc plus : on demande aux pistes. Voir
        fluxVivant() dans lib/micro.ts, section 7. */
-    if (fluxVivant(fluxRef.current) && analyseRef.current) {
-      return { flux: fluxRef.current!, analyse: analyseRef.current, ctxMicro };
+    if (fluxVivant(fluxRef.current) && analyseRef.current && analysePeriodiqueRef.current) {
+      return { flux: fluxRef.current!, analyse: analyseRef.current, analysePeriodique: analysePeriodiqueRef.current, ctxMicro };
     }
     /* Mort, mais encore branché : on débranche proprement avant d'en
        reprendre un neuf, sinon l'ancien analyseur survit dans le contexte. */
@@ -4002,8 +4010,13 @@ export default function Home() {
 
     const analyse = ctxMicro.createAnalyser();
     analyse.fftSize = 512;
+    /* fftSize 2048 : tampon temporel de 1024 échantillons, largement
+       suffisant pour l'autocorrélation de hauteurDeVoix() jusqu'à 70Hz. */
+    const analysePeriodique = ctxMicro.createAnalyser();
+    analysePeriodique.fftSize = 2048;
     const entree = ctxMicro.createMediaStreamSource(flux);
     entree.connect(analyse);
+    entree.connect(analysePeriodique);
 
     /* ── ET ELLE PRÉVIENT QUAND ELLE MEURT ────────────────────────────
 
@@ -4028,12 +4041,15 @@ export default function Home() {
     }
     fluxRef.current = flux;
     analyseRef.current = analyse;
+    analysePeriodiqueRef.current = analysePeriodique;
     debrancherMicroRef.current = () => {
       try { entree.disconnect(); } catch { }
       try { analyse.disconnect(); } catch { }
+      try { analysePeriodique.disconnect(); } catch { }
       flux.getTracks().forEach((t) => t.stop());
       fluxRef.current = null;
       analyseRef.current = null;
+      analysePeriodiqueRef.current = null;
       /* Et on ferme le contexte de l'analyseur : c'est lui qui tenait la
          pastille orange allumée après l'arrêt du flux. */
       if (MICRO_SUR_SON_PROPRE_CONTEXTE) {
@@ -4042,7 +4058,7 @@ export default function Home() {
         if (c && c.state !== "closed") { try { void c.close(); } catch { } }
       }
     };
-    return { flux, analyse, ctxMicro };
+    return { flux, analyse, analysePeriodique, ctxMicro };
   }, [contexte]);
 
   /* Fermer complètement : le second appui, la fin d'une séance, le départ de
@@ -4133,7 +4149,7 @@ export default function Home() {
        conversation. Ce qui revient après ne doit plus rien écrire. */
     const idEnr = nouvelEnregistrement();
     try {
-      const { flux, analyse, ctxMicro } = await micro();
+      const { flux, analyse, analysePeriodique, ctxMicro } = await micro();
       if (!estCetEnregistrement(idEnr)) return;
       const enregistreur = ouvrirEnregistreur(flux);
       const morceaux: Blob[] = [];
@@ -4155,7 +4171,9 @@ export default function Home() {
          somme et le compte plutôt que la moyenne : une moyenne qu'on met à
          jour tour par tour dérive, et celle-ci doit rester exacte. */
       const spectre = new Uint8Array(256);
+      const tamponPeriodique = new Uint8Array(analysePeriodique.fftSize);
       let partVocaleTotale = 0;
+      let hauteurTotale = 0;
       let mesuresVocales = 0;
       enregistreurRef.current = enregistreur;
 
@@ -4285,6 +4303,8 @@ export default function Home() {
           try {
             analyse.getByteFrequencyData(spectre);
             partVocaleTotale += partVocale(spectre, ctxMicro.sampleRate);
+            analysePeriodique.getByteTimeDomainData(tamponPeriodique);
+            hauteurTotale += hauteurDeVoix(tamponPeriodique, ctxMicro.sampleRate);
             mesuresVocales++;
           } catch { /* pas de spectre : on enverra, comme avant */ }
 
@@ -4469,7 +4489,8 @@ export default function Home() {
            n'a pas pu mesurer, et perdre une vraie question coûte bien plus
            cher qu'une transcription de trop. */
         const partVocaleMoyenne = mesuresVocales > 0 ? partVocaleTotale / mesuresVocales : null;
-        if (!aParle || !morceaux.length || !vraimentUneVoix(dureeParlee, partVocaleMoyenne)) {
+        const hauteurMoyenne = mesuresVocales > 0 ? hauteurTotale / mesuresVocales : null;
+        if (!aParle || !morceaux.length || !vraimentUneVoix(dureeParlee, partVocaleMoyenne, hauteurMoyenne)) {
           if (aParle && partVocaleMoyenne !== null && vautLaPeine(dureeParlee)) {
             /* Silencieux à l'écran, mais pas invisible : sans cette ligne, le
                jour où le filtre jetterait une vraie voix, on n'aurait aucun
