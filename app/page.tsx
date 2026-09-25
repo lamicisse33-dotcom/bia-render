@@ -425,6 +425,22 @@ export default function Home() {
   const [codeErreur, setCodeErreur] = useState("");
   const [moteurs, setMoteurs] = useState<{ voix: string; ecoute: string } | null>(null);
   const [tenue, setTenue] = useState<string>("classique");
+  /* ── RARA, LE DEUXIÈME PERSONNAGE ───────────────────────────────────────
+     Demandé par Lamine le 25 septembre 2026 : un choix personnel, propre à
+     chaque personne sur son téléphone — pas un réglage global comme la
+     tenue. On le garde donc dans le téléphone (localStorage), jamais sur le
+     serveur. */
+  const [persona, setPersona] = useState<string>("bia");
+  useEffect(() => {
+    try {
+      const gardee = window.localStorage.getItem("bia-persona");
+      if (gardee === "rara") setPersona("rara");
+    } catch {}
+  }, []);
+  const choisirPersona = (valeur: string) => {
+    setPersona(valeur);
+    try { window.localStorage.setItem("bia-persona", valeur); } catch {}
+  };
   const [resume, setResume] = useState("");
   const [corrige, setCorrige] = useState<number | null>(null);
   const [correction, setCorrection] = useState("");
@@ -2812,6 +2828,7 @@ export default function Home() {
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
         body: JSON.stringify({
           message: clean,
+          persona,
           /* Une fenêtre qui saute par paliers, pas qui glisse : c'est ce
              qui permet au cache du fil de retrouver son préfixe quatre tours
              sur cinq. Voir lib/fenetre-du-fil.ts. */
@@ -6956,7 +6973,7 @@ export default function Home() {
   if (!code) {
     return (
       <main className="bia-presence" data-mode="ready">
-        <div className="portrait" aria-hidden="true" data-tenue={tenue}><div className="avatar" data-face="yeux_ouverts" /></div>
+        <div className="portrait" aria-hidden="true" data-tenue={tenue} data-persona={persona}><div className="avatar" data-face="yeux_ouverts" /></div>
         <section className="porte">
           <p className="porte-titre">BIA</p>
           <p className="porte-texte">Duggal sa kod ngir waxtaan ak BIA.</p>
@@ -6992,7 +7009,7 @@ export default function Home() {
   return (
     <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
       <div className={eclipse ? "portrait eclipse" : rallume ? "portrait rallume" : "portrait"}
-        aria-hidden="true" data-tenue={tenue}>
+        aria-hidden="true" data-tenue={tenue} data-persona={persona}>
         {/* ── DEUX COUCHES, POUR QUE LE VISAGE NE SAUTE PLUS ─────────────
             Lamine, le 19 septembre 2026 : « quand elle finit de rire, elle
             ferme automatiquement son visage, c'est brusque, ça colle pas ».
@@ -7007,6 +7024,14 @@ export default function Home() {
         <div className="avatar" data-face={face} />
       </div>
 
+      {/* ── LE CHOIX DU PERSONNAGE ─────────────────────────────────────────
+          Demandé par Lamine le 25 septembre 2026 : « je veux qu'elle soit
+          une option dans BIA, que l'utilisateur peut choisir ». Un simple
+          bouton qui bascule : la conversation en cours continue, seule sa
+          façon d'être change à partir de la prochaine réponse. */}
+      <button type="button" className="choix-persona" onClick={() => choisirPersona(persona === "rara" ? "bia" : "rara")}>
+        {persona === "rara" ? "Rara" : "BIA"}
+      </button>
 
       {/* Elle réfléchit. Pas un mot à l'écran : trois points d'or qui
           respirent, et le silence. */}
