@@ -23,11 +23,17 @@
   --planche-visages: url("/bia-24.webp");
   --planche-mains: url("/bia-mains-24.webp");
   --planche-gestes: url("/bia-gestes-24.webp");
+  /* Pas d'équivalent "classique" pour ces trois nouveaux gestes (cœur à
+     deux mains, bisou soufflé, rire main devant la bouche) : ils n'existent
+     que dans la tenue wax. Le défaut pointe déjà vers ce fichier — voir
+     CONTROLE.txt du 25 septembre pour la livraison des 96 images. */
+  --planche-mains2: url("/bia-mains2-24-wax.webp");
 }
 [data-tenue="wax"] {
   --planche-visages: url("/bia-24-wax.webp");
   --planche-mains: url("/bia-mains-24-wax.webp");
   --planche-gestes: url("/bia-gestes-24-wax.webp");
+  --planche-mains2: url("/bia-mains2-24-wax.webp");
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #050507; }
@@ -187,6 +193,38 @@ button { font: inherit; touch-action: manipulation; }
 .avatar[data-face="paume_2"] { background-image: var(--planche-mains); background-position: 60% 100.0000%; }
 .avatar[data-face="paume_3"] { background-image: var(--planche-mains); background-position: 80% 100.0000%; }
 .avatar[data-face="paume_4"] { background-image: var(--planche-mains); background-position: 100% 100.0000%; }
+
+/* Planche bia-mains2-24-wax.webp — livrée le 25 septembre 2026, en plus des
+   six gestes de base ci-dessus : cœur formé à deux mains, bisou soufflé,
+   rire avec la main devant la bouche. Huit images par geste (au lieu de
+   quatre) pour une animation plus fluide, à la demande de Lamine.
+   N'existe que dans la tenue wax pour l'instant — reste à décider QUAND
+   BIA les déclenche dans la conversation (voir app/page.tsx). */
+.avatar[data-face="coeur_double_1"] { background-image: var(--planche-mains2); background-position: 0% 0.0000%; }
+.avatar[data-face="coeur_double_2"] { background-image: var(--planche-mains2); background-position: 20% 0.0000%; }
+.avatar[data-face="coeur_double_3"] { background-image: var(--planche-mains2); background-position: 40% 0.0000%; }
+.avatar[data-face="coeur_double_4"] { background-image: var(--planche-mains2); background-position: 60% 0.0000%; }
+.avatar[data-face="coeur_double_5"] { background-image: var(--planche-mains2); background-position: 80% 0.0000%; }
+.avatar[data-face="coeur_double_6"] { background-image: var(--planche-mains2); background-position: 100% 0.0000%; }
+.avatar[data-face="coeur_double_7"] { background-image: var(--planche-mains2); background-position: 0% 33.3333%; }
+.avatar[data-face="coeur_double_8"] { background-image: var(--planche-mains2); background-position: 20% 33.3333%; }
+.avatar[data-face="bisou_1"] { background-image: var(--planche-mains2); background-position: 40% 33.3333%; }
+.avatar[data-face="bisou_2"] { background-image: var(--planche-mains2); background-position: 60% 33.3333%; }
+.avatar[data-face="bisou_3"] { background-image: var(--planche-mains2); background-position: 80% 33.3333%; }
+.avatar[data-face="bisou_4"] { background-image: var(--planche-mains2); background-position: 100% 33.3333%; }
+.avatar[data-face="bisou_5"] { background-image: var(--planche-mains2); background-position: 0% 66.6667%; }
+.avatar[data-face="bisou_6"] { background-image: var(--planche-mains2); background-position: 20% 66.6667%; }
+.avatar[data-face="bisou_7"] { background-image: var(--planche-mains2); background-position: 40% 66.6667%; }
+.avatar[data-face="bisou_8"] { background-image: var(--planche-mains2); background-position: 60% 66.6667%; }
+.avatar[data-face="rire_main_1"] { background-image: var(--planche-mains2); background-position: 80% 66.6667%; }
+.avatar[data-face="rire_main_2"] { background-image: var(--planche-mains2); background-position: 100% 66.6667%; }
+.avatar[data-face="rire_main_3"] { background-image: var(--planche-mains2); background-position: 0% 100.0000%; }
+.avatar[data-face="rire_main_4"] { background-image: var(--planche-mains2); background-position: 20% 100.0000%; }
+.avatar[data-face="rire_main_5"] { background-image: var(--planche-mains2); background-position: 40% 100.0000%; }
+.avatar[data-face="rire_main_6"] { background-image: var(--planche-mains2); background-position: 60% 100.0000%; }
+.avatar[data-face="rire_main_7"] { background-image: var(--planche-mains2); background-position: 80% 100.0000%; }
+.avatar[data-face="rire_main_8"] { background-image: var(--planche-mains2); background-position: 100% 100.0000%; }
+
 
 .bia-presence[data-mode="speaking"] .avatar { filter: drop-shadow(0 16px 58px rgba(212, 175, 55, .32)); }
 .bia-presence[data-mode="listening"] .avatar { filter: drop-shadow(0 12px 62px rgba(113, 190, 255, .34)); }
