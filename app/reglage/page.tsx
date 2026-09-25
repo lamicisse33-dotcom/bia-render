@@ -40,6 +40,8 @@ export default function Reglage() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const [mesures, setMesures] = useState<Mesure[]>([]);
+  const [tenue, setTenue] = useState("classique");
+  const [tenueEtat, setTenueEtat] = useState("");
 
   useEffect(() => { try { setCode(localStorage.getItem("bia-code") || ""); } catch {} }, []);
   useEffect(() => { setDebit(vitesseChoisie()); }, []);
@@ -48,6 +50,24 @@ export default function Reglage() {
     try { localStorage.setItem(CLE_VITESSE, String(debit)); } catch {}
   }, [debit]);
   useEffect(() => { setMesures(lireMesures()); }, []);
+  useEffect(() => {
+    fetch("/api/etat").then((r) => r.json()).then((e) => { if (e?.tenue) setTenue(String(e.tenue)); }).catch(() => {});
+  }, []);
+
+  async function changerTenue(valeur: string) {
+    if (!code) { setTenueEtat("Il faut ton code maître."); return; }
+    setTenueEtat("…");
+    try {
+      const r = await fetch("/api/tenue", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bia-code": code },
+        body: JSON.stringify({ valeur }),
+      });
+      if (!r.ok) { setTenueEtat(`Erreur ${r.status}`); return; }
+      setTenue(valeur);
+      setTenueEtat("Tenue changée pour tout le monde.");
+    } catch { setTenueEtat("Impossible de joindre le serveur."); }
+  }
 
   async function ecouter() {
     if (!code) { setEtat("Il faut ton code maître."); return; }
@@ -104,6 +124,32 @@ export default function Reglage() {
   return (
     <main className="reglage">
       <h1>La voix de BIA</h1>
+
+      <section style={{ margin: "0 0 28px" }}>
+        <h2 style={{ fontSize: 15, margin: "0 0 8px" }}>La tenue de BIA</h2>
+        <div className="rangee">
+          <button
+            className="secondaire"
+            type="button"
+            disabled={tenue === "classique"}
+            onClick={() => void changerTenue("classique")}
+            style={tenue === "classique" ? { fontWeight: 700, opacity: 1 } : undefined}
+          >
+            Classique{tenue === "classique" ? " ✓" : ""}
+          </button>
+          <button
+            className="secondaire"
+            type="button"
+            disabled={tenue === "wax"}
+            onClick={() => void changerTenue("wax")}
+            style={tenue === "wax" ? { fontWeight: 700, opacity: 1 } : undefined}
+          >
+            Wax{tenue === "wax" ? " ✓" : ""}
+          </button>
+        </div>
+        {tenueEtat ? <p className="etat">{tenueEtat}</p> : null}
+      </section>
+
       <p className="intro">
         Écoute, compare, puis reporte dans Render les trois premières valeurs.
         Le <b>débit</b>, lui, se garde sur ce téléphone et agit immédiatement.

@@ -14,6 +14,7 @@ import { resumeCorpus } from "@/lib/corpus";
 import { resumeVoixGardees } from "@/lib/voix-gardees";
 import { resumeReponsesGardees } from "@/lib/reponses-gardees";
 import { resumePrononciation } from "@/lib/prononciation";
+import { tenueActuelle } from "@/lib/tenue";
 import { combienDeSouvenirs, resumeSouvenirs } from "@/lib/souvenirs";
 import { ecartsEntreLesTours, peseeDeLaConsigne } from "@/lib/pesee";
 import { resumeRelations } from "@/lib/relations";
@@ -91,6 +92,8 @@ export async function GET(request: Request) {
        n'existe pas : on prend l'heure de démarrage du serveur, qui change à
        chaque redémarrage — même effet, sans rien à configurer. */
     version: VERSION,
+    // La tenue de BIA — réglable depuis /reglage, lue par tout le monde ici.
+    tenue: tenueActuelle(),
     /* 21 septembre : ce qui manquait pour voir que les mots corrigés ne
        partaient jamais au modèle. `mots_corriges` doit être > 0 dès qu'une
        correction « Mal dit » a changé un mot ; `lecture.colonnes` doit

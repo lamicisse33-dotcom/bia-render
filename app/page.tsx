@@ -403,6 +403,7 @@ export default function Home() {
   const [codeSaisi, setCodeSaisi] = useState("");
   const [codeErreur, setCodeErreur] = useState("");
   const [moteurs, setMoteurs] = useState<{ voix: string; ecoute: string } | null>(null);
+  const [tenue, setTenue] = useState<string>("classique");
   const [resume, setResume] = useState("");
   const [corrige, setCorrige] = useState<number | null>(null);
   const [correction, setCorrection] = useState("");
@@ -1150,6 +1151,7 @@ export default function Home() {
       .then((r) => r.json())
       .then((e) => {
         setMoteurs(e); moteursRef.current = e; versionChargee.current = String(e?.version || "");
+        if (e?.tenue) setTenue(String(e.tenue));
         /* Notre moteur parle déjà posément : le curseur « Débit » se lit
            relativement à lui (voir lib/ralentir.ts). */
         voixDejaPosee(e?.voix === "runpod");
@@ -6930,7 +6932,7 @@ export default function Home() {
   if (!code) {
     return (
       <main className="bia-presence" data-mode="ready">
-        <div className="portrait" aria-hidden="true"><div className="avatar" data-face="yeux_ouverts" /></div>
+        <div className="portrait" aria-hidden="true" data-tenue={tenue}><div className="avatar" data-face="yeux_ouverts" /></div>
         <section className="porte">
           <p className="porte-titre">BIA</p>
           <p className="porte-texte">Duggal sa kod ngir waxtaan ak BIA.</p>
@@ -6966,7 +6968,7 @@ export default function Home() {
   return (
     <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
       <div className={eclipse ? "portrait eclipse" : rallume ? "portrait rallume" : "portrait"}
-        aria-hidden="true">
+        aria-hidden="true" data-tenue={tenue}>
         {/* ── DEUX COUCHES, POUR QUE LE VISAGE NE SAUTE PLUS ─────────────
             Lamine, le 19 septembre 2026 : « quand elle finit de rire, elle
             ferme automatiquement son visage, c'est brusque, ça colle pas ».
