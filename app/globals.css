@@ -49,7 +49,14 @@
   --planche-gestes: url("/bia-gestes-24-nouvelle.webp");
   --planche-mains2: url("/bia-mains2-24-nouvelle.webp");
   --avatar-aspect: 941 / 1672;
+  /* Prière et compter, demandés le 26 septembre 2026 — seule tenue à les
+     porter pour l'instant, d'où une quatrième planche à elle, pas dans
+     :root : voir .avatar[data-face="priere_N"/"compter_N"] plus bas, et
+     la garde côté page.tsx (CYCLES) qui empêche ces deux gestes de se
+     déclencher sur classique/wax, qui n'ont pas ces images. */
+  --planche-mains3: url("/bia-mains3-24-nouvelle.webp");
 }
+
 
 /* ── RARA, LE DEUXIÈME PERSONNAGE ────────────────────────────────────────
    [data-persona="rara"] est posé sur le portrait dès maintenant (voir
@@ -323,6 +330,17 @@ button { font: inherit; touch-action: manipulation; }
 .avatar[data-face="rire_main_6"] { background-image: var(--planche-mains2); background-position: 60% 100.0000%; }
 .avatar[data-face="rire_main_7"] { background-image: var(--planche-mains2); background-position: 80% 100.0000%; }
 .avatar[data-face="rire_main_8"] { background-image: var(--planche-mains2); background-position: 100% 100.0000%; }
+
+/* ── PRIÈRE ET COMPTER, TENUE "NOUVELLE" SEULEMENT ───────────────────────
+   Demandé le 26 septembre 2026. Voir --planche-mains3 plus haut. */
+.avatar[data-face="priere_1"] { background-image: var(--planche-mains3); background-position: 0% 0.0000%; }
+.avatar[data-face="priere_2"] { background-image: var(--planche-mains3); background-position: 20% 0.0000%; }
+.avatar[data-face="priere_3"] { background-image: var(--planche-mains3); background-position: 40% 0.0000%; }
+.avatar[data-face="priere_4"] { background-image: var(--planche-mains3); background-position: 60% 0.0000%; }
+.avatar[data-face="compter_1"] { background-image: var(--planche-mains3); background-position: 80% 0.0000%; }
+.avatar[data-face="compter_2"] { background-image: var(--planche-mains3); background-position: 100% 0.0000%; }
+.avatar[data-face="compter_3"] { background-image: var(--planche-mains3); background-position: 0% 33.3333%; }
+.avatar[data-face="compter_4"] { background-image: var(--planche-mains3); background-position: 20% 33.3333%; }
 
 
 .bia-presence[data-mode="speaking"] .avatar { filter: drop-shadow(0 16px 58px rgba(212, 175, 55, .32)); }

@@ -15,7 +15,12 @@
    — ce tableau est un premier jet, à corriger par lui. */
 
 export type Geste = "salut" | "aurevoir" | "coeur" | "bouche_etonne" | "bouche_grosmot" | "paume"
-  | "coeur_double" | "bisou" | "rire_main";
+  | "coeur_double" | "bisou" | "rire_main"
+  /* 26 septembre 2026 : mains jointes et compter, tenue "nouvelle"
+     seulement — voir CASES_DE_LA_QUATRIEME_PLANCHE dans page.tsx. Sur
+     classique/wax, la garde côté page.tsx les ignore plutôt que
+     d'afficher une case vide. */
+  | "priere" | "compter";
 
 /* 25 septembre 2026 : trois gestes de plus, livrés dans BIA-96-images-v2
    (huit images chacun, tenue wax seulement pour l'instant — voir
@@ -37,6 +42,9 @@ export const GESTES_DU_REPERTOIRE: Record<string, Geste> = {
   "bonne-nuit": "bisou", "a-demain": "bisou",
   /* un instant */
   attends: "paume",
+  /* mains jointes : "inchallah" existait déjà dans le répertoire
+     (lib/base-textes.ts) sans geste associé — c'est le moment naturel */
+  inchallah: "priere",
 };
 
 export function gesteDe(cle: string): Geste | "" {

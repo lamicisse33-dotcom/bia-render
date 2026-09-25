@@ -209,7 +209,16 @@ const CASES_DE_LA_TROISIEME_PLANCHE = {
   rire_main_1: 17, rire_main_2: 18, rire_main_3: 19, rire_main_4: 20,
   rire_main_5: 21, rire_main_6: 22, rire_main_7: 23, rire_main_8: 24,
 } as const;
-type Face = keyof typeof CASES | keyof typeof CASES_DES_PLANCHES_SUIVANTES | keyof typeof CASES_DE_LA_TROISIEME_PLANCHE;
+
+/* bia-mains3-24-nouvelle.webp — prière (mains jointes) et compter (1, 2, 3
+   doigts). Demandé le 26 septembre 2026. N'existe QUE dans la tenue
+   "nouvelle" — voir la garde sur `tenue` à la fin de arreterLaBouche. */
+const CASES_DE_LA_QUATRIEME_PLANCHE = {
+  priere_1: 1, priere_2: 2, priere_3: 3, priere_4: 4,
+  compter_1: 5, compter_2: 6, compter_3: 7, compter_4: 8,
+} as const;
+type Face = keyof typeof CASES | keyof typeof CASES_DES_PLANCHES_SUIVANTES | keyof typeof CASES_DE_LA_TROISIEME_PLANCHE
+  | keyof typeof CASES_DE_LA_QUATRIEME_PLANCHE;
 
 /* Un mouvement = ses quatre cases dans l'ordre : montée, tenue, variation,
    redescente. Joués à PAS_DU_CYCLE ms par image, avec le fondu de
@@ -224,6 +233,7 @@ const CYCLES = {
   salut: cycle("salut"), aurevoir: cycle("aurevoir"), coeur: cycle("coeur"),
   bouche_etonne: cycle("bouche_etonne"), bouche_grosmot: cycle("bouche_grosmot"), paume: cycle("paume"),
   coeur_double: cycle8("coeur_double"), bisou: cycle8("bisou"), rire_main: cycle8("rire_main"),
+  priere: cycle("priere"), compter: cycle("compter"),
 } as const;
 const PAS_DU_CYCLE = 380;
 const PLANCHES_SUIVANTES = ["/bia-gestes-24.webp", "/bia-mains-24.webp", "/bia-mains2-24-wax.webp"] as const;
@@ -1412,7 +1422,12 @@ export default function Home() {
     const apaise = planchesPretesRef.current && emo === "rire";
     /* Le geste d'après la phrase : celui du serveur d'abord, sinon celui
        que l'émotion appelle sur la planche du visage. Rien sans planches. */
-    const geste = planchesPretesRef.current ? (gesteApresRef.current || CYCLE_DE_L_EMOTION[emo] || "") : "";
+    const gesteBrut = planchesPretesRef.current ? (gesteApresRef.current || CYCLE_DE_L_EMOTION[emo] || "") : "";
+    /* Prière et compter n'existent que dans la tenue "nouvelle" (voir
+       CASES_DE_LA_QUATRIEME_PLANCHE) : sur classique/wax, --planche-mains3
+       n'existe pas. Demandés ailleurs, on les ignore plutôt que d'afficher
+       une case vide — CYCLE_DE_L_EMOTION ou gesteApresRef retombe sur "". */
+    const geste = (gesteBrut === "priere" || gesteBrut === "compter") && tenue !== "nouvelle" ? "" : gesteBrut;
     gesteApresRef.current = "";
     if (suite) {
       let t = 0;
