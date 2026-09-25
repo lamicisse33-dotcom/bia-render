@@ -71,8 +71,18 @@ export const voixConfig = {
        de l'Interprète : là-bas 0,2 / 0,5 conviennent à de la traduction, qui
        doit être nette. BIA, elle, doit accueillir. Exagération basse = moins
        d'emphase ; poids CFG bas = débit plus lent. Réglable par variable
-       d'environnement, et la page /reglage sert à les choisir à l'oreille. */
-    exaggeration: nombreDeLEnvironnement(env.SOYNADE_EXAGGERATION, 0.10, "SOYNADE_EXAGGERATION"),
+       d'environnement, et la page /reglage sert à les choisir à l'oreille.
+
+       25 septembre 2026 : Lamine, à l'oreille, la trouve « sèche, comme une
+       voix d'homme ». La voix elle-même est bien celle d'une femme (clonée
+       depuis public/voix-bia.wav, mesurée à ~205 Hz, en plein dans le
+       registre féminin) — c'est l'ancienne exagération, 0,10, la deuxième plus plate
+       des quatre valeurs comparées sur /reglage, qui aplatissait le ton
+       jusqu'à le rendre dur à l'oreille. On monte au préréglage « Douce ».
+       Si Render porte encore un SOYNADE_EXAGGERATION à 0,08 ou 0,10, c'est
+       LUI qui gagne — il faut l'enlever là-bas pour que cette valeur-ci
+       s'applique. */
+    exaggeration: nombreDeLEnvironnement(env.SOYNADE_EXAGGERATION, 0.12, "SOYNADE_EXAGGERATION"),
     temperature: nombreDeLEnvironnement(env.SOYNADE_TEMPERATURE, 0.35, "SOYNADE_TEMPERATURE"),
     /* ── LE RÉGLAGE QUI LA FAISAIT DIRE AUTRE CHOSE QUE SON TEXTE ──────────
 
