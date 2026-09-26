@@ -2543,14 +2543,6 @@ export default function Home() {
       stopMouth(answer);
     };
 
-    if (moteursRef.current && moteursRef.current.voix === "navigateur") {
-      await prendreLaParole();
-      if (enLecon) { renoncer(); return; }
-      if (emotion) await jouerSouffle(emotion);
-      await parlerAvecLeTelephone(answer);
-      return;
-    }
-
     /* ── UNE SEULE LANGUE POUR TOUTE LA RÉPONSE ───────────────────────────
 
        Le téléphone n'envoyait PAS la langue, alors le serveur la devinait —
@@ -2562,6 +2554,33 @@ export default function Home() {
        On décide ici, une fois, sur la réponse ENTIÈRE — un fragment de
        quatre mots ne se juge pas, une réponse complète oui. */
     const langueDite = estWolof(answer) ? "wo" : "fr";
+
+    if (moteursRef.current && moteursRef.current.voix === "navigateur") {
+      await prendreLaParole();
+      if (enLecon) { renoncer(); return; }
+      if (emotion) await jouerSouffle(emotion);
+      await parlerAvecLeTelephone(answer);
+      return;
+    }
+
+    /* ── LE FRANÇAIS PAR LE TÉLÉPHONE, TOUJOURS ────────────────────────────
+
+       26 septembre 2026, décidé avec Lamine : le français est déjà quasi
+       instantané et gratuit par la voix du navigateur (le téléphone la
+       fabrique lui-même, zéro aller-retour serveur, zéro coût Soynade). Le
+       wolof, lui, n'existe dans AUCUN navigateur — c'est pour lui seul que
+       notre moteur (voix de Kha) a un sens. On ne passe donc plus par le
+       serveur pour le français : gain de vitesse ET d'argent, sur la partie
+       de la conversation qui n'en a pas besoin.
+
+       Les leçons restent sur le vrai moteur (elles portent sur le wolof,
+       `enLecon` est donc un filet, pas le cas normal ici). */
+    if (langueDite === "fr" && !enLecon && typeof window !== "undefined" && "speechSynthesis" in window) {
+      await prendreLaParole();
+      if (emotion) await jouerSouffle(emotion);
+      await parlerAvecLeTelephone(answer);
+      return;
+    }
 
     const demander = async (partie: number) => {
       /* ── ET ON REDEMANDE UNE FOIS AVANT D'ABANDONNER ──────────────────
