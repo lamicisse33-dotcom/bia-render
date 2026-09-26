@@ -33,6 +33,18 @@ MAX_TOKENS_PAR_BLOC = 520
 PAUSE_ENTRE_BLOCS_SEC = 0.12
 HZ = 16000
 
+# 26 septembre 2026 : Lamine signale que la voix lit le texte correctement
+# puis continue en charabia au lieu de se taire. Cause — SpeechT5 décide
+# lui-même de s'arrêter en comparant, à chaque pas, une probabilité de fin
+# à SEUIL_ARRET ; sur un modèle affiné pour une langue peu dotée comme le
+# wolof, cette probabilité dépasse rarement 0.5 (le défaut), et le moteur
+# continue alors de fabriquer du son jusqu'au plafond de sécurité (par
+# défaut 20 fois la longueur du texte). D'où le babillage après la phrase.
+# Deux garde-fous : un seuil plus facile à franchir, et un plafond bien
+# plus court pour qu'un babillage résiduel reste, au pire, très bref.
+SEUIL_ARRET = 0.3
+PLAFOND_LONGUEUR = 7.0
+
 
 def vers_wav_16_bits(echantillons, hz=HZ) -> bytes:
     """Des flottants [-1, 1] vers un WAV PCM 16 bits mono, en mémoire."""
@@ -194,7 +206,10 @@ class MoteurWolof:
         for i, bloc in enumerate(blocs, start=1):
             entrees = self.processor(text=bloc, return_tensors="pt")
             with torch.no_grad():
-                audio = self.modele.generate_speech(entrees["input_ids"], self.empreinte, vocoder=self.vocoder)
+                audio = self.modele.generate_speech(
+                    entrees["input_ids"], self.empreinte, vocoder=self.vocoder,
+                    threshold=SEUIL_ARRET, maxlenratio=PLAFOND_LONGUEUR,
+                )
             morceaux.append(audio.detach().cpu())
             if i < len(blocs):
                 morceaux.append(torch.zeros(int(HZ * PAUSE_ENTRE_BLOCS_SEC), dtype=audio.dtype))
