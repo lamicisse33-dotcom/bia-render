@@ -1776,7 +1776,14 @@ export default function Home() {
     }
     const voices = window.speechSynthesis.getVoices();
     const wolof = voices.find((v) => v.lang.toLowerCase().startsWith("wo"));
+
+    /* Sur iPhone/Safari, prendre simplement la première voix française peut
+       sélectionner une voix masculine. BIA doit préférer explicitement
+       Audrey quand elle est installée sur l'appareil. Les variantes système
+       peuvent s'appeler "Audrey", "Audrey (Enhanced)", etc. */
     const french =
+      voices.find((v) => /audrey/i.test(v.name) && v.lang.toLowerCase().startsWith("fr")) ||
+      voices.find((v) => /audrey/i.test(v.name)) ||
       voices.find((v) => /^fr[-_](sn|fr)/i.test(v.lang)) ||
       voices.find((v) => v.lang.toLowerCase().startsWith("fr"));
 
