@@ -56,7 +56,7 @@ import { fluxVivant,
   SILENCE_QUI_CLÔT_LA_CONVERSATION, TENIR_POUR_COUPER, TOUR_DE_VEILLE,
   TOURS_MUETS_AVANT_DE_DOUTER, FLUX_DU_GUETTEUR,
   SILENCE_LE_PLUS_COURT, barreDeCoupure, partVocale, silenceQuiSuffit, suivreLEcho, suivreLeBruit,
-  vautLaPeine, vraimentUneVoix, hauteurDeVoix,
+  vautLaPeine, vraimentUneVoix, hauteurDeVoix, HAUTEUR_MINIMALE,
 } from "@/lib/micro";
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie, voixDejaPosee } from "@/lib/ralentir";
 import {
@@ -4112,6 +4112,34 @@ export default function Home() {
         if (fluxRef.current !== flux) return;
         debrancherMicroRef.current?.();
         debrancherMicroRef.current = null;
+        /* ── UNE PISTE QUI MEURT TOUTE SEULE NE CHANGE PAS DE MODE ─────────
+
+           Lamine, le 26 septembre 2026 : « au bout de certains temps, le
+           micro se désactive automatiquement... même quand je parle, le
+           micro ne s'allume plus. » Cette piste peut mourir en PLEIN
+           REPOS, pendant qu'on attend simplement qu'il parle — un écran
+           verrouillé, un peu de temps en arrière-plan sonore, et iOS la
+           reprend sans jamais nous rendre la main autrement que par cet
+           événement. Or les deux boucles qui rouvrent le micro ailleurs
+           dans ce fichier ne se déclenchent QUE sur un changement de
+           mode ou un retour au premier plan (`auRetour`, plus bas) — ni
+           l'un ni l'autre n'arrive ici : le mode reste « ready » du début
+           à la fin, donc rien ne le relance. Résultat : le point semblait
+           encore actif, mais plus rien n'écoutait, pour de bon, jusqu'à
+           ce qu'il ferme et rouvre l'application.
+
+           On imite donc `auRetour()` : un peu plus tard, si on est
+           toujours censé être en conversation, pas déjà occupé, pas en
+           train d'enregistrer, et surtout pas en train de PARLER ou de
+           RÉFLÉCHIR (là, la boucle normale reprendra le micro toute
+           seule au bon moment — le rouvrir ici serait le rouvrir pendant
+           qu'elle parle), on relance l'écoute nous-mêmes. */
+        setTimeout(() => {
+          if (!conversationRef.current || busyRef.current) return;
+          if (enregistreEncore()) return;
+          if (modeRef.current !== "ready") return;
+          void ecouterRef.current?.();
+        }, 500);
       };
       piste.addEventListener("ended", perdue);
       piste.addEventListener("mute", perdue);
@@ -5497,6 +5525,24 @@ export default function Home() {
     const analyse = analyseRef.current;
     if (!analyse) return;
     const tampon = new Uint8Array(analyse.frequencyBinCount);
+    /* ── DU BRUIT FORT N'EST PAS UNE VOIX ─────────────────────────────────
+
+       Trouvé le 26 septembre 2026, en mesurant en conversation réelle
+       (voir /api/etat, champ `guet`) : un guetteur qui coupait bel et bien
+       sur un vrai dépassement soutenu du volume (pas le blanc technique
+       réglé juste avant) -- creux jusqu'à 126 contre une barre à 8-23,
+       tenu plusieurs dixièmes de seconde. Un bruit de fond continu (la
+       rue, un climatiseur, une pièce animée) peut être aussi FORT et aussi
+       SOUTENU qu'une vraie interruption ; seule la hauteur les distingue
+       -- voir hauteurDeVoix() dans lib/micro.ts, déjà posé le 25 septembre
+       pour l'autre micro (celui qui décide d'envoyer à la transcription).
+       On le réutilise ici tel quel, sur le même second analyseur, déjà
+       branché sans coût : un calcul de plus par tour de 60 ms, aucun
+       aller-retour, aucun retard ajouté à la coupure. Si ce second
+       analyseur manque pour une raison quelconque, on retombe sur l'ancien
+       comportement (volume seul) plutôt que de ne jamais couper. */
+    const analysePeriodique = analysePeriodiqueRef.current;
+    const tamponPeriodique = analysePeriodique ? new Uint8Array(analysePeriodique.fftSize) : null;
     let tenu = 0;
     /* Figé à l'armement : c'est CE guetteur-là qui sait dans quel état il a
        été posé, même si l'état a changé entre-temps. */
@@ -5745,7 +5791,15 @@ export default function Home() {
       vu.tours += 1;
       if (creux > vu.creux_max) vu.creux_max = creux;
       if (barre > vu.barre_max) vu.barre_max = barre;
-      if (creux > barre) {
+      /* Un dépassement ne compte que s'il a la hauteur d'une voix. Sans le
+         second analyseur (cas imprévu), on ne s'y fie pas : le volume seul
+         tranche, comme avant. */
+      let estUneVoix = true;
+      if (creux > barre && analysePeriodique && tamponPeriodique) {
+        analysePeriodique.getByteTimeDomainData(tamponPeriodique);
+        estUneVoix = hauteurDeVoix(tamponPeriodique, analysePeriodique.context.sampleRate) >= HAUTEUR_MINIMALE;
+      }
+      if (creux > barre && estUneVoix) {
         vu.tours_au_dessus += 1;
         tenu += TOUR_DE_VEILLE;
         tuDepuis = 0;
