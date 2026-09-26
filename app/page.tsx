@@ -1792,11 +1792,11 @@ export default function Home() {
           const identite = `${v.name} ${v.voiceURI}`;
           let score = 0;
           if (feminines.test(identite)) score += 100;
+          if (v.localService) score += 60;
           if (/premium/i.test(identite)) score += 40;
           if (/enhanced|am[ée]lior[ée]e?/i.test(identite)) score += 30;
           if (/^fr[-_]fr/i.test(v.lang)) score += 20;
           else if (/^fr[-_](sn|ca|be|ch)/i.test(v.lang)) score += 10;
-          if (v.localService) score += 5;
           if (v.default) score += 1;
           return { voix: v, score };
         })
