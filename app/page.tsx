@@ -2798,10 +2798,36 @@ export default function Home() {
         lancer(i + 1);
         lancer(i + 2);
         lancer(i + 3);
-        const morceau = i === 0 ? bloc : await enVol.get(i)!;
+        let morceau: { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number } | null = null;
+        try { morceau = i === 0 ? bloc : await enVol.get(i)!; } catch { morceau = null; }
         if (perdu()) return;         // une nouvelle réponse a pris la main, ou on l'a fait taire
-        if (!morceau.audio) break;
-        try { await programmer(enOctets(morceau.audio)); } catch { break; }
+        /* ── UN MORCEAU RATÉ NE DOIT PLUS TAIRE TOUTE L'HISTOIRE ───────────
+
+           Trouvé le 26 septembre 2026, après le guetteur (voir plus haut) :
+           Lamine, en pleine histoire racontée par BIA, la deuxième fois —
+           « elle se coupe toute seule, et quand elle reprend, elle saute
+           les étapes, elle ne raconte pas toute l'histoire. » Le guetteur ne
+           coupait plus rien (a_coupe: false sur toute la session mesurée
+           après son corrige) : la vraie cause était ici. `demander(i)` peut
+           rendre `audio: null` sans lever d'erreur — une panne interne à
+           /api/voix se rend ainsi, exprès, pour ne pas gonfler `pannes` d'un
+           bruit réseau — et si l'appel jette carrément (réseau du téléphone
+           coupé une seconde à Dakar), rien ne le rattrapait ici : un SEUL
+           morceau raté faisait `break`, et tout le reste de la réponse,
+           pourtant déjà en train de se fabriquer en arrière-plan chez nous,
+           partait à la poubelle sans un mot — sans même l'erreur qui aurait
+           fait lire la réponse par le téléphone à la place.
+
+           Une phrase perdue au milieu d'une histoire vaut mieux que la
+           moitié de l'histoire jamais dite : on retente CE morceau une
+           fois, et s'il manque encore, on saute SEULEMENT lui — la suite
+           continue, morceau après morceau, jusqu'au bout. */
+        if (!morceau || !morceau.audio) {
+          try { morceau = await demander(i); } catch { morceau = null; }
+        }
+        if (morceau && morceau.audio) {
+          try { await programmer(enOctets(morceau.audio)); } catch { /* ce morceau-ci ne se joue pas, la suite si */ }
+        }
         /* On ne dort pas jusqu'à la fin du morceau : on se réveille deux
            secondes avant, le temps de décoder et de programmer le suivant
            sans jamais laisser l'horloge nous rattraper. */
