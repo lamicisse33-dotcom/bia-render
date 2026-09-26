@@ -1001,6 +1001,11 @@ export default function Home() {
      sa bouche. On s'en sert pour savoir s'il faut la couper : il faut la
      COUVRIR, pas seulement faire du bruit pendant qu'elle parle. */
   const sonDelleRef = useRef(0);
+  /* Vrai tant qu'un morceau de sa réponse joue VRAIMENT à cet instant ; faux
+     pendant un blanc entre deux morceaux (le suivant pas encore arrivé). Le
+     guetteur s'en sert : voir plus bas, section « LE GUETTEUR NE JUGE PAS UN
+     BLANC ». */
+  const segmentEnCoursRef = useRef(false);
   /* Le seuil de parole calculé pour la pièce où l'on se trouve. Partagé avec
      le guetteur qui écoute pendant qu'elle parle : les deux doivent juger la
      même pièce, sinon l'un entend ce que l'autre ignore. */
@@ -1683,6 +1688,7 @@ export default function Home() {
         const i = Math.floor(ecoule / (pas * 1000));
         const part = i >= 0 && i < valeurs.length ? valeurs[i] / pic : 0;
         sonDelleRef.current = part;
+        segmentEnCoursRef.current = true;   // un seul morceau ici : jamais de blanc à couvrir
         const forme = formeBouche(part, i);
         if (forme !== precedente && ecoule - dernierChangement >= MINIMUM) {
           precedente = forme;
@@ -2142,6 +2148,7 @@ export default function Home() {
           const i = Math.floor(ecoule / pas);
           const part = i >= 0 && i < valeurs.length ? valeurs[i] / pic : 0;
           sonDelleRef.current = part;
+          segmentEnCoursRef.current = true;   // un seul morceau ici : jamais de blanc à couvrir
           const forme = formeBouche(part, i);
           if (forme !== precedente && ecoule - dernierChangement >= 0.13) {
             precedente = forme; dernierChangement = ecoule; setFace(forme);
@@ -2711,6 +2718,8 @@ export default function Home() {
       const ctx = contexte();
       const segments: Array<{ debut: number; fin: number; valeurs: number[]; pic: number; pas: number }> = [];
       let quand = 0;
+      // Vrai par défaut : le premier morceau, on l'a déjà en main (bloc), pas de blanc au départ.
+      segmentEnCoursRef.current = true;
       /* Le trou réel entre deux morceaux, en millisecondes. Il devrait être
          nul ; on le mesure quand même, parce qu'on croyait déjà qu'il l'était.
          Il part au serveur avec le reste — c'est le seul moyen de le voir
@@ -2767,6 +2776,7 @@ export default function Home() {
         if (tourRef.current !== jeton) return;
         const t = ctx.currentTime;
         const seg = segments.find((s) => t >= s.debut && t < s.fin);
+        segmentEnCoursRef.current = Boolean(seg);
         if (!seg) sonDelleRef.current = 0;
         if (seg) {
           const i = Math.floor((t - seg.debut) / seg.pas);
@@ -2803,6 +2813,7 @@ export default function Home() {
       // Elle a fini de parler quand le dernier morceau s'est tu, pas avant.
       const reste = Math.max(0, (quand - ctx.currentTime) * 1000);
       await pause(reste + 120);
+      segmentEnCoursRef.current = true;   // fini : plus de blanc à couvrir, le guetteur rejuge normalement
       if (perdu()) return;
       void fetch("/api/mesure", {
         method: "POST",
@@ -5670,6 +5681,32 @@ export default function Home() {
     let tuDepuis = 0;
 
     const guet = setInterval(() => {
+      /* ── LE GUETTEUR NE JUGE PAS UN BLANC ──────────────────────────────
+
+         Trouvé le 26 septembre 2026, en cherchant pourquoi « quand elle
+         raconte une histoire, à un moment elle se tait » -- et pourquoi le
+         micro semblait s'allumer tout seul à cet instant précis.
+
+         barreDeCoupure() calcule la barre à partir de SA voix du moment
+         (`elle`). Tant qu'elle parle vraiment, la barre monte avec l'écho et
+         un bruit de fond ordinaire ne la franchit pas. MAIS entre deux
+         morceaux d'une réponse à rallonge -- le blanc que notre moteur peut
+         encore laisser le temps de fabriquer la suite -- `elle` retombe à
+         zéro, exactement comme si elle s'était tue : la barre s'effondre
+         jusqu'au seuil nu, sans la marge d'écho. Le moindre bruit de pièce
+         suffit alors à la faire taire pour de bon (`taireRef.current?.()`),
+         et comme ce n'est plus un blanc technique mais une vraie coupure,
+         rien ne la relance toute seule -- il faut reprendre la conversation.
+
+         Ce n'était donc pas un problème de VITESSE (déjà travaillé juste
+         avant) mais de JUGEMENT : couper sur un blanc qu'on cause soi-même
+         n'a pas de sens, il n'y a rien à interrompre. Le guetteur ignore
+         donc ce tour de veille -- ni compté, ni remis à zéro pour rien --
+         tant qu'on sait qu'aucun morceau ne joue vraiment (segmentEnCoursRef,
+         posé par la même horloge que la bouche). Pendant la réflexion (elle
+         n'a encore rien à dire), ce drapeau ne s'applique pas : le guetteur
+         garde son rôle normal. */
+      if (!pendantLaReflexion && !segmentEnCoursRef.current) { tenu = 0; return; }
       analyse.getByteTimeDomainData(tampon);
       let creux = 0;
       for (const v of tampon) creux = Math.max(creux, Math.abs(v - 128));
