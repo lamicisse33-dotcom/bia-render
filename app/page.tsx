@@ -2670,10 +2670,24 @@ export default function Home() {
         return true;
       };
 
-      /* DEUX MORCEAUX D'AVANCE, pas un.
+      /* TROIS MORCEAUX D'AVANCE, pas deux.
          Avec un seul, le moindre à-coup du réseau se transformait en silence.
          Ils se fabriquent tous en parallèle côté serveur ; garder deux longueurs
-         d'avance coûte une requête de plus et supprime les blancs. */
+         d'avance coûte une requête de plus et supprime les blancs.
+
+         Passé à TROIS le 26 septembre 2026. Signalé par Lamine : « quand
+         elle raconte une histoire, à un moment elle se tait, il faut la
+         relancer. » Mesuré ce jour-là, sur notre propre moteur (RunPod) :
+         la fabrication d'un morceau prend maintenant 3 à 6 s, parfois plus
+         -- alors que le morceau qui parle pendant ce temps-là ne dure
+         souvent que 2-3 s de voix. Avec deux longueurs d'avance, le morceau
+         suivant n'avait donc pas toujours fini de se fabriquer quand
+         l'horloge du son en avait besoin -- d'où le blanc, en plein milieu
+         d'une histoire à plusieurs phrases. Une longueur de plus donne au
+         morceau qui vient après le suivant le temps de départ de DEUX
+         morceaux parlés, pas un seul. Nos trois machines RunPod
+         (workers=(0,3), main.py) suffisent tout juste à ces trois
+         fabrications de front. */
       const total = bloc.parties;
       const enVol = new Map<number, ReturnType<typeof demander>>();
       enVol.set(0, premier);
@@ -2773,6 +2787,7 @@ export default function Home() {
       for (let i = 0; i < total; i++) {
         lancer(i + 1);
         lancer(i + 2);
+        lancer(i + 3);
         const morceau = i === 0 ? bloc : await enVol.get(i)!;
         if (perdu()) return;         // une nouvelle réponse a pris la main, ou on l'a fait taire
         if (!morceau.audio) break;
