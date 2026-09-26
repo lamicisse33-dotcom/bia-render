@@ -1774,61 +1774,83 @@ export default function Home() {
     if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
       window.speechSynthesis.cancel();
     }
-    const voices = window.speechSynthesis.getVoices();
-    const wolof = voices.find((v) => v.lang.toLowerCase().startsWith("wo"));
+    const synth = window.speechSynthesis;
 
-    /* Sur iPhone/Safari, prendre simplement la première voix française peut
-       sélectionner une voix masculine. BIA doit préférer explicitement
-       Audrey quand elle est installée sur l'appareil. Les variantes système
-       peuvent s'appeler "Audrey", "Audrey (Enhanced)", etc. */
-    const french =
-      voices.find((v) => /audrey/i.test(v.name) && v.lang.toLowerCase().startsWith("fr")) ||
-      voices.find((v) => /audrey/i.test(v.name)) ||
-      voices.find((v) => /^fr[-_](sn|fr)/i.test(v.lang)) ||
-      voices.find((v) => v.lang.toLowerCase().startsWith("fr"));
+    /* Safari/iOS charge souvent la liste des voix APRÈS le premier appel à
+       getVoices(). Si on choisit trop tôt, Web Speech retombe sur sa voix
+       française par défaut — qui peut être masculine. On attend donc
+       brièvement voiceschanged avant de choisir la voix de secours. */
+    const choisirEtParler = (voices: SpeechSynthesisVoice[]) => {
+      const wolof = voices.find((v) => v.lang.toLowerCase().startsWith("wo"));
+      const estAurelie = (v: SpeechSynthesisVoice) =>
+        /aur(?:e|é)lie/i.test(`${v.name} ${v.voiceURI}`);
 
-    const enWolof = estWolof(answer);
-    const utterance = new SpeechSynthesisUtterance(wolof || !enWolof ? answer : phoneticWolof(answer));
-    if (wolof && enWolof) { utterance.voice = wolof; utterance.lang = wolof.lang; }
-    else if (french) { utterance.voice = french; utterance.lang = french.lang; }
-    else utterance.lang = "fr-FR";
-    utterance.rate = enWolof ? 1.02 : 1.06;
+      /* Priorité absolue à Aurélie/Aurelie quand iOS l'expose. Si elle
+         n'existe vraiment pas sur l'appareil, on garde un repli français. */
+      const french =
+        voices.find((v) => estAurelie(v) && v.lang.toLowerCase().startsWith("fr")) ||
+        voices.find((v) => estAurelie(v)) ||
+        voices.find((v) => /^fr[-_](sn|fr)/i.test(v.lang)) ||
+        voices.find((v) => v.lang.toLowerCase().startsWith("fr"));
 
-    /* Le drapeau dit « une voix de secours est en train de parler ». Le filet
-       court des deux secondes et demie le lit : entre l'appel et `onstart`,
-       l'état est encore « réfléchit », et sans ce drapeau le filet rouvrirait
-       le micro juste avant que la voix ne commence. */
-    voixDuTelephoneRef.current = true;
-    let rendu = false;
-    const rendre = () => {
-      if (rendu) return;
-      rendu = true;
-      clearTimeout(gardeFou);
-      voixDuTelephoneRef.current = false;
-      bouche(false, answer);
-      fini();
+      const enWolof = estWolof(answer);
+      const utterance = new SpeechSynthesisUtterance(wolof || !enWolof ? answer : phoneticWolof(answer));
+      if (wolof && enWolof) { utterance.voice = wolof; utterance.lang = wolof.lang; }
+      else if (french) { utterance.voice = french; utterance.lang = french.lang; }
+      else utterance.lang = "fr-FR";
+      utterance.rate = enWolof ? 1.02 : 1.06;
+
+      /* Le drapeau dit « une voix de secours est en train de parler ». Le filet
+         court des deux secondes et demie le lit : entre l'appel et `onstart`,
+         l'état est encore « réfléchit », et sans ce drapeau le filet rouvrirait
+         le micro juste avant que la voix ne commence. */
+      voixDuTelephoneRef.current = true;
+      let rendu = false;
+      const rendre = () => {
+        if (rendu) return;
+        rendu = true;
+        clearTimeout(gardeFou);
+        voixDuTelephoneRef.current = false;
+        bouche(false, answer);
+        fini();
+      };
+      /* Quatorze signes par seconde, le double, et trois secondes de marge :
+         un garde-fou doit être large, il ne sert qu'à ne jamais rester coincé. */
+      const gardeFou = setTimeout(rendre, Math.min(45000, 3000 + (answer.length / 14) * 2000));
+
+      let aDemarre = false;
+      utterance.onstart = () => { aDemarre = true; bouche(true); };
+      utterance.onend = rendre;
+      utterance.onerror = () => {
+        setPanne("panne : la voix du téléphone a refusé de parler");
+        rendre();
+      };
+      synth.speak(utterance);
+      setTimeout(() => {
+        if (!aDemarre && !rendu) setPanne("panne : la voix du téléphone reste muette");
+      }, 1000);
     };
-    /* Quatorze signes par seconde, le double, et trois secondes de marge :
-       un garde-fou doit être large, il ne sert qu'à ne jamais rester coincé. */
-    const gardeFou = setTimeout(rendre, Math.min(45000, 3000 + (answer.length / 14) * 2000));
 
-    /* ── ET ON SAURA SI ELLE A VRAIMENT PARLÉ ──────────────────────────
-       Ce filet était muet depuis toujours sans que rien ne le dise. Une voix
-       qui ne démarre pas se voit maintenant à l'écran, au lieu de passer pour
-       une panne de Soynade. */
-    let aDemarre = false;
-    utterance.onstart = () => { aDemarre = true; bouche(true); };
-    utterance.onend = rendre;
-    utterance.onerror = () => {
-      setPanne("panne : la voix du téléphone a refusé de parler");
-      rendre();
+    const maintenant = synth.getVoices();
+    const aurelieDejaPresente = maintenant.some((v) =>
+      /aur(?:e|é)lie/i.test(`${v.name} ${v.voiceURI}`)
+    );
+    if (aurelieDejaPresente) {
+      choisirEtParler(maintenant);
+      return;
+    }
+
+    let lance = false;
+    let attenteVoix: ReturnType<typeof setTimeout> | null = null;
+    const lancerAvecVoixChargees = () => {
+      if (lance) return;
+      lance = true;
+      if (attenteVoix) clearTimeout(attenteVoix);
+      synth.removeEventListener("voiceschanged", lancerAvecVoixChargees);
+      choisirEtParler(synth.getVoices());
     };
-    window.speechSynthesis.speak(utterance);
-    /* Un dixième de seconde suffit largement à démarrer. Passé une seconde
-       sans un mot, c'est que le téléphone a refusé en silence. */
-    setTimeout(() => {
-      if (!aDemarre && !rendu) setPanne("panne : la voix du téléphone reste muette");
-    }, 1000);
+    synth.addEventListener("voiceschanged", lancerAvecVoixChargees, { once: true });
+    attenteVoix = setTimeout(lancerAvecVoixChargees, 900);
   }), [bouche, stopMouth, setPanne]);
 
   /* ── Les sons qui ne s'écrivent pas ───────────────────────────────────
