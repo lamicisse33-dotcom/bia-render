@@ -1776,22 +1776,39 @@ export default function Home() {
     }
     const synth = window.speechSynthesis;
 
-    /* Safari/iOS charge souvent la liste des voix APRÈS le premier appel à
-       getVoices(). Si on choisit trop tôt, Web Speech retombe sur sa voix
-       française par défaut — qui peut être masculine. On attend donc
-       brièvement voiceschanged avant de choisir la voix de secours. */
+    /* Web Speech n'expose pas le genre d'une voix. Pour éviter que Safari
+       prenne arbitrairement la première voix française (souvent masculine),
+       on classe les voix françaises disponibles : voix féminines connues
+       d'iOS/macOS en premier, variantes Premium/Enhanced ensuite, et on
+       exclut explicitement les principales voix masculines françaises. */
+    const choisirVoixFrancaiseFeminine = (voices: SpeechSynthesisVoice[]) => {
+      const feminines = /aur(?:e|é)lie|audrey|am[ée]lie|marie|virginie|julie|alice|c[ée]line|l[ée]a|hortense|roxane|charlotte|sophie/i;
+      const masculines = /thomas|nicolas|daniel|henri|jacques|paul|gilles|bernard|alain|antoine|mathieu|r[ée]mi|yann/i;
+
+      return voices
+        .filter((v) => v.lang.toLowerCase().startsWith("fr"))
+        .filter((v) => !masculines.test(`${v.name} ${v.voiceURI}`))
+        .map((v) => {
+          const identite = `${v.name} ${v.voiceURI}`;
+          let score = 0;
+          if (feminines.test(identite)) score += 100;
+          if (/premium/i.test(identite)) score += 40;
+          if (/enhanced|am[ée]lior[ée]e?/i.test(identite)) score += 30;
+          if (/^fr[-_]fr/i.test(v.lang)) score += 20;
+          else if (/^fr[-_](sn|ca|be|ch)/i.test(v.lang)) score += 10;
+          if (v.localService) score += 5;
+          if (v.default) score += 1;
+          return { voix: v, score };
+        })
+        .sort((a, b) => b.score - a.score)[0]?.voix;
+    };
+
+    /* Safari/iOS peut charger la liste des voix après le premier getVoices().
+       On attend brièvement voiceschanged si aucune bonne voix féminine
+       française n'est encore visible. */
     const choisirEtParler = (voices: SpeechSynthesisVoice[]) => {
       const wolof = voices.find((v) => v.lang.toLowerCase().startsWith("wo"));
-      const estAurelie = (v: SpeechSynthesisVoice) =>
-        /aur(?:e|é)lie/i.test(`${v.name} ${v.voiceURI}`);
-
-      /* Priorité absolue à Aurélie/Aurelie quand iOS l'expose. Si elle
-         n'existe vraiment pas sur l'appareil, on garde un repli français. */
-      const french =
-        voices.find((v) => estAurelie(v) && v.lang.toLowerCase().startsWith("fr")) ||
-        voices.find((v) => estAurelie(v)) ||
-        voices.find((v) => /^fr[-_](sn|fr)/i.test(v.lang)) ||
-        voices.find((v) => v.lang.toLowerCase().startsWith("fr"));
+      const french = choisirVoixFrancaiseFeminine(voices);
 
       const enWolof = estWolof(answer);
       const utterance = new SpeechSynthesisUtterance(wolof || !enWolof ? answer : phoneticWolof(answer));
@@ -1800,10 +1817,6 @@ export default function Home() {
       else utterance.lang = "fr-FR";
       utterance.rate = enWolof ? 1.02 : 1.06;
 
-      /* Le drapeau dit « une voix de secours est en train de parler ». Le filet
-         court des deux secondes et demie le lit : entre l'appel et `onstart`,
-         l'état est encore « réfléchit », et sans ce drapeau le filet rouvrirait
-         le micro juste avant que la voix ne commence. */
       voixDuTelephoneRef.current = true;
       let rendu = false;
       const rendre = () => {
@@ -1814,8 +1827,6 @@ export default function Home() {
         bouche(false, answer);
         fini();
       };
-      /* Quatorze signes par seconde, le double, et trois secondes de marge :
-         un garde-fou doit être large, il ne sert qu'à ne jamais rester coincé. */
       const gardeFou = setTimeout(rendre, Math.min(45000, 3000 + (answer.length / 14) * 2000));
 
       let aDemarre = false;
@@ -1832,10 +1843,7 @@ export default function Home() {
     };
 
     const maintenant = synth.getVoices();
-    const aurelieDejaPresente = maintenant.some((v) =>
-      /aur(?:e|é)lie/i.test(`${v.name} ${v.voiceURI}`)
-    );
-    if (aurelieDejaPresente) {
+    if (choisirVoixFrancaiseFeminine(maintenant)) {
       choisirEtParler(maintenant);
       return;
     }
@@ -1850,7 +1858,7 @@ export default function Home() {
       choisirEtParler(synth.getVoices());
     };
     synth.addEventListener("voiceschanged", lancerAvecVoixChargees, { once: true });
-    attenteVoix = setTimeout(lancerAvecVoixChargees, 900);
+    attenteVoix = setTimeout(lancerAvecVoixChargees, 1200);
   }), [bouche, stopMouth, setPanne]);
 
   /* ── Les sons qui ne s'écrivent pas ───────────────────────────────────
