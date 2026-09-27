@@ -1817,7 +1817,11 @@ export default function Home() {
       if (wolof && enWolof) { utterance.voice = wolof; utterance.lang = wolof.lang; }
       else if (french) { utterance.voice = french; utterance.lang = french.lang; }
       else utterance.lang = "fr-FR";
-      utterance.rate = enWolof ? 1.02 : 1.06;
+      /* La voix iPhone parlait trop vite : BIA imposait elle-même 1.02/1.06,
+         donc le réglage de confort du téléphone ne suffisait pas. On pose ici
+         la voix de secours à un débit nettement plus calme, sans modifier sa
+         hauteur ni le moteur vocal principal. */
+      utterance.rate = enWolof ? 0.78 : 0.82;
 
       voixDuTelephoneRef.current = true;
       let rendu = false;
