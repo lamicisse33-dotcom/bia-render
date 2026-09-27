@@ -1597,10 +1597,21 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       }
     }
 
-    const apiKey=process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY;
-    const model=process.env.BIA_LLM_MODEL||"claude-sonnet-5";
+    /* CERVEAU INTERCHANGEABLE.
+       Pour les essais, Gemini peut remplacer Anthropic sans toucher au reste de
+       BIA. Une seule variable suffit pour revenir en arrière. */
+    const fournisseur=(process.env.BIA_LLM_PROVIDER||"anthropic").toLowerCase();
+    const gemini=fournisseur==="gemini";
+    const apiKey=gemini
+      ? process.env.GEMINI_API_KEY
+      : (process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY);
+    const model=gemini
+      ? (process.env.GEMINI_MODEL||"gemini-3.7-flash")
+      : (process.env.BIA_LLM_MODEL||"claude-sonnet-5");
     if(!apiKey){
-      noterPanne("clé absente","Ni BIA_LLM_API_KEY ni ANTHROPIC_API_KEY ne sont définies.", "chat");
+      noterPanne("clé absente",gemini
+        ?"GEMINI_API_KEY n'est pas définie."
+        :"Ni BIA_LLM_API_KEY ni ANTHROPIC_API_KEY ne sont définies.", "chat");
       console.error("BIA — aucune clé de modèle n'est définie.");
       return {corps:{reply:PAS_DE_CLE,emotion:"concernee",source:"panne : clé absente"}};
     }
@@ -2302,7 +2313,10 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        déjà longue. On ne le joint donc qu'aux questions qui portent sur
        quelque chose qui change — ou quand la personne l'a réclamé. Et il
        reste éteint tant que BIA_RECHERCHE n'est pas posé dans Render. */
-    const cherche = rechercheActive() && besoinDInternet(question, filDitPar);
+    /* L'outil web actuel est celui d'Anthropic. En mode Gemini gratuit,
+       on le coupe pour tester le cerveau sans envoyer un format d'outil
+       incompatible. Le reste de BIA continue normalement. */
+    const cherche = !gemini && rechercheActive() && besoinDInternet(question, filDitPar);
     if (cherche) variable += CONSIGNE_RECHERCHE;
 
     /* Le socle porte la marque « garde-le en mémoire ». Le reste suit
@@ -2506,15 +2520,74 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       ],
       ...(o.avecOutil ? { tools: [OUTIL_RECHERCHE] } : {}),
       ...champDeReflexion(o.reflexion),
-      ...(emettre ? { stream: true } : {}),
+      ...(emettre && !gemini ? { stream: true } : {}),
     });
+
+    const texteDeContenu=(contenu:any):string=>{
+      if(typeof contenu==="string") return contenu;
+      if(Array.isArray(contenu)) return contenu
+        .filter((x:any)=>x&&x.type==="text")
+        .map((x:any)=>String(x.text||"")).join("");
+      return "";
+    };
+
+    /* Gemini reçoit la même personnalité, le même fil et les mêmes plafonds,
+       mais dans son format natif. Pour ce premier test on utilise generateContent
+       sans streaming côté fournisseur : la route BIA reste compatible et on
+       pourra ajouter streamGenerateContent après comparaison qualité/latence. */
+    const appelerGemini = async (o: {
+      plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
+    }) => {
+      const amorce=amorceDe(o);
+      if(amorce) noterAmorceEnvoyee();
+      const systeme=consigne.map((b:any)=>String(b?.text||"")).filter(Boolean).join("\n\n");
+      const contents=[
+        ...history.map((m:any)=>({
+          role:m.role==="assistant"?"model":"user",
+          parts:[{text:texteDeContenu(m.content)}],
+        })),
+        {role:"user",parts:[{text:question}]},
+        ...(amorce?[{role:"model",parts:[{text:amorce}]}]:[]),
+      ];
+      const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey||"")}`;
+      const r=await fetch(url,{
+        method:"POST",
+        headers:{"content-type":"application/json"},
+        body:JSON.stringify({
+          systemInstruction:{parts:[{text:systeme}]},
+          contents,
+          generationConfig:{
+            maxOutputTokens:o.plafond,
+            temperature:0.35,
+          },
+        }),
+      });
+      if(!r.ok) return r;
+      const g=await r.json() as any;
+      const texte=(g.candidates?.[0]?.content?.parts||[])
+        .map((p:any)=>String(p?.text||"")).join("").trim();
+      const finish=String(g.candidates?.[0]?.finishReason||"").toUpperCase();
+      const usage=g.usageMetadata||{};
+      return new Response(JSON.stringify({
+        content:texte?[{type:"text",text:texte}]:[],
+        usage:{
+          input_tokens:Number(usage.promptTokenCount)||0,
+          output_tokens:Number(usage.candidatesTokenCount)||0,
+        },
+        stop_reason:finish==="MAX_TOKENS"?"max_tokens":(finish||"end_turn").toLowerCase(),
+        types:texte?["text"]:[],
+      }),{status:200,headers:{"content-type":"application/json","x-bia-provider":"gemini"}});
+    };
+
     const appelerLeModele = (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
-    }) => fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: (amorceDe(o) && noterAmorceEnvoyee(), corpsDuModele(o)),
-    });
+    }) => gemini
+      ? appelerGemini({...o,avecOutil:false})
+      : fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+          body: (amorceDe(o) && noterAmorceEnvoyee(), corpsDuModele(o)),
+        });
 
     /* Plafond descendu de 500 à 300 le 11 septembre 2026 : « elle doit dire
        l'essentiel puis se taire ». Ce n'est pas la consigne qui coûte cher,
@@ -2670,7 +2743,19 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       if(i<0) return d;
       return {...d,content:blocs.map((b,j)=>j===i?{...b,text:a+(b.text||"")}:b)};
     };
-    let data:Reponse=emettre?await lireLeFlux(reponse,emettre,partiModele,amorce):avecAmorce(await reponse.json() as Reponse,amorce);
+    let data:Reponse;
+    if(emettre&&!gemini){
+      data=await lireLeFlux(reponse,emettre,partiModele,amorce);
+    }else{
+      data=avecAmorce(await reponse.json() as Reponse,amorce);
+      /* En mode Gemini le fournisseur répond pour l'instant d'un bloc.
+         On pousse quand même le texte vers le flux BIA dès qu'il est reçu. */
+      if(emettre){
+        const t=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text||"").join("");
+        if(t){ try{ emettre(t); }catch{} }
+        noterEtape("modele",partiModele,Date.now(),Date.now(),t.length);
+      }
+    }
     /* Ce n'est plus une estimation : c'est le modèle lui-même qui dit ce
        qu'il a consommé, et combien lui est revenu du cache. Ça se lit dans
        /api/etat, champ « depense ». */
@@ -2742,7 +2827,13 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       const sansOutil=await appelerLeModele(reglagesDeSecours);
       if(sansOutil.ok){
         const amorceDeSecours=amorceDe(reglagesDeSecours);
-        const second:Reponse=emettre?await lireLeFlux(sansOutil,emettre,0,amorceDeSecours):avecAmorce(await sansOutil.json() as Reponse,amorceDeSecours);
+        const second:Reponse=(emettre&&!gemini)
+          ?await lireLeFlux(sansOutil,emettre,0,amorceDeSecours)
+          :avecAmorce(await sansOutil.json() as Reponse,amorceDeSecours);
+        if(emettre&&gemini){
+          const t=(second.content||[]).filter(b=>b.type==="text").map(b=>b.text||"").join("");
+          if(t){ try{ emettre(t); }catch{} }
+        }
         noterModele(second.usage,"chat");
         const texte=texteDe(second);
         /* On ne garde la seconde que si elle dit quelque chose : une deuxième
