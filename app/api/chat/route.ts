@@ -2792,7 +2792,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return {...d,content:blocs.map((b,j)=>j===i?{...b,text:a+(b.text||"")}:b)};
     };
     let data:Reponse;
-    if(emettre&&!gemini){
+    if(emettre&&!gemini&&!groq){
       data=await lireLeFlux(reponse,emettre,partiModele,amorce);
     }else{
       data=avecAmorce(await reponse.json() as Reponse,amorce);
@@ -2875,10 +2875,10 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       const sansOutil=await appelerLeModele(reglagesDeSecours);
       if(sansOutil.ok){
         const amorceDeSecours=amorceDe(reglagesDeSecours);
-        const second:Reponse=(emettre&&!gemini)
+        const second:Reponse=(emettre&&!gemini&&!groq)
           ?await lireLeFlux(sansOutil,emettre,0,amorceDeSecours)
           :avecAmorce(await sansOutil.json() as Reponse,amorceDeSecours);
-        if(emettre&&gemini){
+        if(emettre&&(gemini||groq)){
           const t=(second.content||[]).filter(b=>b.type==="text").map(b=>b.text||"").join("");
           if(t){ try{ emettre(t); }catch{} }
         }
