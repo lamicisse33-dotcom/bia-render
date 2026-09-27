@@ -1602,16 +1602,24 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        BIA. Une seule variable suffit pour revenir en arrière. */
     const fournisseur=(process.env.BIA_LLM_PROVIDER||"anthropic").toLowerCase();
     const gemini=fournisseur==="gemini";
+    const groq=fournisseur==="groq";
     const apiKey=gemini
       ? process.env.GEMINI_API_KEY
-      : (process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY);
+      : groq
+        ? process.env.GROQ_API_KEY
+        : (process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY);
     const model=gemini
       ? (process.env.GEMINI_MODEL||"gemini-3.7-flash")
-      : (process.env.BIA_LLM_MODEL||"claude-sonnet-5");
+      : groq
+        ? (process.env.GROQ_MODEL||"openai/gpt-oss-120b")
+        : (process.env.BIA_LLM_MODEL||"claude-sonnet-5");
     if(!apiKey){
-      noterPanne("clé absente",gemini
+      const detail=gemini
         ?"GEMINI_API_KEY n'est pas définie."
-        :"Ni BIA_LLM_API_KEY ni ANTHROPIC_API_KEY ne sont définies.", "chat");
+        :groq
+          ?"GROQ_API_KEY n'est pas définie."
+          :"Ni BIA_LLM_API_KEY ni ANTHROPIC_API_KEY ne sont définies.";
+      noterPanne("clé absente",detail,"chat");
       console.error("BIA — aucune clé de modèle n'est définie.");
       return {corps:{reply:PAS_DE_CLE,emotion:"concernee",source:"panne : clé absente"}};
     }
@@ -2506,7 +2514,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        « sans aucun réglage facultatif » (c'en est un), et plus jamais dès que
        le modèle en a refusé une — voir noterAmorceRefusee(). */
     const amorceDe = (o: { avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean }) =>
-      !gemini && amorcePermise() && o.reflexion !== "allumee" && !o.avecOutil && !o.sansAmorce && !amorceRefusee() ? AMORCE_EMOTION : "";
+      !gemini && !groq && amorcePermise() && o.reflexion !== "allumee" && !o.avecOutil && !o.sansAmorce && !amorceRefusee() ? AMORCE_EMOTION : "";
     const corpsDuModele = (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
     }) => JSON.stringify({
@@ -2520,7 +2528,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       ],
       ...(o.avecOutil ? { tools: [OUTIL_RECHERCHE] } : {}),
       ...champDeReflexion(o.reflexion),
-      ...(emettre && !gemini ? { stream: true } : {}),
+      ...(emettre && !gemini && !groq ? { stream: true } : {}),
     });
 
     const texteDeContenu=(contenu:any):string=>{
@@ -2579,15 +2587,55 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       }),{status:200,headers:{"content-type":"application/json","x-bia-provider":"gemini"}});
     };
 
+    const appelerGroq = async (o: {
+      plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
+    }) => {
+      const systeme=consigne.map((b:any)=>String(b?.text||"")).filter(Boolean).join("\n\n");
+      const messages=[
+        {role:"system",content:systeme},
+        ...history.map((m:any)=>({role:m.role,content:texteDeContenu(m.content)})),
+        {role:"user",content:question},
+      ];
+      const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{
+        method:"POST",
+        headers:{
+          "content-type":"application/json",
+          "authorization":`Bearer ${apiKey}`,
+        },
+        body:JSON.stringify({
+          model,
+          messages,
+          max_completion_tokens:o.plafond,
+          temperature:0.35,
+          service_tier:"on_demand",
+        }),
+      });
+      if(!r.ok) return r;
+      const g=await r.json() as any;
+      const texte=String(g.choices?.[0]?.message?.content||"").trim();
+      const usage=g.usage||{};
+      return new Response(JSON.stringify({
+        content:texte?[{type:"text",text:texte}]:[],
+        usage:{
+          input_tokens:Number(usage.prompt_tokens)||0,
+          output_tokens:Number(usage.completion_tokens)||0,
+        },
+        stop_reason:String(g.choices?.[0]?.finish_reason||"end_turn"),
+        types:texte?["text"]:[],
+      }),{status:200,headers:{"content-type":"application/json","x-bia-provider":"groq"}});
+    };
+
     const appelerLeModele = (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
     }) => gemini
       ? appelerGemini({...o,avecOutil:false})
-      : fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`, {
-          method: "POST",
-          headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-          body: (amorceDe(o) && noterAmorceEnvoyee(), corpsDuModele(o)),
-        });
+      : groq
+        ? appelerGroq({...o,avecOutil:false,reflexion:"eteinte"})
+        : fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+            body: (amorceDe(o) && noterAmorceEnvoyee(), corpsDuModele(o)),
+          });
 
     /* Plafond descendu de 500 à 300 le 11 septembre 2026 : « elle doit dire
        l'essentiel puis se taire ». Ce n'est pas la consigne qui coûte cher,
