@@ -208,3 +208,36 @@ export async function verifierLExtrait(cle: string, verifie: string): Promise<bo
   );
   return r.ok;
 }
+
+
+/* ── LA LECTURE DU CORPUS ─────────────────────────────────────────────── */
+export const CHEMIN_CORPUS_VALIDE = /^\d{4}-\d{2}-\d{2}\/[0-9a-z]+\.(mp4|ogg|wav|mp3|webm)$/;
+
+export type ExtraitCorpus = {
+  cle: string;
+  chemin: string;
+  entendu: string;
+  verifie: string | null;
+  langue: string | null;
+  contexte: string | null;
+  octets: number;
+  type_audio: string;
+};
+
+export async function listerCorpus(seulementVerifies = false): Promise<ExtraitCorpus[]> {
+  if (!corpusActif()) return [];
+  const colonnes = "cle,chemin,entendu,verifie,langue,contexte,octets,type_audio";
+  const filtre = seulementVerifies ? "&verifie=not.is.null" : "";
+  const r = await fetch(
+    `${lexiqueConfig.url}/rest/v1/${TABLE}?select=${colonnes}&order=cle.asc${filtre}`,
+    { headers: entetes() },
+  );
+  if (!r.ok) throw new Error(`la liste du corpus a été refusée (${r.status})`);
+  return (await r.json()) as ExtraitCorpus[];
+}
+
+export async function lireExtraitAudio(chemin: string): Promise<Response | null> {
+  if (!corpusActif()) return null;
+  const r = await fetch(`${lexiqueConfig.url}/storage/v1/object/${SEAU}/${chemin}`, { headers: entetes() });
+  return r.ok ? r : null;
+}
