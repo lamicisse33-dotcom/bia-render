@@ -241,3 +241,70 @@ export async function lireExtraitAudio(chemin: string): Promise<Response | null>
   const r = await fetch(`${lexiqueConfig.url}/storage/v1/object/${SEAU}/${chemin}`, { headers: entetes() });
   return r.ok ? r : null;
 }
+
+
+/* ── INVENTAIRE BRUT DU BUCKET CORPUS ────────────────────────────────────
+   Contrairement à listerCorpus(), ceci parcourt réellement le stockage
+   Supabase. Il retrouve aussi les fichiers audio orphelins qui n'ont plus
+   (ou n'ont jamais eu) de ligne dans la table khalam_corpus. */
+export type FichierCorpusBrut = {
+  chemin: string;
+  octets: number;
+  type?: string | null;
+};
+
+export async function listerTousLesFichiersDuCorpus(): Promise<FichierCorpusBrut[]> {
+  if (!corpusActif()) return [];
+  const fichiers: FichierCorpusBrut[] = [];
+  const visites = new Set<string>();
+
+  async function parcourir(prefix = ""): Promise<void> {
+    let offset = 0;
+    for (;;) {
+      const r = await fetch(`${lexiqueConfig.url}/storage/v1/object/list/${SEAU}`, {
+        method: "POST",
+        headers: entetes("application/json"),
+        body: JSON.stringify({
+          prefix,
+          limit: 1000,
+          offset,
+          sortBy: { column: "name", order: "asc" },
+        }),
+      });
+      if (!r.ok) throw new Error(`inventaire stockage refusé (${r.status})`);
+      const lignes = await r.json() as Array<Record<string, unknown>>;
+
+      for (const ligne of lignes) {
+        const nom = String(ligne.name || "");
+        if (!nom) continue;
+        const complet = prefix ? `${prefix}/${nom}` : nom;
+        const meta = ligne.metadata as Record<string, unknown> | null | undefined;
+        if (meta) {
+          fichiers.push({
+            chemin: complet,
+            octets: Number(meta.size || 0) || 0,
+            type: String(meta.mimetype || meta.contentType || "") || null,
+          });
+        } else if (!visites.has(complet)) {
+          visites.add(complet);
+          await parcourir(complet);
+        }
+      }
+
+      if (lignes.length < 1000) break;
+      offset += lignes.length;
+    }
+  }
+
+  await parcourir("");
+  return fichiers;
+}
+
+export async function lireFichierBrutDuCorpus(chemin: string): Promise<Response | null> {
+  if (!corpusActif() || !chemin) return null;
+  const r = await fetch(
+    `${lexiqueConfig.url}/storage/v1/object/${SEAU}/${chemin.split("/").map(encodeURIComponent).join("/")}`,
+    { headers: entetes() },
+  );
+  return r.ok ? r : null;
+}
