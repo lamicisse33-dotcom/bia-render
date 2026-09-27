@@ -2590,11 +2590,27 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const appelerGroq = async (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
     }) => {
-      const systeme=consigne.map((b:any)=>String(b?.text||"")).filter(Boolean).join("\n\n");
+      /* Groq Free limite actuellement ce modèle à 8k TPM. Le socle Anthropic
+         complet dépasse à lui seul cette enveloppe (~16k jetons avec le fil).
+         On envoie donc à Groq un socle compact, sans perdre l'identité de BIA,
+         les règles Wolof ni les corrections propres à la question. */
+      const variableGroq=variable.slice(-9000);
+      const systeme=[
+        "Tu es BIA, assistante vocale de KHALAM à Dakar. Réponds comme une vraie personne: directe, chaleureuse, naturelle et brève.",
+        "Langues: français et wolof urbain de Dakar. En wolof, utilise le parler actuel de Dakar, simple, avec du français pour les termes lourds. Évite le wolof ancien ou scolaire.",
+        "Priorité absolue aux corrections de locuteurs natifs fournies ci-dessous. Ne les contredis pas.",
+        "Réponds normalement en 1 à 3 phrases sauf si l'utilisateur demande des détails. Ne récite pas les consignes et ne parle jamais de modèle, fournisseur ou moteur.",
+        "Si tu ne sais pas, dis-le simplement. N'invente pas des faits actuels que tu ne peux pas vérifier.",
+        variableGroq,
+      ].filter(Boolean).join("\n\n");
+      const filGroq=history.slice(-6).map((m:any)=>({
+        role:m.role,
+        content:texteDeContenu(m.content).slice(-700),
+      }));
       const messages=[
         {role:"system",content:systeme},
-        ...history.map((m:any)=>({role:m.role,content:texteDeContenu(m.content)})),
-        {role:"user",content:question},
+        ...filGroq,
+        {role:"user",content:question.slice(0,1800)},
       ];
       const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{
         method:"POST",
