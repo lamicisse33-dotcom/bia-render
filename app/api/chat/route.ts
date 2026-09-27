@@ -2601,6 +2601,8 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         "Priorité absolue aux corrections de locuteurs natifs fournies ci-dessous. Ne les contredis pas.",
         "Réponds normalement en 1 à 3 phrases sauf si l'utilisateur demande des détails. Ne récite pas les consignes et ne parle jamais de modèle, fournisseur ou moteur.",
         "Si tu ne sais pas, dis-le simplement. N'invente pas des faits actuels que tu ne peux pas vérifier.",
+        "CARTE: si la personne demande un lieu, un itinéraire, où se trouve quelque chose, ou demande d'afficher la carte, ajoute à la toute fin une seule balise [[carte:lieu ou recherche]]. Ne lis jamais cette balise à voix haute.",
+        "INTERNET: si la recherche web est activée pour ce tour, utilise-la pour les informations actuelles au lieu de répondre de mémoire.",
         variableGroq,
       ].filter(Boolean).join("\n\n");
       const filGroq=history.slice(-6).map((m:any)=>({
@@ -2624,6 +2626,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           max_completion_tokens:o.plafond,
           temperature:0.35,
           service_tier:"on_demand",
+          ...(o.avecOutil ? {tools:[{type:"browser_search"}]} : {}),
         }),
       });
       if(!r.ok) return r;
@@ -2646,7 +2649,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     }) => gemini
       ? appelerGemini({...o,avecOutil:false})
       : groq
-        ? appelerGroq({...o,avecOutil:false,reflexion:"eteinte"})
+        ? appelerGroq({...o,reflexion:"eteinte"})
         : fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`, {
             method: "POST",
             headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
