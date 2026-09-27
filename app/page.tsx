@@ -71,6 +71,7 @@ import CarteTrouve, { versEcran } from "./trouve";
 import type { Resultat } from "./trouve";
 import { contientUnGrosMot } from "@/lib/gestes-de-la-main";
 import { decrireLAppareil, lancerLeSecours, noterVeille } from "@/lib/veille";
+import OnboardingVoix, { useOnboardingVoix } from "./onboarding-voix/OnboardingVoix";
 
 /* Un message peut porter le RENVOI vers un papier — son identifiant, pas son
    contenu. Le papier lui-même vit dans sa propre boîte, qui ne se rogne
@@ -409,6 +410,7 @@ export default function Home() {
     const t = setTimeout(() => setVisageAvant(null), 260);
     return () => clearTimeout(t);
   }, [face]);
+  const onboarding = useOnboardingVoix();
   const [mode, setMode] = useState<"ready" | "listening" | "thinking" | "speaking" | "error">("ready");
   /* ── LA CONVERSATION VOCALE ────────────────────────────────────────────
      Demandée par Lamine le 12 septembre 2026 : « un premier appui ouvre la
@@ -7305,6 +7307,14 @@ export default function Home() {
         <Installer />
       </main>
     );
+  }
+
+
+  /* ── ONBOARDING VOIX ────────────────────────────────────────────────────
+     Affiché une seule fois, au premier lancement, si aucune belle voix
+     française féminine n'est trouvée sur l'appareil. */
+  if (onboarding.besoin && onboarding.verifie) {
+    return <OnboardingVoix onTermine={() => onboarding.passer()} />;
   }
 
   return (
