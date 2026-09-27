@@ -89,7 +89,7 @@ export async function ajouterCorrection(e: Entree): Promise<number> {
 let lectureDuLexique = { colonnes: "", motif: "" };
 export function lectureLexique() { return { ...lectureDuLexique }; }
 
-async function toutes(): Promise<Entree[]> {
+export async function toutes(): Promise<Entree[]> {
   if (cache && Date.now() < cache.jusqua) return cache.valeurs;
   if (!lexiqueConfig.actif) return enMemoire;
 
