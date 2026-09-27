@@ -2506,7 +2506,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        « sans aucun réglage facultatif » (c'en est un), et plus jamais dès que
        le modèle en a refusé une — voir noterAmorceRefusee(). */
     const amorceDe = (o: { avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean }) =>
-      amorcePermise() && o.reflexion !== "allumee" && !o.avecOutil && !o.sansAmorce && !amorceRefusee() ? AMORCE_EMOTION : "";
+      !gemini && amorcePermise() && o.reflexion !== "allumee" && !o.avecOutil && !o.sansAmorce && !amorceRefusee() ? AMORCE_EMOTION : "";
     const corpsDuModele = (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
     }) => JSON.stringify({
@@ -2557,8 +2557,8 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           systemInstruction:{parts:[{text:systeme}]},
           contents,
           generationConfig:{
-            maxOutputTokens:o.plafond,
-            temperature:0.35,
+            maxOutputTokens:Math.max(2048,o.plafond),
+            thinkingConfig:{thinkingLevel:"low"},
           },
         }),
       });
