@@ -5,8 +5,7 @@ import { garderLaReponse, porteUnNomDeLaPersonne, questionReutilisable, reponseG
 import { savoirKhalam } from "@/lib/khalam";
 import { savoirProduits } from "@/lib/produits";
 import { catalogue } from "@/lib/vitrine";
-import { chercherImages, chercherVideos, consigneTrouver, videosActives } from "@/lib/trouver";
-import type { Trouve } from "@/lib/trouver";
+import { chercherImages, chercherVideos, consigneTrouver, imagesActives, videosActives } from "@/lib/trouver";import type { Trouve } from "@/lib/trouver";
 import { SOCLE_RELATIONS, consigneRelationsProches, estSujetRelation } from "@/lib/relations";
 import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterEtape } from "@/lib/etapes";
