@@ -216,7 +216,68 @@ class MoteurWolof:
         return vers_wav_16_bits(torch.cat(morceaux).numpy())
 
 
+# ── LE MOTEUR FRANÇAIS, LUI AUSSI GRATUIT ───────────────────────────────────
+#
+# 26 septembre 2026. Lamine : « on ne peut pas rajouter le français pour
+# rendre les deux gratuites ? » Le modèle wolof ci-dessus ne connaît pas un
+# mot de français (voir plus haut) : il faut donc un second moteur, pas le
+# même élargi.
+#
+# Piper (rhasspy/piper), licence MIT — mais la DERNIÈRE version d'avant que
+# Home Assistant ne reprenne le projet sous le nom « piper1-gpl » et le
+# passe en GPL-3.0. On prend donc le petit exécutable C++ autonome de la
+# release 2023.11.14-2 (dernière en MIT), appelé en sous-processus, jamais
+# importé comme bibliothèque : aucune obligation de licence n'en découle
+# pour BIA, exactement comme appeler ffmpeg.
+#
+# La voix : fr_FR-siwis-medium, licence CC-BY 4.0 (attribution seule, usage
+# commercial permis — il faut juste créditer le corpus SIWIS quelque part,
+# par exemple sur une page crédits). Piper ne charge pas un transformeur
+# entier comme SpeechT5 : c'est un petit réseau de quelques dizaines de Mo,
+# largement plus léger que le moteur wolof. Les deux tiennent sans mal sur
+# la même petite machine.
+DOSSIER_PIPER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "piper")
+BINAIRE_PIPER = os.path.join(DOSSIER_PIPER, "piper")
+MODELE_FR = os.path.join(DOSSIER_PIPER, "fr_FR-siwis-medium.onnx")
+
+
+class MoteurFrancais:
+    nom = "francais-local"
+    voice = "fr"
+
+    def __init__(self, *_):
+        import subprocess
+        self._subprocess = subprocess
+        if not os.path.exists(BINAIRE_PIPER):
+            raise RuntimeError(f"binaire Piper introuvable : {BINAIRE_PIPER}")
+        if not os.path.exists(MODELE_FR):
+            raise RuntimeError(f"voix française introuvable : {MODELE_FR}")
+        debut = time.time()
+        self._appeler(".")  # un appel à vide pour chauffer : le premier client ne le paie pas
+        self.charge_en_s = round(time.time() - debut, 1)
+        self.empreinte_source = "fr_FR-siwis-medium (CC-BY 4.0)"
+        print(f"moteur français prêt en {self.charge_en_s} s", flush=True)
+
+    def _appeler(self, texte: str) -> bytes:
+        resultat = self._subprocess.run(
+            [BINAIRE_PIPER, "-m", MODELE_FR, "-f", "-"],
+            input=texte.encode("utf-8"), cwd=DOSSIER_PIPER,
+            stdout=self._subprocess.PIPE, stderr=self._subprocess.PIPE, timeout=30,
+        )
+        if resultat.returncode != 0:
+            raise RuntimeError(f"piper a échoué : {resultat.stderr.decode(errors='replace')[:200]}")
+        return resultat.stdout
+
+    def synthetiser(self, texte: str) -> bytes:
+        texte = texte.strip()
+        if not texte:
+            raise ValueError("texte vide")
+        return self._appeler(texte)
+
+
 def ouvrir_le_moteur(voice=VOIX_PAR_DEFAUT):
     if os.environ.get("MOTEUR_FACTICE") == "1":
         return MoteurFactice(voice)
+    if voice == "fr":
+        return MoteurFrancais(voice)
     return MoteurWolof(voice)

@@ -508,9 +508,12 @@ export function hoquetsDeLaVoixLocale() {
 }
 
 /** Un appel à la voix locale. Rend null quand elle ne peut pas — c'est
-    alors à Soynade de prendre la phrase, et le raté est compté. */
-async function viaLocale(texte: string, etiquette: string): Promise<Parole | null> {
+    alors à Soynade de prendre la phrase, et le raté est compté.
+    26 septembre 2026 : sert aussi le français, avec voice="fr" — le serveur
+    bascule alors sur Piper (voir voix-locale/moteur.py) au lieu du wolof. */
+async function viaLocale(texte: string, langue: "wo" | "fr", etiquette: string): Promise<Parole | null> {
   const c = voixConfig.locale;
+  const voix = langue === "fr" ? "fr" : c.voix;
   const partiVoix = Date.now();
   const arret = new AbortController();
   const minuterie = setTimeout(() => arret.abort(), c.attenteMs);
@@ -522,7 +525,7 @@ async function viaLocale(texte: string, etiquette: string): Promise<Parole | nul
         accept: "audio/wav",
         ...(c.cle ? { Authorization: `Bearer ${c.cle}` } : {}),
       },
-      body: JSON.stringify({ text: texte, voice: c.voix }),
+      body: JSON.stringify({ text: texte, voice: voix }),
       signal: arret.signal,
     });
     const premierOctetVoix = Date.now();
@@ -535,7 +538,7 @@ async function viaLocale(texte: string, etiquette: string): Promise<Parole | nul
     noterEtape(etiquette, partiVoix, premierOctetVoix, Date.now(), texte.length);
     voixLocale.servies += 1;
     voixLocale.fabrication_ms += Number(reponse.headers.get("x-fabrication-ms")) || 0;
-    return { audio: octets, typeMime: "audio/wav", moteur: `wolof-local (${c.voix})` };
+    return { audio: octets, typeMime: "audio/wav", moteur: langue === "fr" ? "francais-local" : `wolof-local (${c.voix})` };
   } catch (err) {
     voixLocale.ratees += 1;
     voixLocale.dernier_rate = String((err as Error).name === "AbortError"
@@ -680,13 +683,15 @@ export async function viaRunPod(texte: string, langue: "wo" | "fr", r?: Reglages
 export async function synthetiser(texte: string, langue: "wo" | "fr", r?: Reglages,
                                   etiquette = "voix", format: FormatDeVoix = "wav"): Promise<Parole | null> {
   if (!texte.trim()) return null;
-  /* Le wolof passe d'abord par la voix locale, quand elle est branchée et
-     qu'on ne demande pas des réglages Soynade exprès (page de réglage,
-     clonage). Elle rend null si elle ne peut pas : la suite est inchangée. */
+  /* Le wolof ET le français passent d'abord par la voix locale (wolof :
+     SpeechT5 ; français : Piper, ajouté le 26 septembre 2026 — voir
+     voix-locale/moteur.py), quand elle est branchée et qu'on ne demande pas
+     des réglages Soynade exprès (page de réglage, clonage). Elle rend null
+     si elle ne peut pas : la suite est inchangée. */
   const reglagesExpres = r && (r.audioPrompt !== undefined || r.exaggeration !== undefined
     || r.temperature !== undefined || r.cfgWeight !== undefined || r.vitesse !== undefined);
-  if (langue === "wo" && voixConfig.locale.url && !reglagesExpres) {
-    const locale = await viaLocale(texte, etiquette);
+  if (voixConfig.locale.url && !reglagesExpres) {
+    const locale = await viaLocale(texte, langue, etiquette);
     if (locale) return locale;
   }
   switch (voixConfig.fournisseur) {

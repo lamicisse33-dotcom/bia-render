@@ -41,7 +41,7 @@ panne = None   # ce qui a empêché le moteur de se charger, en clair
 
 
 def moteur(voice: str):
-    voice = voice if voice in VOIX_FEMMES else VOIX_DU_SERVEUR
+    voice = voice if (voice in VOIX_FEMMES or voice == "fr") else VOIX_DU_SERVEUR
     with verrou:
         if voice not in moteurs:
             moteurs[voice] = ouvrir_le_moteur(voice)
