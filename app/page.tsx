@@ -1784,7 +1784,16 @@ export default function Home() {
        d'iOS/macOS en premier, variantes Premium/Enhanced ensuite, et on
        exclut explicitement les principales voix masculines françaises. */
     const choisirVoixFrancaiseFeminine = (voices: SpeechSynthesisVoice[]) => {
-      const feminines = /aur(?:e|é)lie|audrey|am[ée]lie|marie|virginie|julie|alice|c[ée]line|l[ée]a|hortense|roxane|charlotte|sophie/i;
+      /* Sur iPhone, on veut Aurélie en priorité absolue. Si elle existe
+         localement, aucune autre voix française ne doit passer devant elle.
+         On garde ensuite le classement féminin comme secours uniquement. */
+      const aurelie = voices.find((v) =>
+        v.lang.toLowerCase().startsWith("fr") &&
+        /aur(?:e|é)lie/i.test(`${v.name} ${v.voiceURI}`)
+      );
+      if (aurelie) return aurelie;
+
+      const feminines = /audrey|am[ée]lie|marie|virginie|julie|alice|c[ée]line|l[ée]a|hortense|roxane|charlotte|sophie/i;
       const masculines = /thomas|nicolas|daniel|henri|jacques|paul|gilles|bernard|alain|antoine|mathieu|r[ée]mi|yann/i;
 
       return voices
@@ -1817,7 +1826,11 @@ export default function Home() {
       if (wolof && enWolof) { utterance.voice = wolof; utterance.lang = wolof.lang; }
       else if (french) { utterance.voice = french; utterance.lang = french.lang; }
       else utterance.lang = "fr-FR";
-      utterance.rate = enWolof ? 1.02 : 1.06;
+      /* La voix iPhone parlait trop vite : BIA imposait elle-même 1.02/1.06,
+         donc le réglage de confort du téléphone ne suffisait pas. On pose ici
+         la voix de secours à un débit nettement plus calme, sans modifier sa
+         hauteur ni le moteur vocal principal. */
+      utterance.rate = enWolof ? 0.78 : 0.82;
 
       voixDuTelephoneRef.current = true;
       let rendu = false;

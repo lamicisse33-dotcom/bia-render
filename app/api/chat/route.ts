@@ -1597,10 +1597,29 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       }
     }
 
-    const apiKey=process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY;
-    const model=process.env.BIA_LLM_MODEL||"claude-sonnet-5";
+    /* CERVEAU INTERCHANGEABLE.
+       Pour les essais, Gemini peut remplacer Anthropic sans toucher au reste de
+       BIA. Une seule variable suffit pour revenir en arrière. */
+    const fournisseur=(process.env.BIA_LLM_PROVIDER||"anthropic").toLowerCase();
+    const gemini=fournisseur==="gemini";
+    const groq=fournisseur==="groq";
+    const apiKey=gemini
+      ? process.env.GEMINI_API_KEY
+      : groq
+        ? process.env.GROQ_API_KEY
+        : (process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY);
+    const model=gemini
+      ? (process.env.GEMINI_MODEL||"gemini-3.7-flash")
+      : groq
+        ? (process.env.GROQ_MODEL||"openai/gpt-oss-120b")
+        : (process.env.BIA_LLM_MODEL||"claude-sonnet-5");
     if(!apiKey){
-      noterPanne("clé absente","Ni BIA_LLM_API_KEY ni ANTHROPIC_API_KEY ne sont définies.", "chat");
+      const detail=gemini
+        ?"GEMINI_API_KEY n'est pas définie."
+        :groq
+          ?"GROQ_API_KEY n'est pas définie."
+          :"Ni BIA_LLM_API_KEY ni ANTHROPIC_API_KEY ne sont définies.";
+      noterPanne("clé absente",detail,"chat");
       console.error("BIA — aucune clé de modèle n'est définie.");
       return {corps:{reply:PAS_DE_CLE,emotion:"concernee",source:"panne : clé absente"}};
     }
@@ -2302,7 +2321,10 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        déjà longue. On ne le joint donc qu'aux questions qui portent sur
        quelque chose qui change — ou quand la personne l'a réclamé. Et il
        reste éteint tant que BIA_RECHERCHE n'est pas posé dans Render. */
-    const cherche = rechercheActive() && besoinDInternet(question, filDitPar);
+    /* L'outil web actuel est celui d'Anthropic. En mode Gemini gratuit,
+       on le coupe pour tester le cerveau sans envoyer un format d'outil
+       incompatible. Le reste de BIA continue normalement. */
+    const cherche = !gemini && rechercheActive() && besoinDInternet(question, filDitPar);
     if (cherche) variable += CONSIGNE_RECHERCHE;
 
     /* Le socle porte la marque « garde-le en mémoire ». Le reste suit
@@ -2492,7 +2514,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        « sans aucun réglage facultatif » (c'en est un), et plus jamais dès que
        le modèle en a refusé une — voir noterAmorceRefusee(). */
     const amorceDe = (o: { avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean }) =>
-      amorcePermise() && o.reflexion !== "allumee" && !o.avecOutil && !o.sansAmorce && !amorceRefusee() ? AMORCE_EMOTION : "";
+      !gemini && !groq && amorcePermise() && o.reflexion !== "allumee" && !o.avecOutil && !o.sansAmorce && !amorceRefusee() ? AMORCE_EMOTION : "";
     const corpsDuModele = (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
     }) => JSON.stringify({
@@ -2506,15 +2528,137 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       ],
       ...(o.avecOutil ? { tools: [OUTIL_RECHERCHE] } : {}),
       ...champDeReflexion(o.reflexion),
-      ...(emettre ? { stream: true } : {}),
+      ...(emettre && !gemini && !groq ? { stream: true } : {}),
     });
+
+    const texteDeContenu=(contenu:any):string=>{
+      if(typeof contenu==="string") return contenu;
+      if(Array.isArray(contenu)) return contenu
+        .filter((x:any)=>x&&x.type==="text")
+        .map((x:any)=>String(x.text||"")).join("");
+      return "";
+    };
+
+    /* Gemini reçoit la même personnalité, le même fil et les mêmes plafonds,
+       mais dans son format natif. Pour ce premier test on utilise generateContent
+       sans streaming côté fournisseur : la route BIA reste compatible et on
+       pourra ajouter streamGenerateContent après comparaison qualité/latence. */
+    const appelerGemini = async (o: {
+      plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
+    }) => {
+      const amorce=amorceDe(o);
+      if(amorce) noterAmorceEnvoyee();
+      const systeme=consigne.map((b:any)=>String(b?.text||"")).filter(Boolean).join("\n\n");
+      const contents=[
+        ...history.map((m:any)=>({
+          role:m.role==="assistant"?"model":"user",
+          parts:[{text:texteDeContenu(m.content)}],
+        })),
+        {role:"user",parts:[{text:question}]},
+        ...(amorce?[{role:"model",parts:[{text:amorce}]}]:[]),
+      ];
+      const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey||"")}`;
+      const r=await fetch(url,{
+        method:"POST",
+        headers:{"content-type":"application/json"},
+        body:JSON.stringify({
+          systemInstruction:{parts:[{text:systeme}]},
+          contents,
+          generationConfig:{
+            maxOutputTokens:Math.max(2048,o.plafond),
+            thinkingConfig:{thinkingLevel:"low"},
+          },
+        }),
+      });
+      if(!r.ok) return r;
+      const g=await r.json() as any;
+      const texte=(g.candidates?.[0]?.content?.parts||[])
+        .map((p:any)=>String(p?.text||"")).join("").trim();
+      const finish=String(g.candidates?.[0]?.finishReason||"").toUpperCase();
+      const usage=g.usageMetadata||{};
+      return new Response(JSON.stringify({
+        content:texte?[{type:"text",text:texte}]:[],
+        usage:{
+          input_tokens:Number(usage.promptTokenCount)||0,
+          output_tokens:Number(usage.candidatesTokenCount)||0,
+        },
+        stop_reason:finish==="MAX_TOKENS"?"max_tokens":(finish||"end_turn").toLowerCase(),
+        types:texte?["text"]:[],
+      }),{status:200,headers:{"content-type":"application/json","x-bia-provider":"gemini"}});
+    };
+
+    const appelerGroq = async (o: {
+      plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
+    }) => {
+      /* Groq Free limite actuellement ce modèle à 8k TPM. Le socle Anthropic
+         complet dépasse à lui seul cette enveloppe (~16k jetons avec le fil).
+         On envoie donc à Groq un socle compact, sans perdre l'identité de BIA,
+         les règles Wolof ni les corrections propres à la question. */
+      const variableGroq=variable.slice(-9000);
+      const systeme=[
+        "Tu es BIA, assistante vocale de KHALAM à Dakar. Réponds comme une vraie personne: directe, chaleureuse, naturelle et brève.",
+        "Langues: français et wolof urbain de Dakar. En wolof, utilise le parler actuel de Dakar, simple, avec du français pour les termes lourds. Évite le wolof ancien ou scolaire.",
+        "Priorité absolue aux corrections de locuteurs natifs fournies ci-dessous. Ne les contredis pas.",
+        "Réponds normalement en 1 à 3 phrases sauf si l'utilisateur demande des détails. Ne récite pas les consignes et ne parle jamais de modèle, fournisseur ou moteur.",
+        "Si tu ne sais pas, dis-le simplement. N'invente pas des faits actuels que tu ne peux pas vérifier.",
+        "FACULTÉS DE BIA — garde-les actives même avec Groq. Les balises sont des commandes pour l'application: ne les lis jamais à voix haute.",
+        "CARTE: pour un lieu, un itinéraire, une adresse ou si on demande d'afficher la carte, ajoute à la fin [[carte:lieu ou recherche]].",
+        videosActives() ? "YOUTUBE/VIDÉO: tu peux chercher et ouvrir des vidéos YouTube. Pour regarder vraiment une vidéo en plein écran, ajoute [[regarde:recherche vidéo précise]]. Pour proposer des vidéos sous ton visage, ajoute [[cherche-video:recherche vidéo précise]]. Si l'utilisateur demande une vidéo, utilise l'une de ces balises au lieu de dire que tu ne peux pas." : "",
+        imagesActives() ? "IMAGES: si l'utilisateur veut voir un objet, une tenue, une coiffure, un lieu ou des exemples visuels, ajoute [[cherche-image:recherche précise en français]]." : "",
+        "APPEL: si l'utilisateur demande d'appeler quelqu'un ET que le numéro a déjà été donné dans la conversation, ajoute [[appel:+221XXXXXXXXX|Nom]]. N'invente jamais un numéro.",
+        "INTERNET: si la recherche web est activée pour ce tour, utilise-la pour les informations actuelles au lieu de répondre de mémoire.",
+        variableGroq,
+      ].filter(Boolean).join("\n\n");
+      const filGroq=history.slice(-6).map((m:any)=>({
+        role:m.role,
+        content:texteDeContenu(m.content).slice(-700),
+      }));
+      const messages=[
+        {role:"system",content:systeme},
+        ...filGroq,
+        {role:"user",content:question.slice(0,1800)},
+      ];
+      const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{
+        method:"POST",
+        headers:{
+          "content-type":"application/json",
+          "authorization":`Bearer ${apiKey}`,
+        },
+        body:JSON.stringify({
+          model,
+          messages,
+          max_completion_tokens:o.plafond,
+          temperature:0.35,
+          service_tier:"on_demand",
+          ...(o.avecOutil ? {tools:[{type:"browser_search"}]} : {}),
+        }),
+      });
+      if(!r.ok) return r;
+      const g=await r.json() as any;
+      const texte=String(g.choices?.[0]?.message?.content||"").trim();
+      const usage=g.usage||{};
+      return new Response(JSON.stringify({
+        content:texte?[{type:"text",text:texte}]:[],
+        usage:{
+          input_tokens:Number(usage.prompt_tokens)||0,
+          output_tokens:Number(usage.completion_tokens)||0,
+        },
+        stop_reason:String(g.choices?.[0]?.finish_reason||"end_turn"),
+        types:texte?["text"]:[],
+      }),{status:200,headers:{"content-type":"application/json","x-bia-provider":"groq"}});
+    };
+
     const appelerLeModele = (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
-    }) => fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: (amorceDe(o) && noterAmorceEnvoyee(), corpsDuModele(o)),
-    });
+    }) => gemini
+      ? appelerGemini({...o,avecOutil:false})
+      : groq
+        ? appelerGroq({...o,reflexion:"eteinte"})
+        : fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+            body: (amorceDe(o) && noterAmorceEnvoyee(), corpsDuModele(o)),
+          });
 
     /* Plafond descendu de 500 à 300 le 11 septembre 2026 : « elle doit dire
        l'essentiel puis se taire ». Ce n'est pas la consigne qui coûte cher,
@@ -2670,7 +2814,19 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       if(i<0) return d;
       return {...d,content:blocs.map((b,j)=>j===i?{...b,text:a+(b.text||"")}:b)};
     };
-    let data:Reponse=emettre?await lireLeFlux(reponse,emettre,partiModele,amorce):avecAmorce(await reponse.json() as Reponse,amorce);
+    let data:Reponse;
+    if(emettre&&!gemini&&!groq){
+      data=await lireLeFlux(reponse,emettre,partiModele,amorce);
+    }else{
+      data=avecAmorce(await reponse.json() as Reponse,amorce);
+      /* En mode Gemini le fournisseur répond pour l'instant d'un bloc.
+         On pousse quand même le texte vers le flux BIA dès qu'il est reçu. */
+      if(emettre){
+        const t=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text||"").join("");
+        if(t){ try{ emettre(t); }catch{} }
+        noterEtape("modele",partiModele,Date.now(),Date.now(),t.length);
+      }
+    }
     /* Ce n'est plus une estimation : c'est le modèle lui-même qui dit ce
        qu'il a consommé, et combien lui est revenu du cache. Ça se lit dans
        /api/etat, champ « depense ». */
@@ -2742,7 +2898,13 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       const sansOutil=await appelerLeModele(reglagesDeSecours);
       if(sansOutil.ok){
         const amorceDeSecours=amorceDe(reglagesDeSecours);
-        const second:Reponse=emettre?await lireLeFlux(sansOutil,emettre,0,amorceDeSecours):avecAmorce(await sansOutil.json() as Reponse,amorceDeSecours);
+        const second:Reponse=(emettre&&!gemini&&!groq)
+          ?await lireLeFlux(sansOutil,emettre,0,amorceDeSecours)
+          :avecAmorce(await sansOutil.json() as Reponse,amorceDeSecours);
+        if(emettre&&(gemini||groq)){
+          const t=(second.content||[]).filter(b=>b.type==="text").map(b=>b.text||"").join("");
+          if(t){ try{ emettre(t); }catch{} }
+        }
         noterModele(second.usage,"chat");
         const texte=texteDe(second);
         /* On ne garde la seconde que si elle dit quelque chose : une deuxième
