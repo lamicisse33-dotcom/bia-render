@@ -371,12 +371,23 @@ function octetsDeBase64(b64: string, vitesseSource?: number) {
   return tableau.buffer;
 }
 
-/* Le moteur installé dans BIA iPhone doit aussi lire ses réponses françaises.
-   Le navigateur et Rara gardent leur voix habituelle. */
-function voixLocaleBiaDisponible(persona = "bia"): boolean {
-  if (typeof window === "undefined" || persona === "rara") return false;
+/* BIA et Rara partagent le moteur installé dans la même application iPhone.
+   Les personnalités restent distinctes ; hors application, la voix est inchangée. */
+function voixLocaleBiaDisponible(_persona = "rara"): boolean {
+  if (typeof window === "undefined") return false;
   const moteur = (window as Window & { BiaLocalVoice?: { epoch?: number; settings?: unknown } }).BiaLocalVoice;
   return typeof moteur?.epoch === "number" && typeof moteur.settings === "function";
+}
+function personnageAuDemarrage(stockage: Pick<Storage, "getItem" | "setItem">): string {
+  const cle = "bia-persona-default-rara-v1";
+  if (stockage.getItem(cle) !== "1") {
+    const avant = stockage.getItem("bia-persona");
+    if (avant === "bia" || avant === "rara") stockage.setItem("bia-persona-avant-rara-v1", avant);
+    stockage.setItem("bia-persona", "rara");
+    stockage.setItem(cle, "1");
+    return "rara";
+  }
+  return stockage.getItem("bia-persona") === "bia" ? "bia" : "rara";
 }
 function noterRouteVoixBia(etape: string, locale: boolean, erreur?: unknown) {
   const message = String(erreur || "");
@@ -476,7 +487,7 @@ export default function Home() {
      chaque personne sur son téléphone — pas un réglage global comme la
      tenue. On le garde donc dans le téléphone (localStorage), jamais sur le
      serveur. */
-  const [persona, setPersona] = useState<string>("bia");
+  const [persona, setPersona] = useState<string>("rara");
   /* Lue dans des useCallback figés (deps vides ou sans `persona`) : sans ce
      ref, ils garderaient pour toujours la valeur du tout premier rendu, et
      la voix de Rara ne se déclencherait jamais après une bascule. Même
@@ -485,29 +496,16 @@ export default function Home() {
   useEffect(() => { personaRef.current = persona; }, [persona]);
   useEffect(() => {
     try {
-      const gardee = window.localStorage.getItem("bia-persona");
-      if (gardee === "rara") setPersona("rara");
+      setPersona(personnageAuDemarrage(window.localStorage));
     } catch {}
   }, []);
   const choisirPersona = (valeur: string) => {
     setPersona(valeur);
     try { window.localStorage.setItem("bia-persona", valeur); } catch {}
   };
-  /* ── SA PROPRE VOIX, DIFFÉRENTE DE CELLE DE BIA ───────────────────────
-
-     25 septembre 2026 : Lamine constate que Rara parle avec la voix de
-     BIA — normal, /api/voix clone toujours le même extrait
-     (public/voix-bia.wav) tant qu'on ne lui dit pas le contraire.
-
-     En attendant que Lamine enregistre un extrait propre à Rara, on lui
-     donne déjà une voix DIFFÉRENTE : `audioPrompt: ""`, envoyé
-     explicitement, dit à Soynade « pas de clonage cette fois » — c'est le
-     même interrupteur que la case à cocher de /reglage. Elle sonne alors
-     avec la voix de base d'Oolel, pas celle de Kha. Le jour où son propre
-     extrait existe, il suffit de remplacer cette chaîne vide par son
-     adresse publique (voir SOYNADE_AUDIO_PROMPT dans lib/voix.ts) pour
-     qu'elle ait sa vraie voix clonée. */
-  const voixAudioPrompt = () => (personaRef.current === "rara" ? "" : undefined);
+  /* Même moteur vocal pour les deux personnages, demandé le5octobre2026.
+     L'ancien audioPrompt vide excluait Rara du pont natif déjà installé. */
+  const voixAudioPrompt = () => undefined;
   /* ── SON DÉFILÉ D'ENTRÉE ────────────────────────────────────────────────
      Demandé par Lamine le 26 septembre 2026 : à chaque bascule sur Rara,
      ses quatre photos (de la fiche qui a servi à générer son avatar)
@@ -594,9 +592,9 @@ export default function Home() {
     let actif = true;
     const synchroniser = () => {
       const voix = voixAvecDebitNatif();
-      if (persona !== "rara" && voix?.getSpeed) {
+      if (voix?.getSpeed) {
         void voix.getSpeed().then((d) => { if (actif) { debitNatifRef.current = d.speed; setDebit(d.speed); } }).catch(() => { if (actif) setErreurDebit("Impossible de lire le réglage de la voix."); });
-      } else if (persona !== "rara" && voixLocaleBiaDisponible()) {
+      } else if (voixLocaleBiaDisponible()) {
         const v = Number(localStorage.getItem("bia-native-speed-ui"));
         const garde = Number.isFinite(v) && v >= 0.7 && v <= 1.2 ? v : 0.85;
         debitNatifRef.current = garde; setDebit(garde);
@@ -610,10 +608,10 @@ export default function Home() {
   const changerDebit = (valeur: number) => {
     setDebit(valeur); debitNatifRef.current = valeur; setErreurDebit("");
     const voix = voixAvecDebitNatif();
-    if (persona !== "rara" && voixLocaleBiaDisponible()) {
+    if (voixLocaleBiaDisponible()) {
       try { localStorage.setItem("bia-native-speed-ui", String(valeur)); } catch {}
     }
-    if (persona !== "rara" && voix?.setSpeed) {
+    if (voix?.setSpeed) {
       void voix.setSpeed(valeur).catch(() => setErreurDebit("Le réglage n’a pas été enregistré. Réessaie le curseur."));
     }
   };
@@ -7105,13 +7103,13 @@ export default function Home() {
 
     return (
       <>
-        <p className="papier-titre">La voix de BIA</p>
+        <p className="papier-titre">La voix de {persona === "rara" ? "Rara" : "BIA"}</p>
         <p className="papier-note" role="status" data-bia-voice-status>
-          {persona === "rara" ? "Voix de Rara" : voixLocalePresente
+          {voixLocalePresente
             ? "Voix locale 6800 — moteur installé sur cet iPhone"
             : "Voix du téléphone — le moteur local est absent dans cette fenêtre"}
         </p>
-        {persona !== "rara" && !voixLocalePresente && (
+        {!voixLocalePresente && (
           <p className="papier-note">Pour tester la nouvelle voix, ouvre BIA installée sur l&apos;iPhone. Safari et l&apos;ancienne icône web n&apos;ont pas ce moteur.</p>
         )}
         <p className="papier-note">
@@ -7120,12 +7118,12 @@ export default function Home() {
         </p>
         <div className="papier-debit" role="group" aria-label="Réglage de la vitesse">
           <span>Elle parle&nbsp;: <b>{mot}</b> — {debit.toFixed(2)} ×</span>
-          <input type="range" min={persona !== "rara" && voixLocalePresente ? 0.7 : 0.6} max={persona !== "rara" && voixLocalePresente ? 1.2 : 1} step={0.05} value={debit}
-            aria-label="Vitesse de la voix de BIA"
+          <input type="range" min={voixLocalePresente ? 0.7 : 0.6} max={voixLocalePresente ? 1.2 : 1} step={0.05} value={debit}
+            aria-label="Vitesse de la voix"
             onChange={(e) => changerDebit(Number(e.target.value))} />
           <span className="papier-debit-bornes"><i>Plus lentement</i><i>Plus vite</i></span>
         </div>
-        {persona !== "rara" && voixLocalePresente && <button type="button" className="papier-lien" onClick={() => { void voixAvecDebitNatif()?.settings?.().catch(() => setErreurDebit("Impossible d’ouvrir l’écoute.")); }}>Écouter et régler la voix locale →</button>}
+        {voixLocalePresente && <button type="button" className="papier-lien" onClick={() => { void voixAvecDebitNatif()?.settings?.().catch(() => setErreurDebit("Impossible d’ouvrir l’écoute.")); }}>Écouter et régler la voix locale →</button>}
 
         {erreurDebit && <p className="papier-note" role="alert">{erreurDebit}</p>}
 
@@ -8715,4 +8713,3 @@ function PapierRepertoire({ code }: { code: string | null }) {
     </p>
   );
 }
-
