@@ -376,6 +376,17 @@ function voixLocaleBiaDisponible(persona = "bia"): boolean {
   const moteur = (window as Window & { BiaLocalVoice?: { epoch?: number; settings?: unknown } }).BiaLocalVoice;
   return typeof moteur?.epoch === "number" && typeof moteur.settings === "function";
 }
+function noterRouteVoixBia(etape: string, locale: boolean, erreur?: unknown) {
+  const message = String(erreur || "");
+  const motif = /caract|phon[eè]me|symbol|unicode/i.test(message) ? "caractere"
+    : /occup|busy|long|invalide/i.test(message) ? "requete"
+    : /abort|annul/i.test(message) ? "annulation" : erreur ? "synthese" : "";
+  void fetch("/api/mesure", { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ type: "route_voix", etape, locale, epoch: locale ? 6800 : 0,
+      revision: "bia-voix-route-v2", motif }), keepalive: true,
+  }).catch(() => {});
+}
+
 
 /* ── Quelle langue ? ───────────────────────────────────────────────────────
    Le navigateur n'a pas de voix wolof. Sans ce test, la retouche phonétique
@@ -445,6 +456,14 @@ export default function Home() {
   /* Quand la reponse ne vient pas du modele, on le dit a l ecran. Sans ce
      temoin, une panne du moteur ressemblait a une reponse ordinaire. */
   const [panne, setPanne] = useState("");
+  const [voixLocalePresente, setVoixLocalePresente] = useState(false);
+  useEffect(() => {
+    const verifier = () => { const presente = voixLocaleBiaDisponible(); setVoixLocalePresente(presente); noterRouteVoixBia("ouverture", presente); };
+    verifier();
+    const visible = () => { if (document.visibilityState === "visible") verifier(); };
+    document.addEventListener("visibilitychange", visible);
+    return () => document.removeEventListener("visibilitychange", visible);
+  }, []);
   const [code, setCode] = useState<string | null>(null);
   const [codeSaisi, setCodeSaisi] = useState("");
   const [codeErreur, setCodeErreur] = useState("");
@@ -1773,6 +1792,12 @@ export default function Home() {
      idle_timeout dans main.py) avant d'en renvoyer un. */
   const dernierReveilMoteur = useRef(0);
   const parlerAvecLeTelephone = useCallback((answer: string) => new Promise<void>((fini) => {
+    if (voixLocaleBiaDisponible(personaRef.current)) {
+      noterRouteVoixBia("repli_bloque", true);
+      setPanne("La voix locale n'a pas répondu. La voix du téléphone est désactivée pour ce test.");
+      stopMouth(answer); fini(); return;
+    }
+    noterRouteVoixBia("telephone", false);
     // Pas de voix du tout sur cet appareil : on rend la main tout de suite,
     // sinon BIA resterait « en train de répondre » pour toujours — et le
     // micro, qui se ferme pendant qu'elle parle, ne se rouvrirait jamais.
@@ -2614,6 +2639,8 @@ export default function Home() {
        On décide ici, une fois, sur la réponse ENTIÈRE — un fragment de
        quatre mots ne se juge pas, une réponse complète oui. */
     const langueDite = estWolof(answer) ? "wo" : "fr";
+    const locale = voixLocaleBiaDisponible(personaRef.current);
+    noterRouteVoixBia("demande", locale);
 
     if (moteursRef.current && moteursRef.current.voix === "navigateur" && !voixLocaleBiaDisponible(personaRef.current)) {
       await prendreLaParole();
@@ -2723,6 +2750,11 @@ export default function Home() {
       }
       await prendreLaParole();
       if (!bloc.audio) {
+        if (locale) {
+          noterRouteVoixBia("audio_absent", true);
+          setPanne("La voix locale n'a produit aucun son. Réessaie depuis BIA.");
+          stopMouth(answer); return;
+        }
         if (enLecon) { renoncer(); return; }
         await parlerAvecLeTelephone(answer);
         return;
@@ -2835,6 +2867,7 @@ export default function Home() {
            déjà en train de parler. */
         if (!premiereSyllabeFaite) {
           premiereSyllabeFaite = true;
+          noterRouteVoixBia("lecture", locale);
           if (ou === "réponse") {
             envoyerLeTour(Date.now() + Math.round((debut - ctx.currentTime) * 1000));
           }
@@ -2953,11 +2986,12 @@ export default function Home() {
          MAINTENANT ÇA SE VOIT. Une panne de voix s'affiche comme une panne
          d'oreille : on ne cherche plus une heure pourquoi elle parle une
          langue inconnue. Le motif exact se lit dans /api/etat. */
-      setPanne(`panne : sa voix — ${String(e).replace(/^Error:\s*/, "").slice(0, 60)}`);
+      noterRouteVoixBia("erreur", locale, e);
+      setPanne(`panne : sa voix — ${String(e).replace(/^Error:\s*/, "").slice(0, 100)}`);
       await prendreLaParole();
       /* Même règle qu'en haut : pendant une leçon, se taire vaut mieux que
          prononcer son wolof avec une bouche française. */
-      if (ou === "apprentissage") { stopMouth(answer); return; }
+      if (ou === "apprentissage" || locale) { stopMouth(answer); return; }
       await parlerAvecLeTelephone(answer);
     }
   }, [contexte, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth]);
@@ -3506,7 +3540,7 @@ export default function Home() {
         if (!estLeTour(monTour)) return;
         const reste = resteADire(data.reply, teteDite);
         if (reste) void speak(reste, undefined, "réponse", true);
-      } else if (data.son) {
+      } else if (data.son && !voixLocaleBiaDisponible(personaRef.current)) {
         try {
           await direSonTeutFait(data.son, emotionRef.current);
           /* ── ELLE RIT APRÈS LA CHUTE, PAS AVANT ────────────────────────
@@ -7040,6 +7074,14 @@ export default function Home() {
     return (
       <>
         <p className="papier-titre">La voix de BIA</p>
+        <p className="papier-note" role="status" data-bia-voice-status>
+          {persona === "rara" ? "Voix de Rara" : voixLocalePresente
+            ? "Voix locale 6800 — moteur installé sur cet iPhone"
+            : "Voix du téléphone — le moteur local est absent dans cette fenêtre"}
+        </p>
+        {persona !== "rara" && !voixLocalePresente && (
+          <p className="papier-note">Pour tester la nouvelle voix, ouvre BIA installée sur l&apos;iPhone. Safari et l&apos;ancienne icône web n&apos;ont pas ce moteur.</p>
+        )}
         <p className="papier-note">
           Si elle parle trop vite, ralentis-la. Sa voix ne change pas — elle
           prend seulement son temps. C&apos;est pour toi seul, sur ce téléphone.
