@@ -37,3 +37,21 @@ export async function fetchModeleAvecReprise(url: string, init: RequestInit, lim
   }
   return reponse || new Response(JSON.stringify({ error: "Délai du moteur dépassé." }), { status: 503 });
 }
+
+/* A saturated 120B or its exhausted daily allowance must not also disable
+   the locally installed voice. Keep the same provider/key/tools/personality;
+   use the supported smaller model only after an actual refusal or a response
+   whose reasoning consumed the entire completion budget. */
+export async function fetchGroqAvecSecours(url: string, init: RequestInit, limite = Date.now() + 45_000): Promise<Response> {
+  const reponse = await fetchModeleAvecReprise(url, init, limite);
+  const body = JSON.parse(String(init.body || "{}")) as Record<string, unknown>;
+  if (body.model !== "openai/gpt-oss-120b" || Date.now() + 1000 >= limite) return reponse;
+  let besoin = [429, 502, 503, 504, 529].includes(reponse.status);
+  if (reponse.ok) {
+    const data = await reponse.clone().json().catch(() => null);
+    besoin = data?.choices?.[0]?.finish_reason === "length" && !String(data?.choices?.[0]?.message?.content || "").trim();
+  }
+  if (!besoin) return reponse;
+  console.warn("BIA_MODEL_FALLBACK", JSON.stringify({from: body.model, to: "openai/gpt-oss-20b", status: reponse.status}));
+  return fetchModeleAvecReprise(url, {...init, body: JSON.stringify({...body, model: "openai/gpt-oss-20b"})}, limite);
+}

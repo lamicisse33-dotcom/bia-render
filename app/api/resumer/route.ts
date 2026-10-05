@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
-import { budgetGroq, fetchModeleAvecReprise } from "@/lib/reprise-modele";
+import { budgetGroq, fetchGroqAvecSecours } from "@/lib/reprise-modele";
 
 /* Condense les plus vieux échanges en quelques lignes. Sans ça, une longue
    conversation finirait par ne plus tenir dans ce qu'on peut envoyer au
@@ -40,7 +40,7 @@ et sans répéter. Réponds par le mémo seul, sans préambule.`;
     }];
 
     const r = groq
-      ? await fetchModeleAvecReprise("https://api.groq.com/openai/v1/chat/completions", {
+      ? await fetchGroqAvecSecours("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({ model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",

@@ -362,10 +362,12 @@ function sansSilence(ctx: AudioContext, brut: AudioBuffer): AudioBuffer {
   return coupe;
 }
 
-function octetsDeBase64(b64: string) {
+const rythmesAudioBia = new WeakMap<ArrayBuffer, number>();
+function octetsDeBase64(b64: string, vitesseSource?: number) {
   const brut = atob(b64);
   const tableau = new Uint8Array(brut.length);
   for (let i = 0; i < brut.length; i++) tableau[i] = brut.charCodeAt(i);
+  if (typeof vitesseSource === "number" && Number.isFinite(vitesseSource) && vitesseSource > 0) rythmesAudioBia.set(tableau.buffer, vitesseSource);
   return tableau.buffer;
 }
 
@@ -585,14 +587,19 @@ export default function Home() {
      donc dans « Moi », avec le reste de ce qui appartient à la personne, et
      il ne demande aucun code. */
   const [debit, setDebit] = useState(VITESSE_POSEE);
+  const debitNatifRef = useRef(0.85);
   const [erreurDebit, setErreurDebit] = useState("");
-  const voixAvecDebitNatif = () => (window as Window & { BiaLocalVoice?: { getSpeed?: () => Promise<{speed: number}>; setSpeed?: (speed: number) => Promise<{speed: number}> } }).BiaLocalVoice;
+  const voixAvecDebitNatif = () => (window as Window & { BiaLocalVoice?: { getSpeed?: () => Promise<{speed: number}>; setSpeed?: (speed: number) => Promise<{speed: number}>; settings?: () => Promise<unknown> } }).BiaLocalVoice;
   useEffect(() => {
     let actif = true;
     const synchroniser = () => {
       const voix = voixAvecDebitNatif();
       if (persona !== "rara" && voix?.getSpeed) {
-        void voix.getSpeed().then((d) => { if (actif) setDebit(d.speed); }).catch(() => { if (actif) setErreurDebit("Impossible de lire le réglage de la voix."); });
+        void voix.getSpeed().then((d) => { if (actif) { debitNatifRef.current = d.speed; setDebit(d.speed); } }).catch(() => { if (actif) setErreurDebit("Impossible de lire le réglage de la voix."); });
+      } else if (persona !== "rara" && voixLocaleBiaDisponible()) {
+        const v = Number(localStorage.getItem("bia-native-speed-ui"));
+        const garde = Number.isFinite(v) && v >= 0.7 && v <= 1.2 ? v : 0.85;
+        debitNatifRef.current = garde; setDebit(garde);
       } else setDebit(vitesseChoisie());
     };
     synchroniser(); window.addEventListener("focus", synchroniser);
@@ -601,11 +608,19 @@ export default function Home() {
     return () => { actif = false; window.removeEventListener("focus", synchroniser); document.removeEventListener("visibilitychange", visible); };
   }, [persona]);
   const changerDebit = (valeur: number) => {
-    setDebit(valeur); setErreurDebit("");
+    setDebit(valeur); debitNatifRef.current = valeur; setErreurDebit("");
     const voix = voixAvecDebitNatif();
+    if (persona !== "rara" && voixLocaleBiaDisponible()) {
+      try { localStorage.setItem("bia-native-speed-ui", String(valeur)); } catch {}
+    }
     if (persona !== "rara" && voix?.setSpeed) {
       void voix.setSpeed(valeur).catch(() => setErreurDebit("Le réglage n’a pas été enregistré. Réessaie le curseur."));
     }
+  };
+  const vitesseAudioBia = (octets: ArrayBuffer) => {
+    const source = rythmesAudioBia.get(octets);
+    return voixLocaleBiaDisponible(personaRef.current) && source
+      ? debitNatifRef.current / source : vitesseChoisie();
   };
   useEffect(() => {
     // Écrit à chaque mouvement : elle le lira au mot suivant, sans rien relancer.
@@ -1718,7 +1733,7 @@ export default function Home() {
          voix n'a AUCUN réglage de vitesse — vérifié dans sa documentation —
          alors on étire le son ici, sans toucher à sa hauteur : c'est la voix
          de Kha, elle ne doit pas devenir plus grave. Voir lib/ralentir.ts. */
-      const mémoire = ralentir(ctx, sansSilence(ctx, brut), vitesseChoisie());
+      const mémoire = ralentir(ctx, sansSilence(ctx, brut), vitesseAudioBia(octets));
       const { valeurs, pic, pas } = enveloppeDe(mémoire);
       const source = ctx.createBufferSource();
       source.buffer = mémoire;
@@ -2162,7 +2177,8 @@ export default function Home() {
      mémoire pour la durée de la session. */
   const audioParole = useCallback(async (p: Parole, langue: Langue, nom = "") => {
     const texte = dire(p, langue, nom);
-    const garde = attenteCache.current.get(texte);
+    const cleAttente = `${personaRef.current}:${voixLocaleBiaDisponible(personaRef.current) ? debitNatifRef.current : "serveur"}:${texte}`;
+    const garde = attenteCache.current.get(cleAttente);
     if (garde) return garde;
 
     /* ── LE FICHIER TOUT PRÊT : GRATUIT, INSTANTANÉ, D'UN SEUL BLOC ────────
@@ -2192,7 +2208,7 @@ export default function Home() {
           const octets = await f.arrayBuffer();
           if (octets.byteLength > 512) {
             const morceaux = [octets];
-            attenteCache.current.set(texte, morceaux);
+            attenteCache.current.set(cleAttente, morceaux);
             return morceaux;
           }
         } catch {}
@@ -2212,18 +2228,18 @@ export default function Home() {
         body: JSON.stringify({ texte, partie, ou: "attente", audioPrompt: voixAudioPrompt() }),
       });
       if (!r.ok) throw new Error("voix indisponible");
-      return await r.json() as { parties: number; audio: string | null };
+      return await r.json() as { parties: number; audio: string | null; speed?: number };
     };
 
     const premier = await demander(0);
     if (!premier.audio) throw new Error("voix muette");
-    const morceaux = [octetsDeBase64(premier.audio)];
+    const morceaux = [octetsDeBase64(premier.audio, premier.speed)];
     for (let i = 1; i < (premier.parties || 1); i++) {
       const suite = await demander(i);
       if (!suite.audio) break;
-      morceaux.push(octetsDeBase64(suite.audio));
+      morceaux.push(octetsDeBase64(suite.audio, suite.speed));
     }
-    attenteCache.current.set(texte, morceaux);
+    attenteCache.current.set(cleAttente, morceaux);
     return morceaux;
   }, []);
 
@@ -2237,7 +2253,7 @@ export default function Home() {
       const rendre = (fin = 0) => { if (!rendu) { rendu = true; fini(fin); } };
       ctx.decodeAudioData(octets.slice(0)).then((brut) => {
         if (attenteRef.current !== jeton) return rendre();
-        const mémoire = ralentir(ctx, sansSilence(ctx, brut), vitesseChoisie());
+        const mémoire = ralentir(ctx, sansSilence(ctx, brut), vitesseAudioBia(octets));
         const { valeurs, pic, pas } = enveloppeDe(mémoire);
         const source = ctx.createBufferSource();
         const volume = ctx.createGain();
@@ -2712,7 +2728,7 @@ export default function Home() {
             body: JSON.stringify({ texte: answer, partie, ou, langue: langueDite,
               tete: !suite && partie === 0, audioPrompt: voixAudioPrompt() }),
           });
-          if (r.ok) return await r.json() as { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number };
+          if (r.ok) return await r.json() as { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number; speed?: number };
           dernier = String(r.status);
           if (r.status === 401 || r.status === 403) break;
         } catch (e) { dernier = String(e).slice(0, 60); }
@@ -2721,12 +2737,7 @@ export default function Home() {
       throw new Error(`voix indisponible (${dernier})`);
     };
 
-    const enOctets = (b64: string) => {
-      const brut = atob(b64);
-      const tableau = new Uint8Array(brut.length);
-      for (let i = 0; i < brut.length; i++) tableau[i] = brut.charCodeAt(i);
-      return tableau.buffer;
-    };
+    const enOctets = (b64: string, source?: number) => octetsDeBase64(b64, source);
 
     try {
       // La synthèse part TOUT DE SUITE — et pendant ces quelques secondes,
@@ -2863,7 +2874,7 @@ export default function Home() {
 
       const programmer = async (octets: ArrayBuffer) => {
         const brut = await ctx.decodeAudioData(octets.slice(0));
-        const mémoire = ralentir(ctx, sansSilence(ctx, brut), vitesseChoisie());
+        const mémoire = ralentir(ctx, sansSilence(ctx, brut), vitesseAudioBia(octets));
         const { valeurs, pic, pas } = enveloppeDe(mémoire);
         const source = ctx.createBufferSource();
         source.buffer = mémoire;
@@ -2931,7 +2942,7 @@ export default function Home() {
         lancer(i + 1);
         lancer(i + 2);
         lancer(i + 3);
-        let morceau: { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number } | null = null;
+        let morceau: { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number; speed?: number } | null = null;
         try { morceau = i === 0 ? bloc : await enVol.get(i)!; } catch { morceau = null; }
         if (perdu()) return;         // une nouvelle réponse a pris la main, ou on l'a fait taire
         /* ── UN MORCEAU RATÉ NE DOIT PLUS TAIRE TOUTE L'HISTOIRE ───────────
@@ -2959,7 +2970,7 @@ export default function Home() {
           try { morceau = await demander(i); } catch { morceau = null; }
         }
         if (morceau && morceau.audio) {
-          try { await programmer(enOctets(morceau.audio)); } catch { /* ce morceau-ci ne se joue pas, la suite si */ }
+          try { await programmer(enOctets(morceau.audio, morceau.speed)); } catch { /* ce morceau-ci ne se joue pas, la suite si */ }
         }
         /* On ne dort pas jusqu'à la fin du morceau : on se réveille deux
            secondes avant, le temps de décoder et de programmer le suivant
@@ -7107,13 +7118,14 @@ export default function Home() {
           Si elle parle trop vite, ralentis-la. Sa voix ne change pas — elle
           prend seulement son temps. C&apos;est pour toi seul, sur ce téléphone.
         </p>
-        <label className="papier-debit">
+        <div className="papier-debit" role="group" aria-label="Réglage de la vitesse">
           <span>Elle parle&nbsp;: <b>{mot}</b> — {debit.toFixed(2)} ×</span>
           <input type="range" min={persona !== "rara" && voixLocalePresente ? 0.7 : 0.6} max={persona !== "rara" && voixLocalePresente ? 1.2 : 1} step={0.05} value={debit}
             aria-label="Vitesse de la voix de BIA"
             onChange={(e) => changerDebit(Number(e.target.value))} />
           <span className="papier-debit-bornes"><i>Plus lentement</i><i>Plus vite</i></span>
-        </label>
+        </div>
+        {persona !== "rara" && voixLocalePresente && <button type="button" className="papier-lien" onClick={() => { void voixAvecDebitNatif()?.settings?.().catch(() => setErreurDebit("Impossible d’ouvrir l’écoute.")); }}>Écouter et régler la voix locale →</button>}
 
         {erreurDebit && <p className="papier-note" role="alert">{erreurDebit}</p>}
 

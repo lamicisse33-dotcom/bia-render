@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
-import { budgetGroq, fetchModeleAvecReprise } from "@/lib/reprise-modele";
+import { budgetGroq, fetchGroqAvecSecours } from "@/lib/reprise-modele";
 import { correctionExacte, exemplesPour, motsCorriges, seSuffitAElleMeme } from "@/lib/lexique";
 import { garderLaReponse, porteUnNomDeLaPersonne, questionReutilisable, reponseGardee } from "@/lib/reponses-gardees";
 import { savoirKhalam } from "@/lib/khalam";
@@ -2619,7 +2619,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         ...filGroq,
         {role:"user",content:question.slice(0,1800)},
       ];
-      const r=await fetchModeleAvecReprise("https://api.groq.com/openai/v1/chat/completions",{
+      const r=await fetchGroqAvecSecours("https://api.groq.com/openai/v1/chat/completions",{
         method:"POST",
         headers:{
           "content-type":"application/json",
