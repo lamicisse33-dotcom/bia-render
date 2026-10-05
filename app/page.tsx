@@ -378,6 +378,11 @@ function voixLocaleBiaDisponible(_persona = "rara"): boolean {
   const moteur = (window as Window & { BiaLocalVoice?: { epoch?: number; settings?: unknown } }).BiaLocalVoice;
   return typeof moteur?.epoch === "number" && typeof moteur.settings === "function";
 }
+function epoqueVoixLocaleBia(): number {
+  if (typeof window === "undefined") return 0;
+  const epoch = (window as Window & { BiaLocalVoice?: { epoch?: number } }).BiaLocalVoice?.epoch;
+  return typeof epoch === "number" && Number.isSafeInteger(epoch) && epoch > 0 ? epoch : 0;
+}
 function personnageAuDemarrage(stockage: Pick<Storage, "getItem" | "setItem">): string {
   const cle = "bia-persona-default-rara-v1";
   if (stockage.getItem(cle) !== "1") {
@@ -395,7 +400,7 @@ function noterRouteVoixBia(etape: string, locale: boolean, erreur?: unknown) {
     : /occup|busy|long|invalide/i.test(message) ? "requete"
     : /abort|annul/i.test(message) ? "annulation" : erreur ? "synthese" : "";
   void fetch("/api/mesure", { method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ type: "route_voix", etape, locale, epoch: locale ? 6800 : 0,
+    body: JSON.stringify({ type: "route_voix", etape, locale, epoch: locale ? epoqueVoixLocaleBia() : 0,
       revision: "bia-voix-route-v2", motif }), keepalive: true,
   }).catch(() => {});
 }
@@ -7106,7 +7111,7 @@ export default function Home() {
         <p className="papier-titre">La voix de {persona === "rara" ? "Rara" : "BIA"}</p>
         <p className="papier-note" role="status" data-bia-voice-status>
           {voixLocalePresente
-            ? "Voix locale 6800 — moteur installé sur cet iPhone"
+            ? `Voix locale ${epoqueVoixLocaleBia()} — moteur installé sur cet iPhone`
             : "Voix du téléphone — le moteur local est absent dans cette fenêtre"}
         </p>
         {!voixLocalePresente && (
