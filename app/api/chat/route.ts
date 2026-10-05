@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
+import { budgetGroq, fetchModeleAvecReprise } from "@/lib/reprise-modele";
 import { correctionExacte, exemplesPour, motsCorriges, seSuffitAElleMeme } from "@/lib/lexique";
 import { garderLaReponse, porteUnNomDeLaPersonne, questionReutilisable, reponseGardee } from "@/lib/reponses-gardees";
 import { savoirKhalam } from "@/lib/khalam";
@@ -2586,6 +2587,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       }),{status:200,headers:{"content-type":"application/json","x-bia-provider":"gemini"}});
     };
 
+    const limiteGroq = Date.now() + 45_000;
     const appelerGroq = async (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
     }) => {
@@ -2617,7 +2619,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         ...filGroq,
         {role:"user",content:question.slice(0,1800)},
       ];
-      const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{
+      const r=await fetchModeleAvecReprise("https://api.groq.com/openai/v1/chat/completions",{
         method:"POST",
         headers:{
           "content-type":"application/json",
@@ -2626,12 +2628,13 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         body:JSON.stringify({
           model,
           messages,
-          max_completion_tokens:o.plafond,
+          max_completion_tokens:budgetGroq(o.plafond,model),
+          ...(/^openai\/gpt-oss-/.test(model) ? {reasoning_effort:"low",include_reasoning:false} : {}),
           temperature:0.35,
           service_tier:"on_demand",
           ...(o.avecOutil ? {tools:[{type:"browser_search"}]} : {}),
         }),
-      });
+      }, limiteGroq);
       if(!r.ok) return r;
       const g=await r.json() as any;
       const texte=String(g.choices?.[0]?.message?.content||"").trim();
@@ -2642,7 +2645,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           input_tokens:Number(usage.prompt_tokens)||0,
           output_tokens:Number(usage.completion_tokens)||0,
         },
-        stop_reason:String(g.choices?.[0]?.finish_reason||"end_turn"),
+        stop_reason:g.choices?.[0]?.finish_reason==="length" ? "max_tokens" : String(g.choices?.[0]?.finish_reason||"end_turn"),
         types:texte?["text"]:[],
       }),{status:200,headers:{"content-type":"application/json","x-bia-provider":"groq"}});
     };
@@ -2783,7 +2786,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        les deux cas, même quand la reprise réussit — sinon /api/etat dirait
        que tout va bien alors que le moteur a bégayé. */
     const PASSAGERS = new Set([429, 500, 502, 503, 529]);
-    if (!reponse.ok && PASSAGERS.has(reponse.status)) {
+    if (!groq && !reponse.ok && PASSAGERS.has(reponse.status)) {
       const dit = Number(reponse.headers.get("retry-after") || 0);
       const attente = Math.min(Math.max(dit * 1000 || 500, 300), 2000);
       const detail = await reponse.clone().text().catch(() => "");
@@ -2893,7 +2896,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
            — la phrase elle-même était trop longue pour le plafond.
          900 jetons, le temps d'une seule reprise : on ne paie que ce qui est
          écrit, et la consigne lui demande toujours deux phrases. */
-      const reglagesDeSecours={plafond:900,avecOutil:false,reflexion:"eteinte" as Reflexion};
+      const reglagesDeSecours={plafond:groq ? 3072 : 900,avecOutil:false,reflexion:"eteinte" as Reflexion};
       const sansOutil=await appelerLeModele(reglagesDeSecours);
       if(sansOutil.ok){
         const amorceDeSecours=amorceDe(reglagesDeSecours);
@@ -3309,3 +3312,4 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     return {corps:{reply:"Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.",source:"Erreur sûre"},statut:400};
   }
 }
+

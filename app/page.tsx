@@ -585,7 +585,28 @@ export default function Home() {
      donc dans « Moi », avec le reste de ce qui appartient à la personne, et
      il ne demande aucun code. */
   const [debit, setDebit] = useState(VITESSE_POSEE);
-  useEffect(() => { setDebit(vitesseChoisie()); }, []);
+  const [erreurDebit, setErreurDebit] = useState("");
+  const voixAvecDebitNatif = () => (window as Window & { BiaLocalVoice?: { getSpeed?: () => Promise<{speed: number}>; setSpeed?: (speed: number) => Promise<{speed: number}> } }).BiaLocalVoice;
+  useEffect(() => {
+    let actif = true;
+    const synchroniser = () => {
+      const voix = voixAvecDebitNatif();
+      if (persona !== "rara" && voix?.getSpeed) {
+        void voix.getSpeed().then((d) => { if (actif) setDebit(d.speed); }).catch(() => { if (actif) setErreurDebit("Impossible de lire le réglage de la voix."); });
+      } else setDebit(vitesseChoisie());
+    };
+    synchroniser(); window.addEventListener("focus", synchroniser);
+    const visible = () => { if (document.visibilityState === "visible") synchroniser(); };
+    document.addEventListener("visibilitychange", visible);
+    return () => { actif = false; window.removeEventListener("focus", synchroniser); document.removeEventListener("visibilitychange", visible); };
+  }, [persona]);
+  const changerDebit = (valeur: number) => {
+    setDebit(valeur); setErreurDebit("");
+    const voix = voixAvecDebitNatif();
+    if (persona !== "rara" && voix?.setSpeed) {
+      void voix.setSpeed(valeur).catch(() => setErreurDebit("Le réglage n’a pas été enregistré. Réessaie le curseur."));
+    }
+  };
   useEffect(() => {
     // Écrit à chaque mouvement : elle le lira au mot suivant, sans rien relancer.
     try { localStorage.setItem(CLE_VITESSE, String(debit)); } catch {}
@@ -5227,22 +5248,22 @@ export default function Home() {
 
     if (history.length <= 30 || resumeEnCours.current || !code) return;
     resumeEnCours.current = true;
-    const aCondenser = history.slice(0, history.length - 16);
+    const aCondenser = history.slice(0, Math.min(12, history.length - 16));
     fetch("/api/resumer", {
       method: "POST",
       headers: { "content-type": "application/json", "x-bia-code": code },
       body: JSON.stringify({ echanges: aCondenser, resume: resumeRef.current }),
     })
       .then((r) => r.json())
-      .then((d: { resume?: string }) => {
-        if (!d.resume) return;
+      .then((d: { resume?: string; condensed?: boolean; condensed_count?: number }) => {
+        if (!d.resume || !d.condensed || d.condensed_count !== aCondenser.length) return;
         setResume(d.resume);
         /* Même règle qu'à la sauvegarde : ce qui porte un papier ne se rogne
            pas. Le reste est résumé, et c'est très bien. */
-        setHistory((items) => [
-          ...items.slice(0, Math.max(0, items.length - 16)).filter((m) => m.papier || m.corrige),
-          ...items.slice(-16),
-        ]);
+        setHistory((items) => {
+          if (!aCondenser.every((m, i) => items[i]?.role === m.role && items[i]?.text === m.text)) return items;
+          return [...items.slice(0, aCondenser.length).filter((m) => m.papier || m.corrige), ...items.slice(aCondenser.length)];
+        });
         try { localStorage.setItem(cleResume(profilRef.current), d.resume); } catch {}
       })
       .catch(() => {})
@@ -7087,12 +7108,14 @@ export default function Home() {
           prend seulement son temps. C&apos;est pour toi seul, sur ce téléphone.
         </p>
         <label className="papier-debit">
-          <span>Elle parle&nbsp;: <b>{mot}</b></span>
-          <input type="range" min={0.6} max={1} step={0.05} value={debit}
+          <span>Elle parle&nbsp;: <b>{mot}</b> — {debit.toFixed(2)} ×</span>
+          <input type="range" min={persona !== "rara" && voixLocalePresente ? 0.7 : 0.6} max={persona !== "rara" && voixLocalePresente ? 1.2 : 1} step={0.05} value={debit}
             aria-label="Vitesse de la voix de BIA"
-            onChange={(e) => setDebit(Number(e.target.value))} />
+            onChange={(e) => changerDebit(Number(e.target.value))} />
           <span className="papier-debit-bornes"><i>Plus lentement</i><i>Plus vite</i></span>
         </label>
+
+        {erreurDebit && <p className="papier-note" role="alert">{erreurDebit}</p>}
 
         {/* ── LA PAGE D'APPRENTISSAGE ──────────────────────────────────────
 
@@ -8680,3 +8703,4 @@ function PapierRepertoire({ code }: { code: string | null }) {
     </p>
   );
 }
+
