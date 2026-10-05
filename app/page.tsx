@@ -369,6 +369,14 @@ function octetsDeBase64(b64: string) {
   return tableau.buffer;
 }
 
+/* Le moteur installé dans BIA iPhone doit aussi lire ses réponses françaises.
+   Le navigateur et Rara gardent leur voix habituelle. */
+function voixLocaleBiaDisponible(persona = "bia"): boolean {
+  if (typeof window === "undefined" || persona === "rara") return false;
+  const moteur = (window as Window & { BiaLocalVoice?: { epoch?: number; settings?: unknown } }).BiaLocalVoice;
+  return typeof moteur?.epoch === "number" && typeof moteur.settings === "function";
+}
+
 /* ── Quelle langue ? ───────────────────────────────────────────────────────
    Le navigateur n'a pas de voix wolof. Sans ce test, la retouche phonétique
    ci-dessous s'appliquait AUSSI au français : « communication » devenait
@@ -2128,7 +2136,7 @@ export default function Home() {
        Rara ne les a pas encore les siens, donc ce raccourci ne doit jouer
        que pour BIA : sinon Rara prononcerait sa phrase d'attente avec la
        voix de Kha, quels que soient les réglages de /api/voix plus bas. */
-    if (!p.wo.includes("{nom}") && personaRef.current !== "rara") {
+    if (!p.wo.includes("{nom}") && personaRef.current !== "rara" && !voixLocaleBiaDisponible(personaRef.current)) {
       const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
         ?.repertoire?.base_sons?.[langue] || "";
       for (const adresse of fichiersPossibles(p, langue, base)) {
@@ -2607,7 +2615,7 @@ export default function Home() {
        quatre mots ne se juge pas, une réponse complète oui. */
     const langueDite = estWolof(answer) ? "wo" : "fr";
 
-    if (moteursRef.current && moteursRef.current.voix === "navigateur") {
+    if (moteursRef.current && moteursRef.current.voix === "navigateur" && !voixLocaleBiaDisponible(personaRef.current)) {
       await prendreLaParole();
       if (enLecon) { renoncer(); return; }
       if (emotion) await jouerSouffle(emotion);
@@ -2627,7 +2635,7 @@ export default function Home() {
 
        Les leçons restent sur le vrai moteur (elles portent sur le wolof,
        `enLecon` est donc un filet, pas le cas normal ici). */
-    if (langueDite === "fr" && !enLecon && typeof window !== "undefined" && "speechSynthesis" in window) {
+    if (langueDite === "fr" && !enLecon && !voixLocaleBiaDisponible(personaRef.current) && typeof window !== "undefined" && "speechSynthesis" in window) {
       await prendreLaParole();
       if (emotion) await jouerSouffle(emotion);
       await parlerAvecLeTelephone(answer);
@@ -4110,7 +4118,7 @@ export default function Home() {
        à l'ouverture du micro, sans l'attendre : le temps que la personne
        parle, que la transcription arrive et que le modèle réponde est
        souvent suffisant pour absorber une partie du réveil. */
-    if (Date.now() - dernierReveilMoteur.current > 480_000) {
+    if (!voixLocaleBiaDisponible(personaRef.current) && Date.now() - dernierReveilMoteur.current > 480_000) {
       dernierReveilMoteur.current = Date.now();
       fetch("/api/voix/reveil", { method: "POST" }).catch(() => { /* tant pis, le premier appel de voix paiera le réveil */ });
     }
