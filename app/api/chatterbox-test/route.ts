@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { verifierCode } from "@/lib/codes";
 
 export const dynamic = "force-dynamic";
@@ -29,8 +30,19 @@ export async function GET() {
   }
 }
 
+// Dedicated server checks use the existing GPU key only on this test route.
+// The browser continues to use its BIA code; the GPU key never enters the page.
+function hasTestKey(request: NextRequest) {
+  const provided = request.headers.get("x-chatterbox-test-key");
+  const expected = process.env.CHATTERBOX_TEST_KEY;
+  if (!provided || !expected) return false;
+  const actual = Buffer.from(provided, "utf8");
+  const wanted = Buffer.from(expected, "utf8");
+  return actual.length === wanted.length && timingSafeEqual(actual, wanted);
+}
+
 export async function POST(request: NextRequest) {
-  if (!verifierCode(request.headers.get("x-bia-code")).ok) {
+  if (!hasTestKey(request) && !verifierCode(request.headers.get("x-bia-code")).ok) {
     return NextResponse.json({ error: "Saisis ton code d’accès BIA pour lancer l’essai." }, { status: 401 });
   }
   const c = configuration();
