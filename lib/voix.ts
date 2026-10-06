@@ -556,7 +556,7 @@ async function viaLocale(texte: string, langue: "wo" | "fr", etiquette: string):
    Les mêmes que pour la voix locale, plus le RÉVEIL : c'est lui que Lamine
    entend comme une lenteur, et c'est lui qu'il faudra régler (machine gardée
    chaude, ou pas) quand BIA aura des utilisateurs. */
-const voixRunPod = { servies: 0, ratees: 0, dernier_rate: "", fabrication_ms: 0, reveils: 0, dernier_reveil_ms: 0 };
+const voixRunPod = { servies: 0, ratees: 0, dernier_rate: "", fabrication_ms: 0, reveils: 0, dernier_reveil_ms: 0, reveils_demandes: 0, dernier_reveil_statut: "" };
 export function hoquetsDeLaVoixRunPod() {
   return {
     branchee: Boolean(voixConfig.runpod.url && voixConfig.runpod.cle),
@@ -566,6 +566,8 @@ export function hoquetsDeLaVoixRunPod() {
     fabrication_ms_moyen: voixRunPod.servies ? Math.round(voixRunPod.fabrication_ms / voixRunPod.servies) : null,
     reveils: voixRunPod.reveils,
     dernier_reveil_ms: voixRunPod.dernier_reveil_ms,
+    reveils_demandes: voixRunPod.reveils_demandes,
+    dernier_reveil_statut: voixRunPod.dernier_reveil_statut,
   };
 }
 
@@ -631,11 +633,16 @@ export function reveillerNotreMoteur(): void {
      réveille donc plus que si RunPod est VRAIMENT le moteur qui va servir. */
   if (voixConfig.fournisseur !== "runpod") return;
   if (!c.url || !c.cle) return;
+  voixRunPod.reveils_demandes += 1;
   fetch(`${c.url}/${estUnPodRunPod(c.url) ? "warmup" : "run"}`, {
     method: "POST",
     headers: entetesRunPod(),
     body: JSON.stringify({ input: { text: ".", voix: "wolof", language_id: c.langue } }),
-  }).catch(() => { /* le réveil est un geste, pas une promesse : un raté ici ne bloque rien */ });
+  }).then(async (reponse) => {
+    if (!reponse.ok) { voixRunPod.dernier_reveil_statut = `HTTP ${reponse.status}`; return; }
+    const etat = await reponse.json() as { status?: string };
+    voixRunPod.dernier_reveil_statut = String(etat.status || "ACCEPTE");
+  }).catch(() => { voixRunPod.dernier_reveil_statut = "ECHEC_RESEAU"; });
 }
 
 export async function viaRunPod(texte: string, langue: "wo" | "fr", r?: Reglages, etiquette = "voix"): Promise<Parole | null> {
