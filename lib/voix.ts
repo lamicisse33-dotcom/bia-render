@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { noterEtape } from "./etapes";
 /* Texte -> parole, repris de l'Interprète Français ↔ Wolof.
    Même adresse, mêmes réglages, mêmes noms de variables : une seule clé
@@ -598,6 +599,25 @@ type ReponseRunPod = {
    chaude ne coûte presque rien (elle exécute une phrase vide, vite
    ignorée) ; sur une machine froide, il évite qu'elle commence à se
    réveiller seulement quand le texte de la réponse est prêt. */
+/* Le proxy Pod réserve Authorization à sa propre authentification.
+   Une clé dérivée permet de joindre notre serveur sans lui transmettre
+   la clé de contrôle RunPod. L'API serverless garde son Bearer habituel. */
+function estUnPodRunPod(url: string): boolean {
+  try { return new URL(url).hostname.endsWith(".proxy.runpod.net"); }
+  catch { return false; }
+}
+
+function entetesRunPod(): Record<string, string> {
+  const c = voixConfig.runpod;
+  const pod = estUnPodRunPod(c.url);
+  return {
+    "content-type": "application/json",
+    ...(pod
+      ? { "X-Khalam-Key": createHash("sha256").update("khalam-tts-v1:" + c.cle).digest("hex") }
+      : { Authorization: `Bearer ${c.cle}` }),
+  };
+}
+
 export function reveillerNotreMoteur(): void {
   const c = voixConfig.runpod;
   /* Trouvé le 25 septembre 2026, en mesurant en conversation réelle : ce
@@ -613,7 +633,7 @@ export function reveillerNotreMoteur(): void {
   if (!c.url || !c.cle) return;
   fetch(`${c.url}/run`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${c.cle}`, "content-type": "application/json" },
+    headers: entetesRunPod(),
     body: JSON.stringify({ input: { text: ".", voix: "wolof", language_id: c.langue } }),
   }).catch(() => { /* le réveil est un geste, pas une promesse : un raté ici ne bloque rien */ });
 }
@@ -624,7 +644,7 @@ export async function viaRunPod(texte: string, langue: "wo" | "fr", r?: Reglages
   const partiVoix = Date.now();
   const arret = new AbortController();
   const minuterie = setTimeout(() => arret.abort(), c.attenteMs);
-  const entetes = { Authorization: `Bearer ${c.cle}`, "content-type": "application/json" };
+  const entetes = entetesRunPod();
   try {
     const reponse = await fetch(`${c.url}/runsync`, {
       method: "POST",
@@ -667,7 +687,8 @@ export async function viaRunPod(texte: string, langue: "wo" | "fr", r?: Reglages
       voixRunPod.reveils += 1;
       voixRunPod.dernier_reveil_ms = Number(etat.delayTime) || 0;
     }
-    return { audio: octets, typeMime: "audio/wav", moteur: "khalam-voix (RunPod, voix de Kha)" };
+    return { audio: octets, typeMime: "audio/wav", moteur: estUnPodRunPod(c.url)
+      ? "khalam-voix (Chatterbox 220, voix de Didi)" : "khalam-voix (RunPod, voix de Kha)" };
   } catch (err) {
     voixRunPod.ratees += 1;
     voixRunPod.dernier_rate = String((err as Error).name === "AbortError"
