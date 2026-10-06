@@ -605,6 +605,7 @@ type ReponseRunPod = {
    Une clé dérivée permet de joindre notre serveur sans lui transmettre
    la clé de contrôle RunPod. L'API serverless garde son Bearer habituel. */
 function estUnPodRunPod(url: string): boolean {
+  if (env.VOIX_RUNPOD_MODE === "pod") return true;
   try { return new URL(url).hostname.endsWith(".proxy.runpod.net"); }
   catch { return false; }
 }
