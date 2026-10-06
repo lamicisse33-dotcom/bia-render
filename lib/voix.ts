@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { noterEtape } from "./etapes";
 /* Texte -> parole, repris de l'Interprète Français ↔ Wolof.
    Même adresse, mêmes réglages, mêmes noms de variables : une seule clé
@@ -555,7 +556,7 @@ async function viaLocale(texte: string, langue: "wo" | "fr", etiquette: string):
    Les mêmes que pour la voix locale, plus le RÉVEIL : c'est lui que Lamine
    entend comme une lenteur, et c'est lui qu'il faudra régler (machine gardée
    chaude, ou pas) quand BIA aura des utilisateurs. */
-const voixRunPod = { servies: 0, ratees: 0, dernier_rate: "", fabrication_ms: 0, reveils: 0, dernier_reveil_ms: 0 };
+const voixRunPod = { servies: 0, ratees: 0, dernier_rate: "", fabrication_ms: 0, reveils: 0, dernier_reveil_ms: 0, reveils_demandes: 0, dernier_reveil_statut: "" };
 export function hoquetsDeLaVoixRunPod() {
   return {
     branchee: Boolean(voixConfig.runpod.url && voixConfig.runpod.cle),
@@ -565,6 +566,8 @@ export function hoquetsDeLaVoixRunPod() {
     fabrication_ms_moyen: voixRunPod.servies ? Math.round(voixRunPod.fabrication_ms / voixRunPod.servies) : null,
     reveils: voixRunPod.reveils,
     dernier_reveil_ms: voixRunPod.dernier_reveil_ms,
+    reveils_demandes: voixRunPod.reveils_demandes,
+    dernier_reveil_statut: voixRunPod.dernier_reveil_statut,
   };
 }
 
@@ -598,6 +601,25 @@ type ReponseRunPod = {
    chaude ne coûte presque rien (elle exécute une phrase vide, vite
    ignorée) ; sur une machine froide, il évite qu'elle commence à se
    réveiller seulement quand le texte de la réponse est prêt. */
+/* Le proxy Pod réserve Authorization à sa propre authentification.
+   Une clé dérivée permet de joindre notre serveur sans lui transmettre
+   la clé de contrôle RunPod. L'API serverless garde son Bearer habituel. */
+function estUnPodRunPod(url: string): boolean {
+  try { return new URL(url).hostname.endsWith(".proxy.runpod.net"); }
+  catch { return false; }
+}
+
+function entetesRunPod(): Record<string, string> {
+  const c = voixConfig.runpod;
+  const pod = estUnPodRunPod(c.url);
+  return {
+    "content-type": "application/json",
+    ...(pod
+      ? { "X-Khalam-Key": createHash("sha256").update("khalam-tts-v1:" + c.cle).digest("hex") }
+      : { Authorization: `Bearer ${c.cle}` }),
+  };
+}
+
 export function reveillerNotreMoteur(): void {
   const c = voixConfig.runpod;
   /* Trouvé le 25 septembre 2026, en mesurant en conversation réelle : ce
@@ -611,11 +633,16 @@ export function reveillerNotreMoteur(): void {
      réveille donc plus que si RunPod est VRAIMENT le moteur qui va servir. */
   if (voixConfig.fournisseur !== "runpod") return;
   if (!c.url || !c.cle) return;
-  fetch(`${c.url}/run`, {
+  voixRunPod.reveils_demandes += 1;
+  fetch(`${c.url}/${estUnPodRunPod(c.url) ? "warmup" : "run"}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${c.cle}`, "content-type": "application/json" },
+    headers: entetesRunPod(),
     body: JSON.stringify({ input: { text: ".", voix: "wolof", language_id: c.langue } }),
-  }).catch(() => { /* le réveil est un geste, pas une promesse : un raté ici ne bloque rien */ });
+  }).then(async (reponse) => {
+    if (!reponse.ok) { voixRunPod.dernier_reveil_statut = `HTTP ${reponse.status}`; return; }
+    const etat = await reponse.json() as { status?: string };
+    voixRunPod.dernier_reveil_statut = String(etat.status || "ACCEPTE");
+  }).catch(() => { voixRunPod.dernier_reveil_statut = "ECHEC_RESEAU"; });
 }
 
 export async function viaRunPod(texte: string, langue: "wo" | "fr", r?: Reglages, etiquette = "voix"): Promise<Parole | null> {
@@ -624,9 +651,9 @@ export async function viaRunPod(texte: string, langue: "wo" | "fr", r?: Reglages
   const partiVoix = Date.now();
   const arret = new AbortController();
   const minuterie = setTimeout(() => arret.abort(), c.attenteMs);
-  const entetes = { Authorization: `Bearer ${c.cle}`, "content-type": "application/json" };
+  const entetes = entetesRunPod();
   try {
-    const reponse = await fetch(`${c.url}/runsync`, {
+    const reponse = await fetch(`${c.url}/${estUnPodRunPod(c.url) ? "tts" : "runsync"}`, {
       method: "POST",
       headers: entetes,
       body: JSON.stringify({ input: {
@@ -667,7 +694,8 @@ export async function viaRunPod(texte: string, langue: "wo" | "fr", r?: Reglages
       voixRunPod.reveils += 1;
       voixRunPod.dernier_reveil_ms = Number(etat.delayTime) || 0;
     }
-    return { audio: octets, typeMime: "audio/wav", moteur: "khalam-voix (RunPod, voix de Kha)" };
+    return { audio: octets, typeMime: "audio/wav", moteur: estUnPodRunPod(c.url)
+      ? "khalam-voix (Chatterbox 220, voix de Didi)" : "khalam-voix (RunPod, voix de Kha)" };
   } catch (err) {
     voixRunPod.ratees += 1;
     voixRunPod.dernier_rate = String((err as Error).name === "AbortError"
