@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { ralentir, vitesseChoisie } from "@/lib/ralentir";
+import { essaiChatterboxActif, routeVoixBia, voixChatterboxBia } from "@/lib/chatterbox-essai";
 
 /* ── LUI FAIRE DIRE UN TEXTE, MOT POUR MOT ──────────────────────────────────
 
@@ -80,6 +81,10 @@ export function useParler(code: string): Parleur {
     taire();
     setJoue(quoi);
     setEtat("");
+    // Keep every part of this reading on the same selected voice.
+    const chatterbox = essaiChatterboxActif();
+    const route = routeVoixBia();
+    const voice = chatterbox ? voixChatterboxBia() : undefined;
     try {
       const ctx = contexte();
       if (ctx.state === "suspended") await ctx.resume();
@@ -89,10 +94,10 @@ export function useParler(code: string): Parleur {
       let envoyes = 0;
 
       while (partie < total) {
-        const r = await fetch("/api/voix", {
+        const r = await fetch(route, {
           method: "POST",
           headers: { "content-type": "application/json", "x-bia-code": code },
-          body: JSON.stringify({ texte: propre, partie, ou: "essai" }),
+          body: JSON.stringify({ texte: propre, partie, ou: "essai", voice }),
         });
         if (r.status === 401) { setEtat("Ce code n'est pas valable."); setJoue(""); return; }
         const d = await r.json() as {
@@ -116,7 +121,7 @@ export function useParler(code: string): Parleur {
         }
         const octets = Uint8Array.from(atob(d.audio), (c) => c.charCodeAt(0)).buffer;
         const brut = await ctx.decodeAudioData(octets.slice(0));
-        const pose = ralentir(ctx, brut, vitesseChoisie());
+        const pose = ralentir(ctx, brut, chatterbox ? 1 : vitesseChoisie());
         const source = ctx.createBufferSource();
         source.buffer = pose;
         source.connect(ctx.destination);

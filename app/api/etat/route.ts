@@ -23,6 +23,7 @@ import { resumeReflexion } from "@/lib/reflechir";
 import { listeDesRates, resumeDesRates } from "@/lib/rates-du-repertoire";
 import { verifierCode } from "@/lib/codes";
 import { registreDesOrdres, resumeDesOrdres } from "@/lib/ordres-vus";
+import { resumeChatterboxTest } from "@/lib/chatterbox-test-etat";
 
 /* Dit à l'interface quels moteurs sont réellement branchés, pour qu'elle
    choisisse le micro et la voix sans deviner. Ouvert : aucun moteur payant
@@ -147,6 +148,7 @@ export async function GET(request: Request) {
        fabrication moyenne. Ses signes remboursés sont dans depense.voix_locale. */
     voix_locale: hoquetsDeLaVoixLocale(),
     voix_runpod: hoquetsDeLaVoixRunPod(),
+    chatterbox_test: resumeChatterboxTest(),
     derniere_panne: dernierePanne(),
     // L'histoire, elle, ne s'efface pas : une panne passée reste lisible même
     // si tout va bien depuis. C'est la seule façon de comprendre après coup.
