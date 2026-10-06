@@ -631,7 +631,7 @@ export function reveillerNotreMoteur(): void {
      réveille donc plus que si RunPod est VRAIMENT le moteur qui va servir. */
   if (voixConfig.fournisseur !== "runpod") return;
   if (!c.url || !c.cle) return;
-  fetch(`${c.url}/run`, {
+  fetch(`${c.url}/${estUnPodRunPod(c.url) ? "warmup" : "run"}`, {
     method: "POST",
     headers: entetesRunPod(),
     body: JSON.stringify({ input: { text: ".", voix: "wolof", language_id: c.langue } }),
@@ -646,7 +646,7 @@ export async function viaRunPod(texte: string, langue: "wo" | "fr", r?: Reglages
   const minuterie = setTimeout(() => arret.abort(), c.attenteMs);
   const entetes = entetesRunPod();
   try {
-    const reponse = await fetch(`${c.url}/runsync`, {
+    const reponse = await fetch(`${c.url}/${estUnPodRunPod(c.url) ? "tts" : "runsync"}`, {
       method: "POST",
       headers: entetes,
       body: JSON.stringify({ input: {
