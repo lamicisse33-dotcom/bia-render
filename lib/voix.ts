@@ -601,9 +601,9 @@ type ReponseRunPod = {
    chaude ne coûte presque rien (elle exécute une phrase vide, vite
    ignorée) ; sur une machine froide, il évite qu'elle commence à se
    réveiller seulement quand le texte de la réponse est prêt. */
-/* Le proxy Pod réserve Authorization à sa propre authentification.
-   Une clé dérivée permet de joindre notre serveur sans lui transmettre
-   la clé de contrôle RunPod. L'API serverless garde son Bearer habituel. */
+/* Notre serveur Pod vérifie une clé dédiée à la voix.
+   La clé dérivée évite de lui transmettre la clé de contrôle RunPod.
+   L'API serverless garde son Bearer habituel. */
 function estUnPodRunPod(url: string): boolean {
   if (env.VOIX_RUNPOD_MODE === "pod") return true;
   try { return new URL(url).hostname.endsWith(".proxy.runpod.net"); }
