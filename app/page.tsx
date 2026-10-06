@@ -45,6 +45,7 @@ import { fenetreDuFil } from "@/lib/fenetre-du-fil";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 import { lireLeRire } from "@/lib/rires";
+import { essaiChatterboxMasculin, routeVoixBia } from "@/lib/chatterbox-essai";
 import { reveiller } from "@/lib/reveil-du-son";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
 /* `sonne` vit dans lib/normaliser.ts : un fichier SANS aucun import, écrit le
@@ -374,7 +375,7 @@ function octetsDeBase64(b64: string, vitesseSource?: number) {
 /* BIA et Rara partagent le moteur installé dans la même application iPhone.
    Les personnalités restent distinctes ; hors application, la voix est inchangée. */
 function voixLocaleBiaDisponible(_persona = "rara"): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof window === "undefined" || essaiChatterboxMasculin()) return false;
   const moteur = (window as Window & { BiaLocalVoice?: { epoch?: number; settings?: unknown } }).BiaLocalVoice;
   return typeof moteur?.epoch === "number" && typeof moteur.settings === "function";
 }
@@ -474,6 +475,8 @@ export default function Home() {
   /* Quand la reponse ne vient pas du modele, on le dit a l ecran. Sans ce
      temoin, une panne du moteur ressemblait a une reponse ordinaire. */
   const [panne, setPanne] = useState("");
+  const [essaiChatterbox, setEssaiChatterbox] = useState(false);
+  useEffect(() => { setEssaiChatterbox(essaiChatterboxMasculin()); }, []);
   const [voixLocalePresente, setVoixLocalePresente] = useState(false);
   useEffect(() => {
     const verifier = () => { const presente = voixLocaleBiaDisponible(); setVoixLocalePresente(presente); noterRouteVoixBia("ouverture", presente); };
@@ -596,6 +599,7 @@ export default function Home() {
   useEffect(() => {
     let actif = true;
     const synchroniser = () => {
+      if (essaiChatterboxMasculin()) { setDebit(1); return; }
       const voix = voixAvecDebitNatif();
       if (voix?.getSpeed) {
         void voix.getSpeed().then((d) => { if (actif) { debitNatifRef.current = d.speed; setDebit(d.speed); } }).catch(() => { if (actif) setErreurDebit("Impossible de lire le réglage de la voix."); });
@@ -611,6 +615,7 @@ export default function Home() {
     return () => { actif = false; window.removeEventListener("focus", synchroniser); document.removeEventListener("visibilitychange", visible); };
   }, [persona]);
   const changerDebit = (valeur: number) => {
+    if (essaiChatterboxMasculin()) return;
     setDebit(valeur); debitNatifRef.current = valeur; setErreurDebit("");
     const voix = voixAvecDebitNatif();
     if (voixLocaleBiaDisponible()) {
@@ -621,12 +626,14 @@ export default function Home() {
     }
   };
   const vitesseAudioBia = (octets: ArrayBuffer) => {
+    if (essaiChatterboxMasculin()) return 1;
     const source = rythmesAudioBia.get(octets);
     return voixLocaleBiaDisponible(personaRef.current) && source
       ? debitNatifRef.current / source : vitesseChoisie();
   };
   useEffect(() => {
     // Écrit à chaque mouvement : elle le lira au mot suivant, sans rien relancer.
+    if (essaiChatterboxMasculin()) return;
     try { localStorage.setItem(CLE_VITESSE, String(debit)); } catch {}
   }, [debit]);
 
@@ -1831,6 +1838,10 @@ export default function Home() {
      idle_timeout dans main.py) avant d'en renvoyer un. */
   const dernierReveilMoteur = useRef(0);
   const parlerAvecLeTelephone = useCallback((answer: string) => new Promise<void>((fini) => {
+    if (essaiChatterboxMasculin()) {
+      setPanne("Chatterbox n’a pas produit de son. Réessaie l’essai vocal.");
+      stopMouth(answer); fini(); return;
+    }
     if (voixLocaleBiaDisponible(personaRef.current)) {
       noterRouteVoixBia("repli_bloque", true);
       setPanne("La voix locale n'a pas répondu. La voix du téléphone est désactivée pour ce test.");
@@ -2053,6 +2064,7 @@ export default function Home() {
          réflexion alors qu'il n'y a eu aucune réflexion. */
   const souffleDattenteRef = useRef<AudioBufferSourceNode | null>(null);
   const soufflerEnAttendant = useCallback(async (jeton: object) => {
+    if (essaiChatterboxMasculin()) return;
     if (carteOuverteRef.current) return;
     const souffle = souffleDe("reflexion");
     if (!souffle) return;
@@ -2105,6 +2117,7 @@ export default function Home() {
      coup au lieu d'être annoncée puis jouée. Si le fichier n'est pas encore
      déposé, on ne fait rien — le visage rit en silence, comme avant. */
   const jouerSouffle = useCallback(async (emotion: string, sansPrelude = false) => {
+    if (essaiChatterboxMasculin()) return;
     /* Carte ouverte : pas de rire, pas de soupir, rien. Une seule voix quand
        on conduit — la meme regle que speak() et direSonTeutFait(). */
     if (carteOuverteRef.current) return;
@@ -2155,6 +2168,7 @@ export default function Home() {
      plaint pas. Le bruit de frappe et le petit clavier suffisent déjà à
      montrer qu'elle travaille. */
   const direEnregistre = useCallback(async (quoi: string) => {
+    if (essaiChatterboxMasculin()) return;
     try {
       const fichier = `/sons/${quoi}.mp3`;
       let octets = cacheSons.current.get(fichier);
@@ -2180,7 +2194,7 @@ export default function Home() {
      mémoire pour la durée de la session. */
   const audioParole = useCallback(async (p: Parole, langue: Langue, nom = "") => {
     const texte = dire(p, langue, nom);
-    const cleAttente = `${personaRef.current}:${voixLocaleBiaDisponible(personaRef.current) ? debitNatifRef.current : "serveur"}:${texte}`;
+    const cleAttente = `${routeVoixBia()}:${personaRef.current}:${voixLocaleBiaDisponible(personaRef.current) ? debitNatifRef.current : "serveur"}:${texte}`;
     const garde = attenteCache.current.get(cleAttente);
     if (garde) return garde;
 
@@ -2201,7 +2215,7 @@ export default function Home() {
        Rara ne les a pas encore les siens, donc ce raccourci ne doit jouer
        que pour BIA : sinon Rara prononcerait sa phrase d'attente avec la
        voix de Kha, quels que soient les réglages de /api/voix plus bas. */
-    if (!p.wo.includes("{nom}") && personaRef.current !== "rara" && !voixLocaleBiaDisponible(personaRef.current)) {
+    if (!essaiChatterboxMasculin() && !p.wo.includes("{nom}") && personaRef.current !== "rara" && !voixLocaleBiaDisponible(personaRef.current)) {
       const base = (moteursRef.current as { repertoire?: { base_sons?: Record<string, string> } } | null)
         ?.repertoire?.base_sons?.[langue] || "";
       for (const adresse of fichiersPossibles(p, langue, base)) {
@@ -2225,7 +2239,7 @@ export default function Home() {
        première phrase — sept secondes au lieu de quarante-deux — et BIA
        repartait au début, encore et encore. C'est ce que Lamine a entendu. */
     const demander = async (partie: number) => {
-      const r = await fetch("/api/voix", {
+      const r = await fetch(routeVoixBia(), {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
         body: JSON.stringify({ texte, partie, ou: "attente", audioPrompt: voixAudioPrompt() }),
@@ -2335,6 +2349,7 @@ export default function Home() {
      respire près de son visage. Comme Siri, comme ChatGPT. Quand la réponse
      est prête, la lueur s'éteint et elle parle. */
   const attendreEnParlant = useCallback(async (jeton: object, langue: Langue) => {
+    if (essaiChatterboxMasculin()) return;
     // Après le premier échange, elle se tait : c'est toute la règle.
     if (presentationFaiteRef.current) return;
     presentationFaiteRef.current = true;
@@ -2490,7 +2505,7 @@ export default function Home() {
        traité comme un prénom, puis oublié. */
     if (!enregistreurRef.current) attendLeNomRef.current = false;
     couperAttente();
-    if (parlait) {
+    if (parlait && !essaiChatterboxMasculin()) {
       try {
         /* ET MÊME LÀ, IL NE RETIENT PAS LA RÉPONSE. Fabriquer le chapeau
            demande huit secondes à Soynade tant que /sons/attente/ est vide.
@@ -2601,6 +2616,7 @@ export default function Home() {
   }, []);
 
   const direSonTeutFait = useCallback(async (adresse: string, emotion?: string) => {
+    if (essaiChatterboxMasculin()) { setMode("ready"); setFace("yeux_ouverts"); return; }
     /* LA MEME REGLE QUE speak() : carte ouverte, BIA se tait. Une reponse
        enregistree ne passe pas par speak(), donc elle echappait a la garde —
        et c'est justement la reponse la plus frequente quand on demande un
@@ -2682,7 +2698,7 @@ export default function Home() {
     const locale = voixLocaleBiaDisponible(personaRef.current);
     noterRouteVoixBia("demande", locale);
 
-    if (moteursRef.current && moteursRef.current.voix === "navigateur" && !voixLocaleBiaDisponible(personaRef.current)) {
+    if (!essaiChatterboxMasculin() && moteursRef.current && moteursRef.current.voix === "navigateur" && !voixLocaleBiaDisponible(personaRef.current)) {
       await prendreLaParole();
       if (enLecon) { renoncer(); return; }
       if (emotion) await jouerSouffle(emotion);
@@ -2702,7 +2718,7 @@ export default function Home() {
 
        Les leçons restent sur le vrai moteur (elles portent sur le wolof,
        `enLecon` est donc un filet, pas le cas normal ici). */
-    if (langueDite === "fr" && !enLecon && !voixLocaleBiaDisponible(personaRef.current) && typeof window !== "undefined" && "speechSynthesis" in window) {
+    if (!essaiChatterboxMasculin() && langueDite === "fr" && !enLecon && !voixLocaleBiaDisponible(personaRef.current) && typeof window !== "undefined" && "speechSynthesis" in window) {
       await prendreLaParole();
       if (emotion) await jouerSouffle(emotion);
       await parlerAvecLeTelephone(answer);
@@ -2720,7 +2736,7 @@ export default function Home() {
       let dernier = "";
       for (let essai = 0; essai < 2; essai++) {
         try {
-          const r = await fetch("/api/voix", {
+          const r = await fetch(routeVoixBia(), {
             method: "POST",
             headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
             /* `tete` : la PREMIERE phrase d'une réponse, celle qu'on attend
@@ -2752,7 +2768,8 @@ export default function Home() {
          demander le second, c'était ajouter la fabrication de l'un à celle de
          l'autre — et ce temps-là s'entendait, en plein milieu de sa phrase. */
       const premier = demander(0);
-      const second = demander(1);
+      // One test GPU: start the first audible segment before queuing the next.
+      const second = essaiChatterboxMasculin() ? null : demander(1);
       let bloc = await premier;
       if (!suite) noterAttente();   // le son est là : l'attente est finie, on la note
       if (ou === "réponse") {
@@ -2785,6 +2802,10 @@ export default function Home() {
       }
       await prendreLaParole();
       if (!bloc.audio) {
+        if (essaiChatterboxMasculin()) {
+          setPanne("Chatterbox n’a produit aucun son. Réessaie l’essai vocal.");
+          stopMouth(answer); return;
+        }
         if (locale) {
           noterRouteVoixBia("audio_absent", true);
           setPanne("La voix locale n'a produit aucun son. Réessaie depuis BIA.");
@@ -2844,7 +2865,7 @@ export default function Home() {
       const total = bloc.parties;
       const enVol = new Map<number, ReturnType<typeof demander>>();
       enVol.set(0, premier);
-      if (total > 1) enVol.set(1, second);
+      if (total > 1) enVol.set(1, second || demander(1));
       const lancer = (i: number) => {
         if (i > 1 && i < total && !enVol.has(i)) enVol.set(i, demander(i));
       };
@@ -3026,7 +3047,7 @@ export default function Home() {
       await prendreLaParole();
       /* Même règle qu'en haut : pendant une leçon, se taire vaut mieux que
          prononcer son wolof avec une bouche française. */
-      if (ou === "apprentissage" || locale) { stopMouth(answer); return; }
+      if (ou === "apprentissage" || locale || essaiChatterboxMasculin()) { stopMouth(answer); return; }
       await parlerAvecLeTelephone(answer);
     }
   }, [contexte, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth]);
@@ -3575,7 +3596,7 @@ export default function Home() {
         if (!estLeTour(monTour)) return;
         const reste = resteADire(data.reply, teteDite);
         if (reste) void speak(reste, undefined, "réponse", true);
-      } else if (data.son && !voixLocaleBiaDisponible(personaRef.current)) {
+      } else if (data.son && !essaiChatterboxMasculin() && !voixLocaleBiaDisponible(personaRef.current)) {
         try {
           await direSonTeutFait(data.son, emotionRef.current);
           /* ── ELLE RIT APRÈS LA CHUTE, PAS AVANT ────────────────────────
@@ -3887,6 +3908,7 @@ export default function Home() {
     let vivant = true;
     void (async () => {
       for (const langue of ["wo", "fr"] as const) {
+        if (essaiChatterboxMasculin()) return;
         for (const parole of A_FABRIQUER) {
           if (!vivant) return;
           try { await audioParole(parole, langue); } catch { return; }
@@ -3912,6 +3934,7 @@ export default function Home() {
     void (async () => {
       /* On laisse passer les paroles d'attente (ci-dessus) et la salutation
          d'ouverture : elles passent avant. */
+      if (essaiChatterboxMasculin()) return;
       await new Promise((r) => setTimeout(r, 4000));
       if (!vivant) return;
       const bilan = { demandes: 0, deja_la: 0, chargees: 0, ratees: 0, ms: 0, octets: 0 };
@@ -3973,6 +3996,7 @@ export default function Home() {
   useEffect(() => {
     const reveiller = () => {
       contexte();
+      if (essaiChatterboxMasculin()) return;
       if (salueRef.current || !code) return;
       salueRef.current = true;
       /* Elle ne coupe jamais la parole à personne : si elle est déjà en
@@ -4168,7 +4192,7 @@ export default function Home() {
 
        Une phrase vide et sans volume suffit à le réveiller. Elle ne s'entend
        pas, elle ne coûte rien, et elle ne se fait qu'une fois. */
-    if (!voixDuTelephoneArmee.current && typeof window !== "undefined" && "speechSynthesis" in window) {
+    if (!essaiChatterboxMasculin() && !voixDuTelephoneArmee.current && typeof window !== "undefined" && "speechSynthesis" in window) {
       voixDuTelephoneArmee.current = true;
       try {
         const reveil = new SpeechSynthesisUtterance(" ");
@@ -4187,7 +4211,7 @@ export default function Home() {
        à l'ouverture du micro, sans l'attendre : le temps que la personne
        parle, que la transcription arrive et que le modèle réponde est
        souvent suffisant pour absorber une partie du réveil. */
-    if (!voixLocaleBiaDisponible(personaRef.current) && Date.now() - dernierReveilMoteur.current > 480_000) {
+    if (!essaiChatterboxMasculin() && !voixLocaleBiaDisponible(personaRef.current) && Date.now() - dernierReveilMoteur.current > 480_000) {
       dernierReveilMoteur.current = Date.now();
       fetch("/api/voix/reveil", { method: "POST" }).catch(() => { /* tant pis, le premier appel de voix paiera le réveil */ });
     }
@@ -4921,7 +4945,7 @@ export default function Home() {
            Tant que les phrases de service ne sont pas enregistrées,
            choisirService rend null et rien ne change : une phrase promise
            sans son serait un silence. */
-        const accuseSuite = apresSalutationRef.current
+        const accuseSuite = !essaiChatterboxMasculin() && apresSalutationRef.current
           ? choisirService("suite", dernierService.current) : null;
         apresSalutationRef.current = false;
         if (accuseSuite) {
@@ -7110,20 +7134,21 @@ export default function Home() {
       <>
         <p className="papier-titre">La voix de {persona === "rara" ? "Rara" : "BIA"}</p>
         <p className="papier-note" role="status" data-bia-voice-status>
-          {voixLocalePresente
+          {essaiChatterbox ? "Chatterbox · voix d’homme · serveur de test" : voixLocalePresente
             ? `Voix locale ${epoqueVoixLocaleBia()} — moteur installé sur cet iPhone`
             : "Voix du téléphone — le moteur local est absent dans cette fenêtre"}
         </p>
-        {!voixLocalePresente && (
+        {!essaiChatterbox && !voixLocalePresente && (
           <p className="papier-note">Pour tester la nouvelle voix, ouvre BIA installée sur l&apos;iPhone. Safari et l&apos;ancienne icône web n&apos;ont pas ce moteur.</p>
         )}
         <p className="papier-note">
-          Si elle parle trop vite, ralentis-la. Sa voix ne change pas — elle
-          prend seulement son temps. C&apos;est pour toi seul, sur ce téléphone.
+          {essaiChatterbox ? "Vitesse d’origine du moteur pour cet essai." : <>Si elle parle trop vite, ralentis-la. Sa voix ne change pas — elle
+          prend seulement son temps. C&apos;est pour toi seul, sur ce téléphone.</>}
         </p>
         <div className="papier-debit" role="group" aria-label="Réglage de la vitesse">
-          <span>Elle parle&nbsp;: <b>{mot}</b> — {debit.toFixed(2)} ×</span>
+          <span>Elle parle&nbsp;: <b>{essaiChatterbox ? "Vitesse d’origine" : mot}</b> — {debit.toFixed(2)} ×</span>
           <input type="range" min={voixLocalePresente ? 0.7 : 0.6} max={voixLocalePresente ? 1.2 : 1} step={0.05} value={debit}
+            disabled={essaiChatterbox}
             aria-label="Vitesse de la voix"
             onChange={(e) => changerDebit(Number(e.target.value))} />
           <span className="papier-debit-bornes"><i>Plus lentement</i><i>Plus vite</i></span>
@@ -7374,9 +7399,28 @@ export default function Home() {
     setCodeErreur("");
   }
 
+  const temoinEssaiChatterbox = essaiChatterbox ? (
+    <aside aria-label="Essai Chatterbox" data-voice-engine="chatterbox" data-voice="male"
+      style={{ position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 54px)", left: "50%", transform: "translateX(-50%)", zIndex: 200, width: "min(320px, 90vw)", padding: "10px 14px", borderRadius: 14, background: "rgba(15, 20, 25, .94)", color: "#fff", textAlign: "center", fontSize: 13 }}>
+      <strong>Chatterbox · voix d’homme</strong>
+      <div style={{ display: "flex", justifyContent: "center", gap: 16, alignItems: "center", marginTop: 8 }}>
+        {code && <button type="button" disabled={mode !== "ready" || conversation}
+          style={{ border: 0, borderRadius: 8, padding: "8px 12px", background: "#ead4a4", color: "#171717" }}
+          onClick={() => {
+            setPanne(""); setMode("thinking");
+            void reveillerLeSon().then(() => speak("Salaam. Naka nga def? Maa ngi fi ngir dimbali la.", undefined, "essai"))
+              .catch(() => { setPanne("Touche à nouveau pour activer le son."); setMode("ready"); });
+          }}>Écouter la voix</button>}
+        <a href="/" style={{ color: "#fff", fontSize: 12 }}>Voix habituelle</a>
+      </div>
+      {panne && <p role="alert" style={{ margin: "8px 0 0", color: "#ffd6a0" }}>{panne}</p>}
+    </aside>
+  ) : null;
+
   if (!code) {
     return (
       <main className="bia-presence" data-mode="ready">
+        {temoinEssaiChatterbox}
         <div className="portrait" aria-hidden="true" data-tenue={tenue} data-persona={persona}><div className="avatar" data-face="yeux_ouverts" /></div>
         <section className="porte">
           <p className="porte-titre">BIA</p>
@@ -7414,12 +7458,13 @@ export default function Home() {
   /* ── ONBOARDING VOIX ────────────────────────────────────────────────────
      Affiché une seule fois, au premier lancement, si aucune belle voix
      française féminine n'est trouvée sur l'appareil. */
-  if (onboarding.besoin && onboarding.verifie) {
+  if (!essaiChatterbox && onboarding.besoin && onboarding.verifie) {
     return <OnboardingVoix onTermine={() => onboarding.passer()} />;
   }
 
   return (
     <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
+      {temoinEssaiChatterbox}
       <div className={eclipse ? "portrait eclipse" : rallume ? "portrait rallume" : "portrait"}
         aria-hidden="true" data-tenue={tenue} data-persona={persona}>
         {/* ── DEUX COUCHES, POUR QUE LE VISAGE NE SAUTE PLUS ─────────────
