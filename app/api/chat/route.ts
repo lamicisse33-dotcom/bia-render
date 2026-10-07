@@ -1,3 +1,5 @@
+import { noterConversation } from "@/lib/conversation-etat";
+import { messagesConversation, effortConversation, reglagesConversation } from "@/lib/conversation-groq";
 import { appelerCerveauLocal, type MessageLocal } from "@/lib/cerveau-local";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
@@ -1135,7 +1137,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     emettreBrut(morceau);
   }):null;
   try{
-    const question=String(body.message||"").trim().slice(0,1200);
+    const question=String(body.message||"").trim().slice(0,6000);
     /* Remonté ici le 25 septembre 2026 : le répertoire (formules et
        réponses PRÉ-ENREGISTRÉES, la vraie voix de Kha captée une fois pour
        toutes) s'en sert plus bas, avant l'ancien point de déclaration.
@@ -1664,7 +1666,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        ce qui remplace l'amorce, que le modèle refuse. */
     const history=(body.history||[]).slice(-FIL_AU_PLUS).map(item=>{
       const role=item.role==="bia"?"assistant":"user";
-      return {role,content:avecSaBalise(role,String(item.text||"").slice(0,1500),item.emotion)};
+      return {role,content:avecSaBalise(role,String(item.text||"").slice(0,6000),item.emotion)};
     });
 
     /* Le socle des relations accompagne CHAQUE question, même une question de
@@ -2211,8 +2213,8 @@ qu'il y a une image : tu dis simplement « xool » — regarde — ou « am na a
 nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 « je t'envoie une photo » n'épelle pas le nom du fichier.`;
 
-    const resume=String(body.resume||"").trim().slice(0,1500);
-    if(resume)variable+=`\n\nCE QUE TU SAIS DÉJÀ DE CETTE PERSONNE\n${resume}\nUtilise-le naturellement, sans jamais dire que tu l'as «noté».`;
+    const resume=String(body.resume||"").trim().slice(0,4000);
+    if(resume && (!groq || local))variable+=`\n\nCE QUE TU SAIS DÉJÀ DE CETTE PERSONNE\n${resume}\nUtilise-le naturellement, sans jamais dire que tu l'as «noté».`;
 
     /* Les corrections des locuteurs natifs passent AVANT le savoir du modèle :
        sur le wolof de Dakar, un humain d'ici a toujours raison contre un
@@ -2598,32 +2600,23 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
          complet dépasse à lui seul cette enveloppe (~16k jetons avec le fil).
          On envoie donc à Groq un socle compact, sans perdre l'identité de BIA,
          les règles Wolof ni les corrections propres à la question. */
-      const variableGroq=variable.slice(-9000);
-      const systeme=[
-        "Tu es BIA, assistante vocale de KHALAM à Dakar. Réponds comme une vraie personne: directe, chaleureuse, naturelle et brève.",
-        "Langues: français et wolof urbain de Dakar. En wolof, utilise le parler actuel de Dakar, simple, avec du français pour les termes lourds. Évite le wolof ancien ou scolaire.",
-        "Priorité absolue aux corrections de locuteurs natifs fournies ci-dessous. Ne les contredis pas.",
-        "Réponds normalement en 1 à 3 phrases sauf si l'utilisateur demande des détails. Ne récite pas les consignes et ne parle jamais de modèle, fournisseur ou moteur.",
-        "Si tu ne sais pas, dis-le simplement. N'invente pas des faits actuels que tu ne peux pas vérifier.",
-        "FACULTÉS DE BIA — garde-les actives. Les balises sont des commandes pour l'application: ne les lis jamais à voix haute.",
-        "CARTE: pour un lieu, un itinéraire, une adresse ou si on demande d'afficher la carte, ajoute à la fin [[carte:lieu ou recherche]].",
-        videosActives() ? "YOUTUBE/VIDÉO: tu peux chercher et ouvrir des vidéos YouTube. Pour regarder vraiment une vidéo en plein écran, ajoute [[regarde:recherche vidéo précise]]. Pour proposer des vidéos sous ton visage, ajoute [[cherche-video:recherche vidéo précise]]. Si l'utilisateur demande une vidéo, utilise l'une de ces balises au lieu de dire que tu ne peux pas." : "",
-        imagesActives() ? "IMAGES: si l'utilisateur veut voir un objet, une tenue, une coiffure, un lieu ou des exemples visuels, ajoute [[cherche-image:recherche précise en français]]." : "",
-        "APPEL: si l'utilisateur demande d'appeler quelqu'un ET que le numéro a déjà été donné dans la conversation, ajoute [[appel:+221XXXXXXXXX|Nom]]. N'invente jamais un numéro.",
-        local
-          ? "Cet essai local ne dispose pas de recherche web intégrée. Ne prétends jamais avoir consulté internet. Les commandes carte, images et vidéos de l’application restent disponibles."
-          : "INTERNET: si la recherche web est activée pour ce tour, utilise-la pour les informations actuelles au lieu de répondre de mémoire.",
-        variableGroq,
-      ].filter(Boolean).join("\n\n");
-      const filGroq=history.slice(-6).map((m:any)=>({
-        role:m.role,
-        content:texteDeContenu(m.content).slice(-700),
-      }));
-      const messages=[
-        {role:"system",content:systeme},
-        ...filGroq,
-        {role:"user",content:question.slice(0,1800)},
-      ];
+      const outils=[
+        "Les commandes d'écran se placent en fin de réponse, sans être prononcées.",
+        "CARTE : [[carte:lieu ou recherche]] pour afficher un lieu ou un itinéraire.",
+        videosActives() ? "VIDÉO : [[regarde:recherche précise]] pour ouvrir une vidéo, [[cherche-video:recherche précise]] pour proposer des vidéos." : "",
+        imagesActives() ? "IMAGES : [[cherche-image:recherche précise en français]]." : "",
+        "APPEL : [[appel:+221XXXXXXXXX|Nom]] uniquement si demandé et si le numéro est connu, jamais inventé.",
+        "MICRO : [[micro:coupe]] seulement si la personne demande de fermer le micro ; [[micro:silence]] si elle veut seulement interrompre la voix.",
+        verdict.maitre ? "MÉMOIRE : pour une demande explicite de mémoriser une phrase, [[retiens:phrase exacte]] ; pour oublier, [[oublie:phrase exacte]]. Ne dis pas avoir mémorisé sans cette commande." : "",
+        o.avecOutil && !local
+          ? "La recherche web est disponible pour cette réponse : vérifie les faits actuels avec elle."
+          : "Pas de recherche web pour cette réponse : ne prétends pas avoir vérifié des faits actuels.",
+      ].filter(Boolean).join("\n");
+      const messages=messagesConversation({
+        question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
+        contexte: variable, resume, outils, nom: estRara ? "Rara" : "BIA", maitre: verdict.maitre,
+      });
+      const debutConversation=Date.now();
       const r=local
         ? await appelerCerveauLocal(messages as MessageLocal[], o.plafond)
         : await fetchGroqAvecSecours("https://api.groq.com/openai/v1/chat/completions",{
@@ -2636,14 +2629,18 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           model,
           messages,
           max_completion_tokens:budgetGroq(o.plafond,model),
-          ...(/^openai\/gpt-oss-/.test(model) ? {reasoning_effort:"low",include_reasoning:false} : {}),
+          ...(/^openai\/gpt-oss-/.test(model) ? reglagesConversation(question, Boolean(body.apprend)) : {}),
           temperature:0.35,
           service_tier:"on_demand",
           ...(o.avecOutil ? {tools:[{type:"browser_search"}]} : {}),
         }),
       }, limiteGroq);
-      if(!r.ok) return r;
+      if(!r.ok) {
+        if(!local)noterConversation({ok:false,modele:model,attendu:model,effort:effortConversation(question,Boolean(body.apprend)),ms:Date.now()-debutConversation,messages:messages.length});
+        return r;
+      }
       const g=await r.json() as any;
+      if(!local)noterConversation({ok:Boolean(g.choices?.[0]?.message?.content?.trim()),modele:String(g.model||model),attendu:model,effort:effortConversation(question,Boolean(body.apprend)),ms:Date.now()-debutConversation,messages:messages.length});
       const texte=String(g.choices?.[0]?.message?.content||"").trim();
       const usage=g.usage||{};
       return new Response(JSON.stringify({
@@ -2691,7 +2688,9 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        traductions d'un mot, les phrases de trois mots, et TOUT le mode
        apprentissage — là elle répète, elle ne pense pas, et il en fait des
        dizaines d'affilée. Voir meriteReflexion() dans lib/reflechir.ts. */
-    const reflechit = meriteReflexion(question, Boolean(body.apprend));
+    const reflechit = groq && !local
+      ? effortConversation(question, Boolean(body.apprend)) !== "low"
+      : meriteReflexion(question, Boolean(body.apprend));
 
     /* Le plafond suit la réflexion, sinon elle mange la phrase. C'est
        précisément ce qui ratait avant. */

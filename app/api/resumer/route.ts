@@ -1,3 +1,4 @@
+import { CONSIGNE_RESUME_CONVERSATION } from "@/lib/conversation-groq";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { budgetGroq, fetchGroqAvecSecours } from "@/lib/reprise-modele";
@@ -21,21 +22,14 @@ export async function POST(request: NextRequest) {
     if (!apiKey) return NextResponse.json({ resume: body.resume || "" });
 
     const transcription = echanges
-      .map((e) => `${e.role === "bia" ? "BIA" : "Personne"} : ${String(e.text || "").slice(0, 600)}`)
+      .map((e) => `${e.role === "bia" ? "BIA" : "Personne"} : ${String(e.text || "").slice(0, 6000)}`)
       .join("\n");
 
-    const consigne = `Tu tiens les notes de BIA sur la personne à qui elle parle.
-À partir de la conversation, écris en français un mémo court — dix lignes au maximum —
-qui garde SEULEMENT ce qui servira dans des conversations futures :
-son prénom, sa langue, son travail, sa ville, sa situation, ses projets, ses goûts,
-ce qu'elle a demandé et ce qui a été décidé.
-Ne garde pas le bavardage, les salutations, ni les explications que BIA a données.
-Si des notes antérieures existent, fonds-les avec les nouvelles sans rien perdre
-et sans répéter. Réponds par le mémo seul, sans préambule.`;
+    const consigne = CONSIGNE_RESUME_CONVERSATION;
 
     const messages = [{
       role: "user",
-      content: (body.resume ? `NOTES ANTÉRIEURES\n${String(body.resume).slice(0, 2000)}\n\n` : "")
+      content: (body.resume ? `NOTES ANTÉRIEURES\n${String(body.resume).slice(0, 4000)}\n\n` : "")
         + `CONVERSATION\n${transcription}`,
     }];
 
@@ -45,7 +39,7 @@ et sans répéter. Réponds par le mémo seul, sans préambule.`;
           headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({ model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
             messages: [{role: "system", content: consigne}, ...messages],
-            max_completion_tokens: budgetGroq(600, process.env.GROQ_MODEL || "openai/gpt-oss-120b"),
+            max_completion_tokens: budgetGroq(2048, process.env.GROQ_MODEL || "openai/gpt-oss-120b"),
             ...(/^openai\/gpt-oss-/.test(process.env.GROQ_MODEL || "openai/gpt-oss-120b") ? {reasoning_effort: "low", include_reasoning: false} : {}),
             temperature: 0.35, service_tier: "on_demand" }),
         }, Date.now() + 20_000)
@@ -58,7 +52,8 @@ et sans répéter. Réponds par le mémo seul, sans préambule.`;
       console.error("BIA — résumé refusé :", r.status, (await r.text().catch(() => "")).slice(0, 300));
       return NextResponse.json({ resume: body.resume || "" });
     }
-    const data = await r.json() as { content?: Array<{ type: string; text?: string }>; choices?: Array<{message?: {content?: string}}> };
+    const data = await r.json() as { stop_reason?: string; content?: Array<{ type: string; text?: string }>; choices?: Array<{finish_reason?: string; message?: {content?: string}}> };
+    if (data.stop_reason === "max_tokens" || data.choices?.[0]?.finish_reason === "length") return NextResponse.json({resume: body.resume || "", condensed: false});
     const resume = groq ? String(data.choices?.[0]?.message?.content || "").trim() : (data.content || []).filter((b) => b.type === "text").map((b) => b.text || "").join("\n").trim();
     return NextResponse.json({ resume: resume || body.resume || "", condensed: Boolean(resume), condensed_count: resume ? echanges.length : 0 });
   } catch {
