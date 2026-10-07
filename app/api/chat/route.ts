@@ -1,3 +1,4 @@
+import { appelerCerebras } from "@/lib/cerveau-cerebras";
 import { noterConversation } from "@/lib/conversation-etat";
 import { messagesConversation, effortConversation, reglagesConversation } from "@/lib/conversation-groq";
 import { appelerCerveauLocal, type MessageLocal } from "@/lib/cerveau-local";
@@ -1607,19 +1608,20 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     const gemini=fournisseur==="gemini";
     const local=fournisseur==="local";
     // Local Oolel uses the same compact OpenAI-compatible conversation path.
-    const groq=fournisseur==="groq" || local;
-    const apiKey=local ? process.env.LOCAL_LLM_API_KEY : gemini
+    const cerebras=fournisseur==="cerebras";
+    const groq=fournisseur==="groq" || local || cerebras;
+    const apiKey=cerebras ? process.env.CEREBRAS_API_KEY : local ? process.env.LOCAL_LLM_API_KEY : gemini
       ? process.env.GEMINI_API_KEY
       : groq
         ? process.env.GROQ_API_KEY
         : (process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY);
-    const model=local ? (process.env.LOCAL_LLM_MODEL || "Oolel-v0.1-Q8_0") : gemini
+    const model=cerebras ? (process.env.CEREBRAS_MODEL || "gpt-oss-120b") : local ? (process.env.LOCAL_LLM_MODEL || "Oolel-v0.1-Q8_0") : gemini
       ? (process.env.GEMINI_MODEL||"gemini-3.7-flash")
       : groq
         ? (process.env.GROQ_MODEL||"openai/gpt-oss-120b")
         : (process.env.BIA_LLM_MODEL||"claude-sonnet-5");
     if(!apiKey){
-      const detail=local ? "LOCAL_LLM_API_KEY n’est pas définie." : gemini
+      const detail=cerebras ? "CEREBRAS_API_KEY n’est pas définie." : local ? "LOCAL_LLM_API_KEY n’est pas définie." : gemini
         ?"GEMINI_API_KEY n'est pas définie."
         :groq
           ?"GROQ_API_KEY n'est pas définie."
@@ -2608,7 +2610,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         "APPEL : [[appel:+221XXXXXXXXX|Nom]] uniquement si demandé et si le numéro est connu, jamais inventé.",
         "MICRO : [[micro:coupe]] seulement si la personne demande de fermer le micro ; [[micro:silence]] si elle veut seulement interrompre la voix.",
         verdict.maitre ? "MÉMOIRE : pour une demande explicite de mémoriser une phrase, [[retiens:phrase exacte]] ; pour oublier, [[oublie:phrase exacte]]. Ne dis pas avoir mémorisé sans cette commande." : "",
-        o.avecOutil && !local
+        o.avecOutil && !local && !cerebras
           ? "La recherche web est disponible pour cette réponse : vérifie les faits actuels avec elle."
           : "Pas de recherche web pour cette réponse : ne prétends pas avoir vérifié des faits actuels.",
       ].filter(Boolean).join("\n");
@@ -2619,7 +2621,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       const debutConversation=Date.now();
       const r=local
         ? await appelerCerveauLocal(messages as MessageLocal[], o.plafond)
-        : await fetchGroqAvecSecours("https://api.groq.com/openai/v1/chat/completions",{
+        : await (cerebras ? appelerCerebras : fetchGroqAvecSecours)("https://api.groq.com/openai/v1/chat/completions",{
         method:"POST",
         headers:{
           "content-type":"application/json",
@@ -2629,7 +2631,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           model,
           messages,
           max_completion_tokens:budgetGroq(o.plafond,model),
-          ...(/^openai\/gpt-oss-/.test(model) ? reglagesConversation(question, Boolean(body.apprend)) : {}),
+          ...(/^(?:openai\/)?gpt-oss-/.test(model) ? reglagesConversation(question, Boolean(body.apprend)) : {}),
           temperature:0.35,
           service_tier:"on_demand",
           ...(o.avecOutil ? {tools:[{type:"browser_search"}]} : {}),
@@ -2646,7 +2648,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return new Response(JSON.stringify({
         content:texte?[{type:"text",text:texte}]:[],
         usage:{
-          fournisseur:local ? "local" : "groq",
+          fournisseur:local ? "local" : cerebras ? "cerebras" : "groq",
           nom_modele:String(g.model||model),
           input_tokens:Math.max(0,(Number(usage.prompt_tokens)||0)-(Number((usage.prompt_tokens_details as {cached_tokens?:number}|undefined)?.cached_tokens)||0)),
           cache_read_input_tokens:Number((usage.prompt_tokens_details as {cached_tokens?:number}|undefined)?.cached_tokens)||0,
@@ -2654,7 +2656,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         },
         stop_reason:g.choices?.[0]?.finish_reason==="length" ? "max_tokens" : String(g.choices?.[0]?.finish_reason||"end_turn"),
         types:texte?["text"]:[],
-      }),{status:200,headers:{"content-type":"application/json","x-bia-provider":local ? "local" : "groq"}});
+      }),{status:200,headers:{"content-type":"application/json","x-bia-provider":local ? "local" : cerebras ? "cerebras" : "groq"}});
     };
 
     const appelerLeModele = (o: {

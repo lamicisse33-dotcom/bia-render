@@ -10,7 +10,7 @@ function noterLimiteGroq(r:Response, detail:string){
 /* GPT-OSS shares its completion budget with reasoning. 170 tokens can leave
    no spoken answer even on a successful HTTP response. */
 export function budgetGroq(plafond: number, model: string): number {
-  return /^openai\/gpt-oss-/.test(model) ? Math.max(1536, plafond) : plafond;
+  return /^(?:openai\/)?gpt-oss-/.test(model) ? Math.max(1536, plafond) : plafond;
 }
 
 export function delaiModele(reponse: Response, detail: string, essai: number, maintenant = Date.now()): number {

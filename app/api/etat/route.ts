@@ -116,7 +116,7 @@ export async function GET(request: Request) {
       repli_elevenlabs_disponible: Boolean(ecouteConfig.elevenlabs.apiKey),
       francais: process.env.STT_PROVIDER === "local_wolof" && process.env.WOLOF_LOCAL_ALL_LANGUAGES === "true" ? "local_wolof" : "elevenlabs",
     },
-    fournisseur_modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase(),
+    fournisseur_modele: process.env.BIA_LLM_PROVIDER === "cerebras" ? (process.env.CEREBRAS_MODEL || "gpt-oss-120b") : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase(),
     cerveau_local: resumeCerveauLocal(),
     conversation: etatConversation(),
     derniere_limite_groq: resumeLimiteGroq(),
@@ -127,7 +127,7 @@ export async function GET(request: Request) {
       : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "gemini"
         ? (process.env.GEMINI_MODEL || "gemini-3.7-flash")
         : (process.env.BIA_LLM_MODEL || "claude-sonnet-5"),
-    cle_modele: Boolean((process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "local"
+    cle_modele: Boolean(process.env.BIA_LLM_PROVIDER === "cerebras" ? process.env.CEREBRAS_API_KEY : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "local"
       ? process.env.LOCAL_LLM_API_KEY
       : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "groq"
       ? process.env.GROQ_API_KEY
@@ -135,6 +135,7 @@ export async function GET(request: Request) {
         ? process.env.GEMINI_API_KEY
         : (process.env.BIA_LLM_API_KEY || process.env.ANTHROPIC_API_KEY)),
     groq_disponible: Boolean(process.env.GROQ_API_KEY),
+    cerebras_disponible: Boolean(process.env.CEREBRAS_API_KEY),
     /* ── LA CLÉ DES LIEUX ─────────────────────────────────────────────────
 
        Lamine, le 14 septembre 2026 : « le testeur demandera l'endroit de son

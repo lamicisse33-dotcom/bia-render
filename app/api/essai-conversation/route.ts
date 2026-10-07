@@ -1,3 +1,4 @@
+import { appelerCerebras } from "@/lib/cerveau-cerebras";
 import { timingSafeEqual } from "node:crypto";
 import { messagesConversation, reglagesConversation, CONSIGNE_RESUME_CONVERSATION, type MessageConversation } from "@/lib/conversation-groq";
 import { fetchGroqAvecSecours, delaiModele } from "@/lib/reprise-modele";
@@ -10,24 +11,26 @@ export async function POST(request:Request){
  const expected=Buffer.from(process.env.LOCAL_LLM_API_KEY||"");
  const received=Buffer.from(request.headers.get("x-brain-key")||"");
  if(!expected.length||expected.length!==received.length||!timingSafeEqual(expected,received))return Response.json({erreur:"acces"},{status:401});
- if(Date.now()>Date.parse("2026-10-07T22:30:00Z")||appels>=60)return Response.json({erreur:"essai_ferme"},{status:410});
- if(!process.env.GROQ_API_KEY)return Response.json({erreur:"configuration"},{status:503});
+ if(Date.now()>Date.parse("2026-10-08T00:00:00Z")||appels>=60)return Response.json({erreur:"essai_ferme"},{status:410});
  const b=await request.json().catch(()=>null);
  if(!b||typeof b.message!=="string"||b.message.length>1800||!b.message.trim()||
     (b.resume!==undefined&&(typeof b.resume!=="string"||b.resume.length>4000))||
     !Array.isArray(b.history)||b.history.length>40||b.history.some((m:MessageConversation)=>!m||!["user","assistant"].includes(m.role)||typeof m.content!=="string"||m.content.length>6000))return Response.json({erreur:"message"},{status:400});
  appels++;
- const model=process.env.GROQ_MODEL||"openai/gpt-oss-120b";
+ const cerebras=b.provider==="cerebras" || process.env.BIA_LLM_PROVIDER==="cerebras";
+ const apiKey=cerebras?process.env.CEREBRAS_API_KEY:process.env.GROQ_API_KEY;
+ if(!apiKey)return Response.json({erreur:"configuration"},{status:503});
+ const model=cerebras?(process.env.CEREBRAS_MODEL||"gpt-oss-120b"):(process.env.GROQ_MODEL||"openai/gpt-oss-120b");
  const settings=b.mode==="resume"?{reasoning_effort:"low",include_reasoning:false,max_completion_tokens:2048}:reglagesConversation(b.message);
  const messages=b.mode==="resume"?[
   {role:"system",content:CONSIGNE_RESUME_CONVERSATION},
   {role:"user",content:JSON.stringify({notes:b.resume||"",echanges:b.history.slice(0,12)})}
  ]:messagesConversation({question:b.message,history:b.history,resume:b.resume});
  const started=Date.now();
- const r=await fetchGroqAvecSecours("https://api.groq.com/openai/v1/chat/completions",{
-  method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${process.env.GROQ_API_KEY}`},
+ const r=await (cerebras?appelerCerebras:fetchGroqAvecSecours)("https://api.groq.com/openai/v1/chat/completions",{
+  method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${apiKey}`},
   body:JSON.stringify({model,messages,...settings,temperature:0.35,service_tier:"on_demand"})
- },Date.now()+12000,false);
+ },Date.now()+20000,false);
  if(!r.ok){
   const detail=await r.text().catch(()=>"");
   return Response.json({erreur:"modele",status:r.status,attendre_ms:r.status===429?delaiModele(r,detail,0):null,
@@ -35,5 +38,5 @@ export async function POST(request:Request){
    {status:r.status,headers:{"cache-control":"no-store"}});
  }
  const d=await r.json();
- return Response.json({reply:d.choices?.[0]?.message?.content||"",modele:d.model,effort:settings.reasoning_effort,finish:d.choices?.[0]?.finish_reason,ms:Date.now()-started,usage:d.usage,messages:messages.length},{headers:{"cache-control":"no-store"}});
+ return Response.json({provider:cerebras?"cerebras":"groq",reply:d.choices?.[0]?.message?.content||"",modele:d.model,effort:settings.reasoning_effort,finish:d.choices?.[0]?.finish_reason,ms:Date.now()-started,usage:d.usage,messages:messages.length},{headers:{"cache-control":"no-store"}});
 }

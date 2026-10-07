@@ -1,3 +1,4 @@
+import { appelerCerebras } from "@/lib/cerveau-cerebras";
 import { CONSIGNE_RESUME_CONVERSATION } from "@/lib/conversation-groq";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
@@ -17,8 +18,10 @@ export async function POST(request: NextRequest) {
     if (!echanges.length) return NextResponse.json({ resume: body.resume || "", condensed: false });
 
     const fournisseur = (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase();
-    const groq = fournisseur === "groq";
-    const apiKey = groq ? process.env.GROQ_API_KEY : process.env.BIA_LLM_API_KEY || process.env.ANTHROPIC_API_KEY;
+    const cerebras = fournisseur === "cerebras";
+    const groq = fournisseur === "groq" || cerebras;
+    const model = cerebras ? (process.env.CEREBRAS_MODEL || "gpt-oss-120b") : (process.env.GROQ_MODEL || "openai/gpt-oss-120b");
+    const apiKey = cerebras ? process.env.CEREBRAS_API_KEY : groq ? process.env.GROQ_API_KEY : process.env.BIA_LLM_API_KEY || process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return NextResponse.json({ resume: body.resume || "" });
 
     const transcription = echanges
@@ -34,15 +37,15 @@ export async function POST(request: NextRequest) {
     }];
 
     const r = groq
-      ? await fetchGroqAvecSecours("https://api.groq.com/openai/v1/chat/completions", {
+      ? await (cerebras ? appelerCerebras : fetchGroqAvecSecours)("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
+          body: JSON.stringify({ model,
             messages: [{role: "system", content: consigne}, ...messages],
-            max_completion_tokens: budgetGroq(2048, process.env.GROQ_MODEL || "openai/gpt-oss-120b"),
-            ...(/^openai\/gpt-oss-/.test(process.env.GROQ_MODEL || "openai/gpt-oss-120b") ? {reasoning_effort: "low", include_reasoning: false} : {}),
+            max_completion_tokens: budgetGroq(2048, model),
+            ...(/^(?:openai\/)?gpt-oss-/.test(model) ? {reasoning_effort: "low", include_reasoning: false} : {}),
             temperature: 0.35, service_tier: "on_demand" }),
-        }, Date.now() + 20_000)
+        }, Date.now() + 20_000, false)
       : await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
