@@ -103,8 +103,18 @@ export async function GET(request: Request) {
     lexique_lecture: { ...lectureLexique(), mots_corriges: motsCorrigesCompte, ...(maitre ? { exemples: motsCorrigesExemples } : {}) },
     voix: voixConfig.fournisseur,
     ecoute: ecouteConfig.fournisseur,
-    modele: process.env.BIA_LLM_MODEL || "claude-sonnet-5",
-    cle_modele: Boolean(process.env.BIA_LLM_API_KEY || process.env.ANTHROPIC_API_KEY),
+    fournisseur_modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase(),
+    modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "groq"
+      ? (process.env.GROQ_MODEL || "openai/gpt-oss-120b")
+      : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "gemini"
+        ? (process.env.GEMINI_MODEL || "gemini-3.7-flash")
+        : (process.env.BIA_LLM_MODEL || "claude-sonnet-5"),
+    cle_modele: Boolean((process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "groq"
+      ? process.env.GROQ_API_KEY
+      : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "gemini"
+        ? process.env.GEMINI_API_KEY
+        : (process.env.BIA_LLM_API_KEY || process.env.ANTHROPIC_API_KEY)),
+    groq_disponible: Boolean(process.env.GROQ_API_KEY),
     /* ── LA CLÉ DES LIEUX ─────────────────────────────────────────────────
 
        Lamine, le 14 septembre 2026 : « le testeur demandera l'endroit de son
