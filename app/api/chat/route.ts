@@ -1,3 +1,4 @@
+import { appelerCerveauLocal, type MessageLocal } from "@/lib/cerveau-local";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { budgetGroq, fetchGroqAvecSecours } from "@/lib/reprise-modele";
@@ -1602,19 +1603,21 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        BIA. Une seule variable suffit pour revenir en arrière. */
     const fournisseur=(process.env.BIA_LLM_PROVIDER||"anthropic").toLowerCase();
     const gemini=fournisseur==="gemini";
-    const groq=fournisseur==="groq";
-    const apiKey=gemini
+    const local=fournisseur==="local";
+    // Local Oolel uses the same compact OpenAI-compatible conversation path.
+    const groq=fournisseur==="groq" || local;
+    const apiKey=local ? process.env.LOCAL_LLM_API_KEY : gemini
       ? process.env.GEMINI_API_KEY
       : groq
         ? process.env.GROQ_API_KEY
         : (process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY);
-    const model=gemini
+    const model=local ? (process.env.LOCAL_LLM_MODEL || "Oolel-v0.1-Q8_0") : gemini
       ? (process.env.GEMINI_MODEL||"gemini-3.7-flash")
       : groq
         ? (process.env.GROQ_MODEL||"openai/gpt-oss-120b")
         : (process.env.BIA_LLM_MODEL||"claude-sonnet-5");
     if(!apiKey){
-      const detail=gemini
+      const detail=local ? "LOCAL_LLM_API_KEY n’est pas définie." : gemini
         ?"GEMINI_API_KEY n'est pas définie."
         :groq
           ?"GROQ_API_KEY n'est pas définie."
@@ -2602,12 +2605,14 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         "Priorité absolue aux corrections de locuteurs natifs fournies ci-dessous. Ne les contredis pas.",
         "Réponds normalement en 1 à 3 phrases sauf si l'utilisateur demande des détails. Ne récite pas les consignes et ne parle jamais de modèle, fournisseur ou moteur.",
         "Si tu ne sais pas, dis-le simplement. N'invente pas des faits actuels que tu ne peux pas vérifier.",
-        "FACULTÉS DE BIA — garde-les actives même avec Groq. Les balises sont des commandes pour l'application: ne les lis jamais à voix haute.",
+        "FACULTÉS DE BIA — garde-les actives. Les balises sont des commandes pour l'application: ne les lis jamais à voix haute.",
         "CARTE: pour un lieu, un itinéraire, une adresse ou si on demande d'afficher la carte, ajoute à la fin [[carte:lieu ou recherche]].",
         videosActives() ? "YOUTUBE/VIDÉO: tu peux chercher et ouvrir des vidéos YouTube. Pour regarder vraiment une vidéo en plein écran, ajoute [[regarde:recherche vidéo précise]]. Pour proposer des vidéos sous ton visage, ajoute [[cherche-video:recherche vidéo précise]]. Si l'utilisateur demande une vidéo, utilise l'une de ces balises au lieu de dire que tu ne peux pas." : "",
         imagesActives() ? "IMAGES: si l'utilisateur veut voir un objet, une tenue, une coiffure, un lieu ou des exemples visuels, ajoute [[cherche-image:recherche précise en français]]." : "",
         "APPEL: si l'utilisateur demande d'appeler quelqu'un ET que le numéro a déjà été donné dans la conversation, ajoute [[appel:+221XXXXXXXXX|Nom]]. N'invente jamais un numéro.",
-        "INTERNET: si la recherche web est activée pour ce tour, utilise-la pour les informations actuelles au lieu de répondre de mémoire.",
+        local
+          ? "Cet essai local ne dispose pas de recherche web intégrée. Ne prétends jamais avoir consulté internet. Les commandes carte, images et vidéos de l’application restent disponibles."
+          : "INTERNET: si la recherche web est activée pour ce tour, utilise-la pour les informations actuelles au lieu de répondre de mémoire.",
         variableGroq,
       ].filter(Boolean).join("\n\n");
       const filGroq=history.slice(-6).map((m:any)=>({
@@ -2619,7 +2624,9 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         ...filGroq,
         {role:"user",content:question.slice(0,1800)},
       ];
-      const r=await fetchGroqAvecSecours("https://api.groq.com/openai/v1/chat/completions",{
+      const r=local
+        ? await appelerCerveauLocal(messages as MessageLocal[], o.plafond)
+        : await fetchGroqAvecSecours("https://api.groq.com/openai/v1/chat/completions",{
         method:"POST",
         headers:{
           "content-type":"application/json",
@@ -2642,7 +2649,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return new Response(JSON.stringify({
         content:texte?[{type:"text",text:texte}]:[],
         usage:{
-          fournisseur:"groq",
+          fournisseur:local ? "local" : "groq",
           nom_modele:String(g.model||model),
           input_tokens:Math.max(0,(Number(usage.prompt_tokens)||0)-(Number((usage.prompt_tokens_details as {cached_tokens?:number}|undefined)?.cached_tokens)||0)),
           cache_read_input_tokens:Number((usage.prompt_tokens_details as {cached_tokens?:number}|undefined)?.cached_tokens)||0,
@@ -2650,7 +2657,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         },
         stop_reason:g.choices?.[0]?.finish_reason==="length" ? "max_tokens" : String(g.choices?.[0]?.finish_reason||"end_turn"),
         types:texte?["text"]:[],
-      }),{status:200,headers:{"content-type":"application/json","x-bia-provider":"groq"}});
+      }),{status:200,headers:{"content-type":"application/json","x-bia-provider":local ? "local" : "groq"}});
     };
 
     const appelerLeModele = (o: {

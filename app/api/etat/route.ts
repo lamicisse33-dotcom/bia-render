@@ -1,3 +1,4 @@
+import { resumeCerveauLocal } from "@/lib/cerveau-local";
 import { resumeOreilleLocale } from "@/lib/ecoute-locale";
 import { NextResponse } from "next/server";
 import { hoquetsDeLaVoix, hoquetsDeLaVoixLocale, hoquetsDeLaVoixRunPod, voixConfig, voixSansCredit } from "@/lib/voix";
@@ -111,15 +112,20 @@ export async function GET(request: Request) {
       secours_wolof: process.env.STT_PROVIDER === "local_wolof" ? ["soynade", "elevenlabs"] : ["elevenlabs"],
       cle_soynade_presente: Boolean(voixConfig.soynade.apiKey),
       repli_elevenlabs_disponible: Boolean(ecouteConfig.elevenlabs.apiKey),
-      francais: "elevenlabs",
+      francais: process.env.STT_PROVIDER === "local_wolof" && process.env.WOLOF_LOCAL_ALL_LANGUAGES === "true" ? "local_wolof" : "elevenlabs",
     },
     fournisseur_modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase(),
-    modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "groq"
+    cerveau_local: resumeCerveauLocal(),
+    modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "local"
+      ? (process.env.LOCAL_LLM_MODEL || "Oolel-v0.1-Q8_0")
+      : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "groq"
       ? (process.env.GROQ_MODEL || "openai/gpt-oss-120b")
       : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "gemini"
         ? (process.env.GEMINI_MODEL || "gemini-3.7-flash")
         : (process.env.BIA_LLM_MODEL || "claude-sonnet-5"),
-    cle_modele: Boolean((process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "groq"
+    cle_modele: Boolean((process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "local"
+      ? process.env.LOCAL_LLM_API_KEY
+      : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "groq"
       ? process.env.GROQ_API_KEY
       : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "gemini"
         ? process.env.GEMINI_API_KEY

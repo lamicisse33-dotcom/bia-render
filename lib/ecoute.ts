@@ -515,7 +515,7 @@ export async function transcrire(
 ): Promise<Ecoute> {
   // Trial on the existing A40; recognition remains multilingual.
   // French threads keep their current provider; errors use the existing fallback.
-  if (process.env.STT_PROVIDER === "local_wolof" && indice !== "fr") {
+  if (process.env.STT_PROVIDER === "local_wolof" && (indice !== "fr" || process.env.WOLOF_LOCAL_ALL_LANGUAGES === "true")) {
     const parti = Date.now();
     const locale = await chezOreilleLocale(audio);
     if (locale) {

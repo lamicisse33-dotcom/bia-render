@@ -210,7 +210,9 @@ export function noterModele(usage: unknown, ou = "chat") {
   d.cache_ecrit += n(u.cache_creation_input_tokens);
   /* Groq GPT-OSS, tarifs publics vérifiés le 7 octobre 2026.
      Le modèle retourné par Groq compte aussi quand le 120B se replie sur le 20B. */
-  if (u.fournisseur === "groq") {
+  if (u.fournisseur === "local") {
+    // No token API fee. Existing GPU hosting is billed separately.
+  } else if (u.fournisseur === "groq") {
     const petit = u.nom_modele === "openai/gpt-oss-20b";
     const entree = petit ? 0.075 : 0.15;
     const sortie = petit ? 0.30 : 0.60;
