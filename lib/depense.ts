@@ -44,6 +44,7 @@ const DOLLAR_PAR_JETON_CACHE_ECRIT = 4 / 1_000_000;
 
 type Voix = { appels: number; signes: number };
 type Modele = {
+  dollars: number;
   appels: number;
   entree: number;
   sortie: number;
@@ -201,12 +202,27 @@ export function rembourserVoix(signes: number, ou = "réponse") {
 export function noterModele(usage: unknown, ou = "chat") {
   const u = (usage ?? {}) as Record<string, unknown>;
   const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
-  const d = modele.get(ou) || { appels: 0, entree: 0, sortie: 0, cache_lu: 0, cache_ecrit: 0 };
+  const d = modele.get(ou) || { dollars: 0, appels: 0, entree: 0, sortie: 0, cache_lu: 0, cache_ecrit: 0 };
   d.appels += 1;
   d.entree += n(u.input_tokens);
   d.sortie += n(u.output_tokens);
   d.cache_lu += n(u.cache_read_input_tokens);
   d.cache_ecrit += n(u.cache_creation_input_tokens);
+  /* Groq GPT-OSS, tarifs publics vérifiés le 7 octobre 2026.
+     Le modèle retourné par Groq compte aussi quand le 120B se replie sur le 20B. */
+  if (u.fournisseur === "groq") {
+    const petit = u.nom_modele === "openai/gpt-oss-20b";
+    const entree = petit ? 0.075 : 0.15;
+    const sortie = petit ? 0.30 : 0.60;
+    const cache = petit ? 0.037 : 0.075;
+    d.dollars += (n(u.input_tokens) * entree
+      + n(u.output_tokens) * sortie + n(u.cache_read_input_tokens) * cache) / 1_000_000;
+  } else {
+    d.dollars += n(u.input_tokens) * DOLLAR_PAR_JETON_ENTREE
+      + n(u.output_tokens) * DOLLAR_PAR_JETON_SORTIE
+      + n(u.cache_read_input_tokens) * DOLLAR_PAR_JETON_CACHE_LU
+      + n(u.cache_creation_input_tokens) * DOLLAR_PAR_JETON_CACHE_ECRIT;
+  }
   modele.set(ou, d);
 }
 
@@ -231,10 +247,7 @@ export function depense() {
   }).sort((a, b) => b.dollars - a.dollars);
 
   const leModele = [...modele.entries()].map(([ou, d]) => {
-    const dollars = d.entree * DOLLAR_PAR_JETON_ENTREE
-      + d.sortie * DOLLAR_PAR_JETON_SORTIE
-      + d.cache_lu * DOLLAR_PAR_JETON_CACHE_LU
-      + d.cache_ecrit * DOLLAR_PAR_JETON_CACHE_ECRIT;
+    const dollars = d.dollars;
     dollarsModele += dollars;
     return {
       ou, appels: d.appels,
