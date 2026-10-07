@@ -2642,7 +2642,10 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return new Response(JSON.stringify({
         content:texte?[{type:"text",text:texte}]:[],
         usage:{
-          input_tokens:Number(usage.prompt_tokens)||0,
+          fournisseur:"groq",
+          nom_modele:String(g.model||model),
+          input_tokens:Math.max(0,(Number(usage.prompt_tokens)||0)-(Number((usage.prompt_tokens_details as {cached_tokens?:number}|undefined)?.cached_tokens)||0)),
+          cache_read_input_tokens:Number((usage.prompt_tokens_details as {cached_tokens?:number}|undefined)?.cached_tokens)||0,
           output_tokens:Number(usage.completion_tokens)||0,
         },
         stop_reason:g.choices?.[0]?.finish_reason==="length" ? "max_tokens" : String(g.choices?.[0]?.finish_reason||"end_turn"),
