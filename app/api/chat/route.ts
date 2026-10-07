@@ -2332,7 +2332,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        on le coupe pour tester le cerveau sans envoyer un format d'outil
        incompatible. Le reste de BIA continue normalement. */
     const cherche = !gemini && rechercheActive() && besoinDInternet(question, filDitPar);
-    if (cherche) variable += CONSIGNE_RECHERCHE;
+    if (cherche && !cerebras) variable += CONSIGNE_RECHERCHE;
 
     /* Le socle porte la marque « garde-le en mémoire ». Le reste suit
        normalement : il change à chaque question, le mettre en cache coûterait
@@ -2809,8 +2809,8 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     }
 
     if(!reponse.ok && reponse.status===429 && groq && !local){
-      noterPanne(429,"Quota Groq atteint", "chat");
-      return {corps:{reply:"Le service qui me permet de répondre a atteint sa limite d’utilisation. Il faut attendre un peu ou augmenter cette limite.",emotion:"concernee",source:"limite : quota Groq"}};
+      noterPanne(429,`Quota ${cerebras ? "Cerebras" : "Groq"} atteint`, "chat");
+      return {corps:{reply:"Le service qui me permet de répondre a atteint sa limite d’utilisation. Il faut attendre un peu ou augmenter cette limite.",emotion:"concernee",source:`limite : quota ${cerebras ? "Cerebras" : "Groq"}`}};
     }
     if(!reponse.ok){
       const detail=await reponse.text().catch(()=>"");

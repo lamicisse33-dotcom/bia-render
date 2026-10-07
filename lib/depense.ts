@@ -212,6 +212,10 @@ export function noterModele(usage: unknown, ou = "chat") {
      Le modèle retourné par Groq compte aussi quand le 120B se replie sur le 20B. */
   if (u.fournisseur === "local") {
     // No token API fee. Existing GPU hosting is billed separately.
+  } else if (u.fournisseur === "cerebras") {
+    // Published GPT-OSS 120B rates; conservative estimate without cache discounts.
+    d.dollars += ((n(u.input_tokens) + n(u.cache_read_input_tokens)) * 0.35
+      + n(u.output_tokens) * 0.75) / 1_000_000;
   } else if (u.fournisseur === "groq") {
     const petit = u.nom_modele === "openai/gpt-oss-20b";
     const entree = petit ? 0.075 : 0.15;
