@@ -116,11 +116,11 @@ export async function GET(request: Request) {
       repli_elevenlabs_disponible: Boolean(ecouteConfig.elevenlabs.apiKey),
       francais: process.env.STT_PROVIDER === "local_wolof" && process.env.WOLOF_LOCAL_ALL_LANGUAGES === "true" ? "local_wolof" : "elevenlabs",
     },
-    fournisseur_modele: process.env.BIA_LLM_PROVIDER === "cerebras" ? (process.env.CEREBRAS_MODEL || "gpt-oss-120b") : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase(),
+    fournisseur_modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase(),
     cerveau_local: resumeCerveauLocal(),
     conversation: etatConversation(),
     derniere_limite_groq: resumeLimiteGroq(),
-    modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "local"
+    modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "cerebras" ? (process.env.CEREBRAS_MODEL || "gpt-oss-120b") : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "local"
       ? (process.env.LOCAL_LLM_MODEL || "Oolel-v0.1-Q8_0")
       : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "groq"
       ? (process.env.GROQ_MODEL || "openai/gpt-oss-120b")
