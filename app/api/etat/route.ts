@@ -1,3 +1,4 @@
+import { resumeOreilleLocale } from "@/lib/ecoute-locale";
 import { NextResponse } from "next/server";
 import { hoquetsDeLaVoix, hoquetsDeLaVoixLocale, hoquetsDeLaVoixRunPod, voixConfig, voixSansCredit } from "@/lib/voix";
 import { ecouteConfig, resumeEcoutes, resumeOreilleSoynade } from "@/lib/ecoute";
@@ -104,7 +105,10 @@ export async function GET(request: Request) {
     voix: voixConfig.fournisseur,
     ecoute: ecouteConfig.fournisseur,
     ecoute_configuration: {
-      soynade_selectionnee: (process.env.STT_PROVIDER || "soynade") !== "elevenlabs",
+      soynade_selectionnee: (process.env.STT_PROVIDER || "soynade") === "soynade",
+      locale_selectionnee: process.env.STT_PROVIDER === "local_wolof",
+      locale_configuree: Boolean(process.env.WOLOF_LOCAL_URL && process.env.WOLOF_LOCAL_API_KEY),
+      secours_wolof: process.env.STT_PROVIDER === "local_wolof" ? ["soynade", "elevenlabs"] : ["elevenlabs"],
       cle_soynade_presente: Boolean(voixConfig.soynade.apiKey),
       repli_elevenlabs_disponible: Boolean(ecouteConfig.elevenlabs.apiKey),
       francais: "elevenlabs",
@@ -194,6 +198,7 @@ export async function GET(request: Request) {
        revenir en arriere : combien de replis sur ElevenLabs, et combien
        d'entre eux pour un texte vide. Voir lib/ecoute.ts. */
     oreille_soynade: resumeOreilleSoynade(),
+    oreille_locale: resumeOreilleLocale(),
     emotions: resumeEmotions(),
     /* CE QUE ÇA COÛTE, COMPTÉ ET NON DEVINÉ. Les signes réellement envoyés à
        Soynade, par route, et les jetons que le modèle dit avoir consommés —

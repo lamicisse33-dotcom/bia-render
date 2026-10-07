@@ -1,3 +1,4 @@
+import { chezOreilleLocale } from "./ecoute-locale";
 import { noterEtape } from "./etapes";
 import { voixConfig } from "./voix";
 import { noterOreille } from "./depense";
@@ -512,6 +513,16 @@ async function chezSoynade(audio: Blob, nomFichier: string, langue: "wo" | "fr")
 export async function transcrire(
   audio: Blob, nomFichier: string, indice?: string | null, mots?: string[],
 ): Promise<Ecoute> {
+  // Trial on the existing A40; recognition remains multilingual.
+  // French threads keep their current provider; errors use the existing fallback.
+  if (process.env.STT_PROVIDER === "local_wolof" && indice !== "fr") {
+    const parti = Date.now();
+    const locale = await chezOreilleLocale(audio);
+    if (locale) {
+      noterEtape("ecoute", parti, Date.now(), Date.now(), locale.texte.length);
+      return locale;
+    }
+  }
   const c = ecouteConfig.elevenlabs;
   if (!c.apiKey) throw new Error("ELEVENLABS_API_KEY manquante");
 
