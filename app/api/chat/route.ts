@@ -2634,7 +2634,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           service_tier:"on_demand",
           ...(o.avecOutil ? {tools:[{type:"browser_search"}]} : {}),
         }),
-      }, limiteGroq);
+      }, limiteGroq, false);
       if(!r.ok) {
         if(!local)noterConversation({ok:false,modele:model,attendu:model,effort:effortConversation(question,Boolean(body.apprend)),ms:Date.now()-debutConversation,messages:messages.length});
         return r;

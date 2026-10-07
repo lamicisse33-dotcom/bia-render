@@ -42,10 +42,10 @@ export async function fetchModeleAvecReprise(url: string, init: RequestInit, lim
    the locally installed voice. Keep the same provider/key/tools/personality;
    use the supported smaller model only after an actual refusal or a response
    whose reasoning consumed the entire completion budget. */
-export async function fetchGroqAvecSecours(url: string, init: RequestInit, limite = Date.now() + 45_000): Promise<Response> {
+export async function fetchGroqAvecSecours(url: string, init: RequestInit, limite = Date.now() + 45_000, autoriserPetitModele = true): Promise<Response> {
   const reponse = await fetchModeleAvecReprise(url, init, limite);
   const body = JSON.parse(String(init.body || "{}")) as Record<string, unknown>;
-  if (body.model !== "openai/gpt-oss-120b" || Date.now() + 1000 >= limite) return reponse;
+  if (!autoriserPetitModele || body.model !== "openai/gpt-oss-120b" || Date.now() + 1000 >= limite) return reponse;
   let besoin = [429, 502, 503, 504, 529].includes(reponse.status);
   if (reponse.ok) {
     const data = await reponse.clone().json().catch(() => null);
