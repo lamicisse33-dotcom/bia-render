@@ -103,6 +103,12 @@ export async function GET(request: Request) {
     lexique_lecture: { ...lectureLexique(), mots_corriges: motsCorrigesCompte, ...(maitre ? { exemples: motsCorrigesExemples } : {}) },
     voix: voixConfig.fournisseur,
     ecoute: ecouteConfig.fournisseur,
+    ecoute_configuration: {
+      soynade_selectionnee: (process.env.STT_PROVIDER || "soynade") !== "elevenlabs",
+      cle_soynade_presente: Boolean(voixConfig.soynade.apiKey),
+      repli_elevenlabs_disponible: Boolean(ecouteConfig.elevenlabs.apiKey),
+      francais: "elevenlabs",
+    },
     fournisseur_modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase(),
     modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "groq"
       ? (process.env.GROQ_MODEL || "openai/gpt-oss-120b")
