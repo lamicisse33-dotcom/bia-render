@@ -1,3 +1,12 @@
+const etatGroq = globalThis as typeof globalThis & { biaLimiteGroq?: {quand:string;type:string;attendre_ms:number;limite:number|null;utilise:number|null;demande:number|null} };
+export function resumeLimiteGroq(){ return etatGroq.biaLimiteGroq || null; }
+function noterLimiteGroq(r:Response, detail:string){
+  const valeur=(nom:string)=>{const m=detail.match(new RegExp(nom+"[: ]+([0-9]+)","i"));return m?Number(m[1]):null;};
+  etatGroq.biaLimiteGroq={quand:new Date().toISOString(),
+    type:/tokens per day|TPD/i.test(detail)?"jetons_par_jour":/tokens per minute|TPM/i.test(detail)?"jetons_par_minute":/requests per day|RPD/i.test(detail)?"requetes_par_jour":/requests per minute|RPM/i.test(detail)?"requetes_par_minute":"quota",
+    attendre_ms:delaiModele(r,detail,0),limite:valeur("Limit"),utilise:valeur("Used"),demande:valeur("Requested")};
+}
+
 /* GPT-OSS shares its completion budget with reasoning. 170 tokens can leave
    no spoken answer even on a successful HTTP response. */
 export function budgetGroq(plafond: number, model: string): number {
@@ -27,6 +36,7 @@ export async function fetchModeleAvecReprise(url: string, init: RequestInit, lim
     } catch {
       reponse = new Response(JSON.stringify({ error: "Connexion au moteur interrompue." }), { status: 503 });
     }
+    if(reponse.status===429 && url.startsWith("https://api.groq.com/"))noterLimiteGroq(reponse,await reponse.clone().text().catch(()=>""));
     if (reponse.ok || ![429, 500, 502, 503, 504, 529].includes(reponse.status) || essai === 2) return reponse;
     const detail = await reponse.clone().text().catch(() => "");
     const attente = delaiModele(reponse, detail, essai);

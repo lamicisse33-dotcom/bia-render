@@ -2592,7 +2592,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       }),{status:200,headers:{"content-type":"application/json","x-bia-provider":"gemini"}});
     };
 
-    const limiteGroq = Date.now() + 45_000;
+    const limiteGroq = Date.now() + (effortConversation(question, Boolean(body.apprend)) === "low" ? 12_000 : 20_000);
     const appelerGroq = async (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
     }) => {
@@ -2806,6 +2806,10 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       if (reprise.ok) { reponse = reprise; amorce = amorceDe(premiersReglages); }
     }
 
+    if(!reponse.ok && reponse.status===429 && groq && !local){
+      noterPanne(429,"Quota Groq atteint", "chat");
+      return {corps:{reply:"Le service qui me permet de répondre a atteint sa limite d’utilisation. Il faut attendre un peu ou augmenter cette limite.",emotion:"concernee",source:"limite : quota Groq"}};
+    }
     if(!reponse.ok){
       const detail=await reponse.text().catch(()=>"");
       // Sans ça, une clé refusée et un crédit épuisé donnaient le même silence.

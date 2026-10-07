@@ -1,3 +1,4 @@
+import { resumeLimiteGroq } from "@/lib/reprise-modele";
 import { etatConversation } from "@/lib/conversation-etat";
 import { resumeCerveauLocal } from "@/lib/cerveau-local";
 import { resumeOreilleLocale } from "@/lib/ecoute-locale";
@@ -118,6 +119,7 @@ export async function GET(request: Request) {
     fournisseur_modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase(),
     cerveau_local: resumeCerveauLocal(),
     conversation: etatConversation(),
+    derniere_limite_groq: resumeLimiteGroq(),
     modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "local"
       ? (process.env.LOCAL_LLM_MODEL || "Oolel-v0.1-Q8_0")
       : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "groq"
