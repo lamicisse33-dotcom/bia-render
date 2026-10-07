@@ -107,10 +107,10 @@ export async function POST(request: NextRequest) {
         const data = await response.json();
         // Count one real generation, even when multiple requests share it.
         const ok = response.status === 200 && data.status === "COMPLETED" && data.output?.voice === voice;
-        noterChatterboxTest(voice, ok ? { ok: true, generationMs: data.output.generation_ms } : { ok: false });
+        noterChatterboxTest(voice, ok ? { ok: true, generationMs: data.output.generation_ms } : { ok: false, code: data.code, status: response.status });
         return { status: response.status, data };
       } catch (error) {
-        noterChatterboxTest(voice, { ok: false });
+        noterChatterboxTest(voice, { ok: false, code: "ERREUR_INTERNE" });
         throw error;
       }
     })();
@@ -122,8 +122,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         ...common, audio: null,
         error: data.error || "Le moteur n’a pas rendu la voix demandée.",
+        code: data.code || "AUDIO_INVALIDE",
         ...(status === 401 ? { erreur: "code" } : {}),
-      }, { status: status === 200 ? 502 : status, headers });
+      }, { status: status === 200 ? 502 : status, headers: { ...headers, ...(status === 429 ? { "retry-after": "2" } : {}) } });
     }
     const output = data.output;
     return NextResponse.json({

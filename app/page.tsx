@@ -2741,34 +2741,25 @@ export default function Home() {
     const routeVoix = routeVoixBia();
     const voixChoisie = voixChatterboxBia();
     const demander = async (partie: number) => {
-      /* ── ET ON REDEMANDE UNE FOIS AVANT D'ABANDONNER ──────────────────
-
-         Un paquet perdu suffisait à faire basculer toute la réponse sur la
-         voix du téléphone. À Dakar, sur un réseau mobile, ça arrive. Une
-         seconde tentative coûte un quart de seconde ; le repli, lui, coûte
-         la voix de Kha. Sauf sur un code refusé : insister n'y changerait
-         rien. */
-      let dernier = "";
-      for (let essai = 0; essai < 2; essai++) {
+      let dernier = "voix indisponible";
+      for (let essai = 0; essai < 3; essai++) {
+        if (!actuel()) throw new Error("tour interrompu");
+        let attente = 500 * (essai + 1);
         try {
           const r = await fetch(routeVoix, {
             method: "POST",
             headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-            /* `tete` : la PREMIERE phrase d'une réponse, celle qu'on attend
-               pour ouvrir la bouche. Le reste se fabrique pendant qu'elle
-               parle et personne ne l'attend — mélanger les deux dans une
-               médiane donnait 4,6 s pour une phrase qui en coûte 1,9. Voir
-               synthetiser() dans lib/voix.ts. */
             body: JSON.stringify({ texte: answer, partie, ou, langue: langueDite, voice: voixChoisie,
               tete: !suite && partie === 0, audioPrompt: voixAudioPrompt() }),
           });
           if (r.ok) return await r.json() as { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number; speed?: number };
-          dernier = String(r.status);
-          if (r.status === 401 || r.status === 403) break;
-        } catch (e) { dernier = String(e).slice(0, 60); }
-        if (essai === 0) await new Promise((f) => setTimeout(f, 250));
+          dernier = r.status === 429 ? "moteur vocal occupé" : `voix indisponible (HTTP ${r.status})`;
+          if (![429, 502, 503, 504].includes(r.status)) break;
+          if (r.status === 429) attente = Math.min(5000, Math.max(2000, (Number(r.headers.get("retry-after")) || 2) * 1000));
+        } catch (e) { dernier = "connexion au moteur vocal interrompue"; }
+        if (essai < 2) await new Promise((f) => setTimeout(f, attente));
       }
-      throw new Error(`voix indisponible (${dernier})`);
+      throw new Error(dernier);
     };
 
     const enOctets = (b64: string, source?: number) => octetsDeBase64(b64, source);
@@ -2784,7 +2775,7 @@ export default function Home() {
          l'autre — et ce temps-là s'entendait, en plein milieu de sa phrase. */
       const premier = demander(0);
       // One test GPU: start the first audible segment before queuing the next.
-      const second = essaiChatterboxActif() ? null : demander(1);
+      const second = essaiChatterboxActif() ? null : demander(1).catch(() => null);
       let bloc = await premier;
       if (!actuel()) return;
       if (!suite) noterAttente();   // le son est là : l'attente est finie, on la note
@@ -2844,11 +2835,11 @@ export default function Home() {
          (workers=(0,3), main.py) suffisent tout juste à ces trois
          fabrications de front. */
       const total = bloc.parties;
-      const enVol = new Map<number, ReturnType<typeof demander>>();
+      const enVol = new Map<number, Promise<Awaited<ReturnType<typeof demander>> | null>>();
       enVol.set(0, premier);
-      if (total > 1) enVol.set(1, second || demander(1));
+      if (total > 1) enVol.set(1, second || demander(1).catch(() => null));
       const lancer = (i: number) => {
-        if (i > 1 && i < total && !enVol.has(i)) enVol.set(i, demander(i));
+        if (actuel() && i > 1 && i < total && !enVol.has(i)) enVol.set(i, demander(i).catch(() => null));
       };
 
       /* ── ELLE ENCHAÎNE, COMME QUELQU'UN QUI PARLE ──────────────────────
@@ -2946,8 +2937,7 @@ export default function Home() {
 
       for (let i = 0; i < total; i++) {
         lancer(i + 1);
-        lancer(i + 2);
-        lancer(i + 3);
+        if (!essaiChatterboxActif()) { lancer(i + 2); lancer(i + 3); }
         let morceau: { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number; speed?: number } | null = null;
         try { morceau = i === 0 ? bloc : await enVol.get(i)!; } catch { morceau = null; }
         if (perdu()) return;         // une nouvelle réponse a pris la main, ou on l'a fait taire
@@ -2976,6 +2966,7 @@ export default function Home() {
           try { morceau = await demander(i); } catch { morceau = null; }
         }
         if (perdu()) return;
+        if (!morceau?.audio) throw new Error("La voix n’a pas pu terminer la réponse.");
         if (morceau && morceau.audio) {
           try { await programmer(enOctets(morceau.audio, morceau.speed)); } catch { /* ce morceau-ci ne se joue pas, la suite si */ }
         }

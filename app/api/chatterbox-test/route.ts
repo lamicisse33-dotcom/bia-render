@@ -61,17 +61,27 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ input: { text, voice, temperature: .4 } }),
       signal: AbortSignal.timeout(90000),
     });
-    if (!response.ok) return NextResponse.json({ error: `Le moteur de test a refusé la synthèse (HTTP ${response.status}).` }, { status: 502 });
+    if (!response.ok) {
+      const code = response.status === 429 ? "GPU_OCCUPE" : `GPU_HTTP_${response.status}`;
+      console.error("BIA_VOICE_FAILURE", JSON.stringify({ code, status: response.status }));
+      return NextResponse.json({
+        error: response.status === 429 ? "La voix prépare déjà d’autres morceaux. Elle va réessayer." : `Le moteur vocal a refusé la synthèse (HTTP ${response.status}).`,
+        code,
+      }, { status: response.status === 429 ? 429 : 502, headers: response.status === 429 ? { "retry-after": "2" } : {} });
+    }
     const data = await response.json();
     if (data.status !== "COMPLETED" || !data.output?.audio_base64 ||
         typeof data.output.audio_base64 !== "string" ||
         data.output.checkpoint_sha256 !== CHECKPOINT_SHA ||
         !Number.isFinite(data.output.generation_ms) ||
         !Number.isFinite(data.output.duration_seconds)) {
-      return NextResponse.json({ error: "Le moteur de test n’a pas produit d’audio." }, { status: 502 });
+      console.error("BIA_VOICE_FAILURE", JSON.stringify({ code: "AUDIO_INVALIDE" }));
+      return NextResponse.json({ error: "Le moteur vocal n’a pas produit d’audio.", code: "AUDIO_INVALIDE" }, { status: 502 });
     }
     return NextResponse.json(data, { headers: { "cache-control": "no-store" } });
-  } catch {
-    return NextResponse.json({ error: "La synthèse de test n’a pas terminé dans le délai prévu." }, { status: 502 });
+  } catch (error) {
+    const code = (error as Error)?.name === "TimeoutError" ? "DELAI_DEPASSE" : "CONNEXION_GPU";
+    console.error("BIA_VOICE_FAILURE", JSON.stringify({ code }));
+    return NextResponse.json({ error: code === "DELAI_DEPASSE" ? "La voix a mis trop de temps à se préparer." : "La connexion au moteur vocal a été interrompue.", code }, { status: 502 });
   }
 }
