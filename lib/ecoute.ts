@@ -1,3 +1,4 @@
+import { ecritureTranscriptionCompatible } from "./ecriture-transcription";
 import { chezOreilleLocale } from "./ecoute-locale";
 import { noterEtape } from "./etapes";
 import { voixConfig } from "./voix";
@@ -500,6 +501,11 @@ async function chezSoynade(audio: Blob, nomFichier: string, langue: "wo" | "fr")
       compteSoynade.replis++;
       return null;
     }
+    if (!ecritureTranscriptionCompatible(texte)) {
+      compteSoynade.dernierRefus = "ecriture_inattendue";
+      compteSoynade.replis++;
+      return null;
+    }
     noterEtape("ecoute", parti, Date.now(), Date.now(), texte.length);
     return { texte, langue, moteur: "soynade-oolel", entendue: langue };
   } catch (err) {
@@ -513,9 +519,9 @@ async function chezSoynade(audio: Blob, nomFichier: string, langue: "wo" | "fr")
 export async function transcrire(
   audio: Blob, nomFichier: string, indice?: string | null, mots?: string[],
 ): Promise<Ecoute> {
-  // Trial on the existing A40; recognition remains multilingual.
-  // French threads keep their current provider; errors use the existing fallback.
-  if (process.env.STT_PROVIDER === "local_wolof" && (indice !== "fr" || process.env.WOLOF_LOCAL_ALL_LANGUAGES === "true")) {
+  const localeDemandee = process.env.STT_PROVIDER === "local_wolof"
+    && (indice !== "fr" || process.env.WOLOF_LOCAL_ALL_LANGUAGES === "true");
+  if (localeDemandee) {
     const parti = Date.now();
     const locale = await chezOreilleLocale(audio);
     if (locale) {
@@ -529,7 +535,8 @@ export async function transcrire(
   /* Le fil en français reste chez ElevenLabs : c'est le seul terrain où il
      n'a jamais échoué. Tout le reste — et le défaut est le wolof — part chez
      Soynade, qui gagne de trente et un points dessus. */
-  if (OREILLE_DE_SOYNADE && indice !== "fr") {
+  // Après un échec local, le secours doit pouvoir reconnaître français ET wolof.
+  if (!localeDemandee && OREILLE_DE_SOYNADE && indice !== "fr") {
     const chezEux = await chezSoynade(audio, nomFichier, "wo");
     if (chezEux) return chezEux;
     /* Refus, panne ou texte vide : l'ancienne oreille reprend le tour entier,
@@ -682,7 +689,7 @@ export async function transcrire(
      passer par ce que le moteur en dit. Et surtout on NE REPREND PAS : la
      reprise existait pour corriger un dérapage de détection, et il n'y a
      plus de détection à corriger. C'est là qu'est la seconde gagnée. */
-  if (imposeeDesLePremier && premier.texte) {
+  if (imposeeDesLePremier && premier.texte && ecritureTranscriptionCompatible(premier.texte)) {
     return {
       texte: premier.texte,
       langue: CARTE[imposeeDesLePremier] || (indice === "fr" ? "fr" : "wo"),
@@ -694,7 +701,7 @@ export async function transcrire(
   /* Il a entendu du français ou du wolof : c'est bon, on s'arrête là. Et
      s'il n'a RIEN entendu, reprendre ne servirait à rien — le silence ne
      change pas d'alphabet. */
-  if (!premier.texte || ACCEPTEES.has(premier.brute)) {
+  if (!premier.texte || (ACCEPTEES.has(premier.brute) && ecritureTranscriptionCompatible(premier.texte))) {
     return {
       texte: premier.texte,
       langue: CARTE[premier.brute] || null,
@@ -709,7 +716,7 @@ export async function transcrire(
   compte.reprises++;
   try {
     const second = await unEssai(audio, nomFichier, impose, c.model, mots);
-    if (second.texte) {
+    if (second.texte && ecritureTranscriptionCompatible(second.texte) && (!second.brute || ACCEPTEES.has(second.brute))) {
       return {
         texte: second.texte,
         langue: CARTE[impose] || (indice === "fr" ? "fr" : "wo"),
@@ -725,11 +732,7 @@ export async function transcrire(
     compte.perdues++;
   }
 
-  return {
-    texte: premier.texte,
-    langue: null,
-    moteur: "elevenlabs-scribe",
-    entendue: premier.brute,
-    repris: `${premier.brute} (reprise impossible)`,
-  };
+  // Ne jamais présenter une langue étrangère comme les mots de la personne.
+  compte.dernierRefus = "transcription_hors_langues";
+  throw new Error("transcription_hors_langues : l’oreille n’a pas reconnu de français ou de wolof fiable");
 }

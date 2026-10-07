@@ -151,74 +151,18 @@
    moi-même plutôt que de le recevoir. Il reste le sien : si 1,5 s le fait
    attendre à l'oreille, on redescend. */
 
-/** Le silence qui ferme le micro. Un seul nombre, et c'est le sien. */
-export const SILENCE_QUI_FERME = 1500;
-
-/** Jamais moins, quoi qu'il arrive : en dessous, on coupe la parole. */
-export const SILENCE_LE_PLUS_COURT = 900;
-
-/* Les deux paliers de l'échelle. Ils décident de nouveau depuis le
-   15 septembre 2026 : voir silenceQuiSuffit() juste en dessous. Le jour
-   prévu est arrivé — c'est le tableau de /vitesse qui l'a amené. */
+/** Temps de fin de tour : une respiration ne doit pas couper la phrase. */
+export const SILENCE_QUI_FERME = 2100;
+export const SILENCE_LE_PLUS_COURT = 1500;
 export const PAROLE_COURTE = 1200;
 export const PAROLE_LONGUE = 4000;
-
-/**
- * Combien de silence il faut, après le dernier son, pour considérer que la
- * personne a fini. Une seconde et demie, quelle que soit la longueur de sa
- * phrase.
- *
- * @param dureeDeParole combien de temps elle vient de parler, en millisecondes
- */
-/* ── ET L'ÉCHELLE APPREND DE SES COUPURES ───────────────────────────────────
-
-   Lamine, le 21 septembre 2026 : « quand je parle, elle me coupe très
-   souvent. Si elle me coupe, elle n'entend pas ce que j'ai dit. Ça, ce n'est
-   pas normal. » Ses trois paliers (900 / 1200 / 1500) sont faits pour un
-   « Salam » et une phrase courante. Quelqu'un qui enseigne — lui, chaque
-   jour — parle en phrases longues, avec des respirations d'une seconde au
-   milieu, et sur ces respirations le micro se ferme.
-
-   Aucun nombre fixe ne sépare une respiration d'une fin de phrase. Mais
-   CHAQUE PHRASE RECOLLÉE est une preuve : le micro s'est fermé au milieu.
-   Alors on apprend, pour cette personne, dans cette conversation : chaque
-   coupure trop tôt allonge les trois paliers de PAS_D_APPRENTISSAGE, jusqu'à
-   un plafond. Un « Salam » attendra 1,2 s au lieu de 0,9 après une coupure,
-   1,5 après deux — et lui, il ne sera plus coupé. Celui qui parle par mots
-   seuls ne déclenche jamais rien et garde ses 900 ms.
-
-   Ça se lit sur /api/etat → coupures.phrases_recollees : s'il monte encore
-   après cette version, c'est que la fermeture n'est pas le seul défaut. */
 export const PAS_D_APPRENTISSAGE = 300;
-export const SILENCE_LE_PLUS_LONG = 2100;
+export const SILENCE_LE_PLUS_LONG = 3000;
 
 export function silenceQuiSuffit(dureeDeParole: number, coupesTropTot = 0): number {
-  const rallonge = Math.max(0, Math.floor(coupesTropTot)) * PAS_D_APPRENTISSAGE;
-  return Math.min(SILENCE_LE_PLUS_LONG, silenceDeBase(dureeDeParole) + rallonge);
-}
-
-function silenceDeBase(dureeDeParole: number): number {
-  /* ── L'ÉCHELLE ROUVERTE, ET C'EST LUI QUI L'A CHIFFRÉE ────────────────
-
-     Lamine, le 15 septembre 2026, devant le tableau qui affichait 1536 ms à
-     chaque tour :
-
-       « Je ne mettrais pas 700 ms partout. Je réactiverais l'adaptatif de
-         façon prudente : moins de 1200 → 900, moins de 4000 → 1200, sinon
-         1500. Cela peut récupérer environ 300 à 600 ms sans trop augmenter
-         le risque de couper quelqu'un. »
-
-     C'est le bon raisonnement, et c'est le sien. Le danger n'est pas le même
-     selon la longueur : après « Salam », il n'y a rien à couper — la phrase
-     est finie. Après une longue intervention, une seconde de silence est
-     souvent une respiration au milieu, et fermer là envoie une demi-phrase
-     wolof à la transcription, qui la devine au lieu de la lire.
-
-     Le plancher reste à 900 ms. En dessous, on coupe la parole — et une
-     question reposée coûte bien plus que les millisecondes gagnées. */
-  if (dureeDeParole < PAROLE_COURTE) return 900;
-  if (dureeDeParole < PAROLE_LONGUE) return 1200;
-  return SILENCE_QUI_FERME;
+  const base = dureeDeParole < PAROLE_COURTE ? SILENCE_LE_PLUS_COURT
+    : dureeDeParole < PAROLE_LONGUE ? 1800 : SILENCE_QUI_FERME;
+  return Math.min(SILENCE_LE_PLUS_LONG, base + Math.max(0, Math.floor(coupesTropTot)) * PAS_D_APPRENTISSAGE);
 }
 
 /* ═══ 2. LE BRUIT DE LA PIÈCE ════════════════════════════════════════════

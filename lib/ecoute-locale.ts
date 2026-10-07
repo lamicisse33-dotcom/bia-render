@@ -1,3 +1,4 @@
+import { ecritureTranscriptionCompatible } from "./ecriture-transcription";
 import type { Ecoute } from "./ecoute";
 
 // Only aggregate diagnostics leave this module. No audio, transcript or key.
@@ -43,6 +44,7 @@ export async function chezOreilleLocale(audio: Blob): Promise<Ecoute | null> {
     }
     const texte = d.text.trim();
     if (!texte && !d.silence) throw new Error("texte_vide");
+    if (!ecritureTranscriptionCompatible(texte)) throw new Error("ecriture_inattendue");
     compte.reussites++;
     if (d.silence) compte.silences++;
     if (typeof d.audio_seconds === "number" && Number.isFinite(d.audio_seconds)) {
@@ -53,7 +55,7 @@ export async function chezOreilleLocale(audio: Blob): Promise<Ecoute | null> {
     return { texte, langue: null, moteur: "local-omniASR_LLM_1B_v2" };
   } catch (err) {
     const e = err as Error;
-    const reason = /^(configuration_absente|audio_trop_volumineux|HTTP_\d+|reponse_invalide|texte_vide)$/.test(e.message)
+    const reason = /^(configuration_absente|audio_trop_volumineux|HTTP_\d+|reponse_invalide|texte_vide|ecriture_inattendue)$/.test(e.message)
       ? e.message : e.name === "TimeoutError" ? "delai_depasse" : "connexion_impossible";
     compte.dernierRefus = reason;
     compte.replis++;
