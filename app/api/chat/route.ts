@@ -2619,7 +2619,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         contexte: variable, resume, outils, nom: estRara ? "Rara" : "BIA", maitre: verdict.maitre,
       });
       const debutConversation=Date.now();
-      const r=local
+      let r=local
         ? await appelerCerveauLocal(messages as MessageLocal[], o.plafond)
         : await (cerebras ? appelerCerebras : fetchGroqAvecSecours)("https://api.groq.com/openai/v1/chat/completions",{
         method:"POST",
@@ -2637,6 +2637,24 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           ...(o.avecOutil ? {tools:[{type:"browser_search"}]} : {}),
         }),
       }, limiteGroq, false);
+      if(cerebras && !r.ok && [429,500,502,503,504,529].includes(r.status) && process.env.GROQ_API_KEY && Date.now()+1000<limiteGroq){
+        console.warn("BIA_MODEL_PROVIDER_FALLBACK", JSON.stringify({from:"cerebras",to:"groq",status:r.status}));
+        r=await fetchGroqAvecSecours("https://api.groq.com/openai/v1/chat/completions",{
+          method:"POST",
+          headers:{
+            "content-type":"application/json",
+            "authorization":`Bearer ${process.env.GROQ_API_KEY}`,
+          },
+          body:JSON.stringify({
+            model:process.env.GROQ_MODEL||"openai/gpt-oss-120b",
+            messages,
+            max_completion_tokens:budgetGroq(o.plafond,process.env.GROQ_MODEL||"openai/gpt-oss-120b"),
+            ...reglagesConversation(question, Boolean(body.apprend)),
+            temperature:0.35,
+            service_tier:"on_demand",
+          }),
+        },limiteGroq,true);
+      }
       if(!r.ok) {
         if(!local)noterConversation({ok:false,modele:model,attendu:model,effort:effortConversation(question,Boolean(body.apprend)),ms:Date.now()-debutConversation,messages:messages.length});
         return r;
