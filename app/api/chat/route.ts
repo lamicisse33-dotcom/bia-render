@@ -2648,7 +2648,6 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           body:JSON.stringify({
             model:process.env.GROQ_MODEL||"openai/gpt-oss-120b",
             messages,
-            max_completion_tokens:budgetGroq(o.plafond,process.env.GROQ_MODEL||"openai/gpt-oss-120b"),
             ...reglagesConversation(question, Boolean(body.apprend)),
             temperature:0.35,
             service_tier:"on_demand",
