@@ -10,9 +10,9 @@ const deferred = () => { let resolve; const promise = new Promise(r => { resolve
 
 test('a short breath does not finish a sentence; repeated early cuts extend the pause', () => {
   for (const duration of [700, 2500, 7000]) {
-    assert(silenceQuiSuffit(duration) > 1200);
+    assert(silenceQuiSuffit(duration) >= 1000);
     assert(silenceQuiSuffit(duration, 2) > silenceQuiSuffit(duration));
-    assert(silenceQuiSuffit(duration, 100) <= 3000);
+    assert(silenceQuiSuffit(duration, 100) <= 2500);
   }
 });
 test('speech containing consonants and two 120 ms gaps still interrupts', () => {
