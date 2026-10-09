@@ -31,3 +31,25 @@ export async function prononciationsApprises(texte:string,langue:"fr"|"wo") {
     ...anciennes.filter(r=>!mots.has(r.mot.toLowerCase()))]);
 }
 void lireLecons().catch(()=>{});
+
+/** Internal diagnostic: a unique, never-validated record is read back and
+ * removed by exact source+author. It never changes a user's correction. */
+export async function verifierPersistance() {
+  if(!lexiqueConfig.actif)throw new Error("Supabase absent");
+  const source=`KHALAM_CONTROLE_${crypto.randomUUID()}`;
+  const lecon:Lecon={texte:source,langue:"fr",prononciation:"contrôle",exemple:"Vérification de persistance",statut:"incertain",date:new Date().toISOString(),date_validation:null};
+  const headers={apikey:lexiqueConfig.cle,Authorization:`Bearer ${lexiqueConfig.cle}`,"content-type":"application/json"};
+  const base=`${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}`;
+  const filtre=`source=eq.${encodeURIComponent(source)}&auteur=eq.controle-technique&application=eq.${APP_LECONS}`;
+  try {
+    const write=await fetch(base,{method:"POST",headers,body:JSON.stringify([{source,corrigee:source,langue:"fr",auteur:"controle-technique",application:APP_LECONS,proposee:JSON.stringify({version:1,lecon})}]),signal:AbortSignal.timeout(8000)});
+    if(!write.ok)throw new Error(`Écriture ${write.status}`);
+    const read=await fetch(`${base}?select=proposee&${filtre}`,{headers,cache:"no-store",signal:AbortSignal.timeout(8000)});
+    if(!read.ok)throw new Error(`Relecture ${read.status}`);
+    const rows=await read.json();if(rows.length!==1||JSON.stringify(JSON.parse(rows[0].proposee).lecon)!==JSON.stringify(lecon))throw new Error("Relecture différente");
+    return {ecriture:true,relecture:true,champs:7,statut_test:"incertain"};
+  } finally {
+    const clean=await fetch(`${base}?${filtre}`,{method:"DELETE",headers,signal:AbortSignal.timeout(8000)});
+    cache=null;if(!clean.ok)throw new Error("Nettoyage du contrôle à vérifier");
+  }
+}
