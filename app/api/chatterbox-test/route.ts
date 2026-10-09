@@ -55,10 +55,12 @@ export async function POST(request: NextRequest) {
     const text = body.input.text.trim();
     if (!text || text.length > 600) return NextResponse.json({ error: "Écris une phrase de 600 caractères au maximum." }, { status: 400 });
     const voice = body?.input?.voice === "male" ? "male" : "female";
+    const francais = body.input.language === "fr";
     const response = await fetch(`${c.url}/tts`, {
       method: "POST", cache: "no-store",
       headers: { "content-type": "application/json", "X-Khalam-Key": c.key },
-      body: JSON.stringify({ input: { text, voice, temperature: .4 } }),
+      body: JSON.stringify({ input: { text, voice, language_id: "fr", temperature: francais ? .3 : .4,
+        ...(francais ? { exaggeration: .25, cfg_weight: .7 } : {}) } }),
       signal: AbortSignal.timeout(90000),
     });
     if (!response.ok) {
