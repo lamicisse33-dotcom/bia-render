@@ -1,6 +1,6 @@
 import { ajouterCorrection, lexiqueConfig } from "./lexique";
 import { reglesPrononciation } from "./prononciation";
-import { APP_LECONS, dernieresLecons, appliquerRegles, type Lecon } from "./lexique-apprentissage-core";
+import { APP_LECONS, dernieresLecons, appliquerRegles, reglesLeconsMixtes, type Lecon } from "./lexique-apprentissage-core";
 let cache:{lecons:Lecon[];expires:number}|null=null;
 let lectureEnCours:Promise<Lecon[]>|null=null;
 let revision=0;
@@ -37,11 +37,7 @@ export async function garderLecon(lecon:Lecon) {
 }
 export async function prononciationsApprises(texte:string,langue:"fr"|"wo") {
   const [lecons,anciennes]=await Promise.all([lireLecons(),reglesPrononciation()]);
-  const pertinentes=lecons.filter(l=>l.langue===langue);
-  // A latest uncertain/rejected entry masks any older rule for the same word.
-  const mots=new Set(pertinentes.map(l=>l.texte.toLowerCase()));
-  return appliquerRegles(texte,[...pertinentes.filter(l=>l.statut==="validé").map(l=>({mot:l.texte,dire:l.prononciation})),
-    ...anciennes.filter(r=>!mots.has(r.mot.toLowerCase()))]);
+  return appliquerRegles(texte,reglesLeconsMixtes(lecons,langue,anciennes));
 }
 void lireLecons().catch(()=>{});
 
