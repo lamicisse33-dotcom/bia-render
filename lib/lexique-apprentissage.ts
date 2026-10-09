@@ -2,8 +2,21 @@ import { ajouterCorrection, lexiqueConfig } from "./lexique";
 import { reglesPrononciation } from "./prononciation";
 import { APP_LECONS, dernieresLecons, appliquerRegles, type Lecon } from "./lexique-apprentissage-core";
 let cache:{lecons:Lecon[];expires:number}|null=null;
-export async function lireLecons(force=false):Promise<Lecon[]> {
-  if(!force&&cache&&cache.expires>Date.now())return cache.lecons;
+let lectureEnCours:Promise<Lecon[]>|null=null;
+let revision=0;
+function invaliderLecons(){revision++;cache=null;lectureEnCours=null;}
+export function lireLecons(force=false):Promise<Lecon[]> {
+  if(!force&&cache&&cache.expires>Date.now())return Promise.resolve(cache.lecons);
+  if(lectureEnCours)return lectureEnCours;
+  const version=revision;
+  const lecture=chargerLecons().then(lecons=>{
+    if(version===revision)cache={lecons,expires:Date.now()+15000};
+    return lecons;
+  }).finally(()=>{if(lectureEnCours===lecture)lectureEnCours=null;});
+  lectureEnCours=lecture;
+  return lecture;
+}
+async function chargerLecons():Promise<Lecon[]> {
   if(!lexiqueConfig.actif)throw new Error("Mémoire Supabase non configurée");
   const rows:Array<{proposee:string}>=[];
   for(let offset=0;;offset+=500){
@@ -12,7 +25,7 @@ export async function lireLecons(force=false):Promise<Lecon[]> {
     if(!r.ok)throw new Error(`Lecture du lexique refusée (${r.status})`);
     const page=await r.json();if(!Array.isArray(page))throw new Error("Lexique invalide");rows.push(...page);if(page.length<500)break;
   }
-  const lecons=dernieresLecons(rows);cache={lecons,expires:Date.now()+15000};return lecons;
+  return dernieresLecons(rows);
 }
 export async function garderLecon(lecon:Lecon) {
   if(!lexiqueConfig.actif)throw new Error("Mémoire Supabase non configurée");
@@ -20,7 +33,7 @@ export async function garderLecon(lecon:Lecon) {
   // no schema migration, and old consumers exclude this application namespace.
   await ajouterCorrection({source:lecon.texte,corrigee:lecon.texte,langue:lecon.langue,
     auteur:"maitre-apprentissage",application:APP_LECONS,proposee:JSON.stringify({version:1,lecon})});
-  cache=null;
+  invaliderLecons();
 }
 export async function prononciationsApprises(texte:string,langue:"fr"|"wo") {
   const [lecons,anciennes]=await Promise.all([lireLecons(),reglesPrononciation()]);
@@ -50,6 +63,6 @@ export async function verifierPersistance() {
     return {ecriture:true,relecture:true,champs:7,statut_test:"incertain"};
   } finally {
     const clean=await fetch(`${base}?${filtre}`,{method:"DELETE",headers,signal:AbortSignal.timeout(8000)});
-    cache=null;if(!clean.ok)throw new Error("Nettoyage du contrôle à vérifier");
+    invaliderLecons();if(!clean.ok)throw new Error("Nettoyage du contrôle à vérifier");
   }
 }

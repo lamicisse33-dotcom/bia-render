@@ -74,7 +74,16 @@ export async function reveiller(
   const eveille = () => String(ctx.state) === "running";
   for (let essai = 0; essai < ESSAIS_DE_REVEIL; essai++) {
     if (eveille()) return true;
-    try { await ctx.resume(); } catch { /* un contexte fermé : tant pis */ }
+    // Safari may keep resume() pending until the next user gesture.
+    // Bound this optional wake-up so it cannot retain the entire answer.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        ctx.resume(),
+        new Promise<void>(resolve => {timer=setTimeout(resolve,250);}),
+      ]);
+    } catch { /* a closed context cannot be resumed */ }
+    finally { if(timer!==undefined)clearTimeout(timer); }
     if (eveille()) return true;
     await dormir(REPIT_ENTRE_DEUX_ESSAIS);
   }

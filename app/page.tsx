@@ -2869,7 +2869,11 @@ export default function Home() {
          Maintenant les morceaux sont PROGRAMMÉS sur l'horloge du son, à la
          milliseconde : le suivant démarre à l'instant précis où le précédent
          se termine, décodé longtemps à l'avance. Il n'y a plus de couture. */
-      const ctx = contexte();
+      // The microphone can leave Safari playback interrupted. Await its wake
+      // before scheduling buffers, rather than silently queueing inaudible audio.
+      const ctx = await reveillerLeSon();
+      if (perdu()) return;
+      if (String(ctx.state) !== "running") throw new Error("Appuie sur le micro pour réactiver le son.");
       const segments: Array<{ debut: number; fin: number; valeurs: number[]; pic: number; pas: number }> = [];
       let quand = 0;
       // Vrai par défaut : le premier morceau, on l'a déjà en main (bloc), pas de blanc au départ.
@@ -2984,7 +2988,12 @@ export default function Home() {
         if (perdu()) return;
         if (!morceau?.audio) throw new Error("La voix n’a pas pu terminer la réponse.");
         if (morceau && morceau.audio) {
-          try { await programmer(enOctets(morceau.audio, morceau.speed)); } catch { /* ce morceau-ci ne se joue pas, la suite si */ }
+          // A decoding failure must not silently skip words from the response.
+          try { await programmer(enOctets(morceau.audio, morceau.speed)); }
+          catch {
+            if (perdu()) return;
+            await programmer(enOctets(morceau.audio, morceau.speed));
+          }
         }
         /* On ne dort pas jusqu'à la fin du morceau : on se réveille deux
            secondes avant, le temps de décoder et de programmer le suivant
@@ -3042,7 +3051,7 @@ export default function Home() {
       if (ou === "apprentissage" || locale || essaiChatterboxActif()) { stopMouth(answer); return; }
       await parlerAvecLeTelephone(answer);
     }
-  }, [contexte, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth]);
+  }, [contexte, reveillerLeSon, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth]);
 
 
 
