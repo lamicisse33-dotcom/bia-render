@@ -2877,3 +2877,16 @@ button { font: inherit; touch-action: manipulation; }
   background: none; color: inherit;
   font: inherit; font-size: 11.5px; cursor: pointer;
 }
+
+/* One shared motion keeps the old/new faces aligned during crossfades. */
+.portrait {
+  --avatar-scale: .985;
+  transform-origin: 50% 78%;
+  animation: breathe 4.8s ease-in-out infinite;
+}
+.portrait > .avatar { animation: none; transform: none; z-index: 1; }
+.portrait > .avatar-avant { animation: fondu-avant .22s ease-out forwards; z-index: 2; }
+.portrait > .avatar-socle { z-index: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .portrait, .portrait > .avatar-avant { animation: none !important; }
+}
