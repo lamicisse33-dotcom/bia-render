@@ -112,7 +112,7 @@ export async function toutes(): Promise<Entree[]> {
       lectureDuLexique = { colonnes, motif: refus };
       continue;
     }
-    const valeurs = await r.json() as Entree[];
+      const valeurs = (await r.json() as Entree[]).filter(e => e.application !== "bia-apprentissage-v1");
     /* Si on a dû redescendre, on garde le motif du refus : c'est ce qui
        dira, sur /api/etat, que les mots corrigés ne peuvent pas être lus. */
     lectureDuLexique = { colonnes, motif: refus ? `marche du dessus refusée — ${refus}` : "" };
@@ -531,3 +531,4 @@ export async function motsCorriges(max = 40): Promise<MotCorrige[]> {
     .sort((x, y) => y.fois - x.fois || x.faux.length - y.faux.length)
     .slice(0, max);
 }
+

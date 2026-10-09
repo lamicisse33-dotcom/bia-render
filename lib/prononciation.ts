@@ -35,7 +35,13 @@ let reglesDynamiques: Regle[] = [];
 let derniereMAJ = 0;
 const TTL_MS = 5 * 60 * 1000;
 
-async function rafraichir() {
+let chargement: Promise<void> | null = null;
+function rafraichir(): Promise<void> {
+  if (chargement) return chargement;
+  chargement = chargerRegles().finally(() => { chargement = null; });
+  return chargement;
+}
+async function chargerRegles() {
   const maintenant = Date.now();
   if (maintenant - derniereMAJ < TTL_MS) return;
   derniereMAJ = maintenant;
@@ -62,6 +68,11 @@ void rafraichir();
 
 function echapper(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export async function reglesPrononciation(): Promise<Regle[]> {
+  await rafraichir();
+  return toutesLesRegles();
 }
 
 function toutesLesRegles(): Regle[] {
@@ -137,3 +148,4 @@ export function resumePrononciation() {
     total: reglesStatiques.length + reglesDynamiques.length,
   };
 }
+

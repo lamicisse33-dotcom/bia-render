@@ -60,7 +60,8 @@ export async function POST(request: NextRequest) {
       method: "POST", cache: "no-store",
       headers: { "content-type": "application/json", "X-Khalam-Key": c.key },
       body: JSON.stringify({ input: { text, voice, language_id: "fr", temperature: francais ? .3 : .4,
-        ...(francais ? { exaggeration: .25, cfg_weight: .7 } : {}) } }),
+        ...(francais ? { exaggeration: .25, cfg_weight: .7 } : {}),
+        preserve_segment: body.input.preserve_segment === true } }),
       signal: AbortSignal.timeout(90000),
     });
     if (!response.ok) {
@@ -87,3 +88,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: code === "DELAI_DEPASSE" ? "La voix a mis trop de temps à se préparer." : "La connexion au moteur vocal a été interrompue.", code }, { status: 502 });
   }
 }
+
