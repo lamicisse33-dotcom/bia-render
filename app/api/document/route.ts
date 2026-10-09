@@ -21,10 +21,14 @@ export async function POST(request: NextRequest) {
       tva?: boolean;
     };
     const sorte: Sorte = body.sorte === "lettre" ? "lettre"
+      : body.sorte === "facture" ? "facture"
       : body.sorte === "mail" ? "mail"
       : body.sorte === "message" ? "message" : "devis";
 
-    const apiKey = process.env.BIA_LLM_API_KEY || process.env.ANTHROPIC_API_KEY;
+    const provider = (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase();
+    const compatible = provider === "cerebras" || provider === "groq";
+    const apiKey = compatible ? (provider === "cerebras" ? process.env.CEREBRAS_API_KEY : process.env.GROQ_API_KEY)
+      : process.env.BIA_LLM_API_KEY || process.env.ANTHROPIC_API_KEY;
     const model = process.env.BIA_LLM_MODEL || "claude-sonnet-5";
     if (!apiKey) return NextResponse.json({ erreur: "clé absente" }, { status: 500 });
 
@@ -36,10 +40,22 @@ export async function POST(request: NextRequest) {
       .join("\n");
     if (!fil.trim()) return NextResponse.json({ erreur: "rien à écrire" }, { status: 400 });
 
-    const response = await fetch(
+    const response = compatible ? await fetch(
+      provider === "cerebras" ? "https://api.cerebras.ai/v1/chat/completions" : "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST", signal: AbortSignal.timeout(45000),
+        headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: provider === "cerebras" ? (process.env.CEREBRAS_MODEL || "gpt-oss-120b") : (process.env.GROQ_MODEL || "openai/gpt-oss-120b"),
+          max_completion_tokens: 4096,
+          ...(provider === "cerebras" ? { reasoning_format: "hidden" } : {}),
+          messages: [{role: "system", content: CONSIGNE_DOCUMENT}, {role: "user", content: `LA CONVERSATION\n${fil}\n\nFabrique le ${sorte}.`}],
+        }),
+      },
+    ) : await fetch(
       `${process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com"}/v1/messages`,
       {
-        method: "POST",
+        method: "POST", signal: AbortSignal.timeout(45000),
         headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
         body: JSON.stringify({
           model,
@@ -56,8 +72,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ erreur: `modèle ${response.status}` }, { status: 502 });
     }
 
-    const data = await response.json() as { content?: Array<{ type: string; text?: string }> };
-    const complet = (data.content || []).filter((b) => b.type === "text").map((b) => b.text || "").join("\n").trim();
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }>; content?: Array<{ type: string; text?: string }> };
+    const complet = compatible ? String(data.choices?.[0]?.message?.content || "").trim() : (data.content || []).filter((b) => b.type === "text").map((b) => b.text || "").join("\n").trim();
 
     /* Le modèle glisse parfois le JSON dans un bloc de code, ou ajoute une
        phrase avant. On prend le premier objet complet et on ignore le reste. */
@@ -91,7 +107,7 @@ export async function POST(request: NextRequest) {
       noterPanne(`${sorte} : rien à mettre dedans`, complet.slice(debut, debut + 400), "document");
       return NextResponse.json({ erreur: "document vide" }, { status: 502 });
     }
-    if (doc.type === "devis" && !doc.numero) doc.numero = numeroDevis();
+    if (doc.type === "devis" && doc.nature !== "facture" && !doc.numero) doc.numero = numeroDevis();
 
     /* SES RENSEIGNEMENTS À LUI VIENNENT DE L'APPAREIL, PAS DU MODÈLE.
        Le nom, le métier, le téléphone, le NINEA, le registre de commerce : il
