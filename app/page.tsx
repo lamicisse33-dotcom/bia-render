@@ -57,7 +57,7 @@ import { fluxVivant,
   INTERVENTION_MAXIMALE, MICRO_LACHE_ENTRE_LES_TOURS, MICRO_SUR_SON_PROPRE_CONTEXTE, REGLAGES_DU_MICRO,
   SILENCE_QUI_CLÔT_LA_CONVERSATION, TOUR_DE_VEILLE,
   TOURS_MUETS_AVANT_DE_DOUTER, FLUX_DU_GUETTEUR,
-  barreDeCoupure, partVocale, silenceQuiSuffit, suivreLEcho, suivreLeBruit,
+  barreDeCoupure, partVocale, silenceQuiSuffit, suivreLEcho, suivreLeBruit, creerFiltreDeclenchement,
   vautLaPeine, vraimentUneVoix, hauteurDeVoix, HAUTEUR_MINIMALE,
 } from "@/lib/micro";
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie, voixDejaPosee } from "@/lib/ralentir";
@@ -4425,6 +4425,7 @@ export default function Home() {
       let partVocaleTotale = 0;
       let hauteurTotale = 0;
       let mesuresVocales = 0;
+      const filtrerDeclenchement = creerFiltreDeclenchement();
       enregistreurRef.current = enregistreur;
 
       /* ── LE MICRO QUI NE SE FERMAIT PLUS APRÈS UNE CORRECTION ─────────────
@@ -4531,7 +4532,13 @@ export default function Home() {
            continuer. Sans ce second seuil, « je t'entends » clignotait dix
            fois par seconde et le micro se fermait dans les creux d'une
            phrase — l'autre moitié de « ce n'est pas net ». */
-        const uneVoix = bruit.voir(creux);
+        const audible = bruit.voir(creux);
+        let proportionVocale: number | null = null;
+        try {
+          analyse.getByteFrequencyData(spectre);
+          proportionVocale = partVocale(spectre, ctxMicro.sampleRate);
+        } catch { /* L'écoute reste utilisable sans analyse fréquentielle. */ }
+        const uneVoix = filtrerDeclenchement(audible, proportionVocale);
         seuilRef.current = bruit.seuil();
 
         if (uneVoix) {
@@ -5689,6 +5696,7 @@ export default function Home() {
     const analysePeriodique = analysePeriodiqueRef.current;
     const tamponPeriodique = analysePeriodique ? new Uint8Array(analysePeriodique.fftSize) : null;
     const detecter = creerDetectionInterruption();
+    const spectreInterruption = new Uint8Array(analyse.frequencyBinCount);
     let vivant = true;
     let porteDuGuet: typeof porteRef.current = null;
     let finEnCours = false;
@@ -5900,7 +5908,9 @@ export default function Home() {
       let estUneVoix = true;
       if (creux > barre && analysePeriodique && tamponPeriodique) {
         analysePeriodique.getByteTimeDomainData(tamponPeriodique);
-        estUneVoix = hauteurDeVoix(tamponPeriodique, analysePeriodique.context.sampleRate) >= HAUTEUR_MINIMALE;
+        analyse.getByteFrequencyData(spectreInterruption);
+        estUneVoix = partVocale(spectreInterruption, analyse.context.sampleRate) >= 0.2 &&
+          hauteurDeVoix(tamponPeriodique, analysePeriodique.context.sampleRate) >= HAUTEUR_MINIMALE;
       }
       const interruption = detecter(creux > barre, estUneVoix, TOUR_DE_VEILLE);
       if (creux > barre && (estUneVoix || ilParle)) {
