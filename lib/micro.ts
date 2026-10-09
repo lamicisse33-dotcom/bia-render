@@ -152,16 +152,16 @@
    attendre à l'oreille, on redescend. */
 
 /** Temps de fin de tour : une respiration ne doit pas couper la phrase. */
-export const SILENCE_QUI_FERME = 1650;
-export const SILENCE_LE_PLUS_COURT = 1050;
+export const SILENCE_QUI_FERME = 2100;
+export const SILENCE_LE_PLUS_COURT = 1500;
 export const PAROLE_COURTE = 1200;
 export const PAROLE_LONGUE = 4000;
-export const PAS_D_APPRENTISSAGE = 250;
-export const SILENCE_LE_PLUS_LONG = 2500;
+export const PAS_D_APPRENTISSAGE = 300;
+export const SILENCE_LE_PLUS_LONG = 3000;
 
 export function silenceQuiSuffit(dureeDeParole: number, coupesTropTot = 0): number {
   const base = dureeDeParole < PAROLE_COURTE ? SILENCE_LE_PLUS_COURT
-    : dureeDeParole < PAROLE_LONGUE ? 1350 : SILENCE_QUI_FERME;
+    : dureeDeParole < PAROLE_LONGUE ? 1800 : SILENCE_QUI_FERME;
   return Math.min(SILENCE_LE_PLUS_LONG, base + Math.max(0, Math.floor(coupesTropTot)) * PAS_D_APPRENTISSAGE);
 }
 
@@ -393,7 +393,7 @@ export const ECHO_A_PLEINE_VOIX = 28;
 
 /** Et combien de temps il faut tenir : en dessous, un claquement de portière
     la ferait taire au milieu d'une phrase. */
-export const TENIR_POUR_COUPER = 180;
+export const TENIR_POUR_COUPER = 250;
 
 /**
  * Est-ce que ce qu'entend le micro couvre vraiment la voix de BIA ?
@@ -599,11 +599,28 @@ export const MICRO_LACHE_ENTRE_LES_TOURS = false;
    importante des trois : c'est elle qui empêche BIA de s'entendre parler. */
 export const REGLAGES_DU_MICRO: MediaStreamConstraints = {
   audio: {
+    channelCount: { ideal: 1 },
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,
   },
 };
+
+/** Filtre de déclenchement, pas une identification du locuteur ou des sons.
+ * Deux mesures vocales sur quatre écartent un choc isolé. Une brève
+ * tolérance garde les consonnes sourdes après le début d'une syllabe.
+ * L'enregistreur tourne déjà : les premières mesures ne sont pas perdues.
+ */
+export function creerFiltreDeclenchement() {
+  const mesures: boolean[] = [];
+  return (audible: boolean, proportionVocale: number | null): boolean => {
+    const compatible = proportionVocale === null ||
+      (Number.isFinite(proportionVocale) && proportionVocale >= 0.2);
+    mesures.push(audible && compatible);
+    if (mesures.length > 4) mesures.shift();
+    return audible && mesures.filter(Boolean).length >= 2;
+  };
+}
 
 /* ═══ 5. UNE VOIX, OU UN BRUIT ? ═══════════════════════════════════════════
 
