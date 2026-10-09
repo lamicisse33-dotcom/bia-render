@@ -6,6 +6,7 @@ import { noterChatterboxTest } from "@/lib/chatterbox-test-etat";
 import { decouperVoixKhalam } from "@/lib/decoupage-voix-khalam";
 import { texteKhalamVoix } from "@/lib/texte-khalam-voix";
 import { CacheAccusesLecon } from "@/lib/cache-accuses-lecon";
+import { prononciationsApprises } from "@/lib/lexique-apprentissage";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -41,7 +42,10 @@ export async function POST(request: NextRequest) {
   if (!Number.isSafeInteger(partie) || partie < 0) {
     return NextResponse.json({ error: "Numéro de partie invalide." }, { status: 400 });
   }
-  const parts = decouperVoixKhalam(texteKhalamVoix(body.texte));
+  let textePrononce: string;
+  try { textePrononce = await prononciationsApprises(texteKhalamVoix(body.texte), body.langue === "fr" ? "fr" : "wo"); }
+  catch { return NextResponse.json({error:"Le lexique n'a pas répondu. Réessaie."},{status:503}); }
+  const parts = decouperVoixKhalam(textePrononce);
   const headers = { "cache-control": "no-store" };
   const common = {
     parties: parts.length, partie,
@@ -118,4 +122,5 @@ export async function POST(request: NextRequest) {
     if (inFlight.get(id) === pending) inFlight.delete(id);
   }
 }
+
 
