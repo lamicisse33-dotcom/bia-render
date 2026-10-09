@@ -1844,7 +1844,7 @@ export default function Home() {
   const dernierReveilMoteur = useRef(0);
   const parlerAvecLeTelephone = useCallback((answer: string) => new Promise<void>((fini) => {
     if (essaiChatterboxActif()) {
-      setPanne("Chatterbox n’a pas produit de son. Réessaie l’essai vocal.");
+      setPanne("KHALAM Voice n’a pas produit de son. Réessaie l’essai vocal.");
       stopMouth(answer); fini(); return;
     }
     if (voixLocaleBiaDisponible(personaRef.current)) {
@@ -2794,7 +2794,7 @@ export default function Home() {
       if (!await peutParler()) return;
       if (!bloc.audio) {
         if (essaiChatterboxActif()) {
-          setPanne("Chatterbox n’a produit aucun son. Réessaie l’essai vocal.");
+          setPanne("KHALAM Voice n’a produit aucun son. Réessaie l’essai vocal.");
           stopMouth(answer); return;
         }
         if (locale) {
@@ -7083,8 +7083,8 @@ export default function Home() {
         <fieldset style={{ margin: "12px 0", padding: 12, border: "1px solid #8c7549", borderRadius: 12 }}>
           <legend>Choisir la voix</legend>
           {([
-            ["male", "Homme — Chatterbox"],
-            ["female", "Femme — Chatterbox"],
+            ["male", "Homme — KHALAM Voice"],
+            ["female", "Femme — KHALAM Voice"],
             ["piper", "Voix habituelle — Piper"],
           ] as const).map(([valeur, label]) => (
             <label key={valeur} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 48, cursor: "pointer" }}>
@@ -7094,13 +7094,13 @@ export default function Home() {
             </label>
           ))}
         </fieldset>
-        <p className="papier-note">Ton choix est mémorisé sur ce téléphone. Chatterbox utilise le serveur de test.</p>
+        <p className="papier-note">Ton choix est mémorisé sur ce téléphone. KHALAM Voice utilise le serveur de test.</p>
         {erreurChoixVoix && <p className="panne" role="alert">{erreurChoixVoix}</p>}
         <button type="button" className="papier-lien" disabled={mode !== "ready" || conversation}
           onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
         {panne && <p className="panne" role="alert">{panne}</p>}
         <p className="papier-note" role="status" data-bia-voice-status>
-          {essaiChatterbox ? `Chatterbox · voix ${choixVoix === "female" ? "de femme" : "d’homme"} · serveur de test` : voixLocalePresente
+          {essaiChatterbox ? `KHALAM Voice · voix ${choixVoix === "female" ? "de femme" : "d’homme"} · serveur de test` : voixLocalePresente
             ? `Voix locale ${epoqueVoixLocaleBia()} — moteur installé sur cet iPhone`
             : "Voix du téléphone — le moteur local est absent dans cette fenêtre"}
         </p>
