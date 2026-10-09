@@ -1753,6 +1753,8 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        que je n'avais pas et qui a coûté la facture. */
     let registre="";
     let variable="";
+    let leconsDuTour="";
+    let lexiqueDuTour="";
 
     /* ── QUAND C'EST LAMINE QUI PARLE ───────────────────────────────────────
 
@@ -1925,7 +1927,7 @@ version, c'est ta construction ; ce qu'il t'apprend, c'est ta mémoire.`;
            veut pouvoir tout relire pour vérifier son travail. Quarante
            couvre plusieurs séances ; au-delà, c'est le modèle qui abrège. */
         const apprises=await cequElleAAppris("maitre-vocal",40);
-        variable+=apprises.length
+        leconsDuTour+=apprises.length
           ?`\n\nCE QU'IL T'A APPRIS, ET QUE TU DOIS SAVOIR DIRE\nIl t'a appris ${apprises.length} chose(s) à la voix. Les plus récentes d'abord :\n`
             +apprises.map((a,i)=>`${i+1}. « ${a.texte} »${a.quand?` — ${a.quand.slice(0,10)}`:""}`).join("\n")
             +`\nS'il te demande ce qu'il t'a appris, ce que tu as reçu, ou ce que tu as retenu : réponds avec CETTE liste. Ne dis JAMAIS que tu n'as rien reçu, et ne dis JAMAIS que tu n'as pas accès à ta mémoire — elle est là, au-dessus, tu viens de la lire.
@@ -1934,8 +1936,10 @@ S'IL DEMANDE TOUT — « répète-moi tout ce que tu as mémorisé », « relis-
       }catch(err){
         console.error("BIA — l'inventaire de sa mémoire n'a pas répondu :",(err as Error).message);
         noterPanne("inventaire de la mémoire",(err as Error).message,"chat");
-        variable+=`\n\nCE QU'IL T'A APPRIS\nTu n'arrives pas à relire ta mémoire en ce moment — le rangement ne répond pas. S'il te demande ce qu'il t'a appris, dis-lui ÇA, exactement : que tu ne peux pas la relire maintenant. Ne dis surtout pas que tu n'as rien reçu : ce serait faux, et il réapprendrait ce que tu sais déjà.`;
+        leconsDuTour+=`\n\nCE QU'IL T'A APPRIS\nTu n'arrives pas à relire ta mémoire en ce moment — le rangement ne répond pas. S'il te demande ce qu'il t'a appris, dis-lui ÇA, exactement : que tu ne peux pas la relire maintenant. Ne dis surtout pas que tu n'as rien reçu : ce serait faux, et il réapprendrait ce que tu sais déjà.`;
       }
+
+      variable+=leconsDuTour;
 
       /* ── ET LE CHANTIER DE LA LISTE « MAL DIT », S'IL EST OUVERT ────────
          Le téléphone décide s'il l'est : c'est lui qui a la liste, et c'est
@@ -1995,7 +1999,8 @@ quelqu'un parce que le sujet est glissant.`;
        reformule, et une reformulation devient un souvenir faux au tour
        suivant. Dans la partie VARIABLE, jamais dans le socle mis en cache :
        ces passages changent à chaque question. */
-    variable+=consigneDesSouvenirs(await laMemoire);
+    const souvenirsDuTour=consigneDesSouvenirs(await laMemoire);
+    variable+=souvenirsDuTour;
 
     /* ── ET CE QU'ELLE A FAIT ELLE-MÊME ────────────────────────────────────
 
@@ -2210,7 +2215,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
          corrigés par des gens d'ici, et ils valent dans toutes ses phrases. */
       const mots=await motsCorriges();
       if(mots.length){
-        variable+="\n\nTA FAÇON DE DIRE, CORRIGÉE PAR DES GENS D'ICI\n"
+        lexiqueDuTour+="\n\nTA FAÇON DE DIRE, CORRIGÉE PAR DES GENS D'ICI\n"
           +"Des locuteurs de Dakar ont repris ces mots dans TES réponses. Leur "
           +"version fait autorité sur la tienne, et elle vaut PARTOUT — pas "
           +"seulement quand on te repose la même question. Emploie la bonne "
@@ -2251,11 +2256,11 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
             source:"correction validée (gratuit)",
           }};
         }
-        variable+=`\n\nFORMULATION VALIDÉE POUR CETTE QUESTION EXACTE\nUn locuteur natif a corrigé la réponse à cette question précise. Sa formulation fait autorité sur la tienne :\n« ${exacte.corrigee} »\nReprends-la : c'est la bonne. Tu n'y touches que si le fil rend sa phrase impossible à dire ici.`;
+        lexiqueDuTour+=`\n\nFORMULATION VALIDÉE POUR CETTE QUESTION EXACTE\nUn locuteur natif a corrigé la réponse à cette question précise. Sa formulation fait autorité sur la tienne :\n« ${exacte.corrigee} »\nReprends-la : c'est la bonne. Tu n'y touches que si le fil rend sa phrase impossible à dire ici.`;
       }else{
         const exemples=await exemplesPour(question);
         if(exemples.length){
-          variable+="\n\nCOMMENT ON DIT ICI (corrections de locuteurs natifs)\n"
+          lexiqueDuTour+="\n\nCOMMENT ON DIT ICI (corrections de locuteurs natifs)\n"
             +"Ces exemples t'apprennent la MANIÈRE de dire — tournure, vocabulaire, rythme. "
             +"Ils ne sont PAS des réponses à resservir : la question posée est différente. "
             +"Inspire-t'en pour la forme, réponds sur le fond avec ta propre tête.\n"
@@ -2266,6 +2271,8 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       // Le lexique injoignable ne doit pas empêcher BIA de répondre.
       console.error("BIA — lexique injoignable :",(err as Error).message);
     }
+
+    variable+=lexiqueDuTour;
 
     /* ── MÊME QUESTION, MÊME RÉPONSE — ET DONC MÊME SON, DÉJÀ PAYÉ ────────
 
@@ -2584,7 +2591,9 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       ].filter(Boolean).join("\n");
       const messages=messagesConversation({
         question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
-        contexte: variable, resume, outils, nom: estRara ? "Rara" : "BIA", maitre: verdict.maitre,
+        contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, ""),
+        souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: savoir || "",
+        resume, outils, nom: estRara ? "Rara" : "BIA", maitre: verdict.maitre,
       });
       const debutConversation=Date.now();
       let r=local

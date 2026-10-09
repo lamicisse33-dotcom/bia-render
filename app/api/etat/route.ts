@@ -1,3 +1,4 @@
+import { resumeTransmissionMemoire } from "@/lib/conversation-groq";
 import { resumeLimiteGroq } from "@/lib/reprise-modele";
 import { etatConversation } from "@/lib/conversation-etat";
 import { resumeCerveauLocal } from "@/lib/cerveau-local";
@@ -268,6 +269,7 @@ export async function GET(request: Request) {
     prechauffage: resumePrechauffages(),
     ecarts_entre_les_tours: ecartsEntreLesTours(),
     souvenirs: resumeSouvenirs(),
+    memoire_transmise: resumeTransmissionMemoire(),
     /* ── ET LE VRAI NOMBRE, CELUI DE LA TABLE ─────────────────────────────
        Le 18 septembre à 23 h, la page disait « Souvenirs gardés : 0 » une
        heure après avoir dit 74. Rien n'était perdu : `gardes` compte ce qui
