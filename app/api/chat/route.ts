@@ -1,6 +1,6 @@
 import { appelerCerebras } from "@/lib/cerveau-cerebras";
 import { noterConversation } from "@/lib/conversation-etat";
-import { CONSIGNE_MAITRE, messagesConversation, effortConversation, reglagesConversation } from "@/lib/conversation-groq";
+import { repetitionExacteDuMaitre, CONSIGNE_MAITRE, messagesConversation, effortConversation, reglagesConversation } from "@/lib/conversation-groq";
 import { appelerCerveauLocal, type MessageLocal } from "@/lib/cerveau-local";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
@@ -1326,6 +1326,11 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       /* ── EN APPRENTISSAGE, ELLE RÉPÈTE, ET RIEN D'AUTRE ──────────────────
          Pas de modèle, pas de répertoire : il apprend une phrase, elle la
          lui redit telle quelle pour qu'il l'entende. C'est tout le geste. */
+      const repetitionExacte = repetitionExacteDuMaitre(question, true);
+      if(repetitionExacte !== null){
+        return {corps:{reply:repetitionExacte,emotion:"neutre",apprend:Boolean(body.apprend),
+          aRepeter:repetitionExacte,source:"répétition exacte du maître"}};
+      }
       if(body.apprend){
         return {corps:{reply:question,emotion:"neutre",apprend:true,
           aRepeter:question,source:"apprentissage"}};
