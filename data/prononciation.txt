@@ -10,3 +10,10 @@
 # Les lignes qui commencent par # sont ignorées. Majuscules sans importance.
 # Exemple (à ne pas décommenter tel quel, c'est pour montrer la forme) :
 #   waax = waakh
+
+# French loanwords: preserve /ks/ instead of the Wolof sound of x.
+# TTS input aliases only; do not mark a learned pronunciation as validated.
+taxi = taksi
+taxis = taksi
+texte = tekste
+textes = tekste
