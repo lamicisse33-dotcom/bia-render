@@ -1,3 +1,4 @@
+import { correctionDuMaitre } from "@/lib/correction-maitre";
 import { appelerCerebras } from "@/lib/cerveau-cerebras";
 import { noterConversation } from "@/lib/conversation-etat";
 import { repetitionExacteDuMaitre, CONSIGNE_MAITRE, messagesConversation, effortConversation, reglagesConversation } from "@/lib/conversation-groq";
@@ -1217,6 +1218,14 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
         motif:"le code maître n'était pas reconnu sur ce tour — aucun ordre n'est pris"});
     }
     if(maitre.ok&&maitre.maitre){
+      const correction = correctionDuMaitre(question, true);
+      if(correction){
+        return {corps:{
+          reply:correction.phrase ?? "D'accord papa. Dis-moi la phrase correcte, je la répète exactement.",
+          emotion:"neutre",apprend:true,aRepeter:correction.phrase ?? "",
+          source:"correction directe du maître"
+        }};
+      }
       const ordre=lireLOrdre(question);
       if(ordre){
         const repete=String(body.aRepeter||"").trim();

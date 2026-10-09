@@ -3035,7 +3035,6 @@ export default function Home() {
   const askBia = useCallback(async (question: string, parole = false, tourDonne?: number) => {
     /* Le sens de sa phrase, demandé pendant qu'on prépare la réponse et
        attendu juste avant qu'elle ouvre la bouche. Voir plus bas. */
-    let sensPromesse: Promise<{ francais: string; sur: boolean } | null> | null = null;
     const clean = question.trim();
     if (!clean || busyRef.current) return;
     /* ── « ALLONS CORRIGER LA LISTE MAL DIT » ─────────────────────────────
@@ -3266,38 +3265,9 @@ export default function Home() {
         /* Le bouton suit la phrase en main, à la milliseconde. Et l'annonce
            d'un garde précédent s'efface : elle parlait d'une autre phrase. */
         setAGarder(data.aRepeter);
-        /* ── ET ON DEMANDE LE SENS PENDANT QU'ELLE RÉPÈTE ─────────────────
-
-           Pas après : la répétition doit rester instantanée, c'est elle qu'il
-           écoute pour juger la prononciation. Une phrase wolof prend deux à
-           trois secondes à prononcer — largement de quoi traduire. Quand elle
-           a fini de répéter, le français est déjà là, et il n'a rien attendu.
-
-           Même procédé que sa mémoire dans /api/chat : on lance tôt, on
-           récupère tard, et l'attente disparaît dans le travail qu'on faisait
-           de toute façon. */
+        // Une leçon répète uniquement le texte reçu, sans traduction générée.
         setSens(null);
-        const laPhrase = data.aRepeter.trim();
-        if (laPhrase.length >= 2) {
-          setSensCherche(true);
-          sensPromesse = fetch("/api/sens", {
-            method: "POST",
-            headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-            body: JSON.stringify({ phrase: laPhrase }),
-          })
-            .then((r) => r.json())
-            .then((d: { sens?: { francais: string; sur: boolean } | null }) => {
-              /* Une réponse qui arrive après qu'il a changé de phrase ne doit
-                 pas se coller à la nouvelle. */
-              if (aRepeter.current.trim() !== laPhrase) return null;
-              setSens(d.sens || null);
-              return d.sens || null;
-            })
-            .catch(() => null)
-            .finally(() => { if (aRepeter.current.trim() === laPhrase) setSensCherche(false); });
-        } else {
-          setSensCherche(false);
-        }
+        setSensCherche(false);
         setMotGarde("");
       }
       /* ── LES DEUX ORDRES QUI N'ONT RIEN À DIRE : ILS AGISSENT ──────────
@@ -3513,36 +3483,9 @@ export default function Home() {
           if (vu) { setClavier(false); montrerSurEcran(vu); }
         });
       }
-      /* ── ELLE RÉPÈTE, PUIS ELLE DIT CE QUE ÇA VEUT DIRE ─────────────────
-
-         Lamine, le 15 septembre 2026 : « si elle comprend le sens, elle le
-         dit en français, ce n'est pas la peine que je lui répète ça. Je dois
-         tout simplement confirmer et passer à l'étape suivante. »
-
-         EN UNE SEULE FOIS, et c'est réfléchi. J'avais d'abord voulu lancer sa
-         voix tout de suite et glisser le français derrière, pour ne rien lui
-         faire attendre. Mais fabriquer la voix de la répétition prend deux à
-         trois secondes, et la traduction en prend une : le français serait
-         donc prêt AVANT qu'elle ait ouvert la bouche, et se poserait
-         par-dessus sa propre répétition.
-
-         Une seule phrase, une seule fabrication de voix — c'est plus sûr, et
-         c'est moins cher. Le prix, honnête à dire : quand elle doit traduire,
-         elle met environ une seconde de plus à répondre. Quand la phrase est
-         déjà dans ses leçons, elle ne met rien de plus.
-
-         ON N'ATTEND PAS INDÉFINIMENT : passé deux secondes et demie, elle
-         répète sans le sens, et le bandeau dira qu'elle ne le connaît pas.
-         Mieux vaut une leçon sans traduction qu'une leçon qui n'arrive
-         jamais. */
+      // Répétition fidèle : aucun sens généré ne se greffe à sa parole.
       let aDire = data.reply;
-      if (data.apprend && sensPromesse) {
-        const trouve = await Promise.race([
-          sensPromesse,
-          new Promise<null>((r) => setTimeout(() => r(null), 2500)),
-        ]);
-        if (trouve?.francais) aDire = `${data.reply}. Ça veut dire : ${trouve.francais}`;
-      }
+
 
       // Le visage prend l'émotion tout de suite, avant même la voix : c'est
       // ce qui donne l'impression qu'elle réagit à ce qu'on lui a dit.
@@ -8158,7 +8101,7 @@ export default function Home() {
           n'apprend pas une commande par cœur en conduisant. */}
       {enApprentissage ? (
         <div className="apprend-bandeau">
-          <b>On apprend</b> — dis ta phrase, elle la répète et la traduit.
+          <b>On apprend</b> — dis ta phrase, elle la répète exactement.
           {/* ── LE BOUTON BLEU ──────────────────────────────────────────
               Sa demande du 14 septembre au soir, et elle règle un problème
               qu'aucune correction de code ne pouvait régler : l'oreille se
