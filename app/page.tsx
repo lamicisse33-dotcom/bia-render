@@ -2776,9 +2776,10 @@ export default function Home() {
          l'autre — et ce temps-là s'entendait, en plein milieu de sa phrase. */
       const premier = demander(0);
       // One test GPU: start the first audible segment before queuing the next.
-      const second = essaiChatterboxActif() ? null : demander(1).catch(() => null);
+      let second = essaiChatterboxActif() ? null : demander(1).catch(() => null);
       let bloc = await premier;
       if (!actuel()) return;
+      if (essaiChatterboxActif() && bloc.parties > 1) second = demander(1).catch(() => null);
       if (!suite) noterAttente();   // le son est là : l'attente est finie, on la note
       if (ou === "réponse") {
         poserBorne(bornesRef.current, "enMain");
@@ -2840,7 +2841,12 @@ export default function Home() {
       enVol.set(0, premier);
       if (total > 1) enVol.set(1, second || demander(1).catch(() => null));
       const lancer = (i: number) => {
-        if (actuel() && i > 1 && i < total && !enVol.has(i)) enVol.set(i, demander(i).catch(() => null));
+        if (!actuel() || i <= 1 || i >= total || enVol.has(i)) return;
+        // One GPU: preserve synthesis order, with two parts of lookahead.
+        const pending = essaiChatterboxActif()
+          ? (enVol.get(i - 1) || Promise.resolve(null)).then(() => actuel() ? demander(i) : null)
+          : demander(i);
+        enVol.set(i, pending.catch(() => null));
       };
 
       /* ── ELLE ENCHAÎNE, COMME QUELQU'UN QUI PARLE ──────────────────────
@@ -2938,7 +2944,8 @@ export default function Home() {
 
       for (let i = 0; i < total; i++) {
         lancer(i + 1);
-        if (!essaiChatterboxActif()) { lancer(i + 2); lancer(i + 3); }
+        lancer(i + 2);
+        if (!essaiChatterboxActif()) lancer(i + 3);
         let morceau: { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number; speed?: number } | null = null;
         try { morceau = i === 0 ? bloc : await enVol.get(i)!; } catch { morceau = null; }
         if (perdu()) return;         // une nouvelle réponse a pris la main, ou on l'a fait taire
