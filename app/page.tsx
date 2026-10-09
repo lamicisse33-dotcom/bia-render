@@ -7056,16 +7056,19 @@ export default function Home() {
      ouverture d'application, et ça rend les deux boutons à celui qui les a
      demandés. */
   useEffect(() => {
-    if (!code || estMaitre) return;
+    let actif = true;
+    setEstMaitre(false);
+    estMaitreRef.current = false;
+    if (!code) return;
     fetch("/api/codes", { headers: { "x-bia-code": code } })
-      .then((r) => (r.ok ? r.json() : { maitre: false }))
+      .then((r) => r.ok ? r.json() : { maitre: false })
       .then((d: { maitre?: boolean }) => {
-        setEstMaitre(Boolean(d.maitre));
-        /* Le témoin lisible partout, y compris depuis l'attente. */
-        estMaitreRef.current = Boolean(d.maitre);
-      })
-      .catch(() => {});
-  }, [code, estMaitre]);
+        if (!actif) return;
+        setEstMaitre(d.maitre === true);
+        estMaitreRef.current = d.maitre === true;
+      }).catch(() => {});
+    return () => { actif = false; };
+  }, [code]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -7115,6 +7118,14 @@ export default function Home() {
 
     return (
       <>
+        <p className="papier-titre">Moi</p>
+        <div className="papier-actions">
+          <button type="button" onClick={() => { setPapierOuvert(false); ouvrirClavier(); }}>Conversation écrite</button>
+          <button type="button" onClick={() => choisirPersona(persona === "rara" ? "bia" : "rara")}>Personnage : {persona === "rara" ? "Rara" : "BIA"}</button>
+          {conversation ? <button type="button" onClick={annulerCeQueJeDis}>Annuler ma phrase</button> : null}
+          <button type="button" disabled={mode !== "ready" || conversation} onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
+        </div>
+        {panne ? <p role="alert">{panne}</p> : null}
         <p className="papier-titre">La voix de {persona === "rara" ? "Rara" : "BIA"}</p>
         <fieldset style={{ margin: "12px 0", padding: 12, border: "1px solid #8c7549", borderRadius: 12 }}>
           <legend>Choisir la voix</legend>
@@ -7401,25 +7412,9 @@ export default function Home() {
     setCodeErreur("");
   }
 
-  const temoinEssaiChatterbox = essaiChatterbox && !papierOuvert ? (
-    <aside aria-label="Essai Chatterbox" data-voice-engine="chatterbox" data-voice={choixVoix}
-      style={{ position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 54px)", left: "50%", transform: "translateX(-50%)", zIndex: 200, width: "min(320px, 90vw)", padding: "10px 14px", borderRadius: 14, background: "rgba(15, 20, 25, .94)", color: "#fff", textAlign: "center", fontSize: 13 }}>
-      <strong>Chatterbox · voix {choixVoix === "female" ? "de femme" : "d’homme"}</strong>
-      <div style={{ display: "flex", justifyContent: "center", gap: 16, alignItems: "center", marginTop: 8 }}>
-        {code && <button type="button" disabled={mode !== "ready" || conversation}
-          style={{ border: 0, borderRadius: 8, padding: "8px 12px", background: "#ead4a4", color: "#171717" }}
-          onClick={ecouterVoixChoisie}>Écouter la voix</button>}
-        {code && <button type="button" onClick={ouvrirReglagesVoix}
-          style={{ color: "#fff", fontSize: 12, border: 0, background: "transparent", textDecoration: "underline" }}>Changer la voix</button>}
-      </div>
-      {panne && <p role="alert" style={{ margin: "8px 0 0", color: "#ffd6a0" }}>{panne}</p>}
-    </aside>
-  ) : null;
-
   if (!code) {
     return (
       <main className="bia-presence" data-mode="ready">
-        {temoinEssaiChatterbox}
         <div className="portrait" aria-hidden="true" data-tenue={tenue} data-persona={persona}><div className="avatar" data-face="yeux_ouverts" /></div>
         <section className="porte">
           <p className="porte-titre">BIA</p>
@@ -7463,9 +7458,6 @@ export default function Home() {
 
   return (
     <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
-      {temoinEssaiChatterbox}
-      {!papierOuvert && <button type="button" aria-label="Réglages de la voix" onClick={ouvrirReglagesVoix}
-        style={{ position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 12px)", right: 16, zIndex: 150, padding: "8px 12px", borderRadius: 16, border: "1px solid #8c7549", background: "rgba(15, 20, 25, .9)", color: "#ead4a4", fontSize: 14 }}>⚙ Voix</button>}
       <div className={eclipse ? "portrait eclipse" : rallume ? "portrait rallume" : "portrait"}
         aria-hidden="true" data-tenue={tenue} data-persona={persona}>
         {/* ── DEUX COUCHES, POUR QUE LE VISAGE NE SAUTE PLUS ─────────────
@@ -7493,10 +7485,6 @@ export default function Home() {
           une option dans BIA, que l'utilisateur peut choisir ». Un simple
           bouton qui bascule : la conversation en cours continue, seule sa
           façon d'être change à partir de la prochaine réponse. */}
-      <button type="button" className="choix-persona" onClick={() => choisirPersona(persona === "rara" ? "bia" : "rara")}>
-        {persona === "rara" ? "Rara" : "BIA"}
-      </button>
-
       {/* Elle réfléchit. Pas un mot à l'écran : trois points d'or qui
           respirent, et le silence. */}
       <div className="lueur" aria-hidden="true"><span /><span /><span /></div>
@@ -7569,30 +7557,7 @@ export default function Home() {
       ) : null}
 
       <div className="barre">
-        {/* ── LE BOUTON ROUGE ──────────────────────────────────────────────
-            « Pendant qu'il parle, il peut se tromper. Pour que ça ne soit pas
-            transmis à BIA et qu'on ne perde pas de temps, qu'il appuie sur
-            annuler. » — Lamine, le 10 septembre 2026.
-
-            Il ne paraît QUE pendant qu'elle écoute, et il prend la place du
-            clavier : à ce moment-là, écrire n'a aucun sens, et un bouton
-            rouge doit être seul pour qu'on ne se trompe pas de geste. */}
-        {mode === "listening" ? (
-          <button className="annuler-parole" type="button"
-            onClick={annulerCeQueJeDis}
-            aria-label="Annuler ce que je viens de dire">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M18.3 7.1 16.9 5.7 12 10.6 7.1 5.7 5.7 7.1l4.9 4.9-4.9 4.9 1.4 1.4 4.9-4.9 4.9 4.9 1.4-1.4-4.9-4.9Z" />
-            </svg>
-          </button>
-        ) : (
-        <button className="clavier-ouvrir" type="button" onClick={ouvrirClavier} aria-label="Écrire à BIA">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M3 6h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Zm2 3v2h2V9H5Zm4 0v2h2V9H9Zm4 0v2h2V9h-2Zm4 0v2h2V9h-2ZM5 13v2h2v-2H5Zm4 0v2h6v-2H9Zm8 0v2h2v-2h-2Z" />
-          </svg>
-        </button>
-        )}
-
+        <span className="cale" aria-hidden="true" />
         <button
           className={conversation ? `microphone en-conversation${entendParler && mode === "listening" ? " entend" : ""}` : "microphone"}
           type="button" onClick={toggleMicrophone}
@@ -7603,98 +7568,10 @@ export default function Home() {
           </svg>
         </button>
 
-        {/* LE BOUTON DES PAPIERS — demandé par Lamine le 10 septembre 2026 :
-            « un bouton à côté du micro à droite pour ouvrir l'écran où il y a
-            les messages, où on peut écrire un devis ou un message ».
-
-            Il est là en permanence, et pas seulement quand BIA a quelque
-            chose de prêt : on doit pouvoir décider soi-même d'écrire un
-            message, sans attendre qu'elle le propose. Quand elle, de son
-            côté, a de quoi écrire, un point d'or s'allume dessus. */}
-        {/* ── LE COIN DES PAPIERS ──────────────────────────────────────────
-            Le bouton et le petit clavier tiennent dans UNE SEULE case de la
-            rangée, côte à côte.
-
-            Signalé par Lamine le 11 septembre 2026, capture à l'appui : « le
-            petit clavier qui clignote doit se positionner sur le tracé rouge,
-            même ligne que tous les autres. » Il était bien écrit juste après
-            le bouton, mais la rangée est une grille à trois cases — clavier,
-            micro, papiers — et un quatrième enfant se met à la ligne tout
-            seul. Il tombait donc en bas à gauche, là où il n'a rien à faire.
-            Les deux boutons partagent maintenant la même case : le clavier ne
-            peut plus descendre. */}
-        <div className="coin-papier">
-        {/* ── ET IL PEUT L'ÉTEINDRE DU DOIGT ───────────────────────────────
-
-            Lamine, le 16 septembre 2026 : « ça continue à clignoter en bas. »
-
-            Le point s'allumait tout seul et RIEN ne l'éteignait : appuyer
-            dessus ouvrait un papier — c'est-à-dire exactement la chose qu'il
-            ne voulait pas. Un voyant qu'on ne peut pas éteindre n'informe
-            plus, il harcèle.
-
-            Un appui LONG l'éteint, sans rien fabriquer et sans rien payer.
-            Le bouton, lui, reste là : c'est le point qu'on retire, pas la
-            capacité d'écrire. */}
-        <button className={papierPret ? "papier-ouvrir pret" : "papier-ouvrir"} type="button"
-          onClick={() => { if (appuiLong.current) { appuiLong.current = false; return; } ouvrirPapier(); }}
-          onPointerDown={() => {
-            appuiLong.current = false;
-            if (!papierPretRef.current) return;
-            clearTimeout(minuteurAppui.current);
-            minuteurAppui.current = window.setTimeout(() => {
-              appuiLong.current = true;
-              setPapierPret(null);
-              /* Une secousse courte : il doit SENTIR que c'est éteint, sans
-                 qu'on lui écrive un message de plus à lire. */
-              try { navigator.vibrate?.(30); } catch {}
-            }, 550);
-          }}
-          onPointerUp={() => clearTimeout(minuteurAppui.current)}
-          onPointerLeave={() => clearTimeout(minuteurAppui.current)}
-          onContextMenu={(e) => e.preventDefault()}
-          aria-label={papierPret
-            ? "Écrire un message, un devis ou une lettre — appui long pour éteindre le point"
-            : "Écrire un message, un devis ou une lettre"}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 2h7.2L20 8.8V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.8V9h5.2L13 3.8ZM8 12h8v1.8H8V12Zm0 3.4h8v1.8H8v-1.8Zm0-6.8h3v1.8H8V8.6Z" />
-          </svg>
-          {papierPret ? <i className="point" aria-hidden="true" /> : null}
+        <button className="papier-ouvrir" type="button" aria-label="Moi — réglages et services"
+          onClick={() => { ouvrirPapier("devis"); ouvrirService("fiche"); }}>
+          <span style={{ fontSize: 13 }}>Moi</span>
         </button>
-
-        {/* ── LE PETIT CLAVIER QUI TAPE ────────────────────────────────────
-            Demandé par Lamine le 10 septembre 2026, capture à l'appui : « sur
-            le service, il doit y avoir un petit son qui montre que ta demande
-            est en train d'être exécutée. Le clavier doit sortir sur le côté,
-            allumé, avec les touches qui s'enfoncent. »
-
-            Il apparaît à droite du bouton des papiers, exactement là où il
-            l'a tracé, et seulement pendant qu'elle écrit. Les touches
-            s'allument l'une après l'autre — ce n'est pas une roue qui tourne,
-            c'est quelqu'un qui tape, et ça se comprend sans savoir lire. */}
-        <button type="button"
-          className={
-            papierFini ? "elle-tape ouvert fini"
-              : papierOccupe ? "elle-tape ouvert" : "elle-tape"
-          }
-          tabIndex={papierFini ? 0 : -1}
-          aria-hidden={!papierFini}
-          aria-label="Ton papier est prêt — l'ouvrir"
-          onClick={() => { if (papierFini) ouvrirPapier(); }}>
-          <svg viewBox="0 0 44 26">
-            <rect className="boitier" x="1" y="4" width="42" height="21" rx="3.5" />
-            <g className="touches">
-              <rect x="5"  y="8"  width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "0" }} />
-              <rect x="13" y="8"  width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "1" }} />
-              <rect x="21" y="8"  width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "2" }} />
-              <rect x="29" y="8"  width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "3" }} />
-              <rect x="5"  y="15" width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "4" }} />
-              <rect x="13" y="15" width="14" height="4.6" rx="1.2" style={{ ["--r" as string]: "5" }} />
-              <rect x="29" y="15" width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "6" }} />
-            </g>
-          </svg>
-        </button>
-        </div>
       </div>
 
       <section className="clavier" aria-hidden={!clavier}>
@@ -7757,7 +7634,7 @@ export default function Home() {
                     que rouvrir l'écran, à leur place dans la conversation. */}
                 {m.voir ? <CarteVitrine cle={m.voir} ouvrir={montrerSurEcran} /> : null}
                 {m.trouve ? <CarteTrouve trouve={m.trouve} ouvrir={montrerSurEcran} /> : null}
-                {m.role === "bia" && i > 0 ? (
+                {estMaitre && m.role === "bia" && i > 0 ? (
                   <button className="mal-dit" type="button" onClick={() => ouvrirCorrection(i)}>
                     {m.corrige ? "Corrigé par toi — retoucher" : "Mal dit"}
                   </button>
@@ -8410,7 +8287,7 @@ export default function Home() {
         </p>
       ) : null}
 
-      {temoin ? <p className="temoin-vocal" aria-hidden="true">{temoin}</p> : null}
+      
       <p className="sr-only" aria-live="polite">{temoin || labels[mode]}</p>
     </main>
   );
