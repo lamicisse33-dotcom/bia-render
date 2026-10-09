@@ -54,7 +54,9 @@ export async function POST(request:NextRequest){
      }
     }
     if(!finished)throw Error("Streaming interrompu avant la fin");controller.close();
-   }catch(error){noterChatterboxTest(body.voice,{ok:false,code:"STREAM_INTERRUPTED"});if(!abort.signal.aborted){try{emit({type:"error",error:(error as Error).message});controller.close();}catch{}}}
+   }catch(error){noterChatterboxTest(body.voice,{ok:false,code:"STREAM_INTERRUPTED"});
+    try{if(abort.signal.aborted)controller.error(error);else{emit({type:"error",error:(error as Error).message});controller.close();}}catch{}
+   }
    finally{cleanup();abort.abort();void reader.cancel().catch(()=>{});}
   },
   cancel(){cleanup();abort.abort();return reader.cancel();}
