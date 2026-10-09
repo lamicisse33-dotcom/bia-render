@@ -3,15 +3,12 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { verifierCode } from "@/lib/codes";
 import { POST as testSynthesis } from "../route";
 import { noterChatterboxTest } from "@/lib/chatterbox-test-etat";
+import { decouperVoixKhalam } from "@/lib/decoupage-voix-khalam";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 100;
 
-// Keep the first audio short enough to start playing while later parts render.
-// These bounds match the GPU's native segmentation and stay below its 600 limit.
-const MAX_CHARS = 140;
-const MAX_WORDS = 16;
 const inFlight = new Map<string, Promise<{ status: number; data: any }>>();
 
 function authorized(request: NextRequest) {
@@ -23,36 +20,6 @@ function authorized(request: NextRequest) {
     if (actual.length === wanted.length && timingSafeEqual(actual, wanted)) return true;
   }
   return verifierCode(request.headers.get("x-bia-code")).ok;
-}
-
-function splitText(text: string) {
-  const parts: string[] = [];
-  let words: string[] = [];
-  const flush = () => {
-    if (words.length) parts.push(words.join(" "));
-    words = [];
-  };
-  for (const word of text.trim().split(/\s+/).filter(Boolean)) {
-    if (word.length > MAX_CHARS) {
-      flush();
-      // Split exceptional unbroken tokens without cutting a Unicode surrogate.
-      let fragment = "";
-      for (const char of word) {
-        if ((fragment + char).length > MAX_CHARS) {
-          parts.push(fragment);
-          fragment = "";
-        }
-        fragment += char;
-      }
-      if (fragment) parts.push(fragment);
-      continue;
-    }
-    if (words.length >= MAX_WORDS || [...words, word].join(" ").length > MAX_CHARS) flush();
-    words.push(word);
-    if (/[.!?;:]$/.test(word)) flush();
-  }
-  flush();
-  return parts;
 }
 
 export async function POST(request: NextRequest) {
@@ -71,12 +38,12 @@ export async function POST(request: NextRequest) {
   if (!Number.isSafeInteger(partie) || partie < 0) {
     return NextResponse.json({ error: "Numéro de partie invalide." }, { status: 400 });
   }
-  const parts = splitText(body.texte);
+  const parts = decouperVoixKhalam(body.texte);
   const headers = { "cache-control": "no-store" };
   const common = {
     parties: parts.length, partie,
     langue: body.langue === "fr" ? "fr" : "wo",
-    moteur: `chatterbox-step220-${voice}`, engine: "chatterbox-step220", voice,
+    moteur: `khalam-voice-${voice}`, engine: "KHALAM Voice", voice,
   };
   // BIA speculatively requests parts 0 and 1 even for a one-part answer.
   if (partie >= parts.length) {
