@@ -1,6 +1,7 @@
 "use client";
 
 import LectureApprentissage from "./LectureApprentissage";
+import {demandeLecture} from "@/lib/intention-lecture";
 import { ouvrirFluxVoix, type MorceauVoix } from "@/lib/flux-khalam";
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -3096,10 +3097,13 @@ export default function Home() {
     /* Le sens de sa phrase, demandé pendant qu'on prépare la réponse et
        attendu juste avant qu'elle ouvre la bouche. Voir plus bas. */
     const clean = question.trim();
-    if (estMaitreRef.current && /^(?:MODE_APPRENTISSAGE|D[ÉE]MARRER APPRENTISSAGE)(?:\\s|:|$)/i.test(clean)) {
-      const texte=clean.replace(/^(?:MODE_APPRENTISSAGE|D[ÉE]MARRER APPRENTISSAGE)[:\\s]*/i,"");
-      fermerConversation(); taire(); setSaisie("");
-      setLectureContinue({texte,nonce:Date.now(),auto:Boolean(texte)}); return;
+    const lectureDemandee=demandeLecture(question);
+    if (lectureDemandee) {
+      const precedent=lectureContinue?.texte || [...historyRef.current].reverse()
+        .find(m=>m.role==="user" && m.text.trim() && !demandeLecture(m.text))?.text || "";
+      const lecture=lectureDemandee.auto?lectureDemandee:demandeLecture(question,precedent)!;
+      fermerConversation(); taire(); setSaisie(""); setClavier(false);
+      setLectureContinue({texte:lecture.texte,nonce:Date.now(),auto:lecture.auto}); return;
     }
     if (!clean || busyRef.current) return;
     /* ── « ALLONS CORRIGER LA LISTE MAL DIT » ─────────────────────────────
@@ -3615,7 +3619,7 @@ export default function Home() {
         questionEnVolRef.current = "";
       }
     }
-  }, [speak, attendreEnParlant, finirAttente, ouvrirUnTour, estLeTour]);
+  }, [speak, attendreEnParlant, finirAttente, ouvrirUnTour, estLeTour, lectureContinue]);
 
   /* LE TEXTE FRANÇAIS QU'ON COLLE, DIT EN WOLOF.
 
@@ -7599,7 +7603,7 @@ export default function Home() {
         </button>
       </div>
 
-      {estMaitre && lectureContinue ? <LectureApprentissage code={code} voice={voixChatterboxBia()} demande={lectureContinue}
+      {lectureContinue ? <LectureApprentissage edition={estMaitre} code={code} voice={voixChatterboxBia()} demande={lectureContinue}
         onStart={() => { fermerConversation(); taire(); }} onClose={() => setLectureContinue(null)} /> : null}
       <section id="conversation-ecrite" className="clavier" aria-hidden={!clavier}>
         <button className="clavier-fermer" type="button" onClick={() => setClavier(false)} aria-label="Replier le clavier">
