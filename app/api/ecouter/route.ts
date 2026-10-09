@@ -8,7 +8,7 @@ import { annoncerLaFin, attendreLesMorceaux, cleValide, noterAttenteDesMorceaux,
 import { corpusActif, garderLaVoix } from "@/lib/corpus";
 
 /** Reject only long mechanical ASR loops; typed learning exercises bypass this route. */
-export function transcriptionEnBoucle(texte: string): boolean {
+function transcriptionEnBoucle(texte: string): boolean {
   const mots = texte.normalize("NFC").toLocaleLowerCase()
     .match(/[\p{L}\p{N}]+/gu) || [];
   if (mots.length < 24) return false;
