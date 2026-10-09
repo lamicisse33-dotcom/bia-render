@@ -37,6 +37,8 @@ export type Partie = {
 
 export type Devis = {
   type: "devis";
+  /** Une facture reste un document chiffré, distinct du devis dans tous les rendus. */
+  nature?: "devis" | "facture";
   numero: string;
   date: string;
   emetteur: Partie;
@@ -111,7 +113,7 @@ export type Document = Devis | Lettre | Mot;
    demande d'administration se fait encore sur papier à Dakar, et il suffit de
    lui dire « écris-moi une lettre » pour l'avoir. On libère une place dans une
    rangée de boutons, on ne retire rien de ce qu'elle sait faire. */
-export type Sorte = "devis" | "lettre" | "message" | "mail";
+export type Sorte = "devis" | "facture" | "lettre" | "message" | "mail";
 
 /* ── L'argent ───────────────────────────────────────────────────────────────
    Le franc CFA n'a pas de centimes : tout est arrondi à l'entier, et on
@@ -161,7 +163,7 @@ export function lecture(doc: Document, totaux?: Totaux | null): string {
     return `${l.designation} : ${combien}${Math.round(l.total)} francs CFA.`;
   });
   return [
-    pour ? `Voici le devis pour ${pour}.` : "Voici le devis.",
+    pour ? `Voici ${doc.nature === "facture" ? "la facture" : "le devis"} pour ${pour}.` : `Voici ${doc.nature === "facture" ? "la facture" : "le devis"}.`,
     doc.objet ? `${doc.objet}.` : "",
     ...lignes,
     totaux ? `Total : ${Math.round(totaux.total)} francs CFA.` : "",
@@ -250,7 +252,7 @@ export function numeroDevis(): string {
 export function nettoyer(brut: unknown, sorte: Sorte): Document | null {
   const o = (brut ?? {}) as Record<string, unknown>;
 
-  if (sorte === "devis") {
+  if (sorte === "devis" || sorte === "facture") {
     const lignes = (Array.isArray(o.lignes) ? o.lignes : [])
       .slice(0, 40)
       .map((l) => {
@@ -266,7 +268,8 @@ export function nettoyer(brut: unknown, sorte: Sorte): Document | null {
     if (!lignes.length) return null;
     return {
       type: "devis",
-      numero: texte(o.numero, 24) || numeroDevis(),
+      nature: sorte === "facture" || o.nature === "facture" ? "facture" : "devis",
+      numero: texte(o.numero, 24) || (sorte === "facture" || o.nature === "facture" ? "" : numeroDevis()),
       date: texte(o.date, 24) || aujourdhui(),
       emetteur: partie(o.emetteur),
       client: partie(o.client),
@@ -336,6 +339,12 @@ N'INVENTE AUCUN CHIFFRE, AUCUN NOM, AUCUNE ADRESSE. Ce qui n'a pas été dit
 reste absent — un champ vide vaut mieux qu'un renseignement inventé sur un
 papier qui part chez un client. Ne calcule AUCUN total : donne les quantités
 et les prix unitaires, les additions sont faites ailleurs.
+
+POUR UNE FACTURE : utilise les mêmes champs chiffrés que le devis ci-dessous.
+Ne crée jamais un numéro de facture : il sera fourni par l'émetteur.
+Ne déclare jamais une somme payée sans indication explicite de la personne.
+N'ajoute pas de durée de validité de devis. Reprends seulement les prestations
+et montants indiqués, sans inventer de mentions fiscales.
 
 POUR UN DEVIS :
 {
@@ -408,8 +417,9 @@ const MOTS: Record<Sorte, string[]> = {
   message: ["message", "whatsapp", "wattsap", "watsap", "sms", "texto",
             "mesaas", "meesaas"],
   mail: ["mail", "email", "e-mail", "courriel", "meel"],
-  devis: ["devis", "facture", "proforma", "prix", "estimation", "chiffrage",
-          "njëg", "xaalis", "fakture", "deewis"],
+  facture: ["facture", "fakture"],
+  devis: ["devis", "proforma", "prix", "estimation", "chiffrage",
+          "njëg", "xaalis", "deewis"],
   lettre: ["lettre", "courrier", "demande", "candidature", "cv", "annonce",
            "attestation", "reclamation", "bataaxal", "lettar"],
 };
@@ -467,7 +477,7 @@ export function sorteEvoquee(texteDit: string): Sorte | null {
   /* Sans verbe d'écriture, on n'allume rien. C'est toute la réparation du
      16 septembre : le mot seul ne dit pas qu'il veut un papier. */
   if (!VERBES_D_ECRIRE.some((v) => mots.has(v))) return null;
-  for (const sorte of ["devis", "lettre", "message", "mail"] as Sorte[]) {
+  for (const sorte of ["facture", "devis", "lettre", "message", "mail"] as Sorte[]) {
     if (MOTS[sorte].some((m) => mots.has(m))) return sorte;
   }
   return null;

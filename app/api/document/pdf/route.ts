@@ -43,7 +43,7 @@ function bloc(doc: PDFKit.PDFDocument, titre: string, p: Partie, x: number, y: n
 function dessinerDevis(doc: PDFKit.PDFDocument, d: Devis) {
   const G = 56, D = 539, L = D - G;
 
-  doc.fontSize(22).fillColor(OR).font("Helvetica-Bold").text("DEVIS", G, 54);
+  doc.fontSize(22).fillColor(OR).font("Helvetica-Bold").text(d.nature === "facture" ? (d.numero ? "FACTURE" : "FACTURE — BROUILLON") : "DEVIS", G, 54);
   doc.fontSize(9).fillColor(GRIS).font("Helvetica")
     .text(`N° ${d.numero}`, G, 80)
     .text(enFrancais(d.date), G, 93);
@@ -103,7 +103,7 @@ function dessinerDevis(doc: PDFKit.PDFDocument, d: Devis) {
   doc.fontSize(9).fillColor(GRIS).font("Helvetica");
   for (const t of [
     d.delai ? `Délai : ${d.delai}` : "",
-    d.validite_jours ? `Devis valable ${d.validite_jours} jours.` : "",
+    d.nature !== "facture" && d.validite_jours ? `Devis valable ${d.validite_jours} jours.` : "",
     d.conditions || "",
   ].filter(Boolean)) {
     doc.text(String(t), G, y, { width: L });
@@ -112,7 +112,7 @@ function dessinerDevis(doc: PDFKit.PDFDocument, d: Devis) {
 
   y = Math.max(y + 30, 690);
   doc.fontSize(9).fillColor(GRIS).text("Signature", G, y)
-    .text("Bon pour accord", D - 140, y, { width: 140, align: "right" });
+    .text(d.nature === "facture" ? "" : "Bon pour accord", D - 140, y, { width: 140, align: "right" });
 }
 
 function dessinerLettre(doc: PDFKit.PDFDocument, l: Lettre) {
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
      traverser la rue. */
   if (doc.type === "message") return new Response("un message ne s'imprime pas", { status: 400 });
 
-  const pdf = new PDFDocument({ size: "A4", margin: 0, info: { Title: doc.type === "devis" ? `Devis ${doc.numero}` : doc.titre } });
+  const pdf = new PDFDocument({ size: "A4", margin: 0, info: { Title: doc.type === "devis" ? `${doc.nature === "facture" ? "Facture" : "Devis"} ${doc.numero}` : doc.titre } });
   const morceaux: Buffer[] = [];
   pdf.on("data", (c: Buffer) => morceaux.push(c));
   const fini = new Promise<void>((r) => pdf.on("end", () => r()));
@@ -178,11 +178,11 @@ export async function POST(request: NextRequest) {
   pdf.end();
   await fini;
 
-  const nom = doc.type === "devis" ? `devis-${doc.numero}.pdf` : `lettre-${doc.date}.pdf`;
+  const nom = doc.type === "devis" ? `${doc.nature === "facture" ? "facture" : "devis"}-${doc.numero || "brouillon"}.pdf` : `lettre-${doc.date}.pdf`;
   return new Response(new Uint8Array(Buffer.concat(morceaux)), {
     headers: {
       "content-type": "application/pdf",
-      "content-disposition": `inline; filename="${nom}"`,
+      "content-disposition": `inline; filename="${nom.replace(/[^a-zA-Z0-9._-]/g, "_")}"`,
     },
   });
 }

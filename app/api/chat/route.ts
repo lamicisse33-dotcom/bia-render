@@ -375,7 +375,7 @@ demandes ; ce qu'on ne t'a pas dit reste vide.
 Quand tu as l'essentiel — et l'essentiel suffit, ne fais pas un interrogatoire
 — dis-le en une phrase, et ajoute sur la PREMIÈRE ligne, juste après la balise
 d'émotion :
-[[papier:devis]]   [[papier:mail]]   [[papier:message]]   [[papier:lettre]]
+[[papier:devis]]   [[papier:facture]]   [[papier:mail]]   [[papier:message]]   [[papier:lettre]]
 Un bouton s'allumera alors sur son écran : il pourra lire le papier, corriger
 un mot, et l'envoyer — le message et le mail se copient et partent sur
 WhatsApp, par SMS ou depuis sa boîte, le devis et la lettre deviennent un PDF.
@@ -689,7 +689,7 @@ function detacherGarde(texte:string){
 
    « Je lui ai demandé d'arrêter d'écrire. » Elle n'avait aucun geste pour ça :
    elle pouvait promettre d'arrêter, rien ne se fermait. Maintenant si. */
-const PAPIER=/\[{1,2}\s*papier\s*[:\-—]?\s*(devis|lettre|message|mail|ferme)\s*\]{1,2}/i;
+const PAPIER=/\[{1,2}\s*papier\s*[:\-—]?\s*(devis|facture|lettre|message|mail|ferme)\s*\]{1,2}/i;
 
 /* L'APPEL À PRÉPARER. Le numéro est nettoyé ici, pas ailleurs : ce qui part
    vers le téléphone doit être composable tel quel, et rien d'autre ne doit

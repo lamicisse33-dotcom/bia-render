@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { lienMessage } from "@/lib/communication";
 import {
   A_FABRIQUER, CHAPEAU, PARTIE_1, PARTIE_1_CONNU,
   dire, extraireNom, fichiersPossibles,
@@ -125,7 +126,7 @@ type Message = {
    donc c'est un bouton, à côté des autres. */
 /* « relire » est le seul service qui n'écrit rien : il ouvre la liste des
    textes qui attendent l'oreille de Lamine. Il ne paraît qu'avec son code. */
-type Service = "" | "message" | "devis" | "mail" | "lettre" | "photo" | "video" | "lire" | "fiche" | "relire";
+type Service = "" | "message" | "facture" | "devis" | "mail" | "lettre" | "photo" | "video" | "lire" | "fiche" | "relire";
 
 type Emetteur = Partie & { tva: boolean };
 const EMETTEUR_VIDE: Emetteur = {
@@ -3419,7 +3420,7 @@ export default function Home() {
         papierOuvertId.current = "";
         setPapierErreur("");
       }
-      if (data.papier === "devis" || data.papier === "lettre"
+      if (data.papier === "facture" || data.papier === "devis" || data.papier === "lettre"
           || data.papier === "message" || data.papier === "mail") {
         setPapierPret(data.papier as Sorte);
         /* ── ELLE N'ÉCRIT PLUS RIEN SANS QU'ON LE LUI DEMANDE ────────────────
@@ -6411,6 +6412,10 @@ export default function Home() {
   /* Ouvrir la fenêtre des services. Sans rien préciser, on voit la rangée et
      rien d'autre — sauf si BIA a déjà de quoi écrire : on va droit au but,
      c'est ce qu'elle vient d'annoncer. */
+  function sorteDuPapier(doc: Papier): Sorte {
+    return doc.type === "devis" && doc.nature === "facture" ? "facture" : doc.type;
+  }
+
   function ouvrirPapier(sorte?: Sorte) {
     taire();
     setClavier(false);
@@ -6433,7 +6438,7 @@ export default function Home() {
          c'est le bouton « Écrire… » qui déclenche. Un doigt de plus, et pas
          un centime dépensé par surprise. */
     } else if (papier) {
-      setService(papier.doc.type);
+      setService(sorteDuPapier(papier.doc));
     }
   }
 
@@ -6474,12 +6479,12 @@ export default function Home() {
     /* Changer de service ne détruit rien : le papier de l'autre service est
        rangé dans la boîte et se rouvre d'un geste. On se contente de sortir
        celui-ci de l'écran. */
-    if (papier && papier.doc.type !== quoi) { setPapier(null); papierOuvertId.current = ""; }
+    if (papier && sorteDuPapier(papier.doc) !== quoi) { setPapier(null); papierOuvertId.current = ""; }
     /* Un papier de ce service existe déjà ? On rouvre le plus récent au lieu
        d'en fabriquer un autre — et d'en payer un autre. */
-    const dejaFait = papiers.find((x) => x.doc.type === quoi);
-    if ((!papier || papier.doc.type !== quoi) && dejaFait) { rouvrirPapier(dejaFait); return; }
-    if ((!papier || papier.doc.type !== quoi) && !papierOccupe && historyRef.current.length) {
+    const dejaFait = papiers.find((x) => sorteDuPapier(x.doc) === quoi);
+    if ((!papier || sorteDuPapier(papier.doc) !== quoi) && dejaFait) { rouvrirPapier(dejaFait); return; }
+    if ((!papier || sorteDuPapier(papier.doc) !== quoi) && !papierOccupe && historyRef.current.length) {
       void fabriquerPapier(quoi as Sorte);
     }
   }
@@ -6514,7 +6519,7 @@ export default function Home() {
     setAValider(false);
     papierOuvertId.current = g.id;
     setPapier({ doc: g.doc, totaux: g.totaux });
-    setService(g.doc.type as Service);
+    setService(sorteDuPapier(g.doc));
     setPapierErreur("");
     setPdf("");
     setPapierOuvert(true);
@@ -6619,18 +6624,26 @@ export default function Home() {
       <>
         <p className="papier-titre">Le message</p>
         <p className="papier-note">
-          En français, prêt à envoyer. Relis-le, corrige un mot si tu veux, puis envoie-le.
+          Écoute le message, puis choisis une application. Tu confirmeras l’envoi dans cette application.
         </p>
-        {m.destinataire ? (
-          <label className="papier-champ">Pour
-            <input value={m.destinataire} onChange={(e) => retoucherMot((x) => { x.destinataire = e.target.value; })} />
+        {(
+          <label className="papier-champ">Pour (adresse mail ou numéro avec indicatif)
+            <input value={m.destinataire || ""} onChange={(e) => retoucherMot((x) => { x.destinataire = e.target.value; })} />
           </label>
-        ) : null}
+        )}
         {m.objet ? (
           <label className="papier-champ">Objet
             <input value={m.objet} onChange={(e) => retoucherMot((x) => { x.objet = e.target.value; })} />
           </label>
         ) : null}
+        <div className="papier-actions">
+          {(["mail", "sms", "whatsapp"] as const).map((canal) => {
+            const lien = lienMessage(canal, m.destinataire || "", m.texte, m.objet);
+            return lien ? <a key={canal} href={lien} target={canal === "whatsapp" ? "_blank" : undefined} rel="noopener noreferrer">
+              Ouvrir {canal === "whatsapp" ? "WhatsApp" : canal === "sms" ? "SMS" : "Mail"}
+            </a> : null;
+          })}
+        </div>
         <textarea className="paragraphe grand" rows={10} value={m.texte} aria-label="Le message"
           onChange={(e) => retoucherMot((x) => { x.texte = e.target.value; })} />
       </>
@@ -6654,7 +6667,7 @@ export default function Home() {
     /* Ses renseignements viennent de changer : le papier ouvert porte encore
        les anciens. On le refait — c'est la seule façon que le NINEA et le
        nom soient justes sur le PDF. */
-    if (papier) void fabriquerPapier(papier.doc.type);
+    if (papier) void fabriquerPapier(sorteDuPapier(papier.doc));
   }
 
   /* Le devis à l'écran. Chaque champ est modifiable, parce que la
@@ -6664,10 +6677,14 @@ export default function Home() {
   function vueDevis(d: Devis, t: Totaux | null) {
     return (
       <>
-        <p className="papier-titre">Devis n° {d.numero}</p>
+        <p className="papier-titre">{d.nature === "facture" ? "Facture" : "Devis"}{d.numero ? ` n° ${d.numero}` : " — brouillon"}</p>
+        {d.nature === "facture" ? <label className="papier-champ">Numéro de ta facture
+          <input value={d.numero} placeholder="Ton numéro de facturation" maxLength={24}
+            onChange={(e) => retoucherDevis((x) => { x.numero = e.target.value; })} />
+        </label> : null}
         {!emetteur.nom ? (
           <p className="papier-manque">
-            Tes renseignements manquent : le devis partira sans ton nom, ni ton NINEA.
+            Tes renseignements manquent : complète ton nom et les coordonnées de ton activité.
             <button type="button" onClick={() => setFiche(true)}>Les donner</button>
           </p>
         ) : null}
@@ -6773,6 +6790,7 @@ export default function Home() {
   const SERVICES: Array<{ cle: Service; nom: string; dessin: string }> = [
     { cle: "message", nom: "Message",
       dessin: "M12 3c5 0 9 3.2 9 7.2s-4 7.2-9 7.2c-.9 0-1.8-.1-2.6-.3L4.6 20a.6.6 0 0 1-.9-.7l1-3.1C3 14.9 3 12.9 3 10.2 3 6.2 7 3 12 3Z" },
+    { cle: "facture", nom: "Facture", dessin: "M6 2h12v20l-3-2-3 2-3-2-3 2V2Zm3 5v2h6V7H9Zm0 5v2h6v-2H9Z" },
     { cle: "devis", nom: "Devis",
       dessin: "M6 2h7.2L20 8.8V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.8V9h5.2L13 3.8ZM8 12h8v1.8H8V12Zm0 3.4h8v1.8H8v-1.8Zm0-6.8h3v1.8H8V8.6Z" },
     /* ── LA LETTRE A CÉDÉ SA PLACE AU MAIL ─────────────────────────────────
@@ -6960,7 +6978,7 @@ export default function Home() {
                 <button key={g.id} type="button" className="papier-carte"
                   onClick={() => rouvrirPapier(g)}>
                   <span className="papier-carte-sorte">
-                    {g.doc.type === "devis" ? "Devis"
+                    {g.doc.type === "devis" ? (g.doc.nature === "facture" ? "Facture" : "Devis")
                       : g.doc.type === "lettre" ? "Lettre" : "Message"}
                   </span>
                   <span className="papier-carte-titre">{g.titre}</span>
@@ -7038,16 +7056,19 @@ export default function Home() {
      ouverture d'application, et ça rend les deux boutons à celui qui les a
      demandés. */
   useEffect(() => {
-    if (!code || estMaitre) return;
+    let actif = true;
+    setEstMaitre(false);
+    estMaitreRef.current = false;
+    if (!code) return;
     fetch("/api/codes", { headers: { "x-bia-code": code } })
-      .then((r) => (r.ok ? r.json() : { maitre: false }))
+      .then((r) => r.ok ? r.json() : { maitre: false })
       .then((d: { maitre?: boolean }) => {
-        setEstMaitre(Boolean(d.maitre));
-        /* Le témoin lisible partout, y compris depuis l'attente. */
-        estMaitreRef.current = Boolean(d.maitre);
-      })
-      .catch(() => {});
-  }, [code, estMaitre]);
+        if (!actif) return;
+        setEstMaitre(d.maitre === true);
+        estMaitreRef.current = d.maitre === true;
+      }).catch(() => {});
+    return () => { actif = false; };
+  }, [code]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -7097,6 +7118,14 @@ export default function Home() {
 
     return (
       <>
+        <p className="papier-titre">Moi</p>
+        <div className="papier-actions">
+          <button type="button" onClick={() => { setPapierOuvert(false); ouvrirClavier(); }}>Conversation écrite</button>
+          <button type="button" onClick={() => choisirPersona(persona === "rara" ? "bia" : "rara")}>Personnage : {persona === "rara" ? "Rara" : "BIA"}</button>
+          {conversation ? <button type="button" onClick={annulerCeQueJeDis}>Annuler ma phrase</button> : null}
+          <button type="button" disabled={mode !== "ready" || conversation} onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
+        </div>
+        {panne ? <p role="alert">{panne}</p> : null}
         <p className="papier-titre">La voix de {persona === "rara" ? "Rara" : "BIA"}</p>
         <fieldset style={{ margin: "12px 0", padding: 12, border: "1px solid #8c7549", borderRadius: 12 }}>
           <legend>Choisir la voix</legend>
@@ -7383,25 +7412,9 @@ export default function Home() {
     setCodeErreur("");
   }
 
-  const temoinEssaiChatterbox = essaiChatterbox && !papierOuvert ? (
-    <aside aria-label="Essai Chatterbox" data-voice-engine="chatterbox" data-voice={choixVoix}
-      style={{ position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 54px)", left: "50%", transform: "translateX(-50%)", zIndex: 200, width: "min(320px, 90vw)", padding: "10px 14px", borderRadius: 14, background: "rgba(15, 20, 25, .94)", color: "#fff", textAlign: "center", fontSize: 13 }}>
-      <strong>Chatterbox · voix {choixVoix === "female" ? "de femme" : "d’homme"}</strong>
-      <div style={{ display: "flex", justifyContent: "center", gap: 16, alignItems: "center", marginTop: 8 }}>
-        {code && <button type="button" disabled={mode !== "ready" || conversation}
-          style={{ border: 0, borderRadius: 8, padding: "8px 12px", background: "#ead4a4", color: "#171717" }}
-          onClick={ecouterVoixChoisie}>Écouter la voix</button>}
-        {code && <button type="button" onClick={ouvrirReglagesVoix}
-          style={{ color: "#fff", fontSize: 12, border: 0, background: "transparent", textDecoration: "underline" }}>Changer la voix</button>}
-      </div>
-      {panne && <p role="alert" style={{ margin: "8px 0 0", color: "#ffd6a0" }}>{panne}</p>}
-    </aside>
-  ) : null;
-
   if (!code) {
     return (
       <main className="bia-presence" data-mode="ready">
-        {temoinEssaiChatterbox}
         <div className="portrait" aria-hidden="true" data-tenue={tenue} data-persona={persona}><div className="avatar" data-face="yeux_ouverts" /></div>
         <section className="porte">
           <p className="porte-titre">BIA</p>
@@ -7445,9 +7458,6 @@ export default function Home() {
 
   return (
     <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
-      {temoinEssaiChatterbox}
-      {!papierOuvert && <button type="button" aria-label="Réglages de la voix" onClick={ouvrirReglagesVoix}
-        style={{ position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 12px)", right: 16, zIndex: 150, padding: "8px 12px", borderRadius: 16, border: "1px solid #8c7549", background: "rgba(15, 20, 25, .9)", color: "#ead4a4", fontSize: 14 }}>⚙ Voix</button>}
       <div className={eclipse ? "portrait eclipse" : rallume ? "portrait rallume" : "portrait"}
         aria-hidden="true" data-tenue={tenue} data-persona={persona}>
         {/* ── DEUX COUCHES, POUR QUE LE VISAGE NE SAUTE PLUS ─────────────
@@ -7475,10 +7485,6 @@ export default function Home() {
           une option dans BIA, que l'utilisateur peut choisir ». Un simple
           bouton qui bascule : la conversation en cours continue, seule sa
           façon d'être change à partir de la prochaine réponse. */}
-      <button type="button" className="choix-persona" onClick={() => choisirPersona(persona === "rara" ? "bia" : "rara")}>
-        {persona === "rara" ? "Rara" : "BIA"}
-      </button>
-
       {/* Elle réfléchit. Pas un mot à l'écran : trois points d'or qui
           respirent, et le silence. */}
       <div className="lueur" aria-hidden="true"><span /><span /><span /></div>
@@ -7551,30 +7557,7 @@ export default function Home() {
       ) : null}
 
       <div className="barre">
-        {/* ── LE BOUTON ROUGE ──────────────────────────────────────────────
-            « Pendant qu'il parle, il peut se tromper. Pour que ça ne soit pas
-            transmis à BIA et qu'on ne perde pas de temps, qu'il appuie sur
-            annuler. » — Lamine, le 10 septembre 2026.
-
-            Il ne paraît QUE pendant qu'elle écoute, et il prend la place du
-            clavier : à ce moment-là, écrire n'a aucun sens, et un bouton
-            rouge doit être seul pour qu'on ne se trompe pas de geste. */}
-        {mode === "listening" ? (
-          <button className="annuler-parole" type="button"
-            onClick={annulerCeQueJeDis}
-            aria-label="Annuler ce que je viens de dire">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M18.3 7.1 16.9 5.7 12 10.6 7.1 5.7 5.7 7.1l4.9 4.9-4.9 4.9 1.4 1.4 4.9-4.9 4.9 4.9 1.4-1.4-4.9-4.9Z" />
-            </svg>
-          </button>
-        ) : (
-        <button className="clavier-ouvrir" type="button" onClick={ouvrirClavier} aria-label="Écrire à BIA">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M3 6h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Zm2 3v2h2V9H5Zm4 0v2h2V9H9Zm4 0v2h2V9h-2Zm4 0v2h2V9h-2ZM5 13v2h2v-2H5Zm4 0v2h6v-2H9Zm8 0v2h2v-2h-2Z" />
-          </svg>
-        </button>
-        )}
-
+        <span className="cale" aria-hidden="true" />
         <button
           className={conversation ? `microphone en-conversation${entendParler && mode === "listening" ? " entend" : ""}` : "microphone"}
           type="button" onClick={toggleMicrophone}
@@ -7585,98 +7568,10 @@ export default function Home() {
           </svg>
         </button>
 
-        {/* LE BOUTON DES PAPIERS — demandé par Lamine le 10 septembre 2026 :
-            « un bouton à côté du micro à droite pour ouvrir l'écran où il y a
-            les messages, où on peut écrire un devis ou un message ».
-
-            Il est là en permanence, et pas seulement quand BIA a quelque
-            chose de prêt : on doit pouvoir décider soi-même d'écrire un
-            message, sans attendre qu'elle le propose. Quand elle, de son
-            côté, a de quoi écrire, un point d'or s'allume dessus. */}
-        {/* ── LE COIN DES PAPIERS ──────────────────────────────────────────
-            Le bouton et le petit clavier tiennent dans UNE SEULE case de la
-            rangée, côte à côte.
-
-            Signalé par Lamine le 11 septembre 2026, capture à l'appui : « le
-            petit clavier qui clignote doit se positionner sur le tracé rouge,
-            même ligne que tous les autres. » Il était bien écrit juste après
-            le bouton, mais la rangée est une grille à trois cases — clavier,
-            micro, papiers — et un quatrième enfant se met à la ligne tout
-            seul. Il tombait donc en bas à gauche, là où il n'a rien à faire.
-            Les deux boutons partagent maintenant la même case : le clavier ne
-            peut plus descendre. */}
-        <div className="coin-papier">
-        {/* ── ET IL PEUT L'ÉTEINDRE DU DOIGT ───────────────────────────────
-
-            Lamine, le 16 septembre 2026 : « ça continue à clignoter en bas. »
-
-            Le point s'allumait tout seul et RIEN ne l'éteignait : appuyer
-            dessus ouvrait un papier — c'est-à-dire exactement la chose qu'il
-            ne voulait pas. Un voyant qu'on ne peut pas éteindre n'informe
-            plus, il harcèle.
-
-            Un appui LONG l'éteint, sans rien fabriquer et sans rien payer.
-            Le bouton, lui, reste là : c'est le point qu'on retire, pas la
-            capacité d'écrire. */}
-        <button className={papierPret ? "papier-ouvrir pret" : "papier-ouvrir"} type="button"
-          onClick={() => { if (appuiLong.current) { appuiLong.current = false; return; } ouvrirPapier(); }}
-          onPointerDown={() => {
-            appuiLong.current = false;
-            if (!papierPretRef.current) return;
-            clearTimeout(minuteurAppui.current);
-            minuteurAppui.current = window.setTimeout(() => {
-              appuiLong.current = true;
-              setPapierPret(null);
-              /* Une secousse courte : il doit SENTIR que c'est éteint, sans
-                 qu'on lui écrive un message de plus à lire. */
-              try { navigator.vibrate?.(30); } catch {}
-            }, 550);
-          }}
-          onPointerUp={() => clearTimeout(minuteurAppui.current)}
-          onPointerLeave={() => clearTimeout(minuteurAppui.current)}
-          onContextMenu={(e) => e.preventDefault()}
-          aria-label={papierPret
-            ? "Écrire un message, un devis ou une lettre — appui long pour éteindre le point"
-            : "Écrire un message, un devis ou une lettre"}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 2h7.2L20 8.8V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm7 1.8V9h5.2L13 3.8ZM8 12h8v1.8H8V12Zm0 3.4h8v1.8H8v-1.8Zm0-6.8h3v1.8H8V8.6Z" />
-          </svg>
-          {papierPret ? <i className="point" aria-hidden="true" /> : null}
+        <button className="papier-ouvrir" type="button" aria-label="Moi — réglages et services"
+          onClick={() => { ouvrirPapier("devis"); ouvrirService("fiche"); }}>
+          <span style={{ fontSize: 13 }}>Moi</span>
         </button>
-
-        {/* ── LE PETIT CLAVIER QUI TAPE ────────────────────────────────────
-            Demandé par Lamine le 10 septembre 2026, capture à l'appui : « sur
-            le service, il doit y avoir un petit son qui montre que ta demande
-            est en train d'être exécutée. Le clavier doit sortir sur le côté,
-            allumé, avec les touches qui s'enfoncent. »
-
-            Il apparaît à droite du bouton des papiers, exactement là où il
-            l'a tracé, et seulement pendant qu'elle écrit. Les touches
-            s'allument l'une après l'autre — ce n'est pas une roue qui tourne,
-            c'est quelqu'un qui tape, et ça se comprend sans savoir lire. */}
-        <button type="button"
-          className={
-            papierFini ? "elle-tape ouvert fini"
-              : papierOccupe ? "elle-tape ouvert" : "elle-tape"
-          }
-          tabIndex={papierFini ? 0 : -1}
-          aria-hidden={!papierFini}
-          aria-label="Ton papier est prêt — l'ouvrir"
-          onClick={() => { if (papierFini) ouvrirPapier(); }}>
-          <svg viewBox="0 0 44 26">
-            <rect className="boitier" x="1" y="4" width="42" height="21" rx="3.5" />
-            <g className="touches">
-              <rect x="5"  y="8"  width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "0" }} />
-              <rect x="13" y="8"  width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "1" }} />
-              <rect x="21" y="8"  width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "2" }} />
-              <rect x="29" y="8"  width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "3" }} />
-              <rect x="5"  y="15" width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "4" }} />
-              <rect x="13" y="15" width="14" height="4.6" rx="1.2" style={{ ["--r" as string]: "5" }} />
-              <rect x="29" y="15" width="6" height="4.6" rx="1.2" style={{ ["--r" as string]: "6" }} />
-            </g>
-          </svg>
-        </button>
-        </div>
       </div>
 
       <section className="clavier" aria-hidden={!clavier}>
@@ -7714,7 +7609,7 @@ export default function Home() {
                   <button type="button" className="papier-carte"
                     onClick={() => rouvrirPapier(garde)}>
                     <span className="papier-carte-sorte">
-                      {garde.doc.type === "devis" ? "Devis"
+                      {garde.doc.type === "devis" ? (garde.doc.nature === "facture" ? "Facture" : "Devis")
                         : garde.doc.type === "lettre" ? "Lettre" : "Message"}
                     </span>
                     <span className="papier-carte-titre">{garde.titre}</span>
@@ -7739,7 +7634,7 @@ export default function Home() {
                     que rouvrir l'écran, à leur place dans la conversation. */}
                 {m.voir ? <CarteVitrine cle={m.voir} ouvrir={montrerSurEcran} /> : null}
                 {m.trouve ? <CarteTrouve trouve={m.trouve} ouvrir={montrerSurEcran} /> : null}
-                {m.role === "bia" && i > 0 ? (
+                {estMaitre && m.role === "bia" && i > 0 ? (
                   <button className="mal-dit" type="button" onClick={() => ouvrirCorrection(i)}>
                     {m.corrige ? "Corrigé par toi — retoucher" : "Mal dit"}
                   </button>
@@ -7849,7 +7744,7 @@ export default function Home() {
           {service === "photo" ? vuePhoto() : null}
           {service === "" ? vueAccueil() : null}
 
-          {service === "message" || service === "devis" || service === "mail" ? (
+          {service === "message" || service === "devis" || service === "facture" || service === "mail" ? (
             <>
               {papierOccupe && !papier ? <p className="papier-note">BIA écrit…</p> : null}
               {/* ── LE BOUTON QUI DEMANDE VRAIMENT ──────────────────────────
@@ -7865,7 +7760,7 @@ export default function Home() {
                 <p className="papier-note">
                   <button type="button" className="papier-ecrire"
                     onClick={() => void fabriquerPapier(service as Sorte)}>
-                    {service === "devis" ? "Écrire le devis"
+                    {service === "facture" ? "Préparer la facture" : service === "devis" ? "Écrire le devis"
                       : service === "mail" ? "Écrire le mail" : "Écrire le message"}
                   </button>
                 </p>
@@ -7934,7 +7829,7 @@ export default function Home() {
             « Corrige » rouvre le micro : on dit ce qui cloche en wolof, et
             elle refait. C'est ce que Lamine demande — jusqu'à ce que la
             personne soit d'accord. */}
-        {(service === "message" || service === "devis" || service === "mail")
+        {(service === "message" || service === "devis" || service === "facture" || service === "mail")
           && papier && aValider ? (
           <div className="papier-pied valider">
             <button type="button" className="oui" onClick={() => { taire(); setAValider(false); }}>
@@ -7947,7 +7842,7 @@ export default function Home() {
           </div>
         ) : null}
 
-        {(service === "message" || service === "devis" || service === "mail")
+        {(service === "message" || service === "devis" || service === "facture" || service === "mail")
           && papier && !aValider ? (
           <div className="papier-pied">
             {papier.doc.type === "devis" && papier.totaux ? (
@@ -7977,7 +7872,7 @@ export default function Home() {
               </>
             )}
             <button type="button" className="pale" disabled={papierOccupe}
-              onClick={() => void fabriquerPapier(papier.doc.type)}>Refaire</button>
+              onClick={() => void fabriquerPapier(sorteDuPapier(papier.doc))}>Refaire</button>
           </div>
         ) : null}
       </section>
@@ -8392,7 +8287,7 @@ export default function Home() {
         </p>
       ) : null}
 
-      {temoin ? <p className="temoin-vocal" aria-hidden="true">{temoin}</p> : null}
+      
       <p className="sr-only" aria-live="polite">{temoin || labels[mode]}</p>
     </main>
   );
