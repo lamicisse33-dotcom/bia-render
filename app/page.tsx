@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { chargerPortrait } from "@/lib/portrait-images";
 import { lienMessage } from "@/lib/communication";
 import {
   A_FABRIQUER, CHAPEAU, PARTIE_1, PARTIE_1_CONNU,
@@ -240,7 +241,7 @@ const CYCLES = {
   priere: cycle("priere"), compter: cycle("compter"),
 } as const;
 const PAS_DU_CYCLE = 380;
-const PLANCHES_SUIVANTES = ["/bia-gestes-24.webp", "/bia-mains-24.webp", "/bia-mains2-24-wax.webp"] as const;
+
 
 /* ── TROIS FOIS MOINS D'OCTETS QUI MONTENT DE DAKAR ───────────────────────
 
@@ -524,20 +525,6 @@ export default function Home() {
      défilent avant que le portrait habituel ne s'installe — comme une
      présentation, pas seulement un changement muet d'image. */
   const [introRara, setIntroRara] = useState<number | null>(null);
-  useEffect(() => {
-    if (persona !== "rara") { setIntroRara(null); return; }
-    const DUREE_PAR_IMAGE = 550;
-    const TOTAL = 4;
-    let i = 0;
-    setIntroRara(0);
-    const minuteries: number[] = [];
-    for (let k = 1; k <= TOTAL; k++) {
-      minuteries.push(window.setTimeout(() => {
-        setIntroRara(k < TOTAL ? k : null);
-      }, DUREE_PAR_IMAGE * k));
-    }
-    return () => { minuteries.forEach(id => window.clearTimeout(id)); };
-  }, [persona]);
   const [resume, setResume] = useState("");
   const [corrige, setCorrige] = useState<number | null>(null);
   const [correction, setCorrection] = useState("");
@@ -993,14 +980,33 @@ export default function Home() {
      vient de dire un gros mot. */
   const gesteApresRef = useRef<keyof typeof CYCLES | "">("");
   const gesteImmediatRef = useRef<keyof typeof CYCLES | "">("");
+  const [portraitCharge, setPortraitCharge] = useState("");
   useEffect(() => {
-    let restantes = PLANCHES_SUIVANTES.length;
-    for (const fichier of PLANCHES_SUIVANTES) {
-      const img = new Image();
-      img.onload = () => { restantes -= 1; if (restantes === 0) planchesPretesRef.current = true; };
-      img.src = fichier;
+    let actif = true;
+    planchesPretesRef.current = false;
+    setPortraitCharge("");
+    chargerPortrait(persona, tenue).then(() => {
+      if (!actif) return;
+      planchesPretesRef.current = true;
+      setPortraitCharge(persona + ":" + tenue);
+    }).catch(() => { /* Keep the base portrait instead of switching to a missing image. */ });
+    return () => { actif = false; };
+  }, [persona, tenue]);
+  const portraitPret = portraitCharge === persona + ":" + tenue;
+  useEffect(() => {
+    if (persona !== "rara" || !portraitPret) { setIntroRara(null); return; }
+    const DUREE_PAR_IMAGE = 550;
+    const TOTAL = 4;
+    let i = 0;
+    setIntroRara(0);
+    const minuteries: number[] = [];
+    for (let k = 1; k <= TOTAL; k++) {
+      minuteries.push(window.setTimeout(() => {
+        setIntroRara(k < TOTAL ? k : null);
+      }, DUREE_PAR_IMAGE * k));
     }
-  }, []);
+    return () => { minuteries.forEach(id => window.clearTimeout(id)); };
+  }, [persona, portraitPret]);
   const busyRef = useRef(false);
   const historyRef = useRef<Message[]>([]);
   /* ── LA QUESTION EN VOL, POUR NE PAS LA PERDRE S'IL LA CONTINUE ─────────
@@ -7428,10 +7434,11 @@ export default function Home() {
             s'efface, pendant que le nouveau est déjà dessous. Les bouches
             n'y passent pas : une bouche qui fond dans la suivante ferait
             une bouillie sur la parole. Voir visageAvant. */}
-        {visageAvant && (
+        {portraitPret && visageAvant && (
           <div key={visageAvant.n} className="avatar avatar-avant" data-face={visageAvant.face} />
         )}
-        <div className="avatar" data-face={face} />
+        <div className="avatar avatar-socle" data-face="yeux_ouverts" />
+        <div className="avatar" data-face={portraitPret ? face : "yeux_ouverts"} />
         {introRara !== null && (
           <div className="intro-rara" aria-hidden="true">
             {/* eslint-disable-next-line @next/next/no-img-element */}
