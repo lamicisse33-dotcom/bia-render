@@ -79,7 +79,8 @@ export function oublierPapiers(profil: string) {
 export function titreDe(doc: Document): string {
   if (doc.type === "devis") {
     const qui = doc.client?.nom?.trim();
-    return qui ? `Devis — ${qui}` : "Devis";
+    const nom = doc.nature === "facture" ? "Facture" : "Devis";
+    return qui ? `${nom} — ${qui}` : nom;
   }
   if (doc.type === "lettre") {
     const quoi = doc.objet?.trim() || doc.titre?.trim();
