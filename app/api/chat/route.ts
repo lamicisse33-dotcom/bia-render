@@ -1,4 +1,5 @@
 import { correctionDuMaitre } from "@/lib/correction-maitre";
+import { executerLecon } from "@/lib/mode-apprentissage";
 import { appelerCerebras } from "@/lib/cerveau-cerebras";
 import { noterConversation } from "@/lib/conversation-etat";
 import { repetitionExacteDuMaitre, CONSIGNE_MAITRE, messagesConversation, effortConversation, reglagesConversation } from "@/lib/conversation-groq";
@@ -34,7 +35,7 @@ import { lecconQuiRepond, lecconsActives, leconsSousLaMain } from "@/lib/lecons"
 import { demandeDeNombre, repondreAuNombre } from "@/lib/nombre-demande";
 import { consigneDesSouvenirs, garder, retrouver, souvenirsActifs, type Souvenir } from "@/lib/souvenirs";
 import { SERVICES } from "@/lib/services-textes";
-import { ajouterCorrection, cequElleAAppris, retirerCorrection } from "@/lib/lexique";
+import { ajouterCorrection, cequElleAAppris, retirerCorrection, lexiqueConfig } from "@/lib/lexique";
 import { REGLES_REPERTOIRE, REPERTOIRE_PRET, consigneRepertoireCandidates, dejaDiteJusteAvant, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
@@ -1218,6 +1219,20 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
         motif:"le code maître n'était pas reconnu sur ce tour — aucun ordre n'est pris"});
     }
     if(maitre.ok&&maitre.maitre){
+      const lecon = await executerLecon({texte:question, maitre:true,
+        actif:Boolean(body.apprend), phrase:String(body.aRepeter||"")}, async (phrase) => {
+        try {
+          if (!lexiqueConfig.actif) throw new Error("Mémoire persistante non configurée");
+          await ajouterCorrection({source:phrase,corrigee:phrase,langue:langueDe(phrase),
+            auteur:"maitre-vocal",application:"bia"});
+          noterTentative({dit:question,maitre:true,ordre:"retiens",en_main:true,
+            signes_en_main:phrase.length,ecrit:true,motif:"rangée"});
+        } catch (err) {
+          noterPanne("mémorisation apprentissage",(err as Error).message,"chat");
+          throw err;
+        }
+      });
+      if(lecon) return {corps:lecon};
       const correction = correctionDuMaitre(question, true);
       if(correction){
         return {corps:{
@@ -3321,4 +3336,5 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     return {corps:{reply:"Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.",source:"Erreur sûre"},statut:400};
   }
 }
+
 
