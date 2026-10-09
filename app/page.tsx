@@ -7524,7 +7524,13 @@ export default function Home() {
       ) : null}
 
       <div className="barre">
-        <span className="cale" aria-hidden="true" />
+        <button className="clavier-ouvrir" type="button"
+          onClick={ouvrirClavier} aria-label="Ouvrir le clavier et la conversation écrite"
+          title="Clavier" aria-expanded={clavier} aria-controls="conversation-ecrite">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 5h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v10h18V7H3Zm2 2h2v2H5V9Zm4 0h2v2H9V9Zm4 0h2v2h-2V9Zm4 0h2v2h-2V9ZM5 13h2v2H5v-2Zm4 0h10v2H9v-2Z" />
+          </svg>
+        </button>
         <button
           className={conversation ? `microphone en-conversation${entendParler && mode === "listening" ? " entend" : ""}` : "microphone"}
           type="button" onClick={toggleMicrophone}
@@ -7541,7 +7547,7 @@ export default function Home() {
         </button>
       </div>
 
-      <section className="clavier" aria-hidden={!clavier}>
+      <section id="conversation-ecrite" className="clavier" aria-hidden={!clavier}>
         <button className="clavier-fermer" type="button" onClick={() => setClavier(false)} aria-label="Replier le clavier">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 7.1 16.9 5.7 12 10.6 7.1 5.7 5.7 7.1l4.9 4.9-4.9 4.9 1.4 1.4 4.9-4.9 4.9 4.9 1.4-1.4-4.9-4.9Z" /></svg>
         </button>
