@@ -2884,7 +2884,7 @@ button { font: inherit; touch-action: manipulation; }
   transform-origin: 50% 78%;
   animation: breathe 4.8s ease-in-out infinite;
 }
-.portrait > .avatar { animation: none; transform: none; z-index: 1; }
+.portrait > .avatar { animation: none; transform: none; z-index: 1; background-color: transparent; }
 .portrait > .avatar-avant { animation: fondu-avant .22s ease-out forwards; z-index: 2; }
 .portrait > .avatar-socle { z-index: 0; }
 @media (prefers-reduced-motion: reduce) {
