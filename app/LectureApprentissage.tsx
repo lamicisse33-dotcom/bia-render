@@ -2,6 +2,7 @@
 import {useEffect,useRef,useState} from "react";
 import {LectureContinue,MAX_EXERCICE,type Progression} from "@/lib/lecture-continue";
 import type {Lecon} from "@/lib/lexique-apprentissage-core";
+import {ouvrirFluxVoix,type MorceauVoix} from "@/lib/flux-khalam";
 
 export default function LectureApprentissage({code,voice,demande,onStart,onClose}:{code:string;voice:"female"|"male";
  demande:{texte:string;nonce:number;auto:boolean};onStart:()=>void;onClose:()=>void}){
@@ -18,8 +19,26 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   if(!r.ok)throw new Error(d.error);setLecons(d.lecons);setInfo("Lexique Supabase chargé.");}catch{setInfo("Lexique inaccessible. Les validations ne sont pas confirmées.");}}
  useEffect(()=>{
   const a=new Audio();audio.current=a;
+  const demander=async(text:string,partie:number,signal:AbortSignal)=>{
+   const abort=new AbortController();const stop=()=>abort.abort();signal.addEventListener("abort",stop,{once:true});
+   const cleanup=()=>{signal.removeEventListener("abort",stop);abort.abort();};
+   try{
+    const r=await fetch("/api/chatterbox-test/bia/stream",{method:"POST",headers:headers(),signal:abort.signal,
+     body:JSON.stringify({texte:text,langue:settings.current.langue,voice:settings.current.voice,partie,lecture:true})});
+    return await ouvrirFluxVoix(r,cleanup);
+   }catch(error){cleanup();throw error;}
+  };
+  async function* packets(value:{text:string;first:MorceauVoix},signal:AbortSignal){
+   let piece=value.first;
+   for(let part=0;part<piece.parties;part++){
+    if(part)piece=await demander(value.text,part,signal);
+    try{if(!piece.audio)throw Error("Morceau vocal absent");yield piece.audio;
+     if(piece.flux)for await(const packet of piece.flux)yield packet;
+    }finally{piece.annuler?.();}
+   }
+  }
   const jouer=async(value:unknown,signal:AbortSignal)=>{
-   for(const base64 of value as string[]){
+   for await(const base64 of packets(value as {text:string;first:MorceauVoix},signal)){
     while(enPause.current&&!signal.aborted)await new Promise(r=>setTimeout(r,60));
     if(signal.aborted)throw new Error("arrêté");
     const bytes=Uint8Array.from(atob(base64),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:"audio/wav"}));
@@ -34,13 +53,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    }
   };
   player.current=new LectureContinue(async(text,signal)=>{
-   const clips:string[]=[];let count=1;
-   for(let part=0;part<count;part++){
-    const r=await fetch("/api/apprentissage/voix",{method:"POST",headers:headers(),signal,
-     body:JSON.stringify({texte:text,langue:settings.current.langue,voice:settings.current.voice,partie:part})});
-    const d=await r.json();if(!r.ok||!d.output?.audio_base64)throw new Error(d.error||"Voix indisponible");
-    count=d.parties;clips.push(d.output.audio_base64);
-   }return clips;
+   return {text,first:await demander(text,0,signal)};
   },jouer,{pause:()=>{enPause.current=true;a.pause();},reprendre:()=>{enPause.current=false;if(a.src&&a.paused&&!a.ended)void a.play().catch(()=>{});},stop:()=>{enPause.current=true;a.pause();a.removeAttribute("src");}},setP);
   void charger();return()=>{player.current?.stop();a.pause();};
  },[code]);
