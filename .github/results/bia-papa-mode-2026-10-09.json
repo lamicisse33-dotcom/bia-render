@@ -1,0 +1,19 @@
+{
+  "deployed_commit": "9c4b2f979dc9d4ed1d687c5ecc9d9b4588bfbb6e",
+  "render_deploy": "dep-db44qluiej4c73cqpoh0",
+  "status": "live",
+  "authenticated_master_only": true,
+  "changes": [
+    "Shared papa teaching instructions applied to compact Cerebras/Groq path and full chat prompt",
+    "Correction and exact Wolof repetition take priority over unsolicited debate",
+    "Memory acknowledgments remain subject to actual persistence",
+    "Ordinary user debate instructions preserved"
+  ],
+  "validation": {
+    "typescript": true,
+    "role_prompt_isolation": true,
+    "render_build": true,
+    "real_master_conversation_verified": false
+  },
+  "secrets_modified": false
+}
