@@ -15,5 +15,9 @@
 # TTS input aliases only; do not mark a learned pronunciation as validated.
 taxi = taksi
 taxis = taksi
-texte = tekste
-textes = tekste
+texte = tè-kst
+textes = tè-kst
+
+# User-confirmed French expression; keep silent final s.
+lis-moi = li-moi
+lis moi = li-moi

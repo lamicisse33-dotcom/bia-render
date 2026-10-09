@@ -23,7 +23,6 @@ export async function POST(request:NextRequest){
  if(!url||!secret)return NextResponse.json({error:"Streaming indisponible"},{status:503});
  const start=Date.now();const language=body.langue==="fr"?"fr":"wo";
  let parts:string[];
- if(body.lecture===true&&!internal&&(!verdict.ok||!verdict.maitre))return NextResponse.json({error:"Code maître requis"},{status:403});
  if(body.lecture===true&&body.texte.length>500)return NextResponse.json({error:"Segment trop long"},{status:400});
  try{const text=await prononciationsApprises(texteKhalamVoix(body.texte),language);parts=body.lecture===true?segmentsLecture(text):decouperVoixKhalam(text);}
  catch{return NextResponse.json({error:"Le lexique n’a pas répondu"},{status:503});}
