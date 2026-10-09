@@ -44,6 +44,7 @@ const dizaines = ["", "", "vingt", "trente", "quarante", "cinquante",
 
 function sousCent(n: number): string {
   if (n <= 16) return unites[n];
+  if (n === 71) return "soixante et onze";
   if (n < 20) return `dix-${unites[n - 10]}`;
   const d = Math.floor(n / 10), u = n % 10;
   // Soixante-dix et quatre-vingt-dix se comptent par vingtaines.
