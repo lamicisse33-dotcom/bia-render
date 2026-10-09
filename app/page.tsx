@@ -1,6 +1,7 @@
 "use client";
 
 import LectureApprentissage from "./LectureApprentissage";
+import { ouvrirFluxVoix, type MorceauVoix } from "@/lib/flux-khalam";
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { chargerPortrait } from "@/lib/portrait-images";
@@ -1152,7 +1153,12 @@ export default function Home() {
      porte désormais le numéro du tour où elle est née, et ne parle que si ce
      tour est encore le tour en cours. */
   const numeroDuTourRef = useRef(0);
-  const ouvrirUnTour = useCallback(() => ++numeroDuTourRef.current, []);
+  const fluxVoixRef = useRef(new Set<AbortController>());
+  const ouvrirUnTour = useCallback(() => {
+    for (const flux of fluxVoixRef.current) flux.abort();
+    fluxVoixRef.current.clear();
+    return ++numeroDuTourRef.current;
+  }, []);
   const estLeTour = useCallback((n: number) => numeroDuTourRef.current === n, []);
 
   /* ── DEUX IDENTITÉS, PARCE QU'IL Y A DEUX CHOSES ────────────────────────
@@ -2251,7 +2257,7 @@ export default function Home() {
        cents signes réclamée avec `partie: 0` revenait donc tronquée à sa
        première phrase — sept secondes au lieu de quarante-deux — et BIA
        repartait au début, encore et encore. C'est ce que Lamine a entendu. */
-    const demander = async (partie: number) => {
+    const demander = async (partie: number): Promise<MorceauVoix> => {
       const r = await fetch(routeVoixBia(), {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
@@ -2755,6 +2761,28 @@ export default function Home() {
         if (!actuel()) throw new Error("tour interrompu");
         let attente = 500 * (essai + 1);
         try {
+          if (essaiChatterboxActif()) {
+            const abort = new AbortController();
+            fluxVoixRef.current.add(abort);
+            const annuler = () => { abort.abort(); fluxVoixRef.current.delete(abort); };
+            let response: Response;
+            try {
+              response = await fetch(routeVoix + "/stream", {
+                method: "POST", signal: abort.signal,
+                headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+                body: JSON.stringify({ texte: answer, partie, voice: voixChoisie, langue: langueDite }),
+              });
+            } catch (error) { annuler(); throw error; }
+            if (response.ok) {
+              if (response.headers.get("content-type")?.includes("application/x-ndjson")) return await ouvrirFluxVoix(response, annuler);
+              annuler();
+              return await response.json() as MorceauVoix;
+            }
+            annuler();
+            // Compatibility only before any audio has played: never repeat a
+            // partially heard stream through a second synthesis request.
+            if (![404, 501].includes(response.status)) throw new Error(`Streaming HTTP ${response.status}`);
+          }
           const r = await fetch(routeVoix, {
             method: "POST",
             headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
@@ -2869,8 +2897,7 @@ export default function Home() {
          Maintenant les morceaux sont PROGRAMMÉS sur l'horloge du son, à la
          milliseconde : le suivant démarre à l'instant précis où le précédent
          se termine, décodé longtemps à l'avance. Il n'y a plus de couture. */
-      // The microphone can leave Safari playback interrupted. Await its wake
-      // before scheduling buffers, rather than silently queueing inaudible audio.
+      // Wait for playback to wake after microphone use, including Safari interrupted state.
       const ctx = await reveillerLeSon();
       if (perdu()) return;
       if (String(ctx.state) !== "running") throw new Error("Appuie sur le micro pour réactiver le son.");
@@ -2887,10 +2914,12 @@ export default function Home() {
       let premiereSyllabeFaite = suite;   // la tête parle déjà : ce n'est plus la première
       let noteDansLEcho = false;
 
-      const programmer = async (octets: ArrayBuffer) => {
+      const programmer = async (octets: ArrayBuffer, continu = false) => {
         const brut = await ctx.decodeAudioData(octets.slice(0));
         if (perdu() || !await peutParler() || perdu()) return;
-        const mémoire = ralentir(ctx, sansSilence(ctx, brut), vitesseAudioBia(octets));
+        // Internal audio packet boundaries can fall inside a syllable.
+        // Keep every sample; silence trimming applies only to whole clips.
+        const mémoire = ralentir(ctx, continu ? brut : sansSilence(ctx, brut), vitesseAudioBia(octets));
         const { valeurs, pic, pas } = enveloppeDe(mémoire);
         const source = ctx.createBufferSource();
         source.buffer = mémoire;
@@ -2958,7 +2987,7 @@ export default function Home() {
         lancer(i + 1);
         lancer(i + 2);
         if (!essaiChatterboxActif()) lancer(i + 3);
-        let morceau: { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number; speed?: number } | null = null;
+        let morceau: MorceauVoix | null = null;
         try { morceau = i === 0 ? bloc : await enVol.get(i)!; } catch { morceau = null; }
         if (perdu()) return;         // une nouvelle réponse a pris la main, ou on l'a fait taire
         /* ── UN MORCEAU RATÉ NE DOIT PLUS TAIRE TOUTE L'HISTOIRE ───────────
@@ -2988,11 +3017,18 @@ export default function Home() {
         if (perdu()) return;
         if (!morceau?.audio) throw new Error("La voix n’a pas pu terminer la réponse.");
         if (morceau && morceau.audio) {
-          // A decoding failure must not silently skip words from the response.
-          try { await programmer(enOctets(morceau.audio, morceau.speed)); }
+          // Retry decoding once; never silently skip words from the response.
+          try { await programmer(enOctets(morceau.audio, morceau.speed), Boolean(morceau.flux)); }
           catch {
             if (perdu()) return;
-            await programmer(enOctets(morceau.audio, morceau.speed));
+            await programmer(enOctets(morceau.audio, morceau.speed), Boolean(morceau.flux));
+          }
+          if (morceau.flux) {
+            for await (const packet of morceau.flux) {
+              if (perdu()) { morceau.annuler?.(); return; }
+              try { await programmer(enOctets(packet), true); }
+              catch { if (perdu()) return; await programmer(enOctets(packet), true); }
+            }
           }
         }
         /* On ne dort pas jusqu'à la fin du morceau : on se réveille deux
