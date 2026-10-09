@@ -2,7 +2,7 @@ import { NextRequest,NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { timingSafeEqual } from "node:crypto";
 import { POST as synthese } from "../../chatterbox-test/route";
-import { prononciationsApprises } from "@/lib/lexique-apprentissage";
+import { prononciationsApprises, verifierPersistance } from "@/lib/lexique-apprentissage";
 import { texteKhalamVoix } from "@/lib/texte-khalam-voix";
 import { segmentsLecture } from "@/lib/lecture-continue";
 export const dynamic="force-dynamic";
@@ -15,6 +15,10 @@ function acces(r:NextRequest){
 export async function POST(r:NextRequest){
  if(!acces(r))return NextResponse.json({error:"Code maître requis"},{status:401});
  const b=await r.json().catch(()=>null);
+ if(b?.controle_persistance===true){
+  try{return NextResponse.json({...await verifierPersistance(),nettoyage:true},{headers:{"cache-control":"no-store"}});}
+  catch{return NextResponse.json({error:"Contrôle Supabase non validé"},{status:503});}
+ }
  if(!b||typeof b.texte!=="string"||!b.texte.trim()||b.texte.length>500)return NextResponse.json({error:"Segment requis, maximum 500 caractères"},{status:400});
  const langue=b.langue==="fr"?"fr":"wo";
  try {
