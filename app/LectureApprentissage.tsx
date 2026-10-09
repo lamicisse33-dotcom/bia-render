@@ -4,7 +4,7 @@ import {LectureContinue,MAX_EXERCICE,type Progression} from "@/lib/lecture-conti
 import type {Lecon} from "@/lib/lexique-apprentissage-core";
 import {ouvrirFluxVoix,type MorceauVoix} from "@/lib/flux-khalam";
 
-export default function LectureApprentissage({code,voice,demande,onStart,onClose}:{code:string;voice:"female"|"male";
+export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false}:{edition?:boolean;code:string;voice:"female"|"male";
  demande:{texte:string;nonce:number;auto:boolean};onStart:()=>void;onClose:()=>void}){
  const [texte,setTexte]=useState(demande.texte);const [langue,setLangue]=useState<"fr"|"wo">("wo");
  const [p,setP]=useState<Progression>({etat:"prêt",index:0,total:0});
@@ -55,7 +55,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   player.current=new LectureContinue(async(text,signal)=>{
    return {text,first:await demander(text,0,signal)};
   },jouer,{pause:()=>{enPause.current=true;a.pause();},reprendre:()=>{enPause.current=false;if(a.src&&a.paused&&!a.ended)void a.play().catch(()=>{});},stop:()=>{enPause.current=true;a.pause();a.removeAttribute("src");}},setP);
-  void charger();return()=>{player.current?.stop();a.pause();};
+  if(edition)void charger();return()=>{player.current?.stop();a.pause();};
  },[code]);
  function lancer(t=texte){settings.current.onStart();try{player.current?.demarrer(t);}catch(e){setInfo((e as Error).message);}}
  useEffect(()=>{setTexte(demande.texte);if(demande.auto)lancer(demande.texte);},[demande.nonce]);
@@ -77,6 +77,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
     <button type="button" onClick={()=>player.current?.stop()}>STOP</button>
    </div>
    <p role="status" aria-live="polite">{p.etat} — {Math.min(p.index+1,p.total)} / {p.total}{p.erreur?` — ${p.erreur}. Le segment est conservé. Reprendre pour réessayer.`:""}</p>
+   {edition && <>
    <h3>Valider un mot ou une expression</h3>
    <label>Texte exact <input value={mot} maxLength={400} onChange={e=>{setMot(e.target.value);setConfirme(false);}}/></label>
    <label>Prononciation à utiliser <input value={dire} maxLength={400} onChange={e=>{setDire(e.target.value);setConfirme(false);}}/></label>
@@ -86,6 +87,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    <button type="button" disabled={saving||!mot.trim()||(statut==="validé"&&(!confirme||!dire.trim()))} onClick={()=>void garder()}>Enregistrer dans le lexique</button>
    <p role="status">{info}</p>
    <details><summary>Corrections enregistrées ({lecons.length})</summary>{lecons.map(l=><p key={l.langue+l.texte}>{l.texte} — {l.langue} — {l.statut} — {l.prononciation} {l.date_validation||""} <button type="button" onClick={()=>{setMot(l.texte);setDire(l.prononciation);setExemple(l.exemple);setLangue(l.langue);setStatut(l.statut);setConfirme(false);}}>Modifier</button></p>)}</details>
+   </>}
   </div>
  </section>;
 }
