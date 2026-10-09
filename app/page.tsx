@@ -8113,9 +8113,9 @@ export default function Home() {
           pendant dix minutes en croyant qu'elle retient, ou l'inverse. Un
           bandeau discret, et les trois phrases qui en sortent — parce qu'on
           n'apprend pas une commande par cœur en conduisant. */}
-      {enApprentissage ? (
+      {estMaitre && enApprentissage ? (
         <div className="apprend-bandeau">
-          <b>On apprend</b> — dis ta phrase, elle la répète exactement.
+          <b>Mode apprentissage</b> — dis ta phrase, elle répète le texte entendu sans le reformuler.
           {/* ── LE BOUTON BLEU ──────────────────────────────────────────
               Sa demande du 14 septembre au soir, et elle règle un problème
               qu'aucune correction de code ne pouvait régler : l'oreille se
@@ -8211,7 +8211,7 @@ export default function Home() {
           {motGarde && motGarde !== "en cours" && motGarde !== "gardée" ? (
             <em className="apprend-dit rate">{motGarde}</em>
           ) : null}
-          <i>redis-la jusqu'à ce qu'elle soit juste, puis appuie · enchaîne autant que tu veux · « on a fini » pour sortir</i>
+          <i>« Mémorise » pour garder · « Répète » pour réécouter · « On a fini d'apprendre » pour revenir au mode normal</i>
         </div>
       ) : null}
 
@@ -8608,3 +8608,4 @@ function PapierRepertoire({ code }: { code: string | null }) {
     </p>
   );
 }
+
