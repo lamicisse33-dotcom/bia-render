@@ -5,7 +5,7 @@ import { verifierCode } from "@/lib/codes";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 100;
-const CHECKPOINT_SHA = "c1a0245aeca8a3b94a7986f83cf6a84033900ed8fce5788750fba479ffba0507";
+const CHECKPOINTS = new Set(["c1a0245aeca8a3b94a7986f83cf6a84033900ed8fce5788750fba479ffba0507", "8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f"]);
 
 function configuration() {
   const url = (process.env.CHATTERBOX_TEST_URL || "").replace(/\/$/, "");
@@ -21,7 +21,7 @@ export async function GET() {
     const response = await fetch(`${c.url}/health`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
     if (!response.ok) return NextResponse.json({ ok: false, error: "Le serveur de test ne répond pas." }, { status: 503 });
     const data = await response.json();
-    if (!data.ok || data.checkpoint_sha256 !== CHECKPOINT_SHA) {
+    if (!data.ok || !CHECKPOINTS.has(data.checkpoint_sha256)) {
       return NextResponse.json({ ok: false, error: "Le modèle entraîné n’est pas encore prêt." }, { status: 503 });
     }
     return NextResponse.json(data, { headers: { "cache-control": "no-store" } });
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
     if (data.status !== "COMPLETED" || !data.output?.audio_base64 ||
         typeof data.output.audio_base64 !== "string" ||
-        data.output.checkpoint_sha256 !== CHECKPOINT_SHA ||
+        !CHECKPOINTS.has(data.output.checkpoint_sha256) ||
         !Number.isFinite(data.output.generation_ms) ||
         !Number.isFinite(data.output.duration_seconds)) {
       console.error("BIA_VOICE_FAILURE", JSON.stringify({ code: "AUDIO_INVALIDE" }));

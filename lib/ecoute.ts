@@ -528,6 +528,7 @@ export async function transcrire(
       noterEtape("ecoute", parti, Date.now(), Date.now(), locale.texte.length);
       return locale;
     }
+    if (process.env.KHALAM_LOCAL_STRICT === "true") throw new Error("KHALAM Oreille indisponible pour cet essai ; aucun repli externe.");
   }
   const c = ecouteConfig.elevenlabs;
   if (!c.apiKey) throw new Error("ELEVENLABS_API_KEY manquante");

@@ -38,7 +38,7 @@ export async function chezOreilleLocale(audio: Blob): Promise<Ecoute | null> {
       cache: "no-store",
     });
     if (!r.ok) throw new Error("HTTP_" + r.status);
-    const d = await r.json() as { text?: unknown; model?: unknown; silence?: boolean; audio_seconds?: number };
+    const d = await r.json() as { text?: unknown; model?: unknown; silence?: boolean; checkpoint_step?: number; audio_seconds?: number };
     if (d.model !== "omniASR_LLM_1B_v2" || typeof d.text !== "string") {
       throw new Error("reponse_invalide");
     }
@@ -52,7 +52,7 @@ export async function chezOreilleLocale(audio: Blob): Promise<Ecoute | null> {
     }
     compte.dernierRefus = "";
     // This model does not report detected language. Do not invent a detection.
-    return { texte, langue: null, moteur: "local-omniASR_LLM_1B_v2" };
+    return { texte, langue: null, moteur: d.checkpoint_step === 4480 ? "KHALAM Oreille — étape 4480" : "local-omniASR_LLM_1B_v2" };
   } catch (err) {
     const e = err as Error;
     const reason = /^(configuration_absente|audio_trop_volumineux|HTTP_\d+|reponse_invalide|texte_vide|ecriture_inattendue)$/.test(e.message)
