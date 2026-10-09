@@ -29,3 +29,15 @@ export function appliquerRegles(texte:string,regles:Array<{mot:string;dire:strin
   const re=new RegExp(`(?<![\\p{L}\\p{M}\\p{N}])(?:${sorted.map(r=>escape(r.mot)).join("|")})(?![\\p{L}\\p{M}\\p{N}])`,"giu");
   return texte.replace(re,match=>uniques.get(match.toLowerCase())!.dire);
 }
+
+/** French lessons also apply inside urban Wolof. An explicit entry in the
+ * requested language wins on homographs, including revoked/uncertain entries. */
+export function reglesLeconsMixtes(lecons:Lecon[], langue:"fr"|"wo", anciennes:Array<{mot:string;dire:string}>) {
+  const locales=lecons.filter(l=>l.langue===langue);
+  const motsLocaux=new Set(locales.map(l=>l.texte.toLowerCase()));
+  const emprunts=langue==="wo"?lecons.filter(l=>l.langue==="fr"&&!motsLocaux.has(l.texte.toLowerCase())):[];
+  const pertinentes=[...locales,...emprunts];
+  const reservees=new Set(pertinentes.map(l=>l.texte.toLowerCase()));
+  return [...pertinentes.filter(l=>l.statut==="validé").map(l=>({mot:l.texte,dire:l.prononciation})),
+    ...anciennes.filter(r=>!reservees.has(r.mot.toLowerCase()))];
+}
