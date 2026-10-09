@@ -4,12 +4,14 @@ import { verifierCode } from "@/lib/codes";
 import { POST as testSynthesis } from "../route";
 import { noterChatterboxTest } from "@/lib/chatterbox-test-etat";
 import { decouperVoixKhalam } from "@/lib/decoupage-voix-khalam";
+import { CacheAccusesLecon } from "@/lib/cache-accuses-lecon";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 100;
 
 const inFlight = new Map<string, Promise<{ status: number; data: any }>>();
+const accuses = new CacheAccusesLecon<{status:number; data:any}>();
 
 function authorized(request: NextRequest) {
   const supplied = request.headers.get("x-chatterbox-test-key");
@@ -57,7 +59,8 @@ export async function POST(request: NextRequest) {
   const id = createHash("sha256")
     .update(JSON.stringify([process.env.CHATTERBOX_TEST_URL, serverKey, voice, parts[partie]]))
     .digest("hex");
-  let pending = inFlight.get(id);
+  const cached = accuses.get(id, parts[partie]);
+  let pending = cached ? Promise.resolve(cached) : inFlight.get(id);
   const shared = Boolean(pending);
   if (!pending) {
     if (inFlight.size >= 32) {
@@ -94,6 +97,10 @@ export async function POST(request: NextRequest) {
       }, { status: status === 200 ? 502 : status, headers: { ...headers, ...(status === 429 ? { "retry-after": "2" } : {}) } });
     }
     const output = data.output;
+    // Cache only successfully validated audio from the active trained model.
+    if (!cached && output.checkpoint_sha256 === "8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f") {
+      accuses.set(id, parts[partie], {status, data});
+    }
     return NextResponse.json({
       ...common, audio: output.audio_base64, type_mime: "audio/wav",
       fabrication_ms: Date.now() - started, encodage_ms: 0,
@@ -102,6 +109,7 @@ export async function POST(request: NextRequest) {
       checkpoint_step: output.checkpoint_step,
       checkpoint_sha256: output.checkpoint_sha256,
       requete_partagee: shared,
+      audio_en_cache: Boolean(cached),
     }, { headers });
   } catch {
     return NextResponse.json({ ...common, audio: null, error: "Le moteur Chatterbox de test ne répond pas." }, { status: 502, headers });
@@ -109,3 +117,4 @@ export async function POST(request: NextRequest) {
     if (inFlight.get(id) === pending) inFlight.delete(id);
   }
 }
+
