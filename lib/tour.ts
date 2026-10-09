@@ -251,7 +251,7 @@ export function ouPasseLeTemps(tours: Tour[]): Part[] {
     ["le silence avant la coupure du micro", par((t) => t.queue_ms)],
     ["la transcription", par((t) => t.transcription_ms)],
     ["le modèle", par((t) => t.modele_ms)],
-    ["la fabrication de la voix (chez Soynade)", par((t) => t.voix_fabrication_ms || 0)],
+    ["la fabrication de la voix", par((t) => t.voix_fabrication_ms || 0)],
     ["le transport de la voix (réseau + décodage)", par((t) => (t.voix_fabrication_ms ? t.voix_transfert_ms : t.voix_ms) || 0)],
     ["le démarrage du son", par((t) => t.demarrage_ms)],
     ["l'attente qu'il finisse de parler (la porte)", par((t) => t.attente_porte_ms || 0)],
