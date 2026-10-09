@@ -4,6 +4,7 @@ import { verifierCode } from "@/lib/codes";
 import { POST as testSynthesis } from "../route";
 import { noterChatterboxTest } from "@/lib/chatterbox-test-etat";
 import { decouperVoixKhalam } from "@/lib/decoupage-voix-khalam";
+import { texteKhalamVoix } from "@/lib/texte-khalam-voix";
 import { CacheAccusesLecon } from "@/lib/cache-accuses-lecon";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
   if (!Number.isSafeInteger(partie) || partie < 0) {
     return NextResponse.json({ error: "Numéro de partie invalide." }, { status: 400 });
   }
-  const parts = decouperVoixKhalam(body.texte);
+  const parts = decouperVoixKhalam(texteKhalamVoix(body.texte));
   const headers = { "cache-control": "no-store" };
   const common = {
     parties: parts.length, partie,
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
   }
   const started = Date.now();
   const id = createHash("sha256")
-    .update(JSON.stringify([process.env.CHATTERBOX_TEST_URL, serverKey, voice, parts[partie]]))
+    .update(JSON.stringify([process.env.CHATTERBOX_TEST_URL, serverKey, voice, common.langue, "fr-articulation-v1", parts[partie]]))
     .digest("hex");
   const cached = accuses.get(id, parts[partie]);
   let pending = cached ? Promise.resolve(cached) : inFlight.get(id);
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
         const response = await testSynthesis(new NextRequest(request.url, {
           method: "POST",
           headers: { "content-type": "application/json", "x-chatterbox-test-key": serverKey },
-          body: JSON.stringify({ input: { text: parts[partie], voice } }),
+          body: JSON.stringify({ input: { text: parts[partie], voice, language: common.langue } }),
         }));
         const data = await response.json();
         // Count one real generation, even when multiple requests share it.
