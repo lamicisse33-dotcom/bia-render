@@ -1,5 +1,6 @@
 "use client";
 
+import LectureApprentissage from "./LectureApprentissage";
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { chargerPortrait } from "@/lib/portrait-images";
@@ -467,6 +468,7 @@ export default function Home() {
      pas la différence entre « je t'écoute » et « je t'entends ». */
   const [entendParler, setEntendParler] = useState(false);
   const [clavier, setClavier] = useState(false);
+  const [lectureContinue, setLectureContinue] = useState<{texte:string;nonce:number;auto:boolean}|null>(null);
   const [saisie, setSaisie] = useState("");
   /* PLUS DE TEXTE SUR L'ÉCRAN.
      Demande de Lamine, 9 septembre 2026 : l'écran ne montre que BIA. La
@@ -3049,6 +3051,11 @@ export default function Home() {
     /* Le sens de sa phrase, demandé pendant qu'on prépare la réponse et
        attendu juste avant qu'elle ouvre la bouche. Voir plus bas. */
     const clean = question.trim();
+    if (estMaitreRef.current && /^(?:MODE_APPRENTISSAGE|D[ÉE]MARRER APPRENTISSAGE)(?:\\s|:|$)/i.test(clean)) {
+      const texte=clean.replace(/^(?:MODE_APPRENTISSAGE|D[ÉE]MARRER APPRENTISSAGE)[:\\s]*/i,"");
+      fermerConversation(); taire(); setSaisie("");
+      setLectureContinue({texte,nonce:Date.now(),auto:Boolean(texte)}); return;
+    }
     if (!clean || busyRef.current) return;
     /* ── « ALLONS CORRIGER LA LISTE MAL DIT » ─────────────────────────────
 
@@ -7547,6 +7554,8 @@ export default function Home() {
         </button>
       </div>
 
+      {estMaitre && lectureContinue ? <LectureApprentissage code={code} voice={voixChatterboxBia()} demande={lectureContinue}
+        onStart={() => { fermerConversation(); taire(); }} onClose={() => setLectureContinue(null)} /> : null}
       <section id="conversation-ecrite" className="clavier" aria-hidden={!clavier}>
         <button className="clavier-fermer" type="button" onClick={() => setClavier(false)} aria-label="Replier le clavier">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 7.1 16.9 5.7 12 10.6 7.1 5.7 5.7 7.1l4.9 4.9-4.9 4.9 1.4 1.4 4.9-4.9 4.9 4.9 1.4-1.4-4.9-4.9Z" /></svg>
@@ -7555,6 +7564,7 @@ export default function Home() {
         {panne ? <p className="panne">⚠ {panne}</p> : null}
 
         <div className="outils">
+          {estMaitre ? <button type="button" onClick={() => { fermerConversation(); taire(); setLectureContinue({texte:saisie,nonce:Date.now(),auto:false}); }}>Apprentissage / lecture continue</button> : null}
           {/* Qui parle. Sur un téléphone qui se prête, c'est le bouton le plus
               important de tous : sans lui, elle appelle le suivant par le
               prénom du précédent. */}
@@ -8614,4 +8624,5 @@ function PapierRepertoire({ code }: { code: string | null }) {
     </p>
   );
 }
+
 
