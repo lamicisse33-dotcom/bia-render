@@ -2,9 +2,10 @@
 import {useEffect,useRef,useState} from "react";
 import {LectureContinue,MAX_EXERCICE,type Progression} from "@/lib/lecture-continue";
 import type {Lecon} from "@/lib/lexique-apprentissage-core";
+import {lirePiperLocale,piperLocaleDisponible} from "@/lib/voix-piper-locale";
 import {ouvrirFluxVoix,type MorceauVoix} from "@/lib/flux-khalam";
 
-export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false}:{edition?:boolean;code:string;voice:"female"|"male";
+export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false}:{edition?:boolean;code:string;voice:"piper"|"female"|"male";
  demande:{texte:string;nonce:number;auto:boolean};onStart:()=>void;onClose:()=>void}){
  const [texte,setTexte]=useState(demande.texte);const [langue,setLangue]=useState<"fr"|"wo">("wo");
  const [p,setP]=useState<Progression>({etat:"prêt",index:0,total:0});
@@ -19,7 +20,17 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   if(!r.ok)throw new Error(d.error);setLecons(d.lecons);setInfo("Lexique Supabase chargé.");}catch{setInfo("Lexique inaccessible. Les validations ne sont pas confirmées.");}}
  useEffect(()=>{
   const a=new Audio();audio.current=a;
+  let preparation:{original:string;langue:string;texte:string}|null=null;
   const demander=async(text:string,partie:number,signal:AbortSignal)=>{
+   if(settings.current.voice==="piper"){
+    if(!piperLocaleDisponible())throw Error("Ouvre BIA installée sur le téléphone pour utiliser Piper.");
+    if(!preparation||preparation.original!==text||preparation.langue!==settings.current.langue){
+     const r=await fetch("/api/apprentissage/preparer",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:settings.current.langue})});
+     const d=await r.json();if(!r.ok||typeof d.texte!=="string")throw Error(d.error||"Lexique indisponible");
+     preparation={original:text,langue:settings.current.langue,texte:d.texte};
+    }
+    return lirePiperLocale(preparation.texte,partie,signal);
+   }
    const abort=new AbortController();const stop=()=>abort.abort();signal.addEventListener("abort",stop,{once:true});
    const cleanup=()=>{signal.removeEventListener("abort",stop);abort.abort();};
    try{
