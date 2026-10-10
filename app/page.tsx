@@ -7690,9 +7690,9 @@ export default function Home() {
             value={saisie}
             onPaste={(e) => {
               const colle=e.clipboardData.getData("text");
-              if(!colle.trim()||!estMaitre)return;
+              if(!colle.trim())return;
               const demande=demandeLecture(colle);
-              // Master pastes are lessons: bypass chat regardless of previous mode.
+              // Pasted texts go directly to the reader for every authenticated access.
               e.preventDefault();
               const a=e.currentTarget;
               const complet=a.value.slice(0,a.selectionStart??a.value.length)+colle+a.value.slice(a.selectionEnd??a.value.length);
