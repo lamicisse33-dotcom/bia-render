@@ -2764,7 +2764,7 @@ export default function Home() {
         if (!actuel()) throw new Error("tour interrompu");
         let attente = 500 * (essai + 1);
         try {
-          if (essaiChatterboxActif()) {
+          if (false) {
             const abort = new AbortController();
             fluxVoixRef.current.add(abort);
             const annuler = () => { abort.abort(); fluxVoixRef.current.delete(abort); };
