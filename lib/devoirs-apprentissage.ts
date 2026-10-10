@@ -1,6 +1,6 @@
 import {ajouterCorrection,lexiqueConfig} from "./lexique";
 import {APP_LECONS} from "./lexique-apprentissage-core";
-type Bloc={version:2;type:"devoir";id:string;index:number;total:number;texte:string;date:string};
+type Bloc={version:2;type:"devoir";id:string;index:number;total:number;texte:string;date:string;statut?:"validé";date_validation?:string;langue?:"fr"|"wo"};
 const headers=()=>({apikey:lexiqueConfig.cle,Authorization:`Bearer ${lexiqueConfig.cle}`});
 let cache:{blocs:Bloc[];expires:number}|null=null;
 async function lireBlocs():Promise<Bloc[]>{
@@ -18,21 +18,21 @@ async function lireBlocs():Promise<Bloc[]>{
  }
  cache={blocs,expires:Date.now()+15000};return blocs;
 }
-export async function garderBlocDevoir(texte:string,index:number,total:number,id:string){
+export async function garderBlocDevoir(texte:string,index:number,total:number,id:string,valide=false,langue:"fr"|"wo"="wo"){
  if(!lexiqueConfig.actif)throw Error("Supabase non configuré");
  const source="DEVOIR:"+id+":"+index;
  const base=`${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}`;
  const query=`select=proposee&application=eq.${APP_LECONS}&auteur=eq.maitre-devoir&source=eq.${encodeURIComponent(source)}`;
  async function existe(){const r=await fetch(base+"?"+query,{headers:headers(),cache:"no-store",signal:AbortSignal.timeout(8000)});
   if(!r.ok)throw Error("Relecture Supabase impossible");
-  const rows=await r.json();return rows.some((row:{proposee:string})=>{try{const b=JSON.parse(row.proposee);return b.texte===texte&&b.total===total;}catch{return false;}});
+  const rows=await r.json();return rows.some((row:{proposee:string})=>{try{const b=JSON.parse(row.proposee);return b.texte===texte&&b.total===total&&(!valide||(b.statut==="validé"&&b.langue===langue&&typeof b.date_validation==="string"));}catch{return false;}});
  }
  if(!await existe()){
-  const bloc:Bloc={version:2,type:"devoir",id,index,total,texte,date:new Date().toISOString()};
+  const bloc:Bloc={version:2,type:"devoir",id,index,total,texte,date:new Date().toISOString(),...(valide?{statut:"validé" as const,date_validation:new Date().toISOString(),langue}:{})};
   await ajouterCorrection({source,corrigee:texte,langue:"wo",auteur:"maitre-devoir",application:APP_LECONS,proposee:JSON.stringify(bloc)});
  }
  cache=null;if(!await existe())throw Error("Sauvegarde non confirmée");
- return {id,index,total,verifie:true};
+ return {id,index,total,verifie:true,valide};
 }
 export function selectionnerDevoirs(blocs:Bloc[],question:string){
  const groups=new Map<string,Bloc[]>();for(const b of blocs){const g=groups.get(b.id)||[];g.push(b);groups.set(b.id,g);}
