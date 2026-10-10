@@ -2347,7 +2347,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        incompatible. Le reste de BIA continue normalement. */
     let webDuTour = "";
     const demandeWeb = besoinDInternet(question, filDitPar);
-    const rechercheViaGroq = cerebras && demandeWeb && !webConfigure() && Boolean(process.env.GROQ_API_KEY);
+    const rechercheViaGroq = false; // Lamine: no paid Groq web search; YouTube uses its existing Google key.
     if (demandeWeb && !webConfigure() && !rechercheViaGroq && (cerebras || local || gemini)) {
       return {corps:{reply:"La recherche Internet n’est pas encore disponible. Je ne peux pas vérifier cette information en ligne pour le moment.",source:"recherche web non configurée"}};
     }
