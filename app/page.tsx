@@ -5013,7 +5013,7 @@ export default function Home() {
           let r = await envoyer(complet ? legere : forme);
           if (complet && r.status === 409) { await Promise.allSettled(envois); r = await envoyer(forme); }
           if (!estCetEnregistrement(idEnr)) return;
-          const d = await r.json() as { texte?: string; panne?: boolean; motif?: string; au_fil_de_leau?: boolean };
+          const d = await r.json() as { texte?: string; panne?: boolean; motif?: string; suggestions_ecriture?: string[]; au_fil_de_leau?: boolean };
           if (!estCetEnregistrement(idEnr)) return;
           /* SON OREILLE EST CASSÉE, CE N'EST PAS LA VOIX DE LA PERSONNE.
              Sans ça, BIA répétait « je ne t'entends pas bien, répète » à
