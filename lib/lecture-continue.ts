@@ -1,11 +1,9 @@
-export const MAX_EXERCICE = 100_000;
 export const MAX_SEGMENT = 500;
 
 /** Preserve every character. A long sentence is split at punctuation first,
  * then a conjunction/word boundary only when the engine limit requires it. */
 export function segmentsLecture(texte: string, max = MAX_SEGMENT): string[] {
   if (!texte.trim()) return [];
-  if (texte.length > MAX_EXERCICE) throw new Error("Exercice trop long : maximum 100 000 caractères.");
   if (max < 20) throw new Error("Limite de segment invalide");
   const sentences = Array.from(new Intl.Segmenter("fr", {granularity:"sentence"}).segment(texte), s => s.segment);
   const out:string[]=[];
