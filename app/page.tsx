@@ -2721,6 +2721,10 @@ export default function Home() {
        quatre mots ne se juge pas, une réponse complète oui. */
     const langueDite = estWolof(answer) ? "wo" : "fr";
     const locale = voixLocaleBiaDisponible(personaRef.current);
+    if (choixVoixBia() === "piper" && !locale) {
+      setPanne("Piper est installé dans l’application du téléphone. Ouvre cette application pour l’utiliser, ou choisis Khalam Voice dans Moi.");
+      stopMouth(answer); return;
+    }
     noterRouteVoixBia("demande", locale);
 
     if (!essaiChatterboxActif() && moteursRef.current && moteursRef.current.voix === "navigateur" && !voixLocaleBiaDisponible(personaRef.current)) {
@@ -7154,7 +7158,7 @@ export default function Home() {
           {([
             ["male", "Homme — KHALAM Voice"],
             ["female", "Femme — KHALAM Voice"],
-            ["piper", "Voix habituelle — Piper"],
+            ["piper", "Piper — moteur sur le téléphone"],
           ] as const).map(([valeur, label]) => (
             <label key={valeur} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 48, cursor: "pointer" }}>
               <input type="radio" name="bia-voix" value={valeur} checked={choixVoix === valeur}
@@ -7171,7 +7175,7 @@ export default function Home() {
         <p className="papier-note" role="status" data-bia-voice-status>
           {essaiChatterbox ? `KHALAM Voice · voix ${choixVoix === "female" ? "de femme" : "d’homme"} · serveur de test` : voixLocalePresente
             ? `Voix locale ${epoqueVoixLocaleBia()} — moteur installé sur cet iPhone`
-            : "Voix du téléphone — le moteur local est absent dans cette fenêtre"}
+            : "Piper absent de cette fenêtre — ouvre BIA installée sur le téléphone"}
         </p>
         {!essaiChatterbox && !voixLocalePresente && (
           <p className="papier-note">Pour tester la nouvelle voix, ouvre BIA installée sur l&apos;iPhone. Safari et l&apos;ancienne icône web n&apos;ont pas ce moteur.</p>
@@ -7603,7 +7607,7 @@ export default function Home() {
         </button>
       </div>
 
-      {lectureContinue ? <LectureApprentissage edition={estMaitre} code={code} voice={voixChatterboxBia()} demande={lectureContinue}
+      {lectureContinue ? <LectureApprentissage edition={estMaitre} code={code} voice={choixVoixBia()} demande={lectureContinue}
         onStart={() => { fermerConversation(); taire(); }} onClose={() => setLectureContinue(null)} /> : null}
       <section id="conversation-ecrite" className="clavier" aria-hidden={!clavier}>
         <button className="clavier-fermer" type="button" onClick={() => setClavier(false)} aria-label="Replier le clavier">
