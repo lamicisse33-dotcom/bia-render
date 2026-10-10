@@ -37,7 +37,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    s.start(0,Math.min(courant.offset,courant.buffer.duration));};
   const arreterSon=()=>{suspendre();if(courant){const rejeter=courant.rejeter;courant=null;rejeter(new Error("arrêté"));}};
   let preparation:{original:string;langue:string;texte:string}|null=null;
-  let secoursComplet=false;
+  let secoursComplet=true;
   const demander=async(text:string,partie:number,signal:AbortSignal)=>{
    if(settings.current.voice==="piper"){
     if(!piperLocaleDisponible())throw Error("Ouvre BIA installée sur le téléphone pour utiliser Piper.");
