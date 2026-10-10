@@ -13,6 +13,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
  const [lecons,setLecons]=useState<Lecon[]>([]);const [info,setInfo]=useState("");
  const [mot,setMot]=useState("");const [dire,setDire]=useState("");const [exemple,setExemple]=useState("");
  const [statut,setStatut]=useState<Lecon["statut"]>("incertain");const [confirme,setConfirme]=useState(false);const [saving,setSaving]=useState(false);
+ const [entendu,setEntendu]=useState("");const [ecrit,setEcrit]=useState("");const [accordEcriture,setAccordEcriture]=useState(false);
  const [memoire,setMemoire]=useState("");const sauvegarde=useRef(0);
  const [revus,setRevus]=useState<string[]>([]);const texteEditeur=useRef<HTMLTextAreaElement|null>(null);
  const points=useMemo(()=>{const candidats=ambiguitiesWolof(texte,langue);
@@ -105,6 +106,10 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   const complet=a.value.slice(0,a.selectionStart)+ajout+a.value.slice(a.selectionEnd);
   setTexte(complet);setRevus([]);setInfo("Lecture automatique du texte complet.");lancer(complet);
  }
+ async function garderEcriture(){setSaving(true);try{
+  const r=await fetch("/api/apprentissage/transcription",{method:"POST",headers:headers(),body:JSON.stringify({entendu,corrige:ecrit,confirme:accordEcriture})});
+  const d=await r.json();if(!r.ok||!d.verifie)throw Error(d.error||"Non enregistré");setInfo("Correction d’écriture sauvegardée et relue. Elle sera appliquée aux prochaines transcriptions.");setAccordEcriture(false);
+ }catch(e){setInfo((e as Error).message);}finally{setSaving(false);}}
  async function garder(){setSaving(true);try{
   const r=await fetch("/api/apprentissage/lexique",{method:"POST",headers:headers(),body:JSON.stringify({texte:mot,langue,prononciation:dire,exemple,statut,validation_expresse:confirme})});
   const d=await r.json();if(!r.ok)throw new Error(d.error);await charger();if(statut==="validé")setRevus(r=>[...r,mot]);setInfo(`Enregistré : ${d.lecon.statut}.`);
@@ -131,6 +136,11 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    <button type="button" onClick={()=>{const a=texteEditeur.current;if(a&&a.selectionEnd>a.selectionStart)corriger(texte.slice(a.selectionStart,a.selectionEnd));}}>Corriger la sélection</button>
    <div style={{display:"flex",flexWrap:"wrap",gap:8}}>{points.slice(0,50).map(m=><button type="button" key={m} onClick={()=>corriger(m)}>{m} — vérifier</button>)}</div>
    {points.length>50&&<p>Les 50 premiers points sont affichés. Les suivants apparaîtront après validation.</p>}
+   <h3>Apprendre à corriger la transcription</h3>
+   <label>Ce que l’oreille a écrit <input value={entendu} maxLength={400} onChange={e=>{setEntendu(e.target.value);setAccordEcriture(false);}}/></label>
+   <label>Écriture correcte <input value={ecrit} maxLength={400} onChange={e=>{setEcrit(e.target.value);setAccordEcriture(false);}}/></label>
+   <label><input type="checkbox" checked={accordEcriture} onChange={e=>setAccordEcriture(e.target.checked)}/> Je confirme que ces deux écritures représentent exactement ce que j’ai dit.</label>
+   <button type="button" disabled={saving||!entendu.trim()||!ecrit.trim()||!accordEcriture} onClick={()=>void garderEcriture()}>Retenir cette correction d’écriture</button>
    <h3>Valider un mot ou une expression</h3>
    <label>Texte exact <input value={mot} maxLength={400} onChange={e=>{setMot(e.target.value);setConfirme(false);}}/></label>
    <label>Prononciation à utiliser <input value={dire} maxLength={400} onChange={e=>{setDire(e.target.value);setConfirme(false);}}/></label>
