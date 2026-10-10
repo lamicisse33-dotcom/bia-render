@@ -2347,7 +2347,8 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        incompatible. Le reste de BIA continue normalement. */
     let webDuTour = "";
     const demandeWeb = besoinDInternet(question, filDitPar);
-    if (demandeWeb && !webConfigure() && (cerebras || local || gemini)) {
+    const rechercheViaGroq = cerebras && demandeWeb && !webConfigure() && Boolean(process.env.GROQ_API_KEY);
+    if (demandeWeb && !webConfigure() && !rechercheViaGroq && (cerebras || local || gemini)) {
       return {corps:{reply:"La recherche Internet n’est pas encore disponible. Je ne peux pas vérifier cette information en ligne pour le moment.",source:"recherche web non configurée"}};
     }
     // Cerebras/local/Gemini cannot execute Anthropic/Groq search tool formats.
@@ -2364,7 +2365,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         return {corps:{reply:"La recherche Internet ne répond pas pour le moment. Je ne peux pas vérifier cette information.",source:"recherche web indisponible"}};
       }
     }
-    const cherche = !gemini && !local && !cerebras && rechercheActive() && demandeWeb;
+    const cherche = !gemini && !local && (!cerebras || rechercheViaGroq) && (rechercheActive() || rechercheViaGroq) && demandeWeb;
     if (cherche && !cerebras) variable += CONSIGNE_RECHERCHE;
 
     /* Le socle porte la marque « garde-le en mémoire ». Le reste suit
@@ -2643,7 +2644,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         "APPEL : [[appel:+221XXXXXXXXX|Nom]] uniquement si demandé et si le numéro est connu, jamais inventé.",
         "MICRO : [[micro:coupe]] seulement si la personne demande de fermer le micro ; [[micro:silence]] si elle veut seulement interrompre la voix.",
         verdict.maitre ? "MÉMOIRE : pour une demande explicite de mémoriser une phrase, [[retiens:phrase exacte]] ; pour oublier, [[oublie:phrase exacte]]. Ne dis pas avoir mémorisé sans cette commande." : "",
-        (webDuTour || (o.avecOutil && !local && !cerebras))
+        (webDuTour || (o.avecOutil && !local && (!cerebras || rechercheViaGroq)))
           ? "La recherche web est disponible pour cette réponse : vérifie les faits actuels avec elle."
           : "Pas de recherche web pour cette réponse : ne prétends pas avoir vérifié des faits actuels.",
       ].filter(Boolean).join("\n");
@@ -2656,14 +2657,14 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       const debutConversation=Date.now();
       let r=local
         ? await appelerCerveauLocal(messages as MessageLocal[], o.plafond)
-        : await (cerebras ? appelerCerebras : fetchGroqAvecSecours)("https://api.groq.com/openai/v1/chat/completions",{
+        : await (cerebras && !rechercheViaGroq ? appelerCerebras : fetchGroqAvecSecours)("https://api.groq.com/openai/v1/chat/completions",{
         method:"POST",
         headers:{
           "content-type":"application/json",
-          "authorization":`Bearer ${apiKey}`,
+          "authorization":`Bearer ${rechercheViaGroq ? process.env.GROQ_API_KEY : apiKey}`,
         },
         body:JSON.stringify({
-          model,
+          model: rechercheViaGroq ? "openai/gpt-oss-120b" : model,
           messages,
           max_completion_tokens:budgetGroq(o.plafond,model),
           ...(/^(?:openai\/)?gpt-oss-/.test(model) ? reglagesConversation(question, Boolean(body.apprend)) : {}),
@@ -2700,7 +2701,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return new Response(JSON.stringify({
         content:texte?[{type:"text",text:texte}]:[],
         usage:{
-          fournisseur:local ? "local" : cerebras ? "cerebras" : "groq",
+          fournisseur:local ? "local" : cerebras && !rechercheViaGroq ? "cerebras" : "groq",
           nom_modele:String(g.model||model),
           input_tokens:Math.max(0,(Number(usage.prompt_tokens)||0)-(Number((usage.prompt_tokens_details as {cached_tokens?:number}|undefined)?.cached_tokens)||0)),
           cache_read_input_tokens:Number((usage.prompt_tokens_details as {cached_tokens?:number}|undefined)?.cached_tokens)||0,
