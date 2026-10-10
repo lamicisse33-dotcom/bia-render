@@ -7610,7 +7610,7 @@ export default function Home() {
         </button>
       </div>
 
-      {lectureContinue ? <LectureApprentissage edition={estMaitre} code={code} voice={choixVoixBia()==="piper"&&!piperLocaleDisponible()?"female":choixVoixBia()} demande={lectureContinue}
+      {lectureContinue ? <LectureApprentissage obtenirAudio={contexte} edition={estMaitre} code={code} voice={choixVoixBia()==="piper"&&!piperLocaleDisponible()?"female":choixVoixBia()} demande={lectureContinue}
         onStart={() => { fermerConversation(); taire(); }} onClose={() => setLectureContinue(null)} /> : null}
       <section id="conversation-ecrite" className="clavier" aria-hidden={!clavier}>
         <button className="clavier-fermer" type="button" onClick={() => setClavier(false)} aria-label="Replier le clavier">
