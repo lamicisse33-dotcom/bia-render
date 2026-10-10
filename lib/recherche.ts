@@ -56,26 +56,33 @@ const JAMAIS = [
   "comment on dit", "corrige", "ecris moi", "bindal ma",
 ];
 
-/** La question demande-t-elle quelque chose que seul Internet peut donner ? */
+/** Match complete words, never substrings such as info/informatique. */
+function contientTerme(texte: string, termes: string[]): boolean {
+  return termes.some(terme => {
+    const escape = terme.replace(/[.*+?^$()|[\]{}\\]/g, "\\$&");
+    return new RegExp("(?:^|[^a-z0-9])" + escape + "(?=$|[^a-z0-9])").test(texte);
+  });
+}
+function demandeExpliciteWeb(q: string): boolean {
+  return /(?:^|[.!?]\s*)(?:s il te plait\s+)?(?:cherche|recherche|va voir|regarde|verifie|va|chercher|recherches)\b[^.!?]*\b(?:internet|google|en ligne)\b/.test(q)
+    || /\b(?:seetal|seet|gestul)\b[^.!?]*\b(?:internet|google)\b/.test(q);
+}
+function sujetWeb(q: string): boolean {
+  return contientTerme(q, ["actualite", "actualites", "meteo", "pluie", "taw", "prix", "coute", "tarif", "resultat", "resultats", "score", "match", "elections", "election", "classement", "bourse", "xibaar"])
+    || /\b(?:taux de change|cours (?:du|de l|de la) (?:dollar|euro|bourse)|il fera|il fait chaud|quelles? (?:sont les )?nouvelles|donne(?: moi)? les nouvelles)\b/.test(q)
+    || /\bqui est (?:le |la |l )?(?:president|presidente|ministre|maire|pape|entraineur|selectionneur)\b/.test(q);
+}
+/** Only current requests and explicit follow-ups can request web. Pass user turns only. */
 export function besoinDInternet(question: string, fil: string[] = []): boolean {
-  const q = sansAccent(question);
-  if (!q.trim()) return false;
-  if (JAMAIS.some((m) => q.includes(m))) {
-    // Sauf si la personne l'a demandé en toutes lettres : sa parole passe
-    // avant notre devinette.
-    if (!q.includes("internet") && !q.includes("google")) return false;
-  }
-  if (MAINTENANT.some((m) => q.includes(m))) return true;
-
-  /* « Qui est le président ? », « qui est le ministre de… » : une fonction
-     change, et ce que le modèle a en tête peut dater. */
-  if (/\bqui est (le |la |l )?(president|presidente|ministre|maire|pape|entraineur|selectionneur)/.test(q)) return true;
-
-  // La question précédente portait déjà sur l'actualité : « et hier ? »
-  const avant = sansAccent(fil.slice(-2).join(" "));
-  if (q.length < 40 && MAINTENANT.some((m) => avant.includes(m))) return true;
-
-  return false;
+  const q = sansAccent(question).replace(/[’']/g, " ").replace(/\s+/g, " ").trim();
+  if (!q) return false;
+  if (demandeExpliciteWeb(q)) return true;
+  if (contientTerme(q, JAMAIS)) return false;
+  if (/\b(?:tu repetes|tu n arretes pas|pas (?:encore )?disponible|ne fonctionne pas|probleme de|arrete de)\b/.test(q)) return false;
+  if (sujetWeb(q)) return true;
+  if (!/^(?:et\s+)?(?:hier|demain|aujourd hui|ce matin|ce soir|a dakar|au senegal)(?:\s*[?!.])?$/.test(q)) return false;
+  const avant = sansAccent(fil.slice(-1).join(" ")).replace(/[’']/g, " ");
+  return sujetWeb(avant) || demandeExpliciteWeb(avant);
 }
 
 /** Vrai si la recherche est autorisée sur ce serveur. Éteinte par défaut. */
