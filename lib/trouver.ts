@@ -169,6 +169,7 @@ export async function chercherImages(demande: string): Promise<Trouvaille[]> {
     const r = await fetch(url, {
       headers: { accept: "application/json", "x-subscription-token": BRAVE() },
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     });
     if (!r.ok) throw new Error(`images ${r.status}`);
     const d = (await r.json()) as {
@@ -203,7 +204,7 @@ export async function chercherImages(demande: string): Promise<Trouvaille[]> {
     /* Rien trouvé n'est pas une panne : BIA a déjà répondu avec des mots, et
        c'est l'essentiel. On garde le vide en mémoire pour ne pas rappeler le
        moteur à chaque reformulation. */
-    garder(clef, []);
+    // A transient provider failure must remain retryable on the next command.
     return [];
   }
 }
@@ -230,7 +231,7 @@ export async function chercherVideos(demande: string): Promise<Trouvaille[]> {
        impossible », et la personne croit que BIA est cassée. */
     url.searchParams.set("videoEmbeddable", "true");
 
-    const r = await fetch(url, { cache: "no-store" });
+    const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000) });
     if (!r.ok) throw new Error(`videos ${r.status}`);
     const d = (await r.json()) as {
       items?: {
@@ -255,7 +256,7 @@ export async function chercherVideos(demande: string): Promise<Trouvaille[]> {
     garder(clef, pieces);
     return pieces;
   } catch {
-    garder(clef, []);
+    // A transient provider failure must remain retryable on the next command.
     return [];
   }
 }

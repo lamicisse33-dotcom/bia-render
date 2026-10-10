@@ -308,7 +308,7 @@ export async function GET(request: Request) {
        d'arrêt : quand il touche le plafond, BIA répond sans image plutôt que
        d'ouvrir une facture. Il repart chaque jour à minuit. */
     trouver: {
-      moteur_images: imagesActives() ? "branché" : "pas de clé Google",
+      moteur_images: imagesActives() ? "branché" : "pas de clé Brave",
       moteur_videos: videosActives() ? "branché" : "pas de clé Google",
       ...comptesDuJour(),
     },
