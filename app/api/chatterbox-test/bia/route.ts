@@ -1,3 +1,4 @@
+import { detecterLangue } from "@/lib/langue";
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { verifierCode } from "@/lib/codes";
@@ -42,14 +43,15 @@ export async function POST(request: NextRequest) {
   if (!Number.isSafeInteger(partie) || partie < 0) {
     return NextResponse.json({ error: "Numéro de partie invalide." }, { status: 400 });
   }
+  const langue = body.langue === "fr" || body.langue === "wo" ? body.langue : detecterLangue(body.texte);
   let textePrononce: string;
-  try { textePrononce = await prononciationsApprises(texteKhalamVoix(body.texte), body.langue === "fr" ? "fr" : "wo"); }
+  try { textePrononce = await prononciationsApprises(texteKhalamVoix(body.texte), langue); }
   catch { return NextResponse.json({error:"Le lexique n'a pas répondu. Réessaie."},{status:503}); }
   const parts = decouperVoixKhalam(textePrononce);
   const headers = { "cache-control": "no-store" };
   const common = {
     parties: parts.length, partie,
-    langue: body.langue === "fr" ? "fr" : "wo",
+    langue: langue,
     moteur: `khalam-voice-${voice}`, engine: "KHALAM Voice", voice,
   };
   // BIA speculatively requests parts 0 and 1 even for a one-part answer.
@@ -62,7 +64,7 @@ export async function POST(request: NextRequest) {
   }
   const started = Date.now();
   const id = createHash("sha256")
-    .update(JSON.stringify([process.env.CHATTERBOX_TEST_URL, serverKey, voice, common.langue, "fr-articulation-v1", parts[partie]]))
+    .update(JSON.stringify([process.env.CHATTERBOX_TEST_URL, serverKey, voice, common.langue, "language-profiles-v2", parts[partie]]))
     .digest("hex");
   const cached = accuses.get(id, parts[partie]);
   let pending = cached ? Promise.resolve(cached) : inFlight.get(id);
