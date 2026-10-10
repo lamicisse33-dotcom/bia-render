@@ -7692,8 +7692,7 @@ export default function Home() {
               const colle=e.clipboardData.getData("text");
               if(!colle.trim()||!estMaitre)return;
               const demande=demandeLecture(colle);
-              const devoir=/^\s*(?:devoir|leçon|lecon|exercice)(?:\s|[:—-])/i.test(colle);
-              if(!apprend.current&&!demande&&!devoir)return;
+              // Master pastes are lessons: bypass chat regardless of previous mode.
               e.preventDefault();
               const a=e.currentTarget;
               const complet=a.value.slice(0,a.selectionStart??a.value.length)+colle+a.value.slice(a.selectionEnd??a.value.length);
