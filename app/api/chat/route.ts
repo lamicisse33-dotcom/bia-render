@@ -2613,13 +2613,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         }),
       });
       if(!r.ok) return r;
-      const diffuse = Boolean(emettre && r.headers.get("content-type")?.includes("text/event-stream"));
-      let premierTexteFlux = 0;
-      const g=diffuse ? await lireFluxConversation(r, (texte) => {
-        premierTexteFlux ||= Date.now();
-        emettre!(texte);
-      }) : await r.json() as any;
-      if (diffuse) noterEtape("modele", debutConversation, premierTexteFlux, Date.now(), String(g.choices?.[0]?.message?.content || "").length);
+      const g=await r.json() as any;
       const texte=(g.candidates?.[0]?.content?.parts||[])
         .map((p:any)=>String(p?.text||"")).join("").trim();
       const finish=String(g.candidates?.[0]?.finishReason||"").toUpperCase();
@@ -2703,7 +2697,13 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         if(!local)noterConversation({ok:false,modele:model,attendu:model,effort:effortConversation(question,Boolean(body.apprend)),ms:Date.now()-debutConversation,messages:messages.length});
         return r;
       }
-      const g=await r.json() as any;
+      const diffuse = Boolean(emettre && r.headers.get("content-type")?.includes("text/event-stream"));
+      let premierTexteFlux = 0;
+      const g=diffuse ? await lireFluxConversation(r, (texte) => {
+        premierTexteFlux ||= Date.now();
+        emettre!(texte);
+      }) : await r.json() as any;
+      if (diffuse) noterEtape("modele", debutConversation, premierTexteFlux, Date.now(), String(g.choices?.[0]?.message?.content || "").length);
       if(!local)noterConversation({ok:Boolean(g.choices?.[0]?.message?.content?.trim()),modele:String(g.model||model),attendu:model,effort:effortConversation(question,Boolean(body.apprend)),ms:Date.now()-debutConversation,messages:messages.length});
       const texte=String(g.choices?.[0]?.message?.content||"").trim();
       const usage=g.usage||{};
