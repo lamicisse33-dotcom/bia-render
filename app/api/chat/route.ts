@@ -2347,7 +2347,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        on le coupe pour tester le cerveau sans envoyer un format d'outil
        incompatible. Le reste de BIA continue normalement. */
     let webDuTour = "";
-    const demandeWeb = besoinDInternet(question, filDitPar);
+    const demandeWeb = besoinDInternet(question, (body.history || []).filter(item => item.role === "user").map(item => String(item.text || "")));
     const rechercheViaGroq = false; // Lamine: no paid Groq web search; YouTube uses its existing Google key.
     if (demandeWeb && !webConfigure() && !rechercheViaGroq && (cerebras || local || gemini)) {
       return {corps:{reply:"La recherche Internet n’est pas encore disponible. Je ne peux pas vérifier cette information en ligne pour le moment.",source:"recherche web non configurée"}};
