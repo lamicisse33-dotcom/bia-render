@@ -2347,6 +2347,9 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        incompatible. Le reste de BIA continue normalement. */
     let webDuTour = "";
     const demandeWeb = besoinDInternet(question, filDitPar);
+    if (demandeWeb && !webConfigure() && (cerebras || local || gemini)) {
+      return {corps:{reply:"La recherche Internet n’est pas encore disponible. Je ne peux pas vérifier cette information en ligne pour le moment.",source:"recherche web non configurée"}};
+    }
     // Cerebras/local/Gemini cannot execute Anthropic/Groq search tool formats.
     if (demandeWeb && webConfigure() && (cerebras || local || gemini)) {
       try {
