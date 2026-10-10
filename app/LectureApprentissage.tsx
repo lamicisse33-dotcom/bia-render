@@ -31,6 +31,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
  useEffect(()=>{
   const a=new Audio();audio.current=a;
   let preparation:{original:string;langue:string;texte:string}|null=null;
+  let secoursComplet=false;
   const demander=async(text:string,partie:number,signal:AbortSignal)=>{
    if(settings.current.voice==="piper"){
     if(!piperLocaleDisponible())throw Error("Ouvre BIA installée sur le téléphone pour utiliser Piper.");
@@ -41,13 +42,17 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
     }
     return lirePiperLocale(preparation.texte,partie,signal);
    }
+   if(secoursComplet){
+    const r=await fetch("/api/chatterbox-test/bia",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:settings.current.langue,voice:settings.current.voice,partie})});
+    const d=await r.json();if(!r.ok||!d.audio)throw Error(d.error||"Voix indisponible");return d as MorceauVoix;
+   }
    const abort=new AbortController();const stop=()=>abort.abort();signal.addEventListener("abort",stop,{once:true});
    const cleanup=()=>{signal.removeEventListener("abort",stop);abort.abort();};
    try{
     const r=await fetch("/api/chatterbox-test/bia/stream",{method:"POST",headers:headers(),signal:abort.signal,
      body:JSON.stringify({texte:text,langue:settings.current.langue,voice:settings.current.voice,partie,lecture:true})});
     return await ouvrirFluxVoix(r,cleanup);
-   }catch(error){cleanup();throw error;}
+   }catch(error){cleanup();if(!signal.aborted)secoursComplet=true;throw error;}
   };
   async function* packets(value:{text:string;first:MorceauVoix},signal:AbortSignal){
    let piece=value.first;
@@ -55,7 +60,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
     if(part)piece=await demander(value.text,part,signal);
     try{if(!piece.audio)throw Error("Morceau vocal absent");yield piece.audio;
      if(piece.flux)for await(const packet of piece.flux)yield packet;
-    }finally{piece.annuler?.();}
+    }catch(error){if(!signal.aborted)secoursComplet=true;throw error;}finally{piece.annuler?.();}
    }
   }
   const jouer=async(value:unknown,signal:AbortSignal)=>{
