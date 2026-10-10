@@ -1,3 +1,4 @@
+import {corrigerTranscription,vocabulaireAppris} from "@/lib/correction-transcription";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { transcrire } from "@/lib/ecoute";
@@ -117,6 +118,7 @@ export async function POST(request: NextRequest) {
       console.error("BIA — mots corrigés indisponibles :", (err as Error).message);
       try { mots = pourScribe([]); } catch { mots = []; }
     }
+    try{mots=[...new Set([...mots,...await vocabulaireAppris()])];}catch{}
     const reco = await transcrire(fichier, nom, indice, mots);
     if (transcriptionEnBoucle(String(reco.texte || ""))) {
       noterPanne("transcription répétitive rejetée", "boucle de reconnaissance vocale", "ecoute");
@@ -169,7 +171,10 @@ export async function POST(request: NextRequest) {
        saurait pas si le chemin rapide sert vraiment, ou s'il se replie en
        silence sur l'ancien depuis des jours — c'est exactement le genre
        d'aveuglement qui nous a coûté deux soirées sur la mémoire. */
-    return NextResponse.json({ ...reco, au_fil_de_leau: recousu, extrait });
+    let ecriture={texte:String(reco.texte||""),texte_brut:String(reco.texte||""),corrections_transcription:[] as Array<{entendu:string;corrige:string}>};
+    let correction_disponible=true;
+    try{ecriture=await corrigerTranscription(String(reco.texte||""));}catch{correction_disponible=false;}
+    return NextResponse.json({ ...reco,...ecriture,correction_disponible, au_fil_de_leau: recousu, extrait });
   } catch (err) {
     /* ── UNE ÉCOUTE QUI ÉCHOUE NE LAISSAIT AUCUNE TRACE ──────────────────
 
