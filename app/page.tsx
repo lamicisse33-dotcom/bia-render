@@ -7620,7 +7620,7 @@ export default function Home() {
         {panne ? <p className="panne">⚠ {panne}</p> : null}
 
         <div className="outils">
-          {estMaitre ? <button type="button" onClick={() => { fermerConversation(); taire(); setLectureContinue({texte:saisie,nonce:Date.now(),auto:false}); }}>Apprentissage / lecture continue</button> : null}
+          {estMaitre ? <button type="button" onClick={() => { apprend.current=true;setEnApprentissage(true);fermerConversation(); taire(); setLectureContinue({texte:saisie,nonce:Date.now(),auto:false}); }}>Apprentissage / lecture continue</button> : null}
           {/* Qui parle. Sur un téléphone qui se prête, c'est le bouton le plus
               important de tous : sans lui, elle appelle le suivant par le
               prénom du précédent. */}
