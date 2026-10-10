@@ -5052,6 +5052,11 @@ export default function Home() {
           const rattrape = motsRattrapesRef.current;
           motsRattrapesRef.current = null;
           const dit = recoller(rattrape, d.texte || "");
+          if(Array.isArray(d.suggestions_ecriture)&&d.suggestions_ecriture.length){
+            setSaisie(dit);setConversation(true);setClavier(true);
+            setPanne("Écriture à vérifier : "+d.suggestions_ecriture.join(" / ")+". Corrige ou confirme le texte avec le bouton Envoyer.");
+            setMode("ready");return;
+          }
           dernierDitRef.current = dit;
           if (dit) {
             langueRef.current = estWolof(dit) ? "wo" : "fr";
