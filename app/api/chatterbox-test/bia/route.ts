@@ -1,3 +1,4 @@
+import { preparerPassagesKhalam } from "@/lib/passages-khalam";
 import { detecterLangue } from "@/lib/langue";
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
@@ -43,11 +44,11 @@ export async function POST(request: NextRequest) {
   if (!Number.isSafeInteger(partie) || partie < 0) {
     return NextResponse.json({ error: "Numéro de partie invalide." }, { status: 400 });
   }
-  const langue = body.langue === "fr" || body.langue === "wo" ? body.langue : detecterLangue(body.texte);
-  let textePrononce: string;
-  try { textePrononce = await prononciationsApprises(texteKhalamVoix(body.texte), langue); }
+  const defaut = body.langue === "fr" || body.langue === "wo" ? body.langue : detecterLangue(body.texte);
+  let parts: Awaited<ReturnType<typeof preparerPassagesKhalam>>;
+  try { parts = await preparerPassagesKhalam(body.texte, defaut); }
   catch { return NextResponse.json({error:"Le lexique n'a pas répondu. Réessaie."},{status:503}); }
-  const parts = decouperVoixKhalam(textePrononce);
+  const langue = parts[partie]?.langue || defaut;
   const headers = { "cache-control": "no-store" };
   const common = {
     parties: parts.length, partie,
@@ -64,9 +65,9 @@ export async function POST(request: NextRequest) {
   }
   const started = Date.now();
   const id = createHash("sha256")
-    .update(JSON.stringify([process.env.CHATTERBOX_TEST_URL, serverKey, voice, common.langue, "language-profiles-v2", parts[partie]]))
+    .update(JSON.stringify([process.env.CHATTERBOX_TEST_URL, serverKey, voice, common.langue, "mixed-language-profiles-v3", parts[partie].texte]))
     .digest("hex");
-  const cached = accuses.get(id, parts[partie]);
+  const cached = accuses.get(id, parts[partie].texte);
   let pending = cached ? Promise.resolve(cached) : inFlight.get(id);
   const shared = Boolean(pending);
   if (!pending) {
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
         const response = await testSynthesis(new NextRequest(request.url, {
           method: "POST",
           headers: { "content-type": "application/json", "x-chatterbox-test-key": serverKey },
-          body: JSON.stringify({ input: { text: parts[partie], voice, language: common.langue } }),
+          body: JSON.stringify({ input: { text: parts[partie].texte, voice, language: common.langue, preserve_segment: true } }),
         }));
         const data = await response.json();
         // Count one real generation, even when multiple requests share it.
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
     const output = data.output;
     // Cache only successfully validated audio from the active trained model.
     if (!cached && output.checkpoint_sha256 === "8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f") {
-      accuses.set(id, parts[partie], {status, data});
+      accuses.set(id, parts[partie].texte, {status, data});
     }
     return NextResponse.json({
       ...common, audio: output.audio_base64, type_mime: "audio/wav",
