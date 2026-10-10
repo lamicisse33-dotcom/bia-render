@@ -1,0 +1,23 @@
+name: Validate streaming conversation
+on:
+  push:
+    branches: [fix/cerveau-flux-20261010]
+  pull_request:
+    branches: [main]
+permissions: {contents: read}
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - run: |
+          ./node_modules/.bin/tsc lib/flux-conversation.ts --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck --outDir /tmp/bia-stream-tests/lib
+          mkdir -p /tmp/bia-stream-tests/tests
+          cp tests/flux-conversation.mjs /tmp/bia-stream-tests/tests/
+          echo '{"type":"module"}' > /tmp/bia-stream-tests/package.json
+          node /tmp/bia-stream-tests/tests/flux-conversation.mjs
+      - run: npm run build
