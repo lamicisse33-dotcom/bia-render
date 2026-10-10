@@ -14,6 +14,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
  const [mot,setMot]=useState("");const [dire,setDire]=useState("");const [exemple,setExemple]=useState("");
  const [statut,setStatut]=useState<Lecon["statut"]>("incertain");const [confirme,setConfirme]=useState(false);const [saving,setSaving]=useState(false);
  const [entendu,setEntendu]=useState("");const [ecrit,setEcrit]=useState("");const [accordEcriture,setAccordEcriture]=useState(false);
+ const [toutCorrect,setToutCorrect]=useState(false);const [validationEnCours,setValidationEnCours]=useState(false);const [validationInfo,setValidationInfo]=useState("");
  const [memoire,setMemoire]=useState("");const sauvegarde=useRef(0);
  const [revus,setRevus]=useState<string[]>([]);const texteEditeur=useRef<HTMLTextAreaElement|null>(null);
  const points=useMemo(()=>{const candidats=ambiguitiesWolof(texte,langue);
@@ -92,7 +93,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   },jouer,{pause:()=>{enPause.current=true;suspendre();},reprendre:()=>{enPause.current=false;reprendreSon();},stop:()=>{enPause.current=true;arreterSon();}},setP);
   if(edition)void charger();return()=>{player.current?.stop();arreterSon();};
  },[code]);
- async function retenirDevoir(t:string){
+ async function retenirDevoir(t:string,valide=false){
   if(!edition||!t.trim())return;
   const generation=++sauvegarde.current;setMemoire("Sauvegarde de la leçon dans Supabase…");
   try{
@@ -103,15 +104,18 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    for(let index=0;index<blocs.length;index++){
     let ok=false;
     for(let essai=0;essai<3&&!ok;essai++){
-     try{const r=await fetch("/api/apprentissage/devoir",{method:"POST",headers:headers(),body:JSON.stringify({texte:blocs[index],id,index,total:blocs.length})});
-      const d=await r.json();if(!r.ok||!d.verifie)throw Error(d.error||"Sauvegarde non confirmée");ok=true;
+     try{const r=await fetch("/api/apprentissage/devoir",{method:"POST",headers:headers(),body:JSON.stringify({texte:blocs[index],id,index,total:blocs.length,valide,confirme:valide,langue:settings.current.langue})});
+      const d=await r.json();if(!r.ok||!d.verifie||(valide&&!d.valide))throw Error(d.error||"Sauvegarde non confirmée");ok=true;
      }catch(e){if(essai===2)throw e;}
     }
     if(generation===sauvegarde.current)setMemoire("Sauvegarde vérifiée : "+(index+1)+" / "+blocs.length+" blocs.");
    }
+   if(valide)setValidationInfo("Devoir entier validé et enregistré dans Supabase.");
    if(generation===sauvegarde.current)setMemoire("Leçon complète sauvegardée et relue dans Supabase. Disponible pour les prochaines conversations.");
-  }catch{if(generation===sauvegarde.current)setMemoire("Leçon non sauvegardée entièrement. Garde le texte et clique sur Réessayer la sauvegarde.");}
+  }catch{if(valide)setValidationInfo("Validation incomplète : réessaie. Le devoir entier n’est pas encore confirmé.");if(generation===sauvegarde.current)setMemoire("Leçon non sauvegardée entièrement. Garde le texte et clique sur Réessayer la sauvegarde.");}
  }
+ async function validerTout(){if(!toutCorrect||!texte.trim()||validationEnCours)return;setValidationEnCours(true);setValidationInfo("Validation et vérification du devoir entier…");try{await retenirDevoir(texte,true);}finally{setValidationEnCours(false);}}
+ useEffect(()=>{setToutCorrect(false);setValidationInfo("");},[texte,langue]);
  function lancer(t=texte){settings.current.onStart();void retenirDevoir(t);try{player.current?.demarrer(t);}catch(e){setInfo((e as Error).message);}}
  useEffect(()=>{setTexte(demande.texte);if(demande.texte.trim())lancer(demande.texte);},[demande.nonce]);
  function coller(e:React.ClipboardEvent<HTMLTextAreaElement>){
@@ -133,8 +137,8 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    <button type="button" onClick={()=>{player.current?.stop();onClose();}}>Fermer et arrêter</button>
    <h2>Apprentissage — lecture continue</h2>
    <p>Mode apprentissage actif : chaque texte collé est lu automatiquement et entièrement, sans bouton de démarrage, résumé ni traduction. Un nouveau collage remplace la lecture en cours. Chaque leçon est sauvegardée automatiquement dans Supabase pour les conversations futures. Pour valider une prononciation, utilise le lexique ci-dessous.</p>
-   <label>Langue <select value={langue} disabled={p.etat==="lecture"||p.etat==="pause"} onChange={e=>setLangue(e.target.value as "fr"|"wo")}><option value="wo">Wolof</option><option value="fr">Français</option></select></label>
-   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} rows={10} onPaste={coller} onChange={e=>setTexte(e.target.value)} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
+   <label>Langue <select value={langue} disabled={validationEnCours||p.etat==="lecture"||p.etat==="pause"} onChange={e=>setLangue(e.target.value as "fr"|"wo")}><option value="wo">Wolof</option><option value="fr">Français</option></select></label>
+   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} disabled={validationEnCours} rows={10} onPaste={coller} onChange={e=>setTexte(e.target.value)} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
    <div style={{display:"flex",flexWrap:"wrap",gap:12}}>
     <button type="button" disabled={!texte.trim()||p.etat==="lecture"||p.etat==="pause"} onClick={()=>lancer()}>DÉMARRER APPRENTISSAGE</button>
     <button type="button" disabled={p.etat!=="lecture"} onClick={()=>player.current?.pause()}>PAUSE</button>
@@ -145,6 +149,11 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    {edition && <>
    <p role="status" aria-live="polite">{memoire}</p>
    <button type="button" disabled={!texte.trim()} onClick={()=>void retenirDevoir(texte)}>Réessayer la sauvegarde de la leçon</button>
+   <h3>Valider le devoir entier</h3>
+   <label><input type="checkbox" checked={toutCorrect} disabled={validationEnCours} onChange={e=>setToutCorrect(e.target.checked)}/> J’ai tout écouté : la lecture correspond au texte et toutes les prononciations sont correctes.</label>
+   <button type="button" disabled={!toutCorrect||!texte.trim()||validationEnCours||p.etat==="lecture"||p.etat==="pause"} onClick={()=>void validerTout()}>{validationEnCours?"Enregistrement…":"VALIDER ET ENREGISTRER TOUT LE DEVOIR"}</button>
+   <p role="status" aria-live="polite">{validationInfo}</p>
+   <p>Cette validation conserve le texte complet et ton accord d’écoute, sans remplacer les corrections de prononciation déjà apprises.</p>
    <h3>Passages wolof à vérifier ({points.length})</h3>
    <p>Ces indices signalent des mots inconnus du détecteur ou ambigus, pas des erreurs certaines. La lecture continue sans les modifier. Les phrases ambiguës peuvent aussi être sélectionnées dans le texte.</p>
    <button type="button" onClick={()=>{const a=texteEditeur.current;if(a&&a.selectionEnd>a.selectionStart)corriger(texte.slice(a.selectionStart,a.selectionEnd));}}>Corriger la sélection</button>
