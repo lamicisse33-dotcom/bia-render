@@ -6,7 +6,7 @@ import type {Lecon} from "@/lib/lexique-apprentissage-core";
 import {lirePiperLocale,piperLocaleDisponible} from "@/lib/voix-piper-locale";
 import {ouvrirFluxVoix,type MorceauVoix} from "@/lib/flux-khalam";
 
-export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false}:{edition?:boolean;code:string;voice:"piper"|"female"|"male";
+export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false,obtenirAudio}:{obtenirAudio:()=>AudioContext;edition?:boolean;code:string;voice:"piper"|"female"|"male";
  demande:{texte:string;nonce:number;auto:boolean};onStart:()=>void;onClose:()=>void}){
  const [texte,setTexte]=useState(demande.texte);const [langue,setLangue]=useState<"fr"|"wo">("wo");
  const [p,setP]=useState<Progression>({etat:"prêt",index:0,total:0});
@@ -29,7 +29,13 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
  async function charger(){try{const r=await fetch("/api/apprentissage/lexique",{headers:headers()});const d=await r.json();
   if(!r.ok)throw new Error(d.error);setLecons(d.lecons);setInfo("Lexique Supabase chargé.");}catch{setInfo("Lexique inaccessible. Les validations ne sont pas confirmées.");}}
  useEffect(()=>{
-  const a=new Audio();audio.current=a;
+  const ctx=obtenirAudio();
+  let courant:{buffer:AudioBuffer;offset:number;depuis:number;source:AudioBufferSourceNode|null;fin:()=>void;rejeter:(e:Error)=>void}|null=null;
+  const suspendre=()=>{if(courant?.source){courant.offset+=Math.max(0,ctx.currentTime-courant.depuis);courant.source.onended=null;courant.source.stop();courant.source.disconnect();courant.source=null;}};
+  const reprendreSon=()=>{if(!courant||courant.source)return;void ctx.resume();const s=ctx.createBufferSource();s.buffer=courant.buffer;s.connect(ctx.destination);courant.source=s;courant.depuis=ctx.currentTime;
+   s.onended=()=>{s.disconnect();if(courant?.source===s){const fin=courant.fin;courant=null;fin();}};
+   s.start(0,Math.min(courant.offset,courant.buffer.duration));};
+  const arreterSon=()=>{suspendre();if(courant){const rejeter=courant.rejeter;courant=null;rejeter(new Error("arrêté"));}};
   let preparation:{original:string;langue:string;texte:string}|null=null;
   let secoursComplet=false;
   const demander=async(text:string,partie:number,signal:AbortSignal)=>{
@@ -66,22 +72,25 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   const jouer=async(value:unknown,signal:AbortSignal)=>{
    for await(const base64 of packets(value as {text:string;first:MorceauVoix},signal)){
     while(enPause.current&&!signal.aborted)await new Promise(r=>setTimeout(r,60));
-    if(signal.aborted)throw new Error("arrêté");
-    const bytes=Uint8Array.from(atob(base64),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:"audio/wav"}));
-    try{await new Promise<void>((resolve,reject)=>{
-     const clear=()=>{a.onended=null;a.onerror=null;signal.removeEventListener("abort",abort);};
-     const abort=()=>{a.pause();clear();reject(new Error("arrêté"));};
-     if(signal.aborted){reject(new Error("arrêté"));return;}
-     a.onended=()=>{clear();resolve();};a.onerror=()=>{clear();reject(new Error("Lecture audio impossible"));};
-     signal.addEventListener("abort",abort,{once:true});a.src=url;
-     a.play().catch(()=>{clear();reject(new Error("Lecture bloquée : appuie sur Reprendre."));});
-    });}finally{URL.revokeObjectURL(url);}
+    if(signal.aborted)throw Error("arrêté");
+    const bytes=Uint8Array.from(atob(base64),c=>c.charCodeAt(0));
+    const buffer=await ctx.decodeAudioData(bytes.buffer);
+    if(signal.aborted)throw Error("arrêté");
+    await ctx.resume();
+    await new Promise<void>((resolve,reject)=>{
+     const abort=()=>arreterSon();
+     const clear=()=>signal.removeEventListener("abort",abort);
+     courant={buffer,offset:0,depuis:0,source:null,fin:()=>{clear();resolve();},rejeter:e=>{clear();reject(e);}};
+     signal.addEventListener("abort",abort,{once:true});
+     if(signal.aborted){arreterSon();return;}
+     if(!enPause.current)reprendreSon();
+    });
    }
   };
   player.current=new LectureContinue(async(text,signal)=>{
    return {text,first:await demander(text,0,signal)};
-  },jouer,{pause:()=>{enPause.current=true;a.pause();},reprendre:()=>{enPause.current=false;if(a.src&&a.paused&&!a.ended)void a.play().catch(()=>{});},stop:()=>{enPause.current=true;a.pause();a.removeAttribute("src");}},setP);
-  if(edition)void charger();return()=>{player.current?.stop();a.pause();};
+  },jouer,{pause:()=>{enPause.current=true;suspendre();},reprendre:()=>{enPause.current=false;reprendreSon();},stop:()=>{enPause.current=true;arreterSon();}},setP);
+  if(edition)void charger();return()=>{player.current?.stop();arreterSon();};
  },[code]);
  async function retenirDevoir(t:string){
   if(!edition||!t.trim())return;
