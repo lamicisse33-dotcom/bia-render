@@ -1,3 +1,4 @@
+import {contexteDevoirs} from "@/lib/devoirs-apprentissage";
 import { lireFluxConversation } from "@/lib/flux-conversation";
 import { intentionMedia, chercherWeb, contexteWeb, webConfigure } from "@/lib/actions-internet";
 import { correctionDuMaitre } from "@/lib/correction-maitre";
@@ -2322,7 +2323,9 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        Les garde-fous sont dans lib/reponses-gardees.ts. Une correction passe
        toujours avant (juste au-dessus). La consigne entre dans la clé : si
        Lamine la change, les réponses se renouvellent d'elles-mêmes. */
-    const consigneSignee=socle+"\n"+registre;
+    let devoirs="";
+    try{devoirs=await contexteDevoirs(question);}catch{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");}
+    const consigneSignee=socle+"\n"+registre+"\n"+devoirs;
     const reutilisable=!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
       const dejaDonnee=await reponseGardee(question,langueDe(question),consigneSignee);
@@ -2395,6 +2398,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        qui se chassaient l'un l'autre toutes les cinq minutes. Sur une heure,
        les deux tiennent ensemble et personne ne repaie. */
     const consigne=[
+      ...(devoirs?[{type:"text",text:devoirs}]:[]),
       {type:"text",text:socle,cache_control:{type:"ephemeral",ttl:"1h"}},
       /* La poche du registre : figée pour cette personne, donc mise en cache
          elle aussi. Deux registres seulement — lui, et tous les autres —
