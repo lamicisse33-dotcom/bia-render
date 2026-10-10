@@ -7696,7 +7696,7 @@ export default function Home() {
               if(!apprend.current&&!demande&&!devoir)return;
               e.preventDefault();
               const a=e.currentTarget;
-              const complet=a.value.slice(0,a.selectionStart)+colle+a.value.slice(a.selectionEnd);
+              const complet=a.value.slice(0,a.selectionStart??a.value.length)+colle+a.value.slice(a.selectionEnd??a.value.length);
               fermerConversation();taire();setSaisie("");setClavier(false);
               apprend.current=true;setEnApprentissage(true);
               setLectureContinue({texte:demande?.auto?demande.texte:complet,nonce:Date.now(),auto:true});
