@@ -1,6 +1,7 @@
 "use client";
-import {useEffect,useRef,useState} from "react";
-import {LectureContinue,MAX_EXERCICE,type Progression} from "@/lib/lecture-continue";
+import {useEffect,useMemo,useRef,useState} from "react";
+import {LectureContinue,type Progression} from "@/lib/lecture-continue";
+import {ambiguitiesWolof} from "@/lib/langue";
 import type {Lecon} from "@/lib/lexique-apprentissage-core";
 import {lirePiperLocale,piperLocaleDisponible} from "@/lib/voix-piper-locale";
 import {ouvrirFluxVoix,type MorceauVoix} from "@/lib/flux-khalam";
@@ -12,6 +13,13 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
  const [lecons,setLecons]=useState<Lecon[]>([]);const [info,setInfo]=useState("");
  const [mot,setMot]=useState("");const [dire,setDire]=useState("");const [exemple,setExemple]=useState("");
  const [statut,setStatut]=useState<Lecon["statut"]>("incertain");const [confirme,setConfirme]=useState(false);const [saving,setSaving]=useState(false);
+ const [revus,setRevus]=useState<string[]>([]);const texteEditeur=useRef<HTMLTextAreaElement|null>(null);
+ const points=useMemo(()=>{const candidats=ambiguitiesWolof(texte,langue);
+  const presents=lecons.filter(l=>l.langue==="wo"&&l.statut!=="validé"&&texte.toLocaleLowerCase().includes(l.texte.toLocaleLowerCase())).map(l=>l.texte);
+  const valides=new Set(lecons.filter(l=>l.langue==="wo"&&l.statut==="validé").map(l=>l.texte.toLocaleLowerCase()));
+  return [...new Set([...presents,...candidats])].filter(m=>!valides.has(m.toLocaleLowerCase())&&!revus.includes(m));
+ },[texte,langue,lecons,revus]);
+ function corriger(m:string){setMot(m);setDire("");setLangue("wo");setStatut("incertain");setConfirme(false);setInfo("Écoute puis indique la prononciation correcte. Le texte reste intact.");}
  const audio=useRef<HTMLAudioElement|null>(null);const player=useRef<LectureContinue|null>(null);
  const enPause=useRef(false);
  const settings=useRef({code,voice,langue,onStart});settings.current={code,voice,langue,onStart};
@@ -72,7 +80,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
  useEffect(()=>{setTexte(demande.texte);if(demande.auto)lancer(demande.texte);},[demande.nonce]);
  async function garder(){setSaving(true);try{
   const r=await fetch("/api/apprentissage/lexique",{method:"POST",headers:headers(),body:JSON.stringify({texte:mot,langue,prononciation:dire,exemple,statut,validation_expresse:confirme})});
-  const d=await r.json();if(!r.ok)throw new Error(d.error);await charger();setInfo(`Enregistré : ${d.lecon.statut}.`);
+  const d=await r.json();if(!r.ok)throw new Error(d.error);await charger();if(statut==="validé")setRevus(r=>[...r,mot]);setInfo(`Enregistré : ${d.lecon.statut}.`);
  }catch(e){setInfo((e as Error).message);}finally{setSaving(false);}}
  return <section role="dialog" aria-modal="true" aria-label="Apprentissage et lecture continue" style={{position:"fixed",inset:0,zIndex:1000,background:"#101014",color:"#fff",overflowY:"auto",padding:"max(20px, env(safe-area-inset-top)) 20px 40px"}}>
   <div style={{maxWidth:760,margin:"0 auto",display:"grid",gap:14}}>
@@ -80,7 +88,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    <h2>Apprentissage — lecture continue</h2>
    <p>Colle ton exercice. Il sera lu entièrement, sans résumé ni traduction. La lecture ne valide aucun mot automatiquement.</p>
    <label>Langue <select value={langue} disabled={p.etat==="lecture"||p.etat==="pause"} onChange={e=>setLangue(e.target.value as "fr"|"wo")}><option value="wo">Wolof</option><option value="fr">Français</option></select></label>
-   <textarea aria-label="Texte complet de l’exercice" value={texte} maxLength={MAX_EXERCICE} rows={10} onChange={e=>setTexte(e.target.value)} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
+   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} rows={10} onChange={e=>setTexte(e.target.value)} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
    <div style={{display:"flex",flexWrap:"wrap",gap:12}}>
     <button type="button" disabled={!texte.trim()||p.etat==="lecture"||p.etat==="pause"} onClick={()=>lancer()}>DÉMARRER APPRENTISSAGE</button>
     <button type="button" disabled={p.etat!=="lecture"} onClick={()=>player.current?.pause()}>PAUSE</button>
@@ -89,6 +97,11 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    </div>
    <p role="status" aria-live="polite">{p.etat} — {Math.min(p.index+1,p.total)} / {p.total}{p.erreur?` — ${p.erreur}. Le segment est conservé. Reprendre pour réessayer.`:""}</p>
    {edition && <>
+   <h3>Passages wolof à vérifier ({points.length})</h3>
+   <p>Ces indices signalent des mots inconnus du détecteur ou ambigus, pas des erreurs certaines. La lecture continue sans les modifier. Les phrases ambiguës peuvent aussi être sélectionnées dans le texte.</p>
+   <button type="button" onClick={()=>{const a=texteEditeur.current;if(a&&a.selectionEnd>a.selectionStart)corriger(texte.slice(a.selectionStart,a.selectionEnd));}}>Corriger la sélection</button>
+   <div style={{display:"flex",flexWrap:"wrap",gap:8}}>{points.slice(0,50).map(m=><button type="button" key={m} onClick={()=>corriger(m)}>{m} — vérifier</button>)}</div>
+   {points.length>50&&<p>Les 50 premiers points sont affichés. Les suivants apparaîtront après validation.</p>}
    <h3>Valider un mot ou une expression</h3>
    <label>Texte exact <input value={mot} maxLength={400} onChange={e=>{setMot(e.target.value);setConfirme(false);}}/></label>
    <label>Prononciation à utiliser <input value={dire} maxLength={400} onChange={e=>{setDire(e.target.value);setConfirme(false);}}/></label>
