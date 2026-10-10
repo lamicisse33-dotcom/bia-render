@@ -7609,7 +7609,7 @@ export default function Home() {
         </button>
       </div>
 
-      {lectureContinue ? <LectureApprentissage edition={estMaitre} code={code} voice={choixVoixBia()} demande={lectureContinue}
+      {lectureContinue ? <LectureApprentissage edition={estMaitre} code={code} voice={choixVoixBia()==="piper"&&!piperLocaleDisponible()?"female":choixVoixBia()} demande={lectureContinue}
         onStart={() => { fermerConversation(); taire(); }} onClose={() => setLectureContinue(null)} /> : null}
       <section id="conversation-ecrite" className="clavier" aria-hidden={!clavier}>
         <button className="clavier-fermer" type="button" onClick={() => setClavier(false)} aria-label="Replier le clavier">
@@ -7687,6 +7687,19 @@ export default function Home() {
           <input
             ref={champRef}
             value={saisie}
+            onPaste={(e) => {
+              const colle=e.clipboardData.getData("text");
+              if(!colle.trim()||!estMaitre)return;
+              const demande=demandeLecture(colle);
+              const devoir=/^\s*(?:devoir|leçon|lecon|exercice)(?:\s|[:—-])/i.test(colle);
+              if(!apprend.current&&!demande&&!devoir)return;
+              e.preventDefault();
+              const a=e.currentTarget;
+              const complet=a.value.slice(0,a.selectionStart)+colle+a.value.slice(a.selectionEnd);
+              fermerConversation();taire();setSaisie("");setClavier(false);
+              apprend.current=true;setEnApprentissage(true);
+              setLectureContinue({texte:demande?.auto?demande.texte:complet,nonce:Date.now(),auto:true});
+            }}
             onChange={(e) => setSaisie(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") void askBia(saisie); }}
             placeholder="Bindal walla collal ci français…"
