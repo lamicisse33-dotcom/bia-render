@@ -48,3 +48,16 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo"):Passag
   }
   return out;
 }
+
+/** Review clues only: an unknown word is not necessarily incorrect. */
+export function ambiguitiesWolof(texte:string,defaut:LangueVoix="wo"):string[] {
+ const out=new Set<string>();
+ for(const passage of passagesLanguesVoix(texte,defaut)){
+  if(passage.langue!=="wo")continue;
+  for(const mot of passage.texte.match(/\p{L}[\p{L}\p{M}'’-]*/gu)||[]){
+   const key=mot.toLowerCase().normalize("NFC");
+   if(COMMUNS.has(key)||(!MOTS_WOLOF.has(key)&&!MOTS_FRANCAIS.has(key)))out.add(mot);
+  }
+ }
+ return [...out];
+}
