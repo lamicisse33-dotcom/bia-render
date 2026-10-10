@@ -77,7 +77,13 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   if(edition)void charger();return()=>{player.current?.stop();a.pause();};
  },[code]);
  function lancer(t=texte){settings.current.onStart();try{player.current?.demarrer(t);}catch(e){setInfo((e as Error).message);}}
- useEffect(()=>{setTexte(demande.texte);if(demande.auto)lancer(demande.texte);},[demande.nonce]);
+ useEffect(()=>{setTexte(demande.texte);if(demande.texte.trim())lancer(demande.texte);},[demande.nonce]);
+ function coller(e:React.ClipboardEvent<HTMLTextAreaElement>){
+  const ajout=e.clipboardData.getData("text");if(!ajout)return;
+  e.preventDefault();const a=e.currentTarget;
+  const complet=a.value.slice(0,a.selectionStart)+ajout+a.value.slice(a.selectionEnd);
+  setTexte(complet);setRevus([]);setInfo("Lecture automatique du texte complet.");lancer(complet);
+ }
  async function garder(){setSaving(true);try{
   const r=await fetch("/api/apprentissage/lexique",{method:"POST",headers:headers(),body:JSON.stringify({texte:mot,langue,prononciation:dire,exemple,statut,validation_expresse:confirme})});
   const d=await r.json();if(!r.ok)throw new Error(d.error);await charger();if(statut==="validé")setRevus(r=>[...r,mot]);setInfo(`Enregistré : ${d.lecon.statut}.`);
@@ -86,9 +92,9 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   <div style={{maxWidth:760,margin:"0 auto",display:"grid",gap:14}}>
    <button type="button" onClick={()=>{player.current?.stop();onClose();}}>Fermer et arrêter</button>
    <h2>Apprentissage — lecture continue</h2>
-   <p>Colle ton exercice. Il sera lu entièrement, sans résumé ni traduction. La lecture ne valide aucun mot automatiquement.</p>
+   <p>Mode apprentissage actif : chaque texte collé est lu automatiquement et entièrement, sans bouton de démarrage, résumé ni traduction. Un nouveau collage remplace la lecture en cours. Pour retenir une correction, utilise le lexique ci-dessous ; rien n’est validé automatiquement.</p>
    <label>Langue <select value={langue} disabled={p.etat==="lecture"||p.etat==="pause"} onChange={e=>setLangue(e.target.value as "fr"|"wo")}><option value="wo">Wolof</option><option value="fr">Français</option></select></label>
-   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} rows={10} onChange={e=>setTexte(e.target.value)} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
+   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} rows={10} onPaste={coller} onChange={e=>setTexte(e.target.value)} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
    <div style={{display:"flex",flexWrap:"wrap",gap:12}}>
     <button type="button" disabled={!texte.trim()||p.etat==="lecture"||p.etat==="pause"} onClick={()=>lancer()}>DÉMARRER APPRENTISSAGE</button>
     <button type="button" disabled={p.etat!=="lecture"} onClick={()=>player.current?.pause()}>PAUSE</button>
