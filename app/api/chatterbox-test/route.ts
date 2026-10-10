@@ -1,3 +1,4 @@
+import { detecterLangue } from "@/lib/langue";
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { verifierCode } from "@/lib/codes";
@@ -5,7 +6,7 @@ import { verifierCode } from "@/lib/codes";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 100;
-const CHECKPOINTS = new Set(["c1a0245aeca8a3b94a7986f83cf6a84033900ed8fce5788750fba479ffba0507", "8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f"]);
+const CHECKPOINTS = new Set(["b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75", "c1a0245aeca8a3b94a7986f83cf6a84033900ed8fce5788750fba479ffba0507", "8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f"]);
 
 function configuration() {
   const url = (process.env.CHATTERBOX_TEST_URL || "").replace(/\/$/, "");
@@ -55,11 +56,12 @@ export async function POST(request: NextRequest) {
     const text = body.input.text.trim();
     if (!text || text.length > 600) return NextResponse.json({ error: "Écris une phrase de 600 caractères au maximum." }, { status: 400 });
     const voice = body?.input?.voice === "male" ? "male" : "female";
-    const francais = body.input.language === "fr";
+    const language = body.input.language === "fr" || body.input.language === "wo" ? body.input.language : detecterLangue(text);
+    const francais = language === "fr";
     const response = await fetch(`${c.url}/tts`, {
       method: "POST", cache: "no-store",
       headers: { "content-type": "application/json", "X-Khalam-Key": c.key },
-      body: JSON.stringify({ input: { text, voice, language_id: "fr", temperature: francais ? .3 : .4,
+      body: JSON.stringify({ input: { text, voice, language, language_id: "fr", temperature: francais ? .3 : .4,
         ...(francais ? { exaggeration: .25, cfg_weight: .7 } : {}),
         preserve_segment: body.input.preserve_segment === true } }),
       signal: AbortSignal.timeout(90000),
