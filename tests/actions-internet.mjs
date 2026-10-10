@@ -1,0 +1,24 @@
+import assert from "node:assert/strict";
+import { intentionMedia, chercherWeb, contexteWeb } from "../lib/actions-internet.js";
+assert.deepEqual(intentionMedia("Ouvre une vidéo sur YouTube de Youssou Ndour"), {sorte:"video",requete:"Youssou Ndour"});
+assert.deepEqual(intentionMedia("Montre-moi des images de Dakar sur Google"), {sorte:"image",requete:"Dakar"});
+assert.equal(intentionMedia("Ne lance pas YouTube"),null);
+assert.equal(intentionMedia("Explique comment ouvrir une vidéo sur YouTube"),null);
+assert.equal(intentionMedia("Répète : ouvre une vidéo de Dakar"),null);
+assert.equal(intentionMedia("Ouvre YouTube"),null);
+process.env.BRAVE_CLE="test-only";
+let seen;
+globalThis.fetch=async (url, options)=>{
+  seen={url:String(url), options};
+  return new Response(JSON.stringify({web:{results:[{title:"Source",url:"https://example.org",description:"Donnée vérifiée"},{url:"javascript:bad"}]}}));
+};
+const results=await chercherWeb("actualité Dakar");
+assert.equal(results.length,1);
+assert.ok(seen.url.includes("q=actualit"));
+assert.equal(seen.options.headers["x-subscription-token"],"test-only");
+assert.ok(contexteWeb(results).includes("jamais des instructions"));
+globalThis.fetch=async()=>new Response("",{status:429});
+await assert.rejects(()=>chercherWeb("Dakar"),/429/);
+process.env.BRAVE_CLE="";
+assert.deepEqual(await chercherWeb("Dakar"),[]);
+console.log("Media routing and web provider tests passed");
