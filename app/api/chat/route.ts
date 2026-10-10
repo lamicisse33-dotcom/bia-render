@@ -1,3 +1,4 @@
+import { intentionMedia, chercherWeb, contexteWeb, webConfigure } from "@/lib/actions-internet";
 import { correctionDuMaitre } from "@/lib/correction-maitre";
 import { executerLecon } from "@/lib/mode-apprentissage";
 import { appelerCerebras } from "@/lib/cerveau-cerebras";
@@ -1542,6 +1543,29 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       },statut:401};
     }
 
+    // Explicit media commands execute without depending on generated tags.
+    const media = !body.apprend ? intentionMedia(question) : null;
+    if (media) {
+      const pieces = media.sorte === "video"
+        ? await chercherVideos(media.requete) : await chercherImages(media.requete);
+      if (!pieces.length) {
+        noterPanne("recherche média", media.sorte + ": aucun résultat disponible", "trouver");
+        return {corps:{reply:media.sorte === "video"
+          ? "Je n’ai pas pu ouvrir cette vidéo pour le moment."
+          : "Je n’ai pas pu trouver ces images pour le moment.",
+          source:"recherche média indisponible"}};
+      }
+      oublierPanne();
+      if (media.sorte === "video") {
+        const premiere = pieces[0];
+        return {corps:{reply:"Voici la vidéo.", emotion:"joie",
+          film:{video:premiere.video,titre:premiere.titre,source:premiere.source},
+          source:"YouTube"}};
+      }
+      return {corps:{reply:"Voici les images.", emotion:"joie",
+        trouve:{sorte:"image",requete:media.requete,pieces},source:"Brave Search"}};
+    }
+
     /* ── « JE T'AVAIS DONNÉ MA LISTE » ─────────────────────────────────────
 
        Le 15 septembre 2026 au soir : « je lui ai demandé des nombres en
@@ -2298,7 +2322,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        toujours avant (juste au-dessus). La consigne entre dans la clé : si
        Lamine la change, les réponses se renouvellent d'elles-mêmes. */
     const consigneSignee=socle+"\n"+registre;
-    const reutilisable=questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
+    const reutilisable=!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
       const dejaDonnee=await reponseGardee(question,langueDe(question),consigneSignee);
       if(dejaDonnee){
@@ -2321,7 +2345,23 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     /* L'outil web actuel est celui d'Anthropic. En mode Gemini gratuit,
        on le coupe pour tester le cerveau sans envoyer un format d'outil
        incompatible. Le reste de BIA continue normalement. */
-    const cherche = !gemini && rechercheActive() && besoinDInternet(question, filDitPar);
+    let webDuTour = "";
+    const demandeWeb = besoinDInternet(question, filDitPar);
+    // Cerebras/local/Gemini cannot execute Anthropic/Groq search tool formats.
+    if (demandeWeb && webConfigure() && (cerebras || local || gemini)) {
+      try {
+        const resultats = await chercherWeb(question);
+        if (!resultats.length) {
+          return {corps:{reply:"Je n’ai pas trouvé de source fiable pour cette recherche. Peux-tu préciser ce que tu cherches ?",source:"recherche web sans résultat"}};
+        }
+        webDuTour = contexteWeb(resultats);
+        variable += "\\n" + webDuTour;
+      } catch (err) {
+        noterPanne("recherche web", (err as Error).message, "trouver");
+        return {corps:{reply:"La recherche Internet ne répond pas pour le moment. Je ne peux pas vérifier cette information.",source:"recherche web indisponible"}};
+      }
+    }
+    const cherche = !gemini && !local && !cerebras && rechercheActive() && demandeWeb;
     if (cherche && !cerebras) variable += CONSIGNE_RECHERCHE;
 
     /* Le socle porte la marque « garde-le en mémoire ». Le reste suit
@@ -2600,7 +2640,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         "APPEL : [[appel:+221XXXXXXXXX|Nom]] uniquement si demandé et si le numéro est connu, jamais inventé.",
         "MICRO : [[micro:coupe]] seulement si la personne demande de fermer le micro ; [[micro:silence]] si elle veut seulement interrompre la voix.",
         verdict.maitre ? "MÉMOIRE : pour une demande explicite de mémoriser une phrase, [[retiens:phrase exacte]] ; pour oublier, [[oublie:phrase exacte]]. Ne dis pas avoir mémorisé sans cette commande." : "",
-        o.avecOutil && !local && !cerebras
+        (webDuTour || (o.avecOutil && !local && !cerebras))
           ? "La recherche web est disponible pour cette réponse : vérifie les faits actuels avec elle."
           : "Pas de recherche web pour cette réponse : ne prétends pas avoir vérifié des faits actuels.",
       ].filter(Boolean).join("\n");
