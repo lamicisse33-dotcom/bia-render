@@ -1,4 +1,5 @@
-import {detecterLangue} from "@/lib/langue";
+import {detecterLangue,type PassageVoix} from "@/lib/langue";
+import {preparerPassagesKhalam} from "@/lib/passages-khalam";
 import {NextRequest,NextResponse} from "next/server";
 import {timingSafeEqual} from "node:crypto";
 import {verifierCode} from "@/lib/codes";
@@ -23,18 +24,19 @@ export async function POST(request:NextRequest){
  if(typeof body?.texte!=="string"||!body.texte.trim()||body.texte.length>20000||!Number.isSafeInteger(partie)||partie<0||!['male','female'].includes(body?.voice))return NextResponse.json({error:"Texte ou voix invalide"},{status:400});
  const url=(process.env.CHATTERBOX_TEST_URL||"").replace(/\/$/,"");
  if(!url||!secret)return NextResponse.json({error:"Streaming indisponible"},{status:503});
- const start=Date.now();const language=body.langue==="fr"||body.langue==="wo"?body.langue:detecterLangue(body.texte);
- let parts:string[];
+ const start=Date.now();const defaut=body.langue==="fr"||body.langue==="wo"?body.langue:detecterLangue(body.texte);
+ let parts:PassageVoix[];
  if(body.lecture===true&&body.texte.length>500)return NextResponse.json({error:"Segment trop long"},{status:400});
- try{const text=await prononciationsApprises(texteKhalamVoix(body.texte),language);parts=body.lecture===true?segmentsLecture(text):decouperVoixKhalam(text);}
+ try{parts=await preparerPassagesKhalam(body.texte,defaut,body.lecture===true);}
  catch{return NextResponse.json({error:"Le lexique n’a pas répondu"},{status:503});}
  if(partie>=parts.length)return NextResponse.json({parties:parts.length,partie,audio:null});
+ const {texte:spoken,langue:language}=parts[partie];
  const abort=new AbortController();const deadline=setTimeout(()=>abort.abort(),90000);
  const cancel=()=>abort.abort();request.signal.addEventListener("abort",cancel,{once:true});
  let upstream:Response;
  try{upstream=await fetch(`${url}/tts/stream`,{method:"POST",cache:"no-store",signal:abort.signal,
   headers:{"content-type":"application/json","x-khalam-key":secret},
-  body:JSON.stringify({input:{text:parts[partie],voice:body.voice,language,language_id:"fr",temperature:language==="fr"?.3:.4,
+  body:JSON.stringify({input:{text:spoken,voice:body.voice,language,language_id:"fr",temperature:language==="fr"?.3:.4,
    ...(language==="fr"?{exaggeration:.25,cfg_weight:.7}:{})}})});}
  catch{clearTimeout(deadline);request.signal.removeEventListener("abort",cancel);return NextResponse.json({error:"Connexion au streaming interrompue"},{status:502});}
  if(!upstream.ok||!upstream.body){clearTimeout(deadline);request.signal.removeEventListener("abort",cancel);abort.abort();return NextResponse.json({error:"Streaming indisponible"},{status:[404,501,429].includes(upstream.status)?upstream.status:502});}
