@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import ts from 'typescript';
+import vm from 'node:vm';
+const source=fs.readFileSync('lib/voix-piper-locale.ts','utf8');
+const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const context={exports:{},AbortController,Error,Response};vm.runInNewContext(compiled,context);
+const {piperLocaleDisponible,lirePiperLocale}=context.exports;
+assert.equal(piperLocaleDisponible(),false);let calls=0;
+context.fetch=async()=>{calls++;throw Error('No remote TTS permitted')};
+await assert.rejects(lirePiperLocale('Bonjour',0,new AbortController().signal),/absent/);assert.equal(calls,0);
+context.window={BiaLocalVoice:{epoch:7400,settings(){}}};assert.equal(piperLocaleDisponible(),true);
+context.fetch=async(url,init)=>{assert.equal(url,'/api/voix');let d=JSON.parse(init.body);assert.equal(d.audioPrompt,undefined);assert.equal(d.texte,'Bonjour, taxi et texte.');return new Response(JSON.stringify({parties:2,audio:'UklGRg==',moteur:'BIA locale 7400'}),{headers:{'x-bia-local-voice':'7400'}})};
+assert.equal((await lirePiperLocale('Bonjour, taxi et texte.',0,new AbortController().signal)).parties,2);
+context.fetch=async()=>new Response(JSON.stringify({parties:1,audio:'wrong-server-audio'}));await assert.rejects(lirePiperLocale('Bonjour',0,new AbortController().signal),/pont/);
+context.fetch=async()=>new Response(JSON.stringify({parties:1,audio:null}),{headers:{'x-bia-local-voice':'7400'}});await assert.rejects(lirePiperLocale('Bonjour',0,new AbortController().signal),/aucun son/);
+console.log('Piper local: native selection, absence without network, native provenance and empty-audio checks passed');
