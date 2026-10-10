@@ -1,5 +1,6 @@
 "use client";
 
+import { detecterLangue } from "@/lib/langue";
 import LectureApprentissage from "./LectureApprentissage";
 import {demandeLecture} from "@/lib/intention-lecture";
 import { ouvrirFluxVoix, type MorceauVoix } from "@/lib/flux-khalam";
@@ -421,11 +422,7 @@ const motsFrancais = /\b(le|la|les|un|une|des|du|de|et|est|sont|pour|dans|avec|v
 const motsWolof = /\b(naa|nga|ngeen|ci|ak|bi|bu|la|lu|mooy|moo|dafa|dafay|ngir|waaw|déedéet|sama|yow|man|ñu|ñi|yi|te|walla|léegi|mën|bëgg|am|amul|lan|ban|def|dem|wax|jàng|jëf|nekk|jamm|noo|kañ|fu|nu)\b/g;
 
 function estWolof(texte: string) {
-  const t = texte.toLowerCase();
-  if (/[ñŋë]/.test(t)) return true;
-  const fr = (t.match(motsFrancais) || []).length;
-  const wo = (t.match(motsWolof) || []).length;
-  return wo >= fr;
+  return detecterLangue(texte) === "wo";
 }
 
 function phoneticWolof(text: string) {
