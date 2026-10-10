@@ -1,4 +1,5 @@
 "use client";
+import {piperLocaleDisponible} from "@/lib/voix-piper-locale";
 
 import { detecterLangue } from "@/lib/langue";
 import LectureApprentissage from "./LectureApprentissage";
