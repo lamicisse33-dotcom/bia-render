@@ -1,3 +1,4 @@
+import { lireFluxConversation } from "@/lib/flux-conversation";
 import { intentionMedia, chercherWeb, contexteWeb, webConfigure } from "@/lib/actions-internet";
 import { correctionDuMaitre } from "@/lib/correction-maitre";
 import { executerLecon } from "@/lib/mode-apprentissage";
@@ -2670,6 +2671,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           ...(/^(?:openai\/)?gpt-oss-/.test(model) ? reglagesConversation(question, Boolean(body.apprend)) : {}),
           temperature:0.35,
           service_tier:"on_demand",
+          ...(emettre ? {stream:true} : {}),
           ...(o.avecOutil ? {tools:[{type:"browser_search"}]} : {}),
         }),
       }, limiteGroq, false);
@@ -2687,6 +2689,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
             ...reglagesConversation(question, Boolean(body.apprend)),
             temperature:0.35,
             service_tier:"on_demand",
+            ...(emettre ? {stream:true} : {}),
           }),
         },limiteGroq,true);
       }
@@ -2694,7 +2697,13 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         if(!local)noterConversation({ok:false,modele:model,attendu:model,effort:effortConversation(question,Boolean(body.apprend)),ms:Date.now()-debutConversation,messages:messages.length});
         return r;
       }
-      const g=await r.json() as any;
+      const diffuse = Boolean(emettre && r.headers.get("content-type")?.includes("text/event-stream"));
+      let premierTexteFlux = 0;
+      const g=diffuse ? await lireFluxConversation(r, (texte) => {
+        premierTexteFlux ||= Date.now();
+        emettre!(texte);
+      }) : await r.json() as any;
+      if (diffuse) noterEtape("modele", debutConversation, premierTexteFlux, Date.now(), String(g.choices?.[0]?.message?.content || "").length);
       if(!local)noterConversation({ok:Boolean(g.choices?.[0]?.message?.content?.trim()),modele:String(g.model||model),attendu:model,effort:effortConversation(question,Boolean(body.apprend)),ms:Date.now()-debutConversation,messages:messages.length});
       const texte=String(g.choices?.[0]?.message?.content||"").trim();
       const usage=g.usage||{};
@@ -2709,7 +2718,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         },
         stop_reason:g.choices?.[0]?.finish_reason==="length" ? "max_tokens" : String(g.choices?.[0]?.finish_reason||"end_turn"),
         types:texte?["text"]:[],
-      }),{status:200,headers:{"content-type":"application/json","x-bia-provider":local ? "local" : cerebras ? "cerebras" : "groq"}});
+      }),{status:200,headers:{"content-type":"application/json","x-bia-provider":local ? "local" : cerebras ? "cerebras" : "groq",...(diffuse ? {"x-bia-deja-diffuse":"true"} : {})}});
     };
 
     const appelerLeModele = (o: {
@@ -2891,7 +2900,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       data=avecAmorce(await reponse.json() as Reponse,amorce);
       /* En mode Gemini le fournisseur répond pour l'instant d'un bloc.
          On pousse quand même le texte vers le flux BIA dès qu'il est reçu. */
-      if(emettre){
+      if(emettre && reponse.headers.get("x-bia-deja-diffuse") !== "true"){
         const t=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text||"").join("");
         if(t){ try{ emettre(t); }catch{} }
         noterEtape("modele",partiModele,Date.now(),Date.now(),t.length);
@@ -2971,7 +2980,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         const second:Reponse=(emettre&&!gemini&&!groq)
           ?await lireLeFlux(sansOutil,emettre,0,amorceDeSecours)
           :avecAmorce(await sansOutil.json() as Reponse,amorceDeSecours);
-        if(emettre&&(gemini||groq)){
+        if(emettre&&(gemini||groq)&&sansOutil.headers.get("x-bia-deja-diffuse") !== "true"){
           const t=(second.content||[]).filter(b=>b.type==="text").map(b=>b.text||"").join("");
           if(t){ try{ emettre(t); }catch{} }
         }
