@@ -1,15 +1,17 @@
+import {piperLocaleDisponible} from "./voix-piper-locale";
 export type ChoixVoixBia = "piper" | "male" | "female";
 const CLE_CHOIX = "bia-choix-voix-v1";
 
 // The explicit choice in the app takes precedence over an old test link.
 export function choixVoixBia(): ChoixVoixBia {
-  if (typeof window === "undefined") return "piper";
+  if (typeof window === "undefined") return "female";
   try {
     const saved = window.localStorage.getItem(CLE_CHOIX);
-    if (saved === "piper" || saved === "male" || saved === "female") return saved;
+    if (saved === "male" || saved === "female") return saved;
+    if (saved === "piper") return piperLocaleDisponible() ? "piper" : "female";
   } catch { /* The original link can still work when storage is unavailable. */ }
   const query = new URLSearchParams(window.location.search).get("voix");
-  return query === "chatterbox-homme" ? "male" : query === "chatterbox-femme" ? "female" : "piper";
+  return query === "chatterbox-homme" ? "male" : query === "chatterbox-femme" ? "female" : piperLocaleDisponible() ? "piper" : "female";
 }
 
 export function choisirVoixBia(choice: ChoixVoixBia): boolean {
