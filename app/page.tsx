@@ -1802,9 +1802,13 @@ export default function Home() {
 
       const duree = mémoire.duration * 1000;
       source.onended = () => {
-        if (animationRef.current) cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-        if (sourceRef.current === source) sourceRef.current = null;
+        // A stopped acknowledgement may end after the real reply starts.
+        // Only its own source can stop the mouth animation.
+        if (sourceRef.current === source) {
+          if (animationRef.current) cancelAnimationFrame(animationRef.current);
+          animationRef.current = null;
+          sourceRef.current = null;
+        }
         rendre(duree);
       };
       setMode("speaking");

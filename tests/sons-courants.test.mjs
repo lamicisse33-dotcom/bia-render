@@ -56,3 +56,13 @@ test('durable generation reuses verified entries and refuses an unknown store st
  r=await api.genererSonsCourants();assert.equal(r.crees,0);assert.equal(r.deja,2);assert.equal(gpu,2);
  indispo=true;await assert.rejects(api.genererSonsCourants(),/manifeste_indisponible/);assert.equal(gpu,2);
 });
+
+test('a cancelled acknowledgement cannot stop a newer reply animation',async()=>{
+ const page=fs.readFileSync('app/page.tsx','utf8'),ast=ts.createSourceFile('page.tsx',page,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let arrow;
+ const visit=n=>{if(ts.isVariableDeclaration(n)&&n.name.getText(ast)==='jouerEtAnimer')arrow=n.initializer.arguments[0].getText(ast);ts.forEachChild(n,visit);};visit(ast);assert(arrow);
+ let source,cancelled=0;const env={reveillerLeSon:async()=>({currentTime:0,decodeAudioData:async()=>({duration:.02}),createBufferSource:()=>source={connect(){},start(){}}}),ralentir:(_c,x)=>x,sansSilence:(_c,x)=>x,vitesseAudioBia:()=>1,enveloppeDe:()=>({valeurs:[0],pic:1,pas:.02}),sourceRef:{current:null},animationRef:{current:null},requestAnimationFrame:()=>1,cancelAnimationFrame:()=>cancelled++,setMode(){},envoyerLeTour(){}};
+ const play=new Function('env',`with(env){return ${compile('const f='+arrow+';').replace(/^const f = /,'').replace(/;\s*$/,'')};}`)(env);
+ const p=play(new ArrayBuffer(2000));await Promise.resolve();await Promise.resolve();await Promise.resolve();assert(source);
+ const newer={};env.sourceRef.current=newer;env.animationRef.current=99;source.onended();await p;
+ assert.equal(env.sourceRef.current,newer);assert.equal(env.animationRef.current,99);assert.equal(cancelled,0);
+});
