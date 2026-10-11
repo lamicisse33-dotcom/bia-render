@@ -1,3 +1,4 @@
+import {contexteInstructions} from "@/lib/instructions-apprentissage";
 import {contexteDevoirs} from "@/lib/devoirs-apprentissage";
 import { lireFluxConversation } from "@/lib/flux-conversation";
 import { intentionMedia, chercherWeb, contexteWeb, webConfigure } from "@/lib/actions-internet";
@@ -817,7 +818,7 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
-type Corps={message?:string;history?:Array<{role:string;text:string;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
+type Corps={apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
   /* QUEL PERSONNAGE — "rara" bascule sur son identité et sa personnalité, tout
      le reste (langue, balises, mémoire) reste le même. Choisi par la personne
      dans l'app, envoyé à chaque question. Absent ou autre valeur = BIA. */
@@ -900,6 +901,7 @@ function quiParleIci(body:Corps,code:string|null):string{
    machine, pas des choses qu'on s'est dites. Les ranger salirait sa mémoire
    et remonterait un jour comme un souvenir. */
 function garderCeTour(body:Corps,code:string|null,corps:Record<string,unknown>,statut?:number){
+  if(body.apprentissageTest)return;
   if(statut&&statut!==200)return;
   const source=String(corps.source||"");
   if(source.startsWith("panne")||source==="code"||source==="Erreur sûre")return;
@@ -915,6 +917,7 @@ function garderCeTour(body:Corps,code:string|null,corps:Record<string,unknown>,s
 export async function POST(request:NextRequest){
   const body=await request.json().catch(()=>({})) as Corps;
   const code=request.headers.get("x-bia-code");
+  if(body.apprentissageTest){body.apprend=false;body.aRepeter="";body.malDit=undefined;}
 
   if(!DIFFUSER_LE_MODELE||!body.diffuse){
     const r=await repondre(body,code,null);
@@ -1221,7 +1224,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
         signes_en_main:String(body.aRepeter||"").trim().length,ecrit:false,
         motif:"le code maître n'était pas reconnu sur ce tour — aucun ordre n'est pris"});
     }
-    if(maitre.ok&&maitre.maitre){
+    if(maitre.ok&&maitre.maitre&&!body.apprentissageTest){
       const lecon = await executerLecon({texte:question, maitre:true,
         actif:Boolean(body.apprend), phrase:String(body.aRepeter||"")}, async (phrase) => {
         try {
@@ -2325,7 +2328,11 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        Lamine la change, les réponses se renouvellent d'elles-mêmes. */
     let devoirs="";
     try{devoirs=await contexteDevoirs(question);}catch{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");}
-    const consigneSignee=socle+"\n"+registre+"\n"+devoirs;
+    if(maitre.ok&&maitre.maitre){
+      try{variable+="\n"+await contexteInstructions();}catch{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");}
+    }
+    if(body.apprentissageTest)variable+="\nTEST PÉDAGOGIQUE : réponds à la question avec les connaissances et les corrections mémorisées. Ne transforme pas la question en leçon, ne la répète pas comme exercice et ne propose aucun enregistrement.";
+    const consigneSignee=socle+"\n"+registre+"\n"+devoirs+variable;
     const reutilisable=!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
       const dejaDonnee=await reponseGardee(question,langueDe(question),consigneSignee);
@@ -3190,7 +3197,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
        Et si le rangement refuse, elle le dit. Une leçon perdue en silence
        est ce qui nous a coûté deux soirées. */
-    if(verdict.maitre&&(aGarder||aRetirer)){
+    if(!body.apprentissageTest&&verdict.maitre&&(aGarder||aRetirer)){
       const dites=String(reply||"").trim();
       if(aRetirer){
         try{
