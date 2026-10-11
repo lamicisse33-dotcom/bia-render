@@ -1,3 +1,4 @@
+import {CONSIGNE_COMPREHENSION,dependDuContexte} from "@/lib/comprehension-conversation";
 import {contexteInstructions} from "@/lib/instructions-apprentissage";
 import {contexteDevoirs} from "@/lib/devoirs-apprentissage";
 import { lireFluxConversation } from "@/lib/flux-conversation";
@@ -1795,7 +1796,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        ET C'EST LA QUESTION À SE POSER À CHAQUE AJOUT : « est-ce que ça change
        entre deux questions ? » Si non, ça va dans `registre`. C'est la règle
        que je n'avais pas et qui a coûté la facture. */
-    let registre="";
+    let registre=CONSIGNE_COMPREHENSION;
     let variable="";
     let leconsDuTour="";
     let lexiqueDuTour="";
@@ -2333,7 +2334,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     }
     if(body.apprentissageTest)variable+="\nTEST PÉDAGOGIQUE : réponds à la question avec les connaissances et les corrections mémorisées. Ne transforme pas la question en leçon, ne la répète pas comme exercice et ne propose aucun enregistrement.";
     const consigneSignee=socle+"\n"+registre+"\n"+devoirs+variable;
-    const reutilisable=!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
+    const reutilisable=!dependDuContexte(question)&&!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
       const dejaDonnee=await reponseGardee(question,langueDe(question),consigneSignee);
       if(dejaDonnee){
