@@ -29,7 +29,7 @@ test('fast answers, interruption, and cancellation during decode prevent a late 
  cancel=make();current=false;timer();assert.equal(heard,0);cancel();assert.equal(cleared,3);
 });
 test('audio generation is authenticated before any paid request',async()=>{
- let calls=0;const route=load('app/api/sons-courants/route.ts',{'next/server':{NextResponse:{json:(x,o)=>({body:x,...o})}},'node:crypto':crypto,'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/sons-courants-core':core,'@/lib/sons-courants':{genererSonsCourants:async()=>{calls++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test-only'}}});
+ let calls=0;const route=load('app/api/sons-courants/route.ts',{'next/server':{NextResponse:{json:(x,o)=>({body:x,...o})}},'node:crypto':crypto,'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/corrections-sons-courants':{},'@/lib/sons-courants-core':core,'@/lib/sons-courants':{genererSonsCourants:async()=>{calls++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test-only'}}});
  const r=await route.POST({headers:{get:()=>null}});assert.equal(r.status,401);assert.equal(calls,0);
 });
 test('assembled PCM keeps every spoken sample in order and rejects silence or mismatched rates',()=>{
@@ -51,7 +51,7 @@ test('durable generation reuses verified entries and refuses an unknown store st
   return {ok:objects.has(key),arrayBuffer:async()=>objects.get(key).buffer};
  },process:{env:{CHATTERBOX_TEST_KEY:'test-only'}},Buffer};
  class NextRequest{constructor(url,o){this.url=url;this.o=o;}}
- const api=load('lib/sons-courants.ts',{'node:crypto':crypto,'next/server':{NextRequest},'./lexique':{lexiqueConfig:{url:'https://test',cle:'test',actif:true}},'./sons-courants-core':{...core,PHRASES_COURANTES:phrases},'./sons-courants-etat':{sonsCourantsEtat:{}},'./assembler-sons-courants':{assemblerSonsCourants:()=>({wav:wav.buffer,secondes:1})},'./mp3':{versMp3:()=>mp3},'../app/api/chatterbox-test/bia/route':{POST:async r=>{gpu++;const p=JSON.parse(r.o.body);return {ok:true,json:async()=>({audio:Buffer.from(wav).toString('base64'),voice:'female',partie:0,parties:1,empreinte:'hash',langue:p.langue,checkpoint_sha256:p.langue==='fr'?'b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75':'8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f'})};}}},env);
+ const api=load('lib/sons-courants.ts',{'node:crypto':crypto,'next/server':{NextRequest},'./corrections-sons-courants':{},'./lexique':{lexiqueConfig:{url:'https://test',cle:'test',actif:true}},'./sons-courants-core':{...core,PHRASES_COURANTES:phrases},'./sons-courants-etat':{sonsCourantsEtat:{}},'./assembler-sons-courants':{assemblerSonsCourants:()=>({wav:wav.buffer,secondes:1})},'./mp3':{versMp3:()=>mp3},'../app/api/chatterbox-test/bia/route':{POST:async r=>{gpu++;const p=JSON.parse(r.o.body);return {ok:true,json:async()=>({audio:Buffer.from(wav).toString('base64'),voice:'female',partie:0,parties:1,empreinte:'hash',langue:p.langue,checkpoint_sha256:p.langue==='fr'?'b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75':'8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f'})};}}},env);
  let r=await api.genererSonsCourants();assert.equal(r.enregistres,2);assert.equal(r.restants,0);assert.equal(gpu,2);assert.equal(uploads,4);
  r=await api.genererSonsCourants();assert.equal(r.crees,0);assert.equal(r.deja,2);assert.equal(gpu,2);
  indispo=true;await assert.rejects(api.genererSonsCourants(),/manifeste_indisponible/);assert.equal(gpu,2);

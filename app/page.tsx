@@ -4044,7 +4044,7 @@ export default function Home() {
           if(cacheSons.current.has(son.adresse)){bilan.deja_la++;continue;}
           try{const octets=await octetsDuRepertoire(son.adresse);bilan.chargees++;bilan.octets+=octets.byteLength;}catch{bilan.ratees++;}
         }
-        if(vivant&&d.sons.length<d.attendus)timer=setTimeout(()=>void charger(),30000);
+        if(vivant)timer=setTimeout(()=>void charger(),30000);
       }catch{if(vivant)timer=setTimeout(()=>void charger(),30000);}
       bilan.ms=Date.now()-debut;
       if(bilan.demandes)void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"prechauffage",...bilan}),keepalive:true}).catch(()=>{});

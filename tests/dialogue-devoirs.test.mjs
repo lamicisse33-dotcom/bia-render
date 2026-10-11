@@ -121,7 +121,7 @@ test('a follow-up request retains the lesson and may choose a learned suggestion
 });
 test('lesson verification rejects anonymous access before any private evaluation',async()=>{
  let evaluations=0;
- const route=load('app/api/apprentissage/verification/route.ts',{'@/lib/sons-courants':{genererSonsCourants:async()=>{evaluations++;}},'@/lib/essai-continuite-voix':{verifierContinuiteVoix:async()=>{evaluations++;}},'@/lib/correction-devoir':{verifierCorrectionDevoir:async()=>{evaluations++;}},'node:crypto':{timingSafeEqual:()=>false},'next/server':{NextResponse:{json:(body,opt)=>({body,...opt})}},'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/lexique':{lexiqueConfig:{actif:true}},'@/lib/lexique-apprentissage-core':{APP_LECONS:'test'},'@/lib/essai-dialogue-devoirs':{verifierDialoguesAppris:async()=>{evaluations++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test'}},Buffer});
+ const route=load('app/api/apprentissage/verification/route.ts',{'@/lib/corrections-sons-courants':{verifierStockageCorrectionsCourantes:async()=>{evaluations++;}},'@/lib/sons-courants':{genererSonsCourants:async()=>{evaluations++;}},'@/lib/essai-continuite-voix':{verifierContinuiteVoix:async()=>{evaluations++;}},'@/lib/correction-devoir':{verifierCorrectionDevoir:async()=>{evaluations++;}},'node:crypto':{timingSafeEqual:()=>false},'next/server':{NextResponse:{json:(body,opt)=>({body,...opt})}},'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/lexique':{lexiqueConfig:{actif:true}},'@/lib/lexique-apprentissage-core':{APP_LECONS:'test'},'@/lib/essai-dialogue-devoirs':{verifierDialoguesAppris:async()=>{evaluations++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test'}},Buffer});
  const r=await route.POST({headers:{get:()=>null}});assert.equal(r.status,401);assert.equal(evaluations,0);
 });
 
@@ -208,7 +208,7 @@ test('authenticated chat with the stuck history reaches the actual greeting repe
  const source=fs.readFileSync('app/api/chat/route.ts','utf8'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);let fn;
  ast.forEachChild(n=>{if(ts.isFunctionDeclaration(n)&&n.name?.text==='repondre')fn=n.getText(ast);});
  const api=service(async()=>{throw Error('No selector call');},async()=>{throw Error('No lesson read');});
- const env={...repertoire,...services,sansRelanceAutomatique:core.sansRelanceAutomatique,dialoguerAvecDevoirs:api.dialoguerAvecDevoirs,
+ const env={...repertoire,...services,correctionCourantePour:async()=>undefined,sansRelanceAutomatique:core.sansRelanceAutomatique,dialoguerAvecDevoirs:api.dialoguerAvecDevoirs,
   corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected write')},verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,
   repertoireActif:()=>true,RELU_BLAGUES:false,noterRate(){},SONS_QUI_DISENT_AUTRE_CHOSE:new Set(),gesteDe:()=>null};
  const run=new Function('env',`with(env){${compile(fn)}return repondre;}`)(env);
@@ -216,5 +216,9 @@ test('authenticated chat with the stuck history reaches the actual greeting repe
   const r=await run({message,history:[{role:'bia',text:'Vous vous êtes disputés ?'},{role:'user',text:'Nanga def ?'},{role:'bia',text:obsolete},{role:'bia',text:obsolete}]},'valid-test-code',null);
   assert.equal(r.corps.source,'répertoire (gratuit)',message);assert.equal(r.corps.salutation,true);
   assert.equal(r.corps.reply,repertoire.trouverDansRepertoire(message).wolof);
+  env.correctionCourantePour=async()=>({texte:'Réponse corrigée.',audio:{adresse:'https://test/corrige.mp3'}});
+  const corrige=await run({message,history:[]},'valid-test-code',null);
+  assert.equal(corrige.corps.reply,'Réponse corrigée.');assert.equal(corrige.corps.son,'https://test/corrige.mp3');
+  env.correctionCourantePour=async()=>undefined;
  }
 });

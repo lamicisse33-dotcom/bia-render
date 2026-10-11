@@ -1,3 +1,4 @@
+import {verifierStockageCorrectionsCourantes} from "@/lib/corrections-sons-courants";
 import {genererSonsCourants} from "@/lib/sons-courants";
 import {verifierContinuiteVoix} from "@/lib/essai-continuite-voix";
 import {verifierCorrectionDevoir} from "@/lib/correction-devoir";
@@ -19,6 +20,7 @@ export async function POST(r:Request){
   // runner for this fixed public catalogue only; ordinary master checks do
   // not generate audio. Once this session expires, explicit selection wins.
   const runner=a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
+  if(body.corrections_sons===true||(runner&&Date.now()<Date.parse("2026-10-12T00:00:00Z")))return NextResponse.json({verifie:true,corrections_sons:await verifierStockageCorrectionsCourantes()});
   if(body.sons===true||(runner&&Date.now()<Date.parse("2026-10-12T00:00:00Z"))){
    const sons=await genererSonsCourants();return NextResponse.json({verifie:true,sons});
   }

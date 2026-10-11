@@ -1,3 +1,4 @@
+import {correctionCourantePour} from "@/lib/corrections-sons-courants";
 import {corrigerDevoirConversation} from "@/lib/correction-devoir-conversation";
 import {corrigerDevoir} from "@/lib/correction-devoir";
 import {origineReplique} from "@/lib/correction-devoir-core";
@@ -1518,8 +1519,9 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
            liste de neuf mots et l'absence d'accents — voir langueDe(). */
         const langue=langueDe(question);
         const fr=langue==="fr";
+        const correction=await correctionCourantePour(toute.cle,langue);
         return {corps:{
-          reply:fr?toute.francais:toute.wolof,
+          reply:correction?.texte??(fr?toute.francais:toute.wolof),
           emotion:toute.emotion||"neutre",
           /* Le son est déjà là : la page le joue directement au lieu de
              demander /api/voix. C'est là qu'est l'économie.
@@ -1531,7 +1533,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
              préfère une seconde de fabrication à une capacité tue. Voir
              SONS_QUI_DISENT_AUTRE_CHOSE dans lib/a-refaire.ts : cette liste
              se vide dès que les sons sont refaits. */
-          ...(SONS_QUI_DISENT_AUTRE_CHOSE.has(`${langue}/${toute.cle}`)
+          ...(correction ? (correction.audio?{son:correction.audio.adresse}:{}) : SONS_QUI_DISENT_AUTRE_CHOSE.has(`${langue}/${toute.cle}`)
             ? {}
             : {son:sonDe(toute.cle,langue,fr?toute.francais:toute.wolof)}),
           source:"répertoire (gratuit)",
@@ -3084,10 +3086,11 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
          relus — ne servait que sur une égalité parfaite. */
       const langueChoisie=langueDe(question);
       const enFr=langueChoisie==="fr";
+      const correction=await correctionCourantePour(choisie.cle,langueChoisie);
       return {corps:{
-        reply:enFr?choisie.francais:choisie.wolof,
+        reply:correction?.texte??(enFr?choisie.francais:choisie.wolof),
         emotion:choisie.emotion||"neutre",
-        son:sonDe(choisie.cle,langueChoisie,langueChoisie==="fr"?choisie.francais:choisie.wolof),
+        ...(correction?(correction.audio?{son:correction.audio.adresse}:{}):{son:sonDe(choisie.cle,langueChoisie,langueChoisie==="fr"?choisie.francais:choisie.wolof)}),
         source:"répertoire (choisi par elle)",
       }};
     }

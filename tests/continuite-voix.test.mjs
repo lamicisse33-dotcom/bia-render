@@ -28,7 +28,7 @@ function route(){
  '@/lib/chatterbox-test-etat':{noterChatterboxTest(){}},'@/lib/cache-voix-dialogue':cache,'@/lib/continuite-voix-etat':{continuiteVoix:count},
  '@/lib/cache-accuses-lecon':{CacheAccusesLecon:class{get(){}set(){}}},
  },{process:{env:{CHATTERBOX_TEST_KEY:'test',CHATTERBOX_TEST_URL:'https://gpu.invalid'}}});
- return {gate,plans:()=>plans,calls:()=>calls,count,request:()=>r.POST(new Request('https://bia.invalid/tts',{method:'POST',body:JSON.stringify({texte:'Dañu bëgg ma def lu ma bëggul.',voice:'female',lecture_fidele:true,continu:true})}))};
+ return {gate,plans:()=>plans,calls:()=>calls,count,request:(extra={})=>r.POST(new Request('https://bia.invalid/tts',{method:'POST',body:JSON.stringify({texte:'Dañu bëgg ma def lu ma bëggul.',voice:'female',lecture_fidele:true,continu:true,...extra})}))};
 }
 test('actual server streams faithful chunks using one plan; replay reuses audio without GPU calls',async()=>{
  const r=route(),response=await r.request();assert.match(response.headers.get('content-type'),/ndjson/);const f=ouvrirRepliques(response,()=>{});
@@ -40,4 +40,9 @@ test('validating a source correction invalidates even identical previously gener
  const r=route();r.gate.resolve();const f=ouvrirRepliques(await r.request(),()=>{});await f.morceau(0);await f.morceau(1);assert.equal(r.calls(),2);
  globalThis.biaGenerationDevoirs=(globalThis.biaGenerationDevoirs||0)+1;
  const next=ouvrirRepliques(await r.request(),()=>{});assert.equal((await next.morceau(0)).audio_en_cache,false);await next.morceau(1);assert.equal(r.calls(),4);
+});
+
+test('explicit regeneration makes a new take even when identical text is already cached',async()=>{
+ const r=route();r.gate.resolve();let f=ouvrirRepliques(await r.request(),()=>{});await f.morceau(0);await f.morceau(1);assert.equal(r.calls(),2);
+ f=ouvrirRepliques(await r.request({nouvelle_prise:'new-take'}),()=>{});assert.equal((await f.morceau(0)).audio_en_cache,false);await f.morceau(1);assert.equal(r.calls(),4);
 });
