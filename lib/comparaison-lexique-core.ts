@@ -6,7 +6,9 @@ export function phrasesDevoirsValides(blocs:Array<{id:string;index:number;total:
  const out=new Set<string>();
  for(const g of groups.values()){
   if(g.length!==g[0].total||!g.every(b=>b.total===g[0].total&&b.statut==="validé"&&b.date_validation))continue;
-  const lines=g.sort((a,b)=>a.index-b.index).map(b=>b.texte).join("\n").split("\n");
+  const full=g.sort((a,b)=>a.index-b.index).map(b=>b.texte).join("\n");
+  if(/^\s*(?:instruction|test|règle|regle|consigne)\b/i.test(full))continue;
+  const lines=full.split("\n");
   for(let line of lines){
    line=line.trim();if(!line||/^(devoir|exercice|instruction|test|regle|règle|consigne|objectif|partie|correction)\b/i.test(line))continue;
    const labelled=line.match(/^(?:wolof|français|francais)\s*:\s*(.+)$/i);
