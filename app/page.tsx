@@ -7667,6 +7667,17 @@ export default function Home() {
                     <span className="para" key={n}>{para.trim()}</span>
                   ))}
                 </p>
+                {m.role === "bia" && m.text.trim() ? (
+                  <button type="button" aria-label="Réécouter cette réponse" onClick={() => {
+                    // A user gesture wakes browser audio. Replay the existing
+                    // text without a new chat request or an old microphone gate.
+                    fermerConversation(); taire();
+                    const porte = porteRef.current;
+                    porteRef.current = null; porte?.ouvrir();
+                    contexte(); setPanne(null);
+                    void speak(m.text, undefined, "relecture");
+                  }}>🔊 Réécouter</button>
+                ) : null}
                 {/* Ce qu'elle montre vient SOUS sa phrase, jamais à la place :
                     l'image complète la parole, elle ne la remplace pas. */}
                 {/* Les images ne sont plus DANS le fil : ces cartes ne font
