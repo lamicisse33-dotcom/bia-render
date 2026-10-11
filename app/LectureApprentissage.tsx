@@ -44,7 +44,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   const arreterSon=()=>{suspendre();if(courant){const rejeter=courant.rejeter;courant=null;rejeter(new Error("arrêté"));}};
   let preparation:{original:string;langue:string;texte:string}|null=null;
   let secoursComplet=true;
-  const demander=async(text:string,partie:number,signal:AbortSignal)=>{
+  const demander=async(text:string,partie:number,signal:AbortSignal,empreinte?:string)=>{
    if(settings.current.voice==="piper"){
     if(!piperLocaleDisponible())throw Error("Ouvre BIA installée sur le téléphone pour utiliser Piper.");
     if(!preparation||preparation.original!==text||preparation.langue!==settings.current.langue){
@@ -55,8 +55,10 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
     return lirePiperLocale(preparation.texte,partie,signal);
    }
    if(secoursComplet){
-    const r=await fetch("/api/chatterbox-test/bia",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:settings.current.langue,voice:settings.current.voice,partie})});
-    const d=await r.json();if(!r.ok||!d.audio)throw Error(d.error||"Voix indisponible");return d as MorceauVoix;
+    const r=await fetch("/api/chatterbox-test/bia",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:settings.current.langue,voice:settings.current.voice,partie,empreinte})});
+    const d=await r.json();if(!r.ok||!d.audio)throw Error(d.error||"Voix indisponible");
+    if(d.partie!==partie||(empreinte!==undefined&&d.empreinte!==empreinte))throw Error("Le passage reçu ne correspond pas à la lecture. Réessaie ce passage.");
+    return d as MorceauVoix;
    }
    const abort=new AbortController();const stop=()=>abort.abort();signal.addEventListener("abort",stop,{once:true});
    const cleanup=()=>{signal.removeEventListener("abort",stop);abort.abort();};
@@ -71,7 +73,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    const total=piece.parties;
    if(!Number.isSafeInteger(total)||total<1)throw Error("Découpage vocal invalide");
    for(let part=0;part<total;part++){
-    if(part)piece=await demander(value.text,part,signal);
+    if(part)piece=await demander(value.text,part,signal,value.first.empreinte);
     if(piece.parties!==total)throw Error("Le découpage a changé pendant la lecture. Réessaie ce passage.");
     try{if(!piece.audio)throw Error("Morceau vocal absent");yield piece.audio;
      if(piece.flux)for await(const packet of piece.flux)yield packet;

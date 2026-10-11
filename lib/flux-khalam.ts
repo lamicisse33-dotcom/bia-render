@@ -1,5 +1,6 @@
 export type MorceauVoix = {
   parties:number; audio:string|null; type_mime?:string; fabrication_ms?:number;
+  partie?:number; empreinte?:string;
   speed?:number; flux?:AsyncGenerator<string>; annuler?:()=>void;
 };
 

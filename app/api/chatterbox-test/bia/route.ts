@@ -48,10 +48,17 @@ export async function POST(request: NextRequest) {
   let parts: Awaited<ReturnType<typeof preparerPassagesKhalam>>;
   try { parts = await preparerPassagesKhalam(body.texte, defaut); }
   catch { return NextResponse.json({error:"Le lexique n'a pas répondu. Réessaie."},{status:503}); }
+  // A count alone cannot detect a replacement/reordering of equal-sized plans.
+  // Bind subsequent chunks to the exact text, languages and voice of part zero.
+  const empreinte = createHash("sha256").update(JSON.stringify([voice, parts])).digest("hex");
+  if (body.empreinte !== undefined && body.empreinte !== empreinte) {
+    return NextResponse.json({error:"La préparation vocale a changé. Réessaie ce passage.",code:"DECOUPAGE_MODIFIE"},
+      {status:409,headers:{"cache-control":"no-store"}});
+  }
   const langue = parts[partie]?.langue || defaut;
   const headers = { "cache-control": "no-store" };
   const common = {
-    parties: parts.length, partie,
+    parties: parts.length, partie, empreinte,
     langue: langue,
     moteur: `khalam-voice-${voice}`, engine: "KHALAM Voice", voice,
   };

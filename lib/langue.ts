@@ -6,6 +6,9 @@ const MOTS_WOLOF = new Set(["bul","buntt","tay","ndox","ay","ji","bu","ngir","wa
 const MOTS_FRANCAIS = new Set(["décision","décisions","suspicion","suspicions","franc","fcfa","xof","bus","la","prendre","rentrer","bouteille","francs","cfa","taxi","texte","lecture","exercice","numéro","rue","lune","plume","sucre","du","lis","lire","utilise","utiliser","français","française","j","l","d","qu","le","les","de","des","un","une","et","est","sont","était","je","tu","il","elle","nous","vous","ils","elles","on","que","qui","quoi","pour","avec","dans","sur","sous","chez","pas","mais","donc","alors","aussi","très","plus","moins","combien","pourquoi","comment","quand","où","quel","quelle","bonjour","merci","oui","non","monsieur","madame","ai","as","avez","avons","suis","êtes","sommes","peux","peut","veux","veut","voulez","faire","fait","aller","vais","prendre","ce","cette","ces","mon","ma","mes","ton","votre","vos","leur","au","aux","en","se","me","te","lui","nos","notre","être","avoir","cela","tout","tous","comme","son","sa","ses","par","si","bien"]);
 
 export type LangueVoix = "wo" | "fr";
+// Borrowings used in the teacher's urban-Wolof lessons. Keep this list
+// conservative: unknown words and homographs must not all become French.
+const EMPRUNTS_FRANCAIS = ["Wave", "bus", "prix", "transfert", "transferts", "cash"];
 const COMMUNS = new Set(["ma","la","te","lu","nu","man","fan"]);
 function indicesLangue(texte: string) {
   let wo=0, fr=0;
@@ -26,8 +29,9 @@ export function detecterLangue(texte:string, defaut:LangueVoix="wo"):LangueVoix 
 export type PassageVoix = {texte:string; langue:LangueVoix};
 /** Preserve the source exactly. Unknown words inherit their neighbouring context.
  * This is a lexical detector, not a guarantee for every homograph or unknown word. */
-export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", empruntsFrancais:readonly string[]=["Wave","bus"]):PassageVoix[] {
+export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", empruntsFrancais:readonly string[]=[]):PassageVoix[] {
   const out:PassageVoix[]=[];
+  empruntsFrancais=[...EMPRUNTS_FRANCAIS,...empruntsFrancais];
   const emprunts=new Set([...empruntsFrancais,"franc","francs","CFA","FCFA","XOF"].map(m=>m.toLocaleLowerCase().normalize("NFC")));
   for (const sentence of Array.from(new Intl.Segmenter("fr",{granularity:"sentence"}).segment(texte),s=>s.segment)) {
     const tokens=Array.from(sentence.matchAll(/\s*\S+/gu),m=>m[0]);
