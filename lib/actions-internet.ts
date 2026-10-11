@@ -1,3 +1,4 @@
+import {demandeMeteo,demandeInfos,meteoPublique,infosPubliques} from "./services-publics";
 export type IntentionMedia = { sorte: "image" | "video"; requete: string; video?: string };
 /** Only explicit commands; lesson payloads and quoted examples stay in their own route. */
 export function intentionMedia(question: string): IntentionMedia | null {
@@ -11,9 +12,11 @@ export function intentionMedia(question: string): IntentionMedia | null {
   return { sorte: video ? "video" : "image", requete };
 }
 export type ResultatWeb = { titre: string; url: string; extrait: string };
-export const webConfigure = () => Boolean(String(process.env.BRAVE_CLE || "").trim());
+export const webConfigure = (question="") => demandeMeteo(question)||demandeInfos(question)||Boolean(String(process.env.BRAVE_CLE || "").trim());
 export async function chercherWeb(question: string): Promise<ResultatWeb[]> {
-  if (!webConfigure()) return [];
+  if (demandeMeteo(question))return meteoPublique(question);
+  if (demandeInfos(question)&&!String(process.env.BRAVE_CLE||"").trim())return infosPubliques(question);
+  if (!webConfigure(question)) return [];
   const url = new URL("https://api.search.brave.com/res/v1/web/search");
   url.searchParams.set("q", question.slice(0, 400));
   url.searchParams.set("count", "5");
