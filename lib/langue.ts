@@ -26,13 +26,16 @@ export function detecterLangue(texte:string, defaut:LangueVoix="wo"):LangueVoix 
 export type PassageVoix = {texte:string; langue:LangueVoix};
 /** Preserve the source exactly. Unknown words inherit their neighbouring context.
  * This is a lexical detector, not a guarantee for every homograph or unknown word. */
-export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo"):PassageVoix[] {
+export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", empruntsFrancais:readonly string[]=["Wave"]):PassageVoix[] {
   const out:PassageVoix[]=[];
+  const emprunts=new Set(empruntsFrancais.map(m=>m.toLocaleLowerCase().normalize("NFC")));
   for (const sentence of Array.from(new Intl.Segmenter("fr",{granularity:"sentence"}).segment(texte),s=>s.segment)) {
     const tokens=Array.from(sentence.matchAll(/\s*\S+/gu),m=>m[0]);
     if (!tokens.length) {if(out.length)out[out.length-1].texte+=sentence;continue;}
     tokens[tokens.length-1]+=sentence.slice(tokens.join("").length);
     const labels=tokens.map(token=>{
+      const mots=token.toLocaleLowerCase().normalize("NFC").match(/\\p{L}+/gu)||[];
+      if(mots.length===1&&emprunts.has(mots[0]))return "fr" as const;
       const {wo,fr}=indicesLangue(token);
       return wo ? "wo" as const : fr || /\d/u.test(token) ? "fr" as const : null;
     });
