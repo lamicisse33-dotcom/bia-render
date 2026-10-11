@@ -33,7 +33,26 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
     const tokens=Array.from(sentence.matchAll(/\s*\S+/gu),m=>m[0]);
     if (!tokens.length) {if(out.length)out[out.length-1].texte+=sentence;continue;}
     tokens[tokens.length-1]+=sentence.slice(tokens.join("").length);
-    const labels=tokens.map(token=>{
+    // Match validated French expressions on whole tokens, never substrings.
+    const keys=tokens.map(t=>(t.toLocaleLowerCase().normalize("NFC").match(/[\p{L}\p{N}]+/gu)||[]).join(" "));
+    const protectedIndices=new Set<number>();
+    for(const expression of empruntsFrancais){
+      const words=(expression.toLocaleLowerCase().normalize("NFC").match(/[\p{L}\p{N}]+/gu)||[]);
+      if(!words.length)continue;
+      for(let start=0;start<keys.length;start++){
+        let combined="";
+        for(let end=start;end<keys.length;end++){
+          combined+=(combined?" ":"")+keys[end];
+          if(combined===words.join(" ")){
+            for(let j=start;j<=end;j++)protectedIndices.add(j);
+            break;
+          }
+          if(!words.join(" ").startsWith(combined))break;
+        }
+      }
+    }
+    const labels=tokens.map((token,index)=>{
+      if(protectedIndices.has(index))return "fr" as const;
       const mots=token.toLocaleLowerCase().normalize("NFC").match(/[\p{L}\p{N}]+/gu)||[];
       if(mots.length===1&&emprunts.has(mots[0]))return "fr" as const;
       const {wo,fr}=indicesLangue(token);
@@ -49,6 +68,7 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
     }
     if(buf)out.push({texte:buf,langue:current});
   }
+  if(out.map(p=>p.texte).join("")!==texte)throw new Error("Découpage vocal incomplet");
   return out;
 }
 
