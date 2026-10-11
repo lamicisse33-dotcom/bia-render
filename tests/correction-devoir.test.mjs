@@ -7,7 +7,7 @@ const compile=s=>ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.Com
 function load(path,deps={},env={}){const module={exports:{}};new Function('require','module','exports',...Object.keys(env),compile(fs.readFileSync(path,'utf8')))(n=>{assert(n in deps,`Unexpected import ${n}`);return deps[n];},module,module.exports,...Object.values(env));return module.exports;}
 const dialogue=load('lib/dialogue-devoirs-core.ts'),lecture=load('lib/lecture-devoirs-core.ts');
 const core=load('lib/correction-devoir-core.ts',{'./dialogue-devoirs-core':dialogue});
-const flow=load('lib/correction-devoir-conversation.ts',{'./correction-devoir-core':core,'./correction-maitre':load('lib/correction-maitre.ts'),'./mode-apprentissage':load('lib/mode-apprentissage.ts')});
+const flow=load('lib/correction-devoir-conversation.ts',{'./instructions':load('lib/instructions.ts',{'@/lib/repertoire':load('lib/normaliser.ts')}),'./correction-devoir-core':core,'./correction-maitre':load('lib/correction-maitre.ts'),'./mode-apprentissage':load('lib/mode-apprentissage.ts')});
 const revisionDevoir=t=>crypto.createHash('sha256').update(t).digest('hex');
 const texte='DEVOIR 1\nWolof : BIA : Naka nga def ?\nFrançais : BIA : Comment vas-tu ?\nWolof : BIA : Naka nga def ?\nFrançais : BIA : Naka nga def ?';
 const d={id:'fixture',texte,revision:revisionDevoir(texte),date:'2026-10-11',langue:'wo',valide:true};
@@ -88,4 +88,14 @@ test('actual chat handler runs correction and validation before learned selectio
  assert.equal(first.corps.aRepeter,'Nanga def ?');assert.equal(writes,0);
  const next=await run({message:'Mémorise',correctionDevoir:first.corps.correction_devoir,aRepeter:first.corps.aRepeter},'master',null);
  assert.equal(next.corps.devoir_corrige,true);assert.equal(writes,1);
+});
+
+test('established spoken validation and cancellation commands keep their meaning in a root correction',async()=>{
+ for(const question of ["C’est bon, mémorise ça", "garde garde", "voilà, mémorise ça"]){
+  let writes=0;const r=await flow.corrigerDevoirConversation({question,maitre:true,active:origin,phrase:'Nanga def ?'},async(o,t)=>{writes++;assert.equal(t,'Nanga def ?');return {...o,texte:t}});
+  assert.equal(writes,1);assert.equal(r.devoir_corrige,true);
+ }
+ for(const question of ['Ne retiens pas ça','annule ça']){
+  const r=await flow.corrigerDevoirConversation({question,maitre:true,active:origin,phrase:'Nanga def ?'},async()=>{throw Error('must not save')});assert.equal(r.correction_devoir,null);
+ }
 });

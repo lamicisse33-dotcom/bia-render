@@ -1,3 +1,4 @@
+import {lireLOrdre} from "./instructions";
 import {correctionDuMaitre} from "./correction-maitre";
 import {executerLecon} from "./mode-apprentissage";
 import {origineValide,type OrigineDevoir} from "./correction-devoir-core";
@@ -13,9 +14,14 @@ export async function corrigerDevoirConversation(input:{question:string;maitre:b
  if(demande)return repondre(demande.phrase||"");
  if(!active)return null;
  if(/^(?:annule|annule la correction|ne (?:mémorise|retiens|garde) pas(?: ça)?)[.!]?$/i.test(input.question.trim()))return {reply:"Correction annulée. Le devoir est inchangé.",apprend:false,aRepeter:"",correction_devoir:null,origine_devoir:origine};
+ const ordre=lireLOrdre(input.question);
+ if(ordre?.quoi==="oublie")return {reply:"Correction annulée. Le devoir est inchangé.",apprend:false,aRepeter:"",correction_devoir:null,origine_devoir:origine};
+ if(ordre?.quoi==="encore")return repondre("");
+ if(ordre?.quoi==="silence"||ordre?.quoi==="micro")return {reply:"D’accord papa.",ordre:ordre.quoi,apprend:true,aRepeter:input.phrase||"",correction_devoir:origine};
+ const commande=ordre?.quoi==="retiens"?"Mémorise":ordre?.quoi==="fini"?"On a fini":ordre?.quoi==="repete"?"Répète":input.question;
  let nouvelle:OrigineDevoir|undefined;
  let erreur="";
- const lecon=await executerLecon({texte:input.question,maitre:true,actif:true,phrase:input.phrase||""},async texte=>{
+ const lecon=await executerLecon({texte:commande,maitre:true,actif:true,phrase:input.phrase||""},async texte=>{
   try{nouvelle=await sauver(origine,texte);}catch(e){erreur=e instanceof Error?e.message:"Enregistrement impossible";throw e;}
  });
  if(lecon?.retenu)return {...lecon,reply:"C’est corrigé dans le devoir d’origine, papa.",apprend:false,aRepeter:"",correction_devoir:null,origine_devoir:nouvelle,devoir_corrige:true};
