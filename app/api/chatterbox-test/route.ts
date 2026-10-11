@@ -1,3 +1,4 @@
+import {sansGuillemetsFrancais} from "@/lib/texte-khalam-voix";
 import { detecterLangue } from "@/lib/langue";
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
@@ -53,7 +54,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Écris une phrase à prononcer." }, { status: 400 });
   }
   try {
-    const text = body.input.text.trim();
+    const source = body.input.text.trim();
+    if(source.length>600)return NextResponse.json({error:"Écris une phrase de 600 caractères au maximum."},{status:400});
+    const text = sansGuillemetsFrancais(source);
     if (!text || text.length > 600) return NextResponse.json({ error: "Écris une phrase de 600 caractères au maximum." }, { status: 400 });
     const voice = body?.input?.voice === "male" ? "male" : "female";
     const language = body.input.language === "fr" || body.input.language === "wo" ? body.input.language : detecterLangue(text);
