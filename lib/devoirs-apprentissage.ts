@@ -36,7 +36,7 @@ export async function garderBlocDevoir(texte:string,index:number,total:number,id
 }
 export function selectionnerDevoirs(blocs:Bloc[],question:string){
  const groups=new Map<string,Bloc[]>();for(const b of blocs){const g=groups.get(b.id)||[];g.push(b);groups.set(b.id,g);}
- const complets=[...groups.values()].filter(g=>g.length===g[0].total&&g.every(b=>b.total===g[0].total)).flat();
+ const complets=[...groups.values()].filter(g=>g.length===g[0].total&&g.every(b=>b.total===g[0].total&&b.statut==="validé"&&b.date_validation)).flat();
  const mots=new Set((question.toLowerCase().match(/\p{L}{3,}/gu)||[]).filter(m=>!["les","des","une","que","pour","dans","avec","est","sur","comment","dama","bëgg","nga"].includes(m)));
  return complets.map(b=>({b,score:(b.texte.toLowerCase().match(/\p{L}{3,}/gu)||[]).reduce((n,m)=>n+Number(mots.has(m)),0)}))
   .filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,4).map(x=>x.b.texte).join("\n\n").slice(0,8000);
