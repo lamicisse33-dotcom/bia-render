@@ -2,8 +2,8 @@ import {devoirsALire} from "./devoirs-apprentissage";
 import {chercherDialogues,contexteDialogue,indexerDevoirs,paquetSelection,resoudreSelection,normaliserDialogue,type DialogueAppris,type TourDialogue} from "./dialogue-devoirs-core";
 import {detecterLangue} from "./langue";
 
-const g=globalThis as typeof globalThis & {biaDialogueDevoirs?:{tours:number;selectionnes:number;hors_sujet:number;clarifications:number;erreurs:number;dernier_ms:number;devoirs:number;repliques:number;non_structures:number;dernier_statut:string;diagnostic?:unknown;essai?:Promise<unknown>}};
-const etat=g.biaDialogueDevoirs??={tours:0,selectionnes:0,hors_sujet:0,clarifications:0,erreurs:0,dernier_ms:0,devoirs:0,repliques:0,non_structures:0,dernier_statut:"aucun"};
+const g=globalThis as typeof globalThis & {biaDialogueDevoirs?:{tours:number;selectionnes:number;hors_sujet:number;clarifications:number;erreurs:number;dernier_ms:number;devoirs:number;repliques:number;non_structures:number;dernier_statut:string;appels_modele:number;jetons_entree:number;jetons_sortie:number;dernier_modele_ms:number;diagnostic?:unknown;essai?:Promise<unknown>}};
+const etat=g.biaDialogueDevoirs??={tours:0,selectionnes:0,hors_sujet:0,clarifications:0,erreurs:0,dernier_ms:0,devoirs:0,repliques:0,non_structures:0,dernier_statut:"aucun",appels_modele:0,jetons_entree:0,jetons_sortie:0,dernier_modele_ms:0};
 export function resumeDialogueDevoirs(){const {essai,...publics}=etat;return {actif:true,source:"Supabase",reponse:"une réplique mémorisée, sans réécriture",...publics};}
 export async function indexDialogue(){
  const {devoirs}=await devoirsALire(1500);const index=indexerDevoirs(devoirs);
@@ -24,8 +24,11 @@ async function selectionner(payload:unknown){
  if(!key)throw Error("configuration_absente");
  const url=local?(process.env.LOCAL_LLM_URL||"").replace(/\/$/,"")+"/brain/v1/chat/completions":cerebras?"https://api.cerebras.ai/v1/chat/completions":"https://api.groq.com/openai/v1/chat/completions";
  const model=local?process.env.LOCAL_LLM_MODEL||"Oolel-v0.1-Q8_0":cerebras?process.env.CEREBRAS_MODEL||"gpt-oss-120b":process.env.GROQ_MODEL||"openai/gpt-oss-120b";
+ const debut=Date.now();etat.appels_modele++;
  const r=await fetch(url,{method:"POST",cache:"no-store",signal:AbortSignal.timeout(2500),headers:{"content-type":"application/json",...(local?{"X-Brain-Key":key}:{authorization:`Bearer ${key}`})},body:JSON.stringify({model,temperature:0,stream:false,messages:[{role:"system",content:CONSIGNE},{role:"user",content:JSON.stringify(payload)}],...(local?{max_tokens:256}:{max_completion_tokens:1536,...(/gpt-oss/.test(model)?{reasoning_effort:"low"}:{}),...(cerebras?{reasoning_format:"hidden"}:{include_reasoning:false})})})});
+ etat.dernier_modele_ms=Date.now()-debut;
  if(!r.ok)throw Error("HTTP_"+r.status);const data=await r.json();
+ etat.jetons_entree+=Number(data.usage?.prompt_tokens)||0;etat.jetons_sortie+=Number(data.usage?.completion_tokens)||0;
  if(data.choices?.[0]?.finish_reason==="length")throw Error("sortie_tronquee");
  return JSON.parse(String(data.choices?.[0]?.message?.content||"").trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/, ""));
 }
@@ -45,7 +48,7 @@ export async function dialoguerAvecDevoirs(question:string,historique:unknown,op
   const index=options.index||await indexDialogue(),candidats=chercherDialogues(index,question,history);
   if(!candidats.length){if(!diagnostic){etat.hors_sujet++;etat.dernier_statut="non_couvert";}return null;}
   const langue=langueDuDialogue(question,history),devoirs=paquetSelection(candidats,history,langue,question);
-  const verdict=resoudreSelection(await (options.choisir||selectionner)({question,historique:history,langue,devoirs}),devoirs,langue);
+  const verdict=resoudreSelection(await (options.choisir||selectionner)({question,historique:history.slice(-8),langue,devoirs}),devoirs,langue);
   if(verdict.statut==="hors_sujet"){if(!diagnostic){etat.hors_sujet++;etat.dernier_statut="hors_sujet";}return null;}
   if(verdict.statut==="selection"){
    if(!diagnostic){etat.selectionnes++;etat.dernier_statut="selection";}

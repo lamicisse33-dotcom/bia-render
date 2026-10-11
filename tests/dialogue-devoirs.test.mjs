@@ -38,6 +38,7 @@ test('explicit bilingual pairs preserve text and roles without guessing missing 
 });
 test('newest complete version of a numbered lesson wins',()=>{
  const d=core.indexerDevoirs([{...fixture,id:'old',date:'2020'},fixture]);assert.equal(d.length,1);assert.equal(d[0].id,'fixture');
+ assert.equal(core.indexerDevoirs([fixture,{...fixture,id:'another',texte:fixture.texte.replace('Couple, messages et incompréhension','Autre sujet')}]).length,2);
 });
 test('calls retrieve the messages lesson; a short answer retains the active dialogue',()=>{
  assert.equal(core.chercherDialogues(index,'Ma copine ne répond plus à mes appels.',[]).length,1);
@@ -85,4 +86,17 @@ test('real chat route gives the authenticated learned dialogue priority over gen
  const env={verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,dialoguerAvecDevoirs:async(q,h)=>{calls++;assert.equal(q,'Non.');assert.equal(h[0].text,'Question précédente ?');return expected;}};
  const run=new Function('env',`with(env){${compile(fn)}return repondre;}`)(env);
  const r=await run({message:'Non.',history:[{role:'bia',text:'Question précédente ?'}]},'valid-test-code',null);assert.deepEqual(r,{corps:expected});assert.equal(calls,1);
+});
+
+test('an older learned reply is not repeated after four subsequent exchanges',()=>{
+ const old=index[0].repliques[1].fr;const history=core.contexteDialogue([{role:'bia',text:old},...Array.from({length:12},(_,i)=>({role:i%2?'bia':'user',text:'Autre échange '+i})),{role:'bia',text:index[0].repliques[5].fr}]);
+ const candidates=core.chercherDialogues(index,'Non.',history),packet=core.paquetSelection(candidates,history,'fr');
+ assert.equal(core.resoudreSelection({statut:'selection',id:'0:1'},packet,'fr').statut,'clarifier');
+});
+test('public production diagnostic rejects before any private lesson reaches the selector',async()=>{
+ const source=fs.readFileSync('app/api/etat/route.ts','utf8'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);let fn;
+ ast.forEachChild(n=>{if(ts.isFunctionDeclaration(n)&&n.name?.text==='GET')fn=n.getText(ast).replace('export ','');});assert(fn);let calls=0;
+ const env={URL,verifierCode:()=>({ok:false}),NextResponse:{json:(body,opt)=>({body,...opt})},essayerDialogueDevoirs:async()=>{calls++;}};
+ const get=new Function('env',`with(env){${compile(fn)}return GET;}`)(env);
+ const r=await get({url:'https://app.khalam.app/api/etat?essai_dialogue=1',headers:{get:()=>null}});assert.equal(r.status,401);assert.equal(calls,0);
 });

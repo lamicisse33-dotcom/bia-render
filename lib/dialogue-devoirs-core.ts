@@ -48,7 +48,7 @@ export function analyserDevoir(d:DevoirALire):DialogueAppris{
 export function indexerDevoirs(devoirs:DevoirALire[]){
  const derniers=new Map<string,DevoirALire>();
  for(const d of devoirs){
-  const titre=d.texte.match(/\bDEVOIR\s*(\d+)\b/i);const cle=titre?"devoir:"+titre[1]:d.id;
+  const titre=d.texte.split(/\r?\n/).find(l=>/\bDEVOIR\s*\d+\b/i.test(l));const cle=titre?"devoir:"+normaliserDialogue(titre):d.id;
   const precedent=derniers.get(cle);if(!precedent||d.date>=precedent.date)derniers.set(cle,d);
  }
  return [...derniers.values()].map(analyserDevoir);
@@ -60,7 +60,7 @@ function termes(s:string){
 }
 export function contexteDialogue(historique:unknown):TourDialogue[]{
  if(!Array.isArray(historique))return [];
- return historique.filter(t=>t&&["user","bia","assistant"].includes(t.role)&&typeof t.text==="string").slice(-8).map(t=>({role:t.role==="user"?"user":"bia",text:t.text.slice(0,1200)}));
+ return historique.filter(t=>t&&["user","bia","assistant"].includes(t.role)&&typeof t.text==="string").slice(-40).map(t=>({role:t.role==="user"?"user":"bia",text:t.text.slice(0,1800)}));
 }
 export function chercherDialogues(index:DialogueAppris[],question:string,history:TourDialogue[]){
  const q=termes(question),recent=termes(history.filter(t=>t.role==="user").slice(-2).map(t=>t.text).join(" "));
