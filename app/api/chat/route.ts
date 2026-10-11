@@ -2359,21 +2359,21 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     let webDuTour = "";
     const demandeWeb = besoinDInternet(question, (body.history || []).filter(item => item.role === "user").map(item => String(item.text || "")));
     const rechercheViaGroq = false; // Lamine: no paid Groq web search; YouTube uses its existing Google key.
-    if (demandeWeb && !webConfigure() && !rechercheViaGroq && (cerebras || local || gemini)) {
+    if (demandeWeb && !webConfigure(question) && !rechercheViaGroq && (cerebras || local || gemini)) {
       // A keyword suggesting current information must not replace the whole
       // conversation with a canned outage message. Let the brain answer the
       // actual question, with an explicit restriction against invented lookup.
       variable += "\nRECHERCHE WEB INDISPONIBLE POUR CE TOUR : réponds à la demande réelle de l’utilisateur. Tu peux converser, expliquer et utiliser les connaissances générales. Ne prétends pas avoir effectué une recherche ni vérifié une information actuelle. Si la demande exige vraiment une vérification en ligne, explique brièvement cette limite et propose ce que tu peux faire. Ne récite pas automatiquement « la recherche Internet n’est pas disponible » pour une salutation, une question sur ton écoute, une correction ou une plainte sur ton fonctionnement.";
     }
     // Cerebras/local/Gemini cannot execute Anthropic/Groq search tool formats.
-    if (demandeWeb && webConfigure() && (cerebras || local || gemini)) {
+    if (demandeWeb && webConfigure(question) && (cerebras || local || gemini)) {
       try {
         const resultats = await chercherWeb(question);
         if (!resultats.length) {
           return {corps:{reply:"Je n’ai pas trouvé de source fiable pour cette recherche. Peux-tu préciser ce que tu cherches ?",source:"recherche web sans résultat"}};
         }
         webDuTour = contexteWeb(resultats);
-        variable += "\\n" + webDuTour;
+        variable += "\n" + webDuTour;
       } catch (err) {
         noterPanne("recherche web", (err as Error).message, "trouver");
         return {corps:{reply:"La recherche Internet ne répond pas pour le moment. Je ne peux pas vérifier cette information.",source:"recherche web indisponible"}};
