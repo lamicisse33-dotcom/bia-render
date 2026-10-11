@@ -98,7 +98,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   },jouer,{pause:()=>{enPause.current=true;suspendre();},reprendre:()=>{enPause.current=false;reprendreSon();},stop:()=>{enPause.current=true;arreterSon();}},setP);
   if(edition)void charger();return()=>{player.current?.stop();arreterSon();};
  },[code]);
- async function retenirDevoir(t:string,valide=false){
+ async function retenirDevoir(t:string,valide=false,langueDevoir=settings.current.langue){
   if(!edition||!t.trim())return;
   const generation=++sauvegarde.current;setMemoire("Sauvegarde de la leçon dans Supabase…");
   try{
@@ -109,7 +109,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    for(let index=0;index<blocs.length;index++){
     let ok=false;
     for(let essai=0;essai<3&&!ok;essai++){
-     try{const r=await fetch("/api/apprentissage/devoir",{method:"POST",headers:headers(),body:JSON.stringify({texte:blocs[index],id,index,total:blocs.length,valide,confirme:valide,langue:settings.current.langue})});
+     try{const r=await fetch("/api/apprentissage/devoir",{method:"POST",headers:headers(),body:JSON.stringify({texte:blocs[index],id,index,total:blocs.length,valide,confirme:valide,langue:langueDevoir})});
       const d=await r.json();if(!r.ok||!d.verifie||(valide&&!d.valide))throw Error(d.error||"Sauvegarde non confirmée");ok=true;
      }catch(e){if(essai===2)throw e;}
     }
@@ -136,7 +136,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    if(!edition){setResultatMessage("Code maître requis pour enregistrer.");return;}
    if(!exercice.current.valide){setResultatMessage("Aucun devoir validé à enregistrer. Valide d’abord la lecture avec la case de confirmation.");return;}
    setValidationEnCours(true);
-   try{await retenirDevoir(exercice.current.texte,true);}finally{setValidationEnCours(false);}
+   try{await retenirDevoir(exercice.current.texte,true,exercice.current.langue);}finally{setValidationEnCours(false);}
    return;
   }
   setResultatMessage(route.type==="instruction"?"Application et sauvegarde de l’instruction…":"Test en cours, sans sauvegarde…");
