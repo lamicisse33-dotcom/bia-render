@@ -28,7 +28,7 @@ export async function infosPubliques(q:string):Promise<ResultatWeb[]>{
  const data=await cached("bbc-afrique",async()=>{
   const r=await fetch("https://feeds.bbci.co.uk/afrique/rss.xml",{cache:"no-store",signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error("Actualités "+r.status);
   const xml=await r.text();const tag=(x:string,t:string)=>decode(x.match(new RegExp("<"+t+"(?:\\s[^>]*)?>([\\s\\S]*?)</"+t+">","i"))?.[1]||"");
-  const data=[...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0,30).map(m=>({titre:tag(m[1],"title"),url:tag(m[1],"link"),extrait:"BBC Afrique — publié "+tag(m[1],"pubDate")+". Titre de flux uniquement : "+tag(m[1],"title")+". Ne pas inventer le contenu de l’article."})).filter(x=>/^https:\/\/www.bbc\.(com|co.uk)\//.test(x.url));
+  const data=[...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].filter(m=>{const t=Date.parse(tag(m[1],"pubDate"));return Number.isFinite(t)&&t>=Date.now()-7*86400000&&t<=Date.now()+3600000;}).sort((a,b)=>Date.parse(tag(b[1],"pubDate"))-Date.parse(tag(a[1],"pubDate"))).slice(0,30).map(m=>({titre:tag(m[1],"title"),url:tag(m[1],"link"),extrait:"BBC Afrique — publié "+tag(m[1],"pubDate")+". Titre de flux uniquement : "+tag(m[1],"title")+". Ne pas inventer le contenu de l’article."})).filter(x=>/^https:\/\/www.bbc\.(com|co.uk)\//.test(x.url));
   return {data,until:Date.now()+600000};
  });
  if(/senegal|dakar/.test(normal(q)))return data.filter(x=>/senegal|dakar/.test(normal(x.titre))).slice(0,5);
