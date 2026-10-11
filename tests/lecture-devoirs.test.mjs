@@ -89,7 +89,7 @@ function callback(name){
 const {lireDevoirsConversation}=load('lib/lecture-devoirs-conversation.ts',{'./lecture-continue':{segmentsLecture}});
 function normalReader({gate=null,fail=false}={}){
  const panels=[],calls=[],spoken=[],history=[],states=[];let turn=0;
- const env={demandeLectureMemoire,lireDevoirsConversation,
+ const env={demandeLectureMemoire,lireDevoirsConversation,originePassageLu:()=>null,origineDevoirRef:{current:null},correctionDevoirRef:{current:null},
    taire:()=>turn++,setLectureContinue:p=>panels.push(p),setSaisie(){},setClavier(){},setPanne(){},
    numeroDuTourRef:{get current(){return turn;}},estLeTour:n=>n===turn,fluxVoixRef:{current:new Set()},
    busyRef:{current:true},questionEnVolRef:{current:'old question'},setMode:m=>states.push(m),setFace(){},setHistory:f=>{const next=f(history);history.splice(0,history.length,...next);},codeRef:{current:'fixture'},stopMouth:()=>states.push('ready'),

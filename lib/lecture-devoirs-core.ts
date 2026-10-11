@@ -1,5 +1,5 @@
 export type BlocDevoir={version:2;type:"devoir";id:string;index:number;total:number;texte:string;date:string;statut?:"validé";date_validation?:string;langue?:"fr"|"wo"};
-export type DevoirALire={id:string;texte:string;langue:"fr"|"wo";valide:boolean;date:string};
+export type DevoirALire={revision?:string;id:string;texte:string;langue:"fr"|"wo";valide:boolean;date:string};
 /** Newest block wins (the database returns id.desc). Never read a partial lesson. */
 export function assemblerDevoirs(blocs:BlocDevoir[]):{devoirs:DevoirALire[];incomplets:number}{
  const groupes=new Map<string,Map<number,BlocDevoir>>();

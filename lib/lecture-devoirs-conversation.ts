@@ -7,16 +7,18 @@ export async function lireDevoirsConversation(options:{
  charger:()=>Promise<{devoirs:DevoirALire[];incomplets:number}>;
  actuel:()=>boolean;
  annoncer:(nombre:number,incomplets:number)=>void;
- parler:(texte:string,langue:"fr"|"wo")=>Promise<void>;
+ parler:(texte:string,langue:"fr"|"wo",devoir:DevoirALire,debut:number)=>Promise<void>;
 }){
  const {devoirs,incomplets}=await options.charger();
  if(!options.actuel())return false;
  if(!devoirs.length)throw Error(incomplets?"Les devoirs enregistrés sont incomplets. Aucun texte complet à lire.":"Aucun devoir enregistré à lire.");
  options.annoncer(devoirs.length,incomplets);
  for(const devoir of devoirs){
+  let debut=0;
   for(const texte of segmentsLecture(devoir.texte)){
    if(!options.actuel())return false;
-   await options.parler(texte,devoir.langue);
+   await options.parler(texte,devoir.langue,devoir,debut);
+   debut+=texte.length;
    if(!options.actuel())return false;
   }
  }

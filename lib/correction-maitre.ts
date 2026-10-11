@@ -10,6 +10,7 @@ export function correctionDuMaitre(texte: string, maitre: boolean): { phrase: st
   }
   const n = q.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
   const ordres = [
+    "corrige", "corrige cette phrase", "tu as mal prononce", "c est mal prononce",
     "non corrige", "corrige ca", "stop corrige", "c est a corriger", "il faut corriger",
     "non c est mal parle", "c est mal parle", "tu as mal parle", "tu parles mal",
     "tu as mal dit", "je te corrige", "je suis en train de te corriger",

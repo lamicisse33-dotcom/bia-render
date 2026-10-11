@@ -1,3 +1,7 @@
+import {corrigerDevoirConversation} from "@/lib/correction-devoir-conversation";
+import {corrigerDevoir} from "@/lib/correction-devoir";
+import {origineReplique} from "@/lib/correction-devoir-core";
+import {devoirsALire} from "@/lib/devoirs-apprentissage";
 import {dialoguerAvecDevoirs} from "@/lib/dialogue-devoirs";
 import {CONSIGNE_COMPREHENSION,dependDuContexte} from "@/lib/comprehension-conversation";
 import {contexteInstructions} from "@/lib/instructions-apprentissage";
@@ -830,7 +834,7 @@ type Corps={apprentissageTest?:boolean;message?:string;history?:Array<{role:stri
      `aRepeter` : la dernière phrase qu'elle a répétée — c'est CELLE-LÀ qu'on
      garde quand il dit « c'est bon, retiens ça », parce que c'est celle
      qu'il vient d'entendre. Voir lib/instructions.ts. */
-  apprend?:boolean;aRepeter?:string;
+  apprend?:boolean;aRepeter?:string;origineDevoir?:unknown;correctionDevoir?:unknown;
   /* QUI PARLE — l'identifiant du profil tenu par le téléphone. Sert à ranger
      sa mémoire par personne et non par appareil. Le maître, lui, est reconnu
      par son code : ce champ ne peut pas usurper sa mémoire. */
@@ -1227,6 +1231,8 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
         motif:"le code maître n'était pas reconnu sur ce tour — aucun ordre n'est pris"});
     }
     if(maitre.ok&&maitre.maitre&&!body.apprentissageTest){
+      const correctionRacine=await corrigerDevoirConversation({question,maitre:true,origine:body.origineDevoir,active:body.correctionDevoir,phrase:body.aRepeter},corrigerDevoir);
+      if(correctionRacine)return {corps:correctionRacine};
       const lecon = await executerLecon({texte:question, maitre:true,
         actif:Boolean(body.apprend), phrase:String(body.aRepeter||"")}, async (phrase) => {
         try {
@@ -1376,7 +1382,14 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     if(maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours
        &&!estUnSecours(question)&&!intentionMedia(question)&&!demandeDeNombre(question)){
       const memorisee=await dialoguerAvecDevoirs(question,body.history);
-      if(memorisee)return {corps:memorisee};
+      if(memorisee){
+        let origine_devoir:unknown=null;
+        if(memorisee.dialogue_memorise){
+          const d=(await devoirsALire(1500)).devoirs.find(d=>d.id===memorisee.lecon_id);
+          if(d)origine_devoir=origineReplique(d,memorisee.replique_id!,memorisee.langue)||{devoir_id:d.id,indisponible:true};
+        }
+        return {corps:{...memorisee,origine_devoir}};
+      }
     }
 
 

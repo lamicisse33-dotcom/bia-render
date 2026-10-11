@@ -1,3 +1,5 @@
+import {corrigerDevoir} from "@/lib/correction-devoir";
+import {origineValide} from "@/lib/correction-devoir-core";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { ajouterCorrection, retirerCorrection } from "@/lib/lexique";
@@ -70,15 +72,24 @@ export async function POST(request: NextRequest) {
   const non = refuse(request);
   if (non) return non;
 
+  let correctionDevoir:unknown;
   let texte = "";
   let extrait = "";
   let francais = "";
   try {
-    const corps = await request.json() as { texte?: string; extrait?: string; francais?: string };
-    texte = texteDe(corps.texte);
+    const corps = await request.json() as { texte?: string; extrait?: string; francais?: string; correctionDevoir?:unknown };
+    correctionDevoir=corps.correctionDevoir;
+    texte = correctionDevoir ? String(corps.texte||"").trim() : texteDe(corps.texte);
     extrait = String(corps.extrait || "").slice(0, 80);
     francais = String(corps.francais || "").trim().slice(0, 400);
   } catch { texte = ""; }
+
+  if(correctionDevoir){
+    if(!origineValide(correctionDevoir))return NextResponse.json({erreur:"Origine du devoir invalide."},{status:400});
+    try{const origine_devoir=await corrigerDevoir(correctionDevoir,texte);
+      return NextResponse.json({retenu:texte,devoir_corrige:true,origine_devoir});
+    }catch(e){return NextResponse.json({erreur:e instanceof Error?e.message:"Correction non confirmée."},{status:409});}
+  }
 
   if (texte.length < 2) {
     /* On ne range pas le vide, et on le DIT — un bouton qui répond « c'est

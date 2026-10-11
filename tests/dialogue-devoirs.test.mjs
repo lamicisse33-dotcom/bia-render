@@ -83,9 +83,9 @@ test('real chat route gives the authenticated learned dialogue priority over gen
  const source=fs.readFileSync('app/api/chat/route.ts','utf8'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);let fn;
  ast.forEachChild(n=>{if(ts.isFunctionDeclaration(n)&&n.name?.text==='repondre')fn=n.getText(ast);});assert(fn);
  let calls=0;const expected={reply:'Question apprise ?',dialogue_memorise:true};
- const env={verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,dialoguerAvecDevoirs:async(q,h)=>{calls++;assert.equal(q,'Non.');assert.equal(h[0].text,'Question précédente ?');return expected;}};
+ const env={corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected write')},devoirsALire:async()=>({devoirs:[]}),verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,dialoguerAvecDevoirs:async(q,h)=>{calls++;assert.equal(q,'Non.');assert.equal(h[0].text,'Question précédente ?');return expected;}};
  const run=new Function('env',`with(env){${compile(fn)}return repondre;}`)(env);
- const r=await run({message:'Non.',history:[{role:'bia',text:'Question précédente ?'}]},'valid-test-code',null);assert.deepEqual(r,{corps:expected});assert.equal(calls,1);
+ const r=await run({message:'Non.',history:[{role:'bia',text:'Question précédente ?'}]},'valid-test-code',null);assert.deepEqual(r,{corps:{...expected,origine_devoir:null}});assert.equal(calls,1);
 });
 
 test('an older learned reply is not repeated after four subsequent exchanges',()=>{
@@ -118,7 +118,7 @@ test('a follow-up request retains the lesson and may choose a learned suggestion
 });
 test('lesson verification rejects anonymous access before any private evaluation',async()=>{
  let evaluations=0;
- const route=load('app/api/apprentissage/verification/route.ts',{'node:crypto':{timingSafeEqual:()=>false},'next/server':{NextResponse:{json:(body,opt)=>({body,...opt})}},'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/lexique':{lexiqueConfig:{actif:true}},'@/lib/lexique-apprentissage-core':{APP_LECONS:'test'},'@/lib/essai-dialogue-devoirs':{verifierDialoguesAppris:async()=>{evaluations++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test'}},Buffer});
+ const route=load('app/api/apprentissage/verification/route.ts',{'@/lib/correction-devoir':{verifierCorrectionDevoir:async()=>{evaluations++;}},'node:crypto':{timingSafeEqual:()=>false},'next/server':{NextResponse:{json:(body,opt)=>({body,...opt})}},'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/lexique':{lexiqueConfig:{actif:true}},'@/lib/lexique-apprentissage-core':{APP_LECONS:'test'},'@/lib/essai-dialogue-devoirs':{verifierDialoguesAppris:async()=>{evaluations++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test'}},Buffer});
  const r=await route.POST({headers:{get:()=>null}});assert.equal(r.status,401);assert.equal(evaluations,0);
 });
 

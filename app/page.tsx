@@ -3,6 +3,7 @@ import {piperLocaleDisponible} from "@/lib/voix-piper-locale";
 
 import { detecterLangue } from "@/lib/langue";
 import LectureApprentissage from "./LectureApprentissage";
+import {originePassageLu,type SourceDevoir,type OrigineDevoir} from "@/lib/correction-devoir-core";
 import {lireDevoirsConversation} from "@/lib/lecture-devoirs-conversation";
 import {demandeLecture,demandeLectureMemoire} from "@/lib/intention-lecture";
 import { ouvrirFluxVoix, type MorceauVoix } from "@/lib/flux-khalam";
@@ -769,6 +770,8 @@ export default function Home() {
      dans lib/instructions.ts, côté serveur, là où le code maître se vérifie. */
   const apprend = useRef(false);
   const aRepeter = useRef("");
+  const origineDevoirRef=useRef<SourceDevoir|null>(null);
+  const correctionDevoirRef=useRef<OrigineDevoir|null>(null);
   /* ── SA VOIX, GARDÉE LE TEMPS D'UN « MÉMORISE » ──────────────────────────
 
      Lamine, le 14 septembre 2026 : « il vaut mieux qu'elle entende ce que je
@@ -3125,9 +3128,12 @@ export default function Home() {
             const d=await r.json();if(!r.ok||!Array.isArray(d.devoirs))throw Error(d.error||"Impossible de charger les devoirs.");return d;
           },
           annoncer:(nombre,incomplets)=>setHistory(items=>[...items,{role:"bia",text:`Je lis les ${nombre} devoirs enregistrés.${incomplets?` ${incomplets} sauvegarde(s) incomplète(s) ne peuvent pas être lues.`:""}`}]),
-          parler:(texte,langue)=>speak(texte,undefined,"lecture_devoirs",false,{langue,conserverTour:true,premierSon:()=>{
+          parler:(texte,langue,devoir,debut)=>{
+            correctionDevoirRef.current=null;
+            origineDevoirRef.current=originePassageLu(devoir,debut,texte);
+            return speak(texte,undefined,"lecture_devoirs",false,{langue,conserverTour:true,premierSon:()=>{
             if(!premierSon){premierSon=true;mesurer("premier_son");}
-          }}),
+          }});},
         });
         if(termine&&actuel())mesurer("fin");
       } catch(e) {
@@ -3257,6 +3263,8 @@ export default function Home() {
              code maître est là. */
           apprend: apprend.current,
           aRepeter: aRepeter.current,
+          origineDevoir: origineDevoirRef.current,
+          correctionDevoir: correctionDevoirRef.current,
           resume: [resumeRef.current, nouveauNomRef.current
             ? `La personne vient de te dire son prénom : ${nouveauNomRef.current}. Emploie-le une fois dans ta réponse, naturellement, sans en faire trop.`
             : ""].filter(Boolean).join("\n"),
@@ -3365,6 +3373,11 @@ export default function Home() {
       /* La formulation de service qu'elle vient de servir : on la retient
          pour ne pas la resservir juste après. */
       if (data.service) dernierService.current = data.service;
+      const provenance=data as typeof data&{origine_devoir?:SourceDevoir|null;correction_devoir?:OrigineDevoir|null};
+      if("correction_devoir" in provenance)correctionDevoirRef.current=provenance.correction_devoir||null;
+      if("origine_devoir" in provenance)origineDevoirRef.current=provenance.origine_devoir||null;
+      else if(!correctionDevoirRef.current)origineDevoirRef.current=null;
+      if(data.apprend===false)correctionDevoirRef.current=null;
       /* L'APPRENTISSAGE SUIT CE QUE DIT LE SERVEUR, jamais ce que le téléphone
          croit : lui seul a vu le code maître et lu l'ordre. */
       if (typeof data.apprend === "boolean") {
@@ -8269,7 +8282,7 @@ export default function Home() {
           n'apprend pas une commande par cœur en conduisant. */}
       {estMaitre && enApprentissage ? (
         <div className="apprend-bandeau">
-          <b>Mode apprentissage</b> — dis ta phrase, elle répète le texte entendu sans le reformuler.
+          <b>{correctionDevoirRef.current ? "Correction du devoir" : "Mode apprentissage"}</b> — dis ta phrase complète, elle la répète. Valide pour la mémoriser.
           {/* ── LE BOUTON BLEU ──────────────────────────────────────────
               Sa demande du 14 septembre au soir, et elle règle un problème
               qu'aucune correction de code ne pouvait régler : l'oreille se
@@ -8296,12 +8309,19 @@ export default function Home() {
                       headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
                       body: JSON.stringify({
                         texte: quoi,
+                        correctionDevoir: correctionDevoirRef.current,
                         extrait: extraitRef.current,
                         francais: sens?.francais || "",
                       }),
                     });
-                    const d = await r.json() as { retenu?: string; erreur?: string };
+                    const d = await r.json() as { retenu?: string; erreur?: string; origine_devoir?:OrigineDevoir; devoir_corrige?:boolean };
                     if (!r.ok || !d.retenu) { setMotGarde(d.erreur || "Ça n'a pas été gardé."); return; }
+                    if(d.devoir_corrige){
+                      origineDevoirRef.current=d.origine_devoir||null;
+                      correctionDevoirRef.current=null;
+                      apprend.current=false;setEnApprentissage(false);
+                      setHistory(items=>[...items,{role:"bia",text:"C’est corrigé dans le devoir d’origine."}]);
+                    }
                     setMotGarde("gardée");
                     setGardee(quoi);
                     /* ── LE MODE RESTE OUVERT ──────────────────────────

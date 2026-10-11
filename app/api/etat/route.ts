@@ -1,3 +1,4 @@
+import {resumeCorrectionsDevoir} from "@/lib/correction-devoir";
 import {resumeDialogueDevoirs,essayerDialogueDevoirs,indexDialogue} from "@/lib/dialogue-devoirs";
 import {devoirsALire} from "@/lib/devoirs-apprentissage";
 import {resumeLectureDevoirs} from "@/lib/lecture-devoirs-etat";
@@ -119,6 +120,7 @@ export async function GET(request: Request) {
     lexique_lecture: { ...lectureLexique(), mots_corriges: motsCorrigesCompte, ...(maitre ? { exemples: motsCorrigesExemples } : {}) },
     voix: voixConfig.fournisseur,
     ecoute: ecouteConfig.fournisseur,
+    corrections_devoirs:resumeCorrectionsDevoir(),
     dialogue_devoirs: resumeDialogueDevoirs(),
     lecture_devoirs: resumeLectureDevoirs(),
     transcription_contextuelle: resumeCorrectionContexte(),

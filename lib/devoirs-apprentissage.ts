@@ -1,13 +1,15 @@
+import {createHash} from "node:crypto";
 import {assemblerDevoirs} from "./lecture-devoirs-core";
 import {noterChargementDevoirs} from "./lecture-devoirs-etat";
 import {ajouterCorrection,lexiqueConfig} from "./lexique";
 import {APP_LECONS} from "./lexique-apprentissage-core";
 type Bloc={version:2;type:"devoir";id:string;index:number;total:number;texte:string;date:string;statut?:"validé";date_validation?:string;langue?:"fr"|"wo"};
 const headers=()=>({apikey:lexiqueConfig.cle,Authorization:`Bearer ${lexiqueConfig.cle}`});
-let cache:{blocs:Bloc[];expires:number}|null=null;
+const revisions=globalThis as typeof globalThis&{biaGenerationDevoirs?:number};
+let cache:{blocs:Bloc[];expires:number;generation:number}|null=null;
 async function lireBlocs(delaiMs=8000):Promise<Bloc[]>{
  if(!lexiqueConfig.actif)throw Error("Supabase non configuré");
- if(cache&&cache.expires>Date.now())return cache.blocs;
+ if(cache&&cache.expires>Date.now()&&cache.generation===(revisions.biaGenerationDevoirs||0))return cache.blocs;
  const blocs:Bloc[]=[];const seen=new Set<string>();
  const signal=AbortSignal.timeout(delaiMs);
  for(let offset=0;;offset+=500){
@@ -19,7 +21,7 @@ async function lireBlocs(delaiMs=8000):Promise<Bloc[]>{
   }catch{}
   if(page.length<500)break;
  }
- cache={blocs,expires:Date.now()+15000};return blocs;
+ cache={blocs,expires:Date.now()+15000,generation:revisions.biaGenerationDevoirs||0};return blocs;
 }
 export async function garderBlocDevoir(texte:string,index:number,total:number,id:string,valide=false,langue:"fr"|"wo"="wo"){
  if(!lexiqueConfig.actif)throw Error("Supabase non configuré");
@@ -34,7 +36,7 @@ export async function garderBlocDevoir(texte:string,index:number,total:number,id
   const bloc:Bloc={version:2,type:"devoir",id,index,total,texte,date:new Date().toISOString(),...(valide?{statut:"validé" as const,date_validation:new Date().toISOString(),langue}:{})};
   await ajouterCorrection({source,corrigee:texte,langue:"wo",auteur:"maitre-devoir",application:APP_LECONS,proposee:JSON.stringify(bloc)});
  }
- cache=null;if(!await existe())throw Error("Sauvegarde non confirmée");
+ invaliderDevoirs();if(!await existe())throw Error("Sauvegarde non confirmée");
  return {id,index,total,verifie:true,valide};
 }
 export function selectionnerDevoirs(blocs:Bloc[],question:string){
@@ -54,8 +56,10 @@ export async function phrasesApprisesDevoirs(){
  return phrasesDevoirsValides(await lireBlocs());
 }
 
+export const revisionDevoir=(texte:string)=>createHash("sha256").update(texte).digest("hex");
+export function invaliderDevoirs(){cache=null;revisions.biaGenerationDevoirs=(revisions.biaGenerationDevoirs||0)+1;}
 export async function devoirsALire(delaiMs=8000){
  const debut=Date.now();
- try{const resultat=assemblerDevoirs(await lireBlocs(delaiMs));noterChargementDevoirs(Date.now()-debut,resultat);return resultat;}
+ try{const resultat=assemblerDevoirs(await lireBlocs(delaiMs));noterChargementDevoirs(Date.now()-debut,resultat);return {...resultat,devoirs:resultat.devoirs.map(d=>({...d,revision:revisionDevoir(d.texte)}))};}
  catch(e){noterChargementDevoirs(Date.now()-debut);throw e;}
 }
