@@ -7674,7 +7674,7 @@ export default function Home() {
                     fermerConversation(); taire();
                     const porte = porteRef.current;
                     porteRef.current = null; porte?.ouvrir();
-                    contexte(); setPanne(null);
+                    contexte(); setPanne("");
                     void speak(m.text, undefined, "relecture");
                   }}>🔊 Réécouter</button>
                 ) : null}
