@@ -53,12 +53,12 @@ export function indexerDevoirs(devoirs:DevoirALire[]){
  }
  return [...derniers.values()].map(analyserDevoir);
 }
-const outils=new Set("le la les de des du un une et est sont je tu il elle on que qui quoi pour avec dans sur pas mais donc alors aussi plus moins pourquoi comment quand quel quelle bonjour merci oui non ai as suis peux peut veux faire fait ce cette ces mon ma mes ton ta tes au aux en se me te lui nos notre etre avoir cela tout tous comme son sa ses par si bien depuis maintenant vraiment deja encore reponds moi toi toi meme bia sama sa bi yi la ci ak te rekk nga naa dama ma ngi ko am na ndax".split(" "));
+const outils=new Set("le la les de des du un une et est sont je tu il elle on que qui quoi pour avec dans sur pas mais donc alors aussi plus moins pourquoi comment quand quel quelle bonjour merci oui non ai as suis peux peut veux faire fait ce cette ces mon ma mes ton ta tes au aux en se me te lui nos notre etre avoir cela tout tous comme son sa ses par si bien depuis maintenant vraiment deja encore wolof francais reponds moi toi toi meme bia sama sa bi yi la ci ak te rekk nga naa dama ma ngi ko am na ndax".split(" "));
 function termes(s:string){
  const t=normaliserDialogue(s).replace(/\b(?:appels?|appeler|telephone|telephoner|messages?|sms|whatsapp)\b/g," message ").replace(/\b(?:cherie|copines?|copains?|petite amie|petit ami|partenaire|fiancee?)\b/g," copine ")
   .replace(/\b(?:etudiant(?:e)?s?|eleves?|lyceen(?:ne)?s?)\b/g," etudiant ")
-  .replace(/\b(?:commercant(?:e)?s?|vendeu(?:r|se)s?|boutiquier(?:e)?s?)\b/g," commerce ")
-  .replace(/\b(?:marier|mariee?s?|mariages?)\b/g," mariage ");;
+  .replace(/\b(?:commercant(?:e)?s?|vendeu(?:r|se)s?|boutiquier(?:e)?s?|business|commerce|ventes?)\b/g," commerce ")
+  .replace(/\b(?:marier|mariee?s?|mariages?|epouser)\b/g," mariage ");;
  return new Set(t.split(" ").filter(w=>w.length>=3&&!outils.has(w)));
 }
 export function contexteDialogue(historique:unknown):TourDialogue[]{
@@ -82,6 +82,7 @@ export function chercherDialogues(index:DialogueAppris[],question:string,history
  * Keep neighbours of both the latest reply and the new topic's matching lines. */
 export function paquetSelection(candidats:ReturnType<typeof chercherDialogues>,history:TourDialogue[],langue:"fr"|"wo",question=""){
  const deja=new Set(history.filter(t=>t.role==="bia").map(t=>normaliserDialogue(t.text)));
+ const ditsPersonne=new Set([...history.filter(t=>t.role==="user").map(t=>normaliserDialogue(t.text)),normaliserDialogue(question)]);
  const derniere=[...history].reverse().find(t=>t.role==="bia")?.text||"",mots=termes(question);
  return candidats.map((c,i)=>{
   const lignes=c.d.repliques,priorites=new Map<number,number>();
@@ -97,7 +98,7 @@ export function paquetSelection(candidats:ReturnType<typeof chercherDialogues>,h
   }).sort((a,b)=>a.j-b.j);
   return {id:String(i),titre:c.d.titre,actif:c.actif,repliques:retenues.map(({p})=>({
    id:i+":"+p.id,wo:p.wo,fr:p.fr,role:p.role,deja_dite:deja.has(normaliserDialogue(p.wo))||deja.has(normaliserDialogue(p.fr)),
-   selectionnable:p.role!=="personne"&&(p[langue].match(/\?/g)||[]).length<=1,
+   selectionnable:p.role!=="personne"&&!ditsPersonne.has(normaliserDialogue(p.wo))&&!ditsPersonne.has(normaliserDialogue(p.fr))&&(p[langue].match(/\?/g)||[]).length<=1,
   }))};
  });
 }
@@ -108,4 +109,11 @@ export function resoudreSelection(verdict:unknown,paquet:ReturnType<typeof paque
  for(const devoir of paquet){const p=devoir.repliques.find(p=>p.id===v.id);
   if(p&&p.selectionnable&&!p.deja_dite)return {statut:"selection" as const,reply:p[langue],id:p.id};}
  return {statut:"clarifier" as const};
+}
+
+/** An explicit end to the topic releases it before any model call. */
+export function finDuSujet(question:string){
+ const q=normaliserDialogue(question);
+ return /^(?:(?:bia|non|bon|ok) )*(?:je |moi je )(?:ne veux plus|ne souhaite plus|n ai pas envie de) (?:en parler|parler|discuter|continuer)\b/.test(q)
+  || /^(?:(?:bia|non|bon|ok) )*(?:arretons (?:ce|le) sujet|arretons cette discussion|laisse tomber|changeons de sujet|parlons d autre chose|on change de sujet)\b/.test(q);
 }

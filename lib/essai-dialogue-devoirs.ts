@@ -15,14 +15,14 @@ export function verifierDialoguesAppris(){
   ];
   const resultats=[];
   for(const scenario of scenarios){
-   const historique:TourDialogue[]=[],tours=[];let question=scenario.question;
+   const historique:TourDialogue[]=[],tours=[];let question=scenario.question+" Réponds en wolof.";
    for(let tour=0;tour<3;tour++){
     const debut=Date.now(),r=await dialoguerAvecDevoirs(question,historique,{index,diagnostic:true});
     const d=index.find(d=>d.id===r?.lecon_id),p=d?.repliques.find(p=>p.id===r?.replique_id);
     tours.push({tour,question,ms:Date.now()-debut,statut:r?.source||"non_couvert",motif:r?.motif||null,
      exacte:Boolean(p&&[p.wo,p.fr].includes(r!.reply)),une_question_max:Boolean(p&&(r!.reply.match(/\?/g)||[]).length<=1),
      deja_dite:historique.some(t=>t.role==="bia"&&t.text===r?.reply),
-     reply:r?.reply,fr:p?.fr,wo:p?.wo,titre:d?.titre,
+     langue:r?.langue,reprise_personne:Boolean(p&&[p.fr,p.wo].includes(question)),reply:r?.reply,fr:p?.fr,wo:p?.wo,titre:d?.titre,
      voisinage:d&&p?d.repliques.slice(Math.max(0,Number(p.id)-1),Number(p.id)+3):[]});
     if(!r?.dialogue_memorise)break;
     historique.push({role:"user",text:question},{role:"bia",text:r.reply});
@@ -37,7 +37,10 @@ export function verifierDialoguesAppris(){
   const tours=resultats.flatMap(r=>r.tours);
   const bilan={quand:new Date().toISOString(),scenarios:resultats.length,tours:tours.length,
    repliques_exactes:tours.filter(t=>t.exacte).length,une_question_max:tours.every(t=>t.une_question_max),
-   repetitions:tours.filter(t=>t.deja_dite).length,refus_respecte:refus===null,
+   repetitions:tours.filter(t=>t.deja_dite).length,reprises_personne:tours.filter(t=>t.reprise_personne).length,
+   repliques_wolof:tours.filter(t=>t.langue==="wo").length,refus_respecte:refus===null,
+   commerce_retrouve:/business|commerce|vente/i.test(resultats.find(r=>r.scenario==="commerce")?.tours[0]?.titre||""),
+   question_deja_repondue:resultats.some(r=>r.tours.some(t=>r.scenario==="couple"&&/l.as appelée/.test(t.fr||"")||r.scenario==="mariage"&&/Sur quoi.*pression/.test(t.fr||""))),
    ms_max:Math.max(...tours.map(t=>t.ms)),details_prives:true};
   publierDiagnosticDialogue(bilan);
   return {bilan,resultats,non_interpretes:index.filter(d=>!d.repliques.length).map(d=>({titre:d.titre,apercu:originaux.find(o=>o.id===d.id)?.texte.slice(0,1600)}))};

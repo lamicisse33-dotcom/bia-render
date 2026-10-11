@@ -62,10 +62,10 @@ test('short yes/no retains the last spoken language; explicit language switches 
  assert.equal(langueDuDialogue('Oui.',h),'wo');assert.equal(langueDuDialogue('Non.',h),'wo');assert.equal(langueDuDialogue('Réponds en français.',h),'fr');
 });
 test('actual selector request is bounded and final response is read from memory, never generated content',async()=>{
- let body,signal;const api=service(async(url,opt)=>{assert.equal(url,'https://api.cerebras.ai/v1/chat/completions');body=JSON.parse(opt.body);signal=opt.signal;return {ok:true,json:async()=>({choices:[{message:{content:'{"statut":"selection","id":"0:1","reply":"inventé"}'},finish_reason:'stop'}]})};});
+ let body,signal;const bodies=[];const api=service(async(url,opt)=>{assert.equal(url,'https://api.cerebras.ai/v1/chat/completions');body=JSON.parse(opt.body);bodies.push(body);signal=opt.signal;return {ok:true,json:async()=>({choices:[{message:{content:'{"statut":"selection","id":"0:1","reply":"inventé"}'},finish_reason:'stop'}]})};});
  const r=await api.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',[]);
  assert.equal(r.reply,'Vous vous êtes disputés ?');assert.equal(r.dialogue_memorise,true);assert.equal(r.apprend,undefined);assert.equal(body.max_completion_tokens,1536);assert.equal(signal.aborted,false);
- assert.equal(JSON.parse(body.messages[1].content).devoirs[0].repliques[0].selectionnable,false);
+ assert.equal(JSON.parse(bodies[0].messages[1].content).devoirs[0].repliques[0].selectionnable,false);
 });
 test('yes and no can select different learned branches; off-topic returns to ordinary chat',async()=>{
  const api=service();const history=[{role:'user',text:'ma copine mes appels'},{role:'bia',text:'Vous vous êtes disputés ?'}];
@@ -120,4 +120,29 @@ test('lesson verification rejects anonymous access before any private evaluation
  let evaluations=0;
  const route=load('app/api/apprentissage/verification/route.ts',{'node:crypto':{timingSafeEqual:()=>false},'next/server':{NextResponse:{json:(body,opt)=>({body,...opt})}},'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/lexique':{lexiqueConfig:{actif:true}},'@/lib/lexique-apprentissage-core':{APP_LECONS:'test'},'@/lib/essai-dialogue-devoirs':{verifierDialoguesAppris:async()=>{evaluations++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test'}},Buffer});
  const r=await route.POST({headers:{get:()=>null}});assert.equal(r.status,401);assert.equal(evaluations,0);
+});
+
+test('explicit topic refusal returns to normal chat without sending lessons to the model',async()=>{
+ const api=service();let calls=0;
+ const r=await api.dialoguerAvecDevoirs('Je ne veux plus parler de ma copine. Arrêtons ce sujet.',[{role:'bia',text:'Vous vous êtes disputés ?'}],{index,choisir:async()=>{calls++;throw Error('must not run');}});
+ assert.equal(r,null);assert.equal(calls,0);assert.equal(core.finDuSujet('Ne changeons pas de sujet.'),false);assert.equal(core.finDuSujet('Ma copine me dit : laisse tomber.'),false);
+});
+test('the speaker complaint is never selectable as BIA reply in either language',()=>{
+ const d=core.analyserDevoir(saved('Wolof : Dañu bëgg ma def lu ma bëggul.\nFrançais : Ils veulent que je fasse quelque chose que je ne veux pas.'));
+ const packet=core.paquetSelection([{d,actif:true,score:5,accords:1}],[],'wo','Ils veulent que je fasse quelque chose que je ne veux pas.');
+ assert.equal(core.resoudreSelection({statut:'selection',id:'0:0'},packet,'wo').statut,'clarifier');
+});
+test('compact coherence check can choose a valid alternative but cannot introduce another reply',async()=>{
+ for(const selected of ['0:5','0:999']){
+  let calls=0;const api=service(async(_url,opt)=>{calls++;const packet=JSON.parse(JSON.parse(opt.body).messages[1].content);
+   if(calls===2){assert.deepEqual(packet.options.map(p=>p.id),['0:1','0:5']);assert.equal(packet.devoirs,undefined);}
+   return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify(calls===1?{statut:'selection',id:'0:1',alternatives:['0:5','0:0']}:{statut:'selection',id:selected})},finish_reason:'stop'}]})};
+  });
+  const r=await api.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',[]);
+  assert.equal(calls,2);if(selected==='0:5')assert.equal(r.reply,'Laisse-lui un peu de temps.');else assert.equal(r.dialogue_memorise,false);
+ }
+});
+test('an explicit Wolof preference survives French follow-up answers until explicitly changed',()=>{
+ const {langueDuDialogue}=service();const h=[{role:'user',text:'Réponds en wolof.'},{role:'bia',text:'Naka ?'}];
+ assert.equal(langueDuDialogue('Je suis en terminale.',h),'wo');assert.equal(langueDuDialogue('Réponds en français.',h),'fr');
 });
