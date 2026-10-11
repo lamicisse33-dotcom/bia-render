@@ -69,3 +69,13 @@ test('emergency restoration keeps contextual verification out of the live voice 
  assert(!route.includes('verifierTranscriptionContextuelle'));
  assert(route.includes('corrigerTranscription'));
 });
+test('already-open tabs keep a usable transcript even when optional correction storage fails',async()=>{
+ const route=load('app/api/ecouter/corriger/route.ts',{
+  '@/lib/codes':{verifierCode:()=>({ok:true})},
+  '@/lib/correction-transcription':{corrigerTranscription:async()=>{throw Error('offline')}},
+  '@/lib/langue':load('lib/langue.ts'),
+ });
+ const r=await route.POST(new Request('https://bia.test/api/ecouter/corriger',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({texte:'Bonjour, tu es là ?'})}));
+ const d=await r.json();assert.equal(r.status,200);assert.equal(d.texte,'Bonjour, tu es là ?');
+ assert.equal(d.verification.statut,'conservee');assert.equal(d.verification.verification_contextuelle,false);
+});

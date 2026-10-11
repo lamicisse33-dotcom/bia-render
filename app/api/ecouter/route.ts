@@ -1,3 +1,4 @@
+import { detecterLangue } from "@/lib/langue";
 import {corrigerTranscription,vocabulaireAppris} from "@/lib/correction-transcription";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
@@ -174,7 +175,12 @@ export async function POST(request: NextRequest) {
     let ecriture={texte:String(reco.texte||""),texte_brut:String(reco.texte||""),corrections_transcription:[] as Array<{entendu:string;corrige:string}>};
     let correction_disponible=true;
     try{ecriture=await corrigerTranscription(String(reco.texte||""));}catch{correction_disponible=false;}
-    return NextResponse.json({ ...reco,...ecriture,correction_disponible, au_fil_de_leau: recousu, extrait });
+    return NextResponse.json({ ...reco,...ecriture,correction_disponible,
+      // Older open tabs still expect this field. Mark the unchanged/learned text
+      // as usable without pretending a contextual model check took place.
+      verification: { statut: "conservee", langue: detecterLangue(ecriture.texte, indice === "fr" ? "fr" : "wo"),
+        source_langue: "lexique", verification_contextuelle: false },
+      au_fil_de_leau: recousu, extrait });
   } catch (err) {
     /* ── UNE ÉCOUTE QUI ÉCHOUE NE LAISSAIT AUCUNE TRACE ──────────────────
 
