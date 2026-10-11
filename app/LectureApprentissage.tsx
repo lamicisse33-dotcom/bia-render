@@ -173,7 +173,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    <p role="status">mode_{typeMessage}</p>
    <p role="status" aria-live="polite">{resultatMessage}</p>
    <label>Langue <select value={langue} disabled={validationEnCours||p.etat==="lecture"||p.etat==="pause"} onChange={e=>setLangue(e.target.value as "fr"|"wo")}><option value="wo">Wolof</option><option value="fr">Français</option></select></label>
-   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} disabled={validationEnCours} rows={10} onPaste={coller} onChange={e=>{setTexte(e.target.value);exercice.current.valide=false;setToutCorrect(false);}} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
+   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} disabled={validationEnCours} rows={10} onPaste={coller} onChange={e=>{setTexte(e.target.value);setToutCorrect(false);}} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
    <div style={{display:"flex",flexWrap:"wrap",gap:12}}>
     <button type="button" disabled={!texte.trim()||p.etat==="lecture"||p.etat==="pause"} onClick={()=>lancer()}>TRAITER LE MESSAGE</button>
     <button type="button" disabled={p.etat!=="lecture"} onClick={()=>player.current?.pause()}>PAUSE</button>
@@ -185,7 +185,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    <p role="status" aria-live="polite">{memoire}</p>
    
    <h3>Valider le devoir entier</h3>
-   <label><input type="checkbox" checked={toutCorrect} disabled={validationEnCours||typeMessage!=="exercice"} onChange={e=>{setToutCorrect(e.target.checked);exercice.current.valide=e.target.checked;}}/> J’ai tout écouté : la lecture correspond au texte et toutes les prononciations sont correctes.</label>
+   <label><input type="checkbox" checked={toutCorrect} disabled={validationEnCours||typeMessage!=="exercice"} onChange={e=>{setToutCorrect(e.target.checked);exercice.current={texte,valide:e.target.checked,langue};}}/> J’ai tout écouté : la lecture correspond au texte et toutes les prononciations sont correctes.</label>
    <button type="button" disabled={typeMessage!=="exercice"||!toutCorrect||!texte.trim()||validationEnCours||p.etat==="lecture"||p.etat==="pause"} onClick={()=>void validerTout()}>{validationEnCours?"Enregistrement…":"VALIDER ET ENREGISTRER TOUT LE DEVOIR"}</button>
    <p role="status" aria-live="polite">{validationInfo}</p>
    <p>Cette validation conserve le texte complet et ton accord d’écoute, sans remplacer les corrections de prononciation déjà apprises.</p>
