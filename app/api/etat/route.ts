@@ -1,3 +1,5 @@
+import {devoirsALire} from "@/lib/devoirs-apprentissage";
+import {resumeLectureDevoirs} from "@/lib/lecture-devoirs-etat";
 import { resumeCorrectionContexte } from "@/lib/transcription-contextuelle";
 import { resumeTransmissionMemoire } from "@/lib/conversation-groq";
 import { resumeLimiteGroq } from "@/lib/reprise-modele";
@@ -55,6 +57,7 @@ export async function GET(request: Request) {
      C'est la même décision que le 16 septembre pour les comptes de ses
      leçons : les NOMBRES sur le mur ouvert, jamais les phrases. Sans son
      code, `repertoire_rate` ne contient que des totaux. */
+  if(new URL(request.url).searchParams.get("verifier_devoirs")==="1"){try{await devoirsALire();}catch{ /* The failure is counted, no lesson text leaves here. */ }}
   const verdict = verifierCode(request.headers.get("x-bia-code"));
   const maitre = verdict.ok && verdict.maitre;
   let entrees: number | null = null;
@@ -109,6 +112,7 @@ export async function GET(request: Request) {
     lexique_lecture: { ...lectureLexique(), mots_corriges: motsCorrigesCompte, ...(maitre ? { exemples: motsCorrigesExemples } : {}) },
     voix: voixConfig.fournisseur,
     ecoute: ecouteConfig.fournisseur,
+    lecture_devoirs: resumeLectureDevoirs(),
     transcription_contextuelle: resumeCorrectionContexte(),
     ecoute_configuration: {
       soynade_selectionnee: (process.env.STT_PROVIDER || "soynade") === "soynade",

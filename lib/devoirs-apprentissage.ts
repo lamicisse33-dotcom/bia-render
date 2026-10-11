@@ -1,3 +1,5 @@
+import {assemblerDevoirs} from "./lecture-devoirs-core";
+import {noterChargementDevoirs} from "./lecture-devoirs-etat";
 import {ajouterCorrection,lexiqueConfig} from "./lexique";
 import {APP_LECONS} from "./lexique-apprentissage-core";
 type Bloc={version:2;type:"devoir";id:string;index:number;total:number;texte:string;date:string;statut?:"validé";date_validation?:string;langue?:"fr"|"wo"};
@@ -7,8 +9,9 @@ async function lireBlocs():Promise<Bloc[]>{
  if(!lexiqueConfig.actif)throw Error("Supabase non configuré");
  if(cache&&cache.expires>Date.now())return cache.blocs;
  const blocs:Bloc[]=[];const seen=new Set<string>();
+ const signal=AbortSignal.timeout(8000);
  for(let offset=0;;offset+=500){
-  const r=await fetch(`${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}?select=proposee&application=eq.${APP_LECONS}&auteur=eq.maitre-devoir&order=id.desc&limit=500&offset=${offset}`,{headers:headers(),cache:"no-store",signal:AbortSignal.timeout(8000)});
+  const r=await fetch(`${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}?select=proposee&application=eq.${APP_LECONS}&auteur=eq.maitre-devoir&order=id.desc&limit=500&offset=${offset}`,{headers:headers(),cache:"no-store",signal});
   if(!r.ok)throw Error("Le lexique des devoirs ne répond pas");
   const page=await r.json();if(!Array.isArray(page))throw Error("Lexique invalide");
   for(const row of page)try{const b=JSON.parse(row.proposee) as Bloc;const key=b.id+":"+b.index;
@@ -49,4 +52,10 @@ export async function contexteDevoirs(question:string){
 export async function phrasesApprisesDevoirs(){
  const {phrasesDevoirsValides}=await import("./comparaison-lexique-core");
  return phrasesDevoirsValides(await lireBlocs());
+}
+
+export async function devoirsALire(){
+ const debut=Date.now();
+ try{const resultat=assemblerDevoirs(await lireBlocs());noterChargementDevoirs(Date.now()-debut,resultat);return resultat;}
+ catch(e){noterChargementDevoirs(Date.now()-debut);throw e;}
 }

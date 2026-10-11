@@ -233,11 +233,11 @@ export function oublierTours() { tours = []; }
                             19 septembre a tranché « autre phrase ».
    On note le motif, et la reprise en millisecondes : c'est le chiffre qui
    dira si la frontière (2,5 s) est au bon endroit. */
-export type MotifDeCoupure = "recollee" | "sans_mots" | "pas_de_debut" | "reprise_tardive" | "pendant_parole";
+export type MotifDeCoupure = "porte_expiree" | "recollee" | "sans_mots" | "pas_de_debut" | "reprise_tardive" | "pendant_parole";
 type Coupure = { pendant: "parole" | "reflexion"; recolle: boolean; sans_mots: boolean; motif: MotifDeCoupure; reprise_ms: number | null; quand: number };
 let coupures: Coupure[] = [];
 
-const MOTIFS = new Set<MotifDeCoupure>(["recollee", "sans_mots", "pas_de_debut", "reprise_tardive", "pendant_parole"]);
+const MOTIFS = new Set<MotifDeCoupure>(["porte_expiree","recollee", "sans_mots", "pas_de_debut", "reprise_tardive", "pendant_parole"]);
 
 export function noterCoupure(c: Partial<Coupure>) {
   const pendant = (c.pendant === "reflexion" ? "reflexion" : "parole") as Coupure["pendant"];

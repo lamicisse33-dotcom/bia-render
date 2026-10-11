@@ -6,10 +6,18 @@ import {ambiguitiesWolof} from "@/lib/langue";
 import type {Lecon} from "@/lib/lexique-apprentissage-core";
 import {lirePiperLocale,piperLocaleDisponible} from "@/lib/voix-piper-locale";
 import {ouvrirFluxVoix,type MorceauVoix} from "@/lib/flux-khalam";
+import {reveiller} from "@/lib/reveil-du-son";
+import type {DevoirALire} from "@/lib/lecture-devoirs-core";
 import {morceauxLecture} from "@/lib/lecture-morceaux";
 
 export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false,obtenirAudio}:{obtenirAudio:()=>AudioContext;edition?:boolean;code:string;voice:"piper"|"female"|"male";
- demande:{texte:string;nonce:number;auto:boolean};onStart:()=>void;onClose:()=>void}){
+ demande:{texte:string;nonce:number;auto:boolean;source?:"memoire"};onStart:()=>void;onClose:()=>void}){
+ const depuis=useRef(0);const premierSon=useRef(false);
+ const lectureMemoire=useRef(false);lectureMemoire.current=demande.source==="memoire";
+ const chargement=useRef<AbortController|null>(null);
+ const [charge,setCharge]=useState(false);
+ const passagesMemoire=useRef<DevoirALire[]>([]);
+ const mesurer=(etape:"premier_son"|"fin"|"erreur")=>{if(lectureMemoire.current)void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"lecture_devoirs",etape,ms:performance.now()-depuis.current}),keepalive:true}).catch(()=>{});};
  const [typeMessage,setTypeMessage]=useState<TypeApprentissage>("exercice");
  const [resultatMessage,setResultatMessage]=useState("");
  const exercice=useRef({texte:"",valide:false,langue:"wo" as "fr"|"wo"});
@@ -23,11 +31,11 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
  const [toutCorrect,setToutCorrect]=useState(false);const [validationEnCours,setValidationEnCours]=useState(false);const [validationInfo,setValidationInfo]=useState("");
  const [memoire,setMemoire]=useState("");const sauvegarde=useRef(0);
  const [revus,setRevus]=useState<string[]>([]);const texteEditeur=useRef<HTMLTextAreaElement|null>(null);
- const points=useMemo(()=>{const candidats=ambiguitiesWolof(texte,langue);
+ const points=useMemo(()=>{if(demande.source==="memoire")return [];const candidats=ambiguitiesWolof(texte,langue);
   const presents=lecons.filter(l=>l.langue==="wo"&&l.statut!=="validé"&&texte.toLocaleLowerCase().includes(l.texte.toLocaleLowerCase())).map(l=>l.texte);
   const valides=new Set(lecons.filter(l=>l.langue==="wo"&&l.statut==="validé").map(l=>l.texte.toLocaleLowerCase()));
   return [...new Set([...presents,...candidats])].filter(m=>!valides.has(m.toLocaleLowerCase())&&!revus.includes(m));
- },[texte,langue,lecons,revus]);
+ },[texte,langue,lecons,revus,demande.source]);
  function corriger(m:string){setMot(m);setDire("");setLangue("wo");setStatut("incertain");setConfirme(false);setInfo("Écoute puis indique la prononciation correcte. Le texte reste intact.");}
  const audio=useRef<HTMLAudioElement|null>(null);const player=useRef<LectureContinue|null>(null);
  const enPause=useRef(false);
@@ -39,24 +47,28 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   const ctx=obtenirAudio();
   let courant:{buffer:AudioBuffer;offset:number;depuis:number;source:AudioBufferSourceNode|null;fin:()=>void;rejeter:(e:Error)=>void}|null=null;
   const suspendre=()=>{if(courant?.source){courant.offset+=Math.max(0,ctx.currentTime-courant.depuis);courant.source.onended=null;courant.source.stop();courant.source.disconnect();courant.source=null;}};
-  const reprendreSon=()=>{if(!courant||courant.source)return;void ctx.resume();const s=ctx.createBufferSource();s.buffer=courant.buffer;s.connect(ctx.destination);courant.source=s;courant.depuis=ctx.currentTime;
+  const reprendreSon=()=>{if(!courant||courant.source)return;
+   if(ctx.state!=="running"){const e=new Error("Le navigateur a suspendu le son. Appuie sur REPRENDRE pour activer la voix.");e.name="AudioSuspendu";const rejeter=courant.rejeter;courant=null;rejeter(e);return;}
+   const s=ctx.createBufferSource();s.buffer=courant.buffer;s.connect(ctx.destination);courant.source=s;courant.depuis=ctx.currentTime;
    s.onended=()=>{s.disconnect();if(courant?.source===s){const fin=courant.fin;courant=null;fin();}};
-   s.start(0,Math.min(courant.offset,courant.buffer.duration));};
+   s.start(0,Math.min(courant.offset,courant.buffer.duration));
+   if(!premierSon.current){premierSon.current=true;mesurer("premier_son");}};
   const arreterSon=()=>{suspendre();if(courant){const rejeter=courant.rejeter;courant=null;rejeter(new Error("arrêté"));}};
   let preparation:{original:string;langue:string;texte:string}|null=null;
   let secoursComplet=true;
-  const demander=async(text:string,partie:number,signal:AbortSignal,empreinte?:string)=>{
+  const demander=async(text:string,partie:number,signal:AbortSignal,empreinte?:string,langue=settings.current.langue)=>{
+   signal=AbortSignal.any([signal,AbortSignal.timeout(12000)]);
    if(settings.current.voice==="piper"){
     if(!piperLocaleDisponible())throw Error("Ouvre BIA installée sur le téléphone pour utiliser Piper.");
-    if(!preparation||preparation.original!==text||preparation.langue!==settings.current.langue){
-     const r=await fetch("/api/apprentissage/preparer",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:settings.current.langue})});
+    if(!preparation||preparation.original!==text||preparation.langue!==langue){
+     const r=await fetch("/api/apprentissage/preparer",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:langue})});
      const d=await r.json();if(!r.ok||typeof d.texte!=="string")throw Error(d.error||"Lexique indisponible");
-     preparation={original:text,langue:settings.current.langue,texte:d.texte};
+     preparation={original:text,langue:langue,texte:d.texte};
     }
     return lirePiperLocale(preparation.texte,partie,signal);
    }
    if(secoursComplet){
-    const r=await fetch("/api/chatterbox-test/bia",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:settings.current.langue,voice:settings.current.voice,partie,empreinte,lecture_fidele:true})});
+    const r=await fetch("/api/chatterbox-test/bia",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:langue,voice:settings.current.voice,partie,empreinte,lecture_fidele:true})});
     const d=await r.json();if(!r.ok||!d.audio)throw Error(d.error||"Voix indisponible");
     if(d.partie!==partie||(empreinte!==undefined&&d.empreinte!==empreinte))throw Error("Le passage reçu ne correspond pas à la lecture. Réessaie ce passage.");
     return d as MorceauVoix;
@@ -65,22 +77,23 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    const cleanup=()=>{signal.removeEventListener("abort",stop);abort.abort();};
    try{
     const r=await fetch("/api/chatterbox-test/bia/stream",{method:"POST",headers:headers(),signal:abort.signal,
-     body:JSON.stringify({texte:text,langue:settings.current.langue,voice:settings.current.voice,partie,lecture:true})});
+     body:JSON.stringify({texte:text,langue:langue,voice:settings.current.voice,partie,lecture:true})});
     return await ouvrirFluxVoix(r,cleanup);
    }catch(error){cleanup();if(!signal.aborted)secoursComplet=true;throw error;}
   };
-  async function* packets(value:{text:string;first:MorceauVoix},signal:AbortSignal){
-   try{yield* morceauxLecture(value.first,(part,empreinte)=>demander(value.text,part,signal,empreinte),signal,settings.current.voice!=="piper");}
+  async function* packets(value:{text:string;first:MorceauVoix;langue:"fr"|"wo"},signal:AbortSignal){
+   try{yield* morceauxLecture(value.first,(part,empreinte)=>demander(value.text,part,signal,empreinte,value.langue),signal,settings.current.voice!=="piper");}
    catch(error){if(!signal.aborted)secoursComplet=true;throw error;}
   }
   const jouer=async(value:unknown,signal:AbortSignal)=>{
-   for await(const base64 of packets(value as {text:string;first:MorceauVoix},signal)){
+   for await(const base64 of packets(value as {text:string;first:MorceauVoix;langue:"fr"|"wo"},signal)){
     while(enPause.current&&!signal.aborted)await new Promise(r=>setTimeout(r,60));
     if(signal.aborted)throw Error("arrêté");
     const bytes=Uint8Array.from(atob(base64),c=>c.charCodeAt(0));
     const buffer=await ctx.decodeAudioData(bytes.buffer);
     if(signal.aborted)throw Error("arrêté");
-    await ctx.resume();
+    if(!await reveiller(ctx)){const e=new Error("Le navigateur a suspendu le son. Appuie sur REPRENDRE pour activer la voix.");e.name="AudioSuspendu";throw e;}
+    if(signal.aborted)throw Error("arrêté");
     await new Promise<void>((resolve,reject)=>{
      const abort=()=>arreterSon();
      const clear=()=>signal.removeEventListener("abort",abort);
@@ -91,10 +104,10 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
     });
    }
   };
-  player.current=new LectureContinue(async(text,signal)=>{
-   return {text,first:await demander(text,0,signal)};
-  },jouer,{pause:()=>{enPause.current=true;suspendre();},reprendre:()=>{enPause.current=false;reprendreSon();},stop:()=>{enPause.current=true;arreterSon();}},setP);
-  if(edition)void charger();return()=>{player.current?.stop();arreterSon();};
+  player.current=new LectureContinue(async(text,signal,langue=settings.current.langue)=>{
+   return {text,langue,first:await demander(text,0,signal,undefined,langue)};
+  },jouer,{pause:()=>{enPause.current=true;suspendre();},reprendre:()=>{enPause.current=false;reprendreSon();},stop:()=>{enPause.current=true;arreterSon();}},progression=>{setP(progression);if(progression.etat==="erreur")mesurer("erreur");if(progression.etat==="terminé")mesurer("fin");});
+  if(edition&&!lectureMemoire.current)void charger();return()=>{chargement.current?.abort();player.current?.stop();arreterSon();};
  },[code]);
  async function retenirDevoir(t:string,valide=false,langueDevoir=settings.current.langue){
   if(!edition||!t.trim())return;
@@ -145,8 +158,31 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    if(generation===messageGeneration.current)setResultatMessage(route.type==="instruction"?"Instruction appliquée et enregistrée dans Supabase.":String(d.reply||"Aucune réponse au test."));
   }catch(e){if(generation===messageGeneration.current)setResultatMessage((e as Error).message);}
  }
- function lancer(t=texte){void traiter(t);}
- useEffect(()=>{setTexte(demande.texte);if(demande.texte.trim())lancer(demande.texte);},[demande.nonce]);
+ function lancer(t=texte){
+  depuis.current=performance.now();premierSon.current=false;
+  if(lectureMemoire.current){settings.current.onStart();player.current?.demarrerPassages(passagesMemoire.current);return;}
+  void traiter(t);
+ }
+ useEffect(()=>{
+  player.current?.stop();setTexte(demande.texte);depuis.current=performance.now();premierSon.current=false;
+  if(demande.source!=="memoire"){if(demande.texte.trim())lancer(demande.texte);return;}
+  const controller=new AbortController();chargement.current=controller;setCharge(true);setResultatMessage("Chargement des devoirs enregistrés…");
+  void (async()=>{try{
+   const r=await fetch("/api/apprentissage/devoir",{headers:headers(),cache:"no-store",signal:AbortSignal.any([controller.signal,AbortSignal.timeout(10000)])});
+   const d=await r.json() as {devoirs:DevoirALire[];incomplets:number;error?:string};
+   if(controller.signal.aborted)return;
+   if(!r.ok||!Array.isArray(d.devoirs))throw Error(d.error||"Impossible de charger les devoirs.");
+   passagesMemoire.current=d.devoirs;
+   setTexte(d.devoirs.map(p=>p.texte).join("\n\n"));
+   setResultatMessage(`${d.devoirs.length} devoir(s) complet(s) enregistré(s).${d.incomplets?` ${d.incomplets} sauvegarde(s) incomplète(s), non lue(s).`:""}${!d.devoirs.length?" Aucun devoir complet à lire.":""}`);
+   if(d.devoirs.length){settings.current.onStart();player.current?.demarrerPassages(d.devoirs);}
+  }catch(e){if(!controller.signal.aborted){setResultatMessage(e instanceof Error?e.message:"Chargement impossible. Réessaie.");mesurer("erreur");}}
+  finally{if(!controller.signal.aborted)setCharge(false);}})();
+  return()=>controller.abort();
+ },[demande.nonce]);
+ function arreter(){chargement.current?.abort();setCharge(false);player.current?.stop();}
+ function reprendre(){void reveiller(obtenirAudio()).then(ok=>{if(ok)player.current?.reprendre();else setResultatMessage("Le son reste bloqué. Réessaie en activant le son du navigateur.");});}
+
  function coller(e:React.ClipboardEvent<HTMLTextAreaElement>){
   const ajout=e.clipboardData.getData("text");if(!ajout)return;
   e.preventDefault();
@@ -165,21 +201,21 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
  }catch(e){setInfo((e as Error).message);}finally{setSaving(false);}}
  return <section role="dialog" aria-modal="true" aria-label="Apprentissage et lecture continue" style={{position:"fixed",inset:0,zIndex:1000,background:"#101014",color:"#fff",overflowY:"auto",padding:"max(20px, env(safe-area-inset-top)) 20px 40px"}}>
   <div style={{maxWidth:760,margin:"0 auto",display:"grid",gap:14}}>
-   <button type="button" onClick={()=>{player.current?.stop();onClose();}}>Fermer et arrêter</button>
-   <h2>Apprentissage — lecture continue</h2>
-   <p>Utilise INSTRUCTION:, EXERCICE:, MÉMORISATION: ou TEST:. Les préfixes passent en priorité. Seul un exercice est lu ; il est enregistré après ta validation. Un texte sans préfixe reste un exercice.</p>
+   <button type="button" onClick={()=>{arreter();onClose();}}>Fermer et arrêter</button>
+   <h2>{demande.source==="memoire"?"Lecture des devoirs enregistrés":"Apprentissage — lecture continue"}</h2>
+   <p hidden={demande.source==="memoire"}>Utilise INSTRUCTION:, EXERCICE:, MÉMORISATION: ou TEST:. Les préfixes passent en priorité. Seul un exercice est lu ; il est enregistré après ta validation. Un texte sans préfixe reste un exercice.</p>
    <p role="status">mode_{typeMessage}</p>
    <p role="status" aria-live="polite">{resultatMessage}</p>
-   <label>Langue <select value={langue} disabled={validationEnCours||p.etat==="lecture"||p.etat==="pause"} onChange={e=>setLangue(e.target.value as "fr"|"wo")}><option value="wo">Wolof</option><option value="fr">Français</option></select></label>
-   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} disabled={validationEnCours} rows={10} onPaste={coller} onChange={e=>{setTexte(e.target.value);setToutCorrect(false);}} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
+   <label>Langue <select value={langue} disabled={demande.source==="memoire"||validationEnCours||p.etat==="lecture"||p.etat==="pause"} onChange={e=>setLangue(e.target.value as "fr"|"wo")}><option value="wo">Wolof</option><option value="fr">Français</option></select></label>
+   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} readOnly={demande.source==="memoire"} disabled={validationEnCours} rows={10} onPaste={coller} onChange={e=>{setTexte(e.target.value);setToutCorrect(false);}} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
    <div style={{display:"flex",flexWrap:"wrap",gap:12}}>
-    <button type="button" disabled={!texte.trim()||p.etat==="lecture"||p.etat==="pause"} onClick={()=>lancer()}>TRAITER LE MESSAGE</button>
+    <button type="button" disabled={charge||!texte.trim()||p.etat==="lecture"||p.etat==="pause"} onClick={()=>lancer()}>{demande.source==="memoire"?"RELIRE LES DEVOIRS":"TRAITER LE MESSAGE"}</button>
     <button type="button" disabled={p.etat!=="lecture"} onClick={()=>player.current?.pause()}>PAUSE</button>
-    <button type="button" disabled={p.etat!=="pause"&&p.etat!=="erreur"} onClick={()=>player.current?.reprendre()}>REPRENDRE</button>
-    <button type="button" onClick={()=>player.current?.stop()}>STOP</button>
+    <button type="button" disabled={p.etat!=="pause"&&p.etat!=="erreur"} onClick={reprendre}>REPRENDRE</button>
+    <button type="button" onClick={arreter}>STOP</button>
    </div>
    <p hidden={typeMessage!=="exercice"} role="status" aria-live="polite">{p.etat} — {Math.min(p.index+1,p.total)} / {p.total}{p.erreur?` — ${p.erreur}. Le segment est conservé. Reprendre pour réessayer.`:""}</p>
-   {edition && <>
+   {edition && demande.source!=="memoire" && <>
    <p role="status" aria-live="polite">{memoire}</p>
    
    <h3>Valider le devoir entier</h3>

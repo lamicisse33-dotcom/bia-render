@@ -8,3 +8,12 @@ export function demandeLecture(message:string, textePresent=""): {texte:string;a
   const texte=suite.trim()?suite:textePresent;
   return {texte,auto:Boolean(texte.trim())};
 }
+
+/** Resolve saved homework before the generic "lis à haute voix" payload parser. */
+export function demandeLectureMemoire(message:string):boolean {
+  if (message.length > 600 || /[\r\n:]/.test(message)) return false;
+  const t=message.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  if (/\b(?:ne|pas|pourquoi|comment)\b/.test(t)) return false;
+  const commande=/^(?:(?:bia|s'il te plait|s’il te plait)[, ]+)*(?:(?:peux[- ]tu|pourrais[- ]tu|tu peux|je veux que tu|je voudrais que tu)\s+)?(?:me\s+)?(?:lis(?:[- ]moi)?|lises|lire|relis(?:[- ]moi)?|relises|relire)\b/.test(t.trim());
+  return commande && /\b(?:devoirs|lecons|exercices)\b/.test(t) && /\b(?:tous|toutes|mes|tes|memoire|enregistres|enregistrees|memorises|memorisees|sauvegardes|sauvegardees)\b/.test(t);
+}

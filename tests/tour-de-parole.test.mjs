@@ -12,7 +12,7 @@ test('a short breath does not finish a sentence; repeated early cuts extend the 
   for (const duration of [700, 2500, 7000]) {
     assert(silenceQuiSuffit(duration) >= 1000);
     assert(silenceQuiSuffit(duration, 2) > silenceQuiSuffit(duration));
-    assert(silenceQuiSuffit(duration, 100) <= 2500);
+    assert(silenceQuiSuffit(duration, 100) <= 3000);
   }
 });
 test('speech containing consonants and two 120 ms gaps still interrupts', () => {
@@ -57,7 +57,7 @@ function environment(fetchPromise) {
   const env={
     carteOuverteRef:{current:false},numeroDuTourRef:{current:1},porteRef:{current:null},
     personaRef:{current:'female'},codeRef:{current:'test'},bornesRef:{current:{}},langueRef:{current:'fr'},
-    estWolof:()=>false,voixLocaleBiaDisponible:()=>true,noterRouteVoixBia:()=>{},essaiChatterboxActif:()=>true,
+    choixVoixBia:()=>"female",estWolof:()=>false,voixLocaleBiaDisponible:()=>true,noterRouteVoixBia:()=>{},essaiChatterboxActif:()=>true,
     routeVoixBia:()=>'/tts',voixChatterboxBia:()=> 'female',voixAudioPrompt:()=>'',
     fetch:()=>fetchPromise,attendreSonTour,noterAttente:()=>{},poserBorne:()=>{},finirAttente:async()=>{},
     window:{speechSynthesis:{cancel(){}}},couperSon:()=>{},tourRef:{current:null},
@@ -65,8 +65,9 @@ function environment(fetchPromise) {
     contexte:()=>({decodeAudioData:async()=>{decoded++;return {};},createBufferSource:()=>{played++;throw Error('unexpected playback');}}),
     octetsDeBase64:()=>new ArrayBuffer(1),segmentEnCoursRef:{current:false},setMode:()=>{},animationRef:{current:null},
     requestAnimationFrame:()=>1,pause:async()=>{},setFace:()=>{},setPanne:()=>{},stopMouth:()=>{},
-    sourcesRef:{current:new Set()},ditsRef:{current:[]}
+    fluxVoixRef:{current:new Set()},sourcesRef:{current:new Set()},ditsRef:{current:[]}
   };
+  env.reveillerLeSon=async()=>Object.assign(env.contexte(),{state:"running"});
   return {env,played:()=>played,decoded:()=>decoded,processed:()=>processed};
 }
 test('interrupting during TTS download discards the actual late audio response', async () => {

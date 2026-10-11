@@ -1,3 +1,4 @@
+import {noterLectureDevoirs} from "@/lib/lecture-devoirs-etat";
 import { NextResponse } from "next/server";
 import { noterCoupure, noterGuet, noterVue, noterLecture, noterTour, noterVeille, noterPrechauffage } from "@/lib/attentes-vues";
 
@@ -24,6 +25,7 @@ export async function POST(requete: Request) {
         }));
       }
     }
+    else if (corps && corps.type === "lecture_devoirs") noterLectureDevoirs(corps);
     else if (corps && corps.type === "lecture") noterLecture(corps);
     else if (corps && corps.type === "tour") noterTour(corps);
     else if (corps && corps.type === "coupure") noterCoupure(corps);

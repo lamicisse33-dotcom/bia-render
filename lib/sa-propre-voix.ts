@@ -283,3 +283,16 @@ export function recoller(
   const reste = suite.split(/\s+/).filter(Boolean).slice(chevauchement).join(" ");
   return reste ? `${debut} ${reste}` : debut;
 }
+
+/** A late question must not discard an already prepared reply over and over. */
+export function suitePendantReflexion(debut: string, suite: string, repriseMs: number | undefined) {
+  if (!suite.trim()) return {action:"ignorer" as const, texte:""};
+  const assemble = recoller({texte:debut, quand:Date.now()}, suite);
+  if (debut && normaliser(assemble) === normaliser(debut)) return {action:"ignorer" as const, texte:""};
+  // An explicit correction/stop remains an interruption, even late.
+  if (/^(?:non\b|stop\b|arr[eê]te\b|annule\b|tais[- ]toi\b)/i.test(suite.trim()))
+    return {action:"remplacer" as const, texte:suite};
+  if (debut && repriseMs !== undefined && repriseMs >= 0 && repriseMs <= REPRISE_QUI_CONTINUE)
+    return {action:"recoller" as const, texte:assemble};
+  return {action:"ensuite" as const, texte:suite};
+}

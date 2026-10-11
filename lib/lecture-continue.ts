@@ -44,13 +44,14 @@ export type Progression = {etat:EtatLecture; index:number; total:number; erreur?
 export class LectureContinue {
   private token=0; private paused=false; private running=false;
   private controller:AbortController|null=null;
-  private segments:string[]=[]; private index=0; private completion=false;
-  constructor(private synthese:(texte:string,signal:AbortSignal)=>Promise<unknown>,
+  private segments:Array<{texte:string;langue?:"fr"|"wo"}>=[]; private index=0; private completion=false;
+  constructor(private synthese:(texte:string,signal:AbortSignal,langue?:"fr"|"wo")=>Promise<unknown>,
     private jouer:(audio:unknown,signal:AbortSignal)=>Promise<void>,
     private transport:{pause:()=>void; reprendre:()=>void; stop:()=>void},
     private informer:(p:Progression)=>void) {}
   private emit(etat:EtatLecture,erreur?:string) { this.informer({etat,index:this.index,total:this.segments.length,erreur}); }
-  demarrer(texte:string) { this.stop(); this.segments=segmentsLecture(texte); this.index=0; this.completion=false;
+  demarrer(texte:string) { this.demarrerPassages([{texte}]); }
+  demarrerPassages(passages:Array<{texte:string;langue?:"fr"|"wo"}>) { this.stop(); this.segments=passages.flatMap(p=>segmentsLecture(p.texte).map(texte=>({texte,langue:p.langue}))); this.index=0; this.completion=false;
     if (!this.segments.length) {this.emit("prêt");return;} this.paused=false; this.transport.reprendre(); void this.run(); }
   pause() {this.paused=true;this.transport.pause();this.emit("pause");}
   reprendre() {this.paused=false;this.transport.reprendre();if(!this.running)void this.run();else this.emit("lecture");}
@@ -64,12 +65,14 @@ export class LectureContinue {
     try {
       while(this.index<=this.segments.length) {
         await this.gate(token);
-        const text=this.index===this.segments.length?"Exercice terminé":this.segments[this.index];
+        const passage=this.segments[this.index];
+        const text=passage?.texte ?? "Exercice terminé";
         let succeeded=false;let last="";
         for(let attempt=0;attempt<3;attempt++) {
-          try {const audio=await this.synthese(text,signal);await this.gate(token);await this.jouer(audio,signal);
+          try {const audio=await this.synthese(text,signal,passage?.langue ?? (passage?undefined:"fr"));await this.gate(token);await this.jouer(audio,signal);
             if(token!==this.token)return;succeeded=true;break;
           } catch(e) {if(signal.aborted||token!==this.token)return;last=e instanceof Error?e.message:"Voix indisponible";
+            if(e instanceof Error && ["AudioSuspendu","TimeoutError"].includes(e.name)){this.paused=true;this.emit("erreur",e.name==="TimeoutError"?"La voix met trop de temps à répondre. Appuie sur REPRENDRE pour réessayer.":last);return;}
             if(attempt<2)await new Promise(r=>setTimeout(r,400*(attempt+1)));await this.gate(token);}
         }
         if(!succeeded){this.paused=true;this.emit("erreur",last);return;}

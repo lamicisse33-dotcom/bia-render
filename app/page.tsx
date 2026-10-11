@@ -3,7 +3,7 @@ import {piperLocaleDisponible} from "@/lib/voix-piper-locale";
 
 import { detecterLangue } from "@/lib/langue";
 import LectureApprentissage from "./LectureApprentissage";
-import {demandeLecture} from "@/lib/intention-lecture";
+import {demandeLecture,demandeLectureMemoire} from "@/lib/intention-lecture";
 import { ouvrirFluxVoix, type MorceauVoix } from "@/lib/flux-khalam";
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -69,7 +69,7 @@ import { fluxVivant,
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie, voixDejaPosee } from "@/lib/ralentir";
 import {
   DUREE_DU_RATTRAPAGE, GARDER_CE_QUIL_DIT_PENDANT_QUELLE_PARLE, RELANCE_DU_DEPOT,
-  faut_il_se_taire, recoller, type Prononce,
+  faut_il_se_taire, recoller, suitePendantReflexion, PORTE_AU_PLUS, type Prononce,
 } from "@/lib/sa-propre-voix";
 import { attendreSonTour, creerDetectionInterruption } from "@/lib/tour-de-parole";
 import Installer from "./installer";
@@ -468,7 +468,7 @@ export default function Home() {
      pas la différence entre « je t'écoute » et « je t'entends ». */
   const [entendParler, setEntendParler] = useState(false);
   const [clavier, setClavier] = useState(false);
-  const [lectureContinue, setLectureContinue] = useState<{texte:string;nonce:number;auto:boolean}|null>(null);
+  const [lectureContinue, setLectureContinue] = useState<{texte:string;nonce:number;auto:boolean;source?:"memoire"}|null>(null);
   const [saisie, setSaisie] = useState("");
   /* PLUS DE TEXTE SUR L'ÉCRAN.
      Demande de Lamine, 9 septembre 2026 : l'écran ne montre que BIA. La
@@ -2766,17 +2766,27 @@ export default function Home() {
             // partially heard stream through a second synthesis request.
             if (![404, 501].includes(response.status)) throw new Error(`Streaming HTTP ${response.status}`);
           }
-          const r = await fetch(routeVoix, {
-            method: "POST",
-            headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-            body: JSON.stringify({ texte: answer, partie, ou, langue: langueDite, voice: voixChoisie,
-              tete: !suite && partie === 0, audioPrompt: voixAudioPrompt() }),
-          });
-          if (r.ok) return await r.json() as { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number; speed?: number };
+          const abort = new AbortController();
+          fluxVoixRef.current.add(abort);
+          const timeout = setTimeout(() => abort.abort(new DOMException("La voix tarde à répondre", "TimeoutError")), 12000);
+          let r: Response;
+          try {
+            r = await fetch(routeVoix, {
+              method: "POST", signal: abort.signal,
+              headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+              body: JSON.stringify({ texte: answer, partie, ou, langue: langueDite, voice: voixChoisie,
+                tete: !suite && partie === 0, audioPrompt: voixAudioPrompt() }),
+            });
+            if (r.ok) return await r.json() as { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number; speed?: number };
+          } finally { clearTimeout(timeout); fluxVoixRef.current.delete(abort); }
           dernier = r.status === 429 ? "moteur vocal occupé" : `voix indisponible (HTTP ${r.status})`;
           if (![429, 502, 503, 504].includes(r.status)) break;
           if (r.status === 429) attente = Math.min(5000, Math.max(2000, (Number(r.headers.get("retry-after")) || 2) * 1000));
-        } catch (e) { dernier = "connexion au moteur vocal interrompue"; }
+        } catch (e) {
+          if (!actuel()) throw new Error("tour interrompu");
+          if (e instanceof Error && e.name === "TimeoutError") throw new Error("La voix met trop de temps à répondre. Réessaie.");
+          dernier = "connexion au moteur vocal interrompue";
+        }
         if (essai < 2) await new Promise((f) => setTimeout(f, attente));
       }
       throw new Error(dernier);
@@ -3079,6 +3089,10 @@ export default function Home() {
     /* Le sens de sa phrase, demandé pendant qu'on prépare la réponse et
        attendu juste avant qu'elle ouvre la bouche. Voir plus bas. */
     const clean = question.trim();
+    if (demandeLectureMemoire(clean)) {
+      fermerConversation(); taire(); setSaisie(""); setClavier(false);
+      setLectureContinue({texte:"",nonce:Date.now(),auto:true,source:"memoire"}); return;
+    }
     const lectureDemandee=demandeLecture(question);
     if (lectureDemandee) {
       const precedent=lectureContinue?.texte || [...historyRef.current].reverse()
@@ -5702,7 +5716,7 @@ export default function Home() {
        comportement (volume seul) plutôt que de ne jamais couper. */
     const analysePeriodique = analysePeriodiqueRef.current;
     const tamponPeriodique = analysePeriodique ? new Uint8Array(analysePeriodique.fftSize) : null;
-    const detecter = creerDetectionInterruption();
+    const detecter = creerDetectionInterruption(mode === "thinking");
     const spectreInterruption = new Uint8Array(analyse.frequencyBinCount);
     let vivant = true;
     let porteDuGuet: typeof porteRef.current = null;
@@ -5758,7 +5772,7 @@ export default function Home() {
           f.append("nom", `parole.${extensionDe(type)}`);
           f.append("morceau", e.data, `m${i}`);
           envois.push(fetch("/api/ecouter/morceau", {
-            method: "POST", headers: { "x-bia-code": codeRef.current }, body: f,
+            method: "POST", headers: { "x-bia-code": codeRef.current }, body: f, signal: AbortSignal.timeout(8000),
           }).catch(() => { /* un morceau perdu ne coûte qu'une reprise de plus */ }));
         };
         guetteur.start(400);
@@ -5793,7 +5807,7 @@ export default function Home() {
       f.append("indice_langue", langueDuFil.current || "");
       try {
         const r = await fetch("/api/ecouter/apercu", {
-          method: "POST", headers: { "x-bia-code": codeRef.current }, body: f,
+          method: "POST", headers: { "x-bia-code": codeRef.current }, body: f, signal: AbortSignal.timeout(6000),
         });
         const d = await r.json() as { texte?: string };
         const verdict = faut_il_se_taire(d.texte || "", dits);
@@ -5852,15 +5866,15 @@ export default function Home() {
         dejaRepris = false;
         const mots = await motsDuGuetteur();
         if (!vivant || numeroDuTourRef.current !== monTour) return;
-        if (revisionParole !== revision) return;
+        if (revisionParole !== revision || porteDuGuet !== porte) return;
         const debut = questionEnVolRef.current.trim();
         // Il a repris pendant la transcription : garder la porte fermée et réécouter.
         if (tuDepuis < silenceQuiSuffit(Date.now() - parleDepuis - tuDepuis, coupesTropTotRef.current)) return;
-        const continuation = Boolean(debut) && Boolean(mots.trim());
-        mesurerLaCoupure(continuation, mots, continuation ? "recollee" : !mots.trim() ? "sans_mots" : "pas_de_debut", reprise);
+        const suite = suitePendantReflexion(debut, mots, reprise);
+        const continuation = suite.action === "recoller";
+        mesurerLaCoupure(continuation, mots, continuation ? "recollee" : suite.action === "ensuite" ? "reprise_tardive" : !mots.trim() ? "sans_mots" : "pas_de_debut", reprise);
         ilParle = false;
-        if (mots.trim()) {
-          // Même après une synthèse lente, la nouvelle parole passe avant la réponse en attente.
+        if (suite.action === "recoller" || suite.action === "remplacer") {
           ouvrirUnTour();
           busyRef.current = false;
           questionEnVolRef.current = "";
@@ -5878,8 +5892,11 @@ export default function Home() {
           porteDuGuet = null;
           porte?.ouvrir();
           setRepriseDuTour((n) => n + 1);
-          void askBiaRef.current?.(continuation ? recoller({ texte: debut, quand: Date.now() }, mots) : mots, true);
+          void askBiaRef.current?.(suite.texte, true);
           return;
+        }
+        if (suite.action === "ensuite") {
+          motsRattrapesRef.current = {texte:recoller(motsRattrapesRef.current, suite.texte),quand:Date.now()};
         }
         if (porteRef.current === porte) porteRef.current = null;
         porteDuGuet = null;
@@ -5896,6 +5913,12 @@ export default function Home() {
     let tuDepuis = 0;
 
     const guet = setInterval(() => {
+      if (porteDuGuet && Date.now() - porteDuGuet.depuis >= PORTE_AU_PLUS) {
+        const porte = porteDuGuet; porteDuGuet = null;
+        if (porteRef.current === porte) porteRef.current = null;
+        ilParle = false; revisionParole++; porte.ouvrir();
+        mesurerLaCoupure(false, "", "porte_expiree");
+      }
       // Les blancs entre deux segments restent interruptibles.
       analyse.getByteTimeDomainData(tampon);
       let creux = 0;
@@ -5920,7 +5943,7 @@ export default function Home() {
           hauteurDeVoix(tamponPeriodique, analysePeriodique.context.sampleRate) >= HAUTEUR_MINIMALE;
       }
       const interruption = detecter(creux > barre, estUneVoix, TOUR_DE_VEILLE);
-      if (creux > barre && (estUneVoix || ilParle)) {
+      if (creux > barre && estUneVoix) {
         revisionParole += 1;
         vu.tours_au_dessus += 1;
         tuDepuis = 0;
