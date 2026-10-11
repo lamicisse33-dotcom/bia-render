@@ -1,4 +1,7 @@
 "use client";
+import {sonPourTexte,reactionDisponible,type SonCourant} from "@/lib/sons-courants-core";
+import {programmerReactionCourante} from "@/lib/reaction-courante";
+import {salutationAutonome} from "@/lib/salutations-dialogue";
 import {piperLocaleDisponible} from "@/lib/voix-piper-locale";
 
 import { detecterLangue } from "@/lib/langue";
@@ -1748,7 +1751,7 @@ export default function Home() {
      accusés de réception et des transitions, qui sortent du haut-parleur
      AVANT la réponse. Les compter comme « première syllabe » ferait croire à
      un tour de deux secondes là où il en a duré neuf. */
-  const jouerEtAnimer = useCallback(async (octets: ArrayBuffer, estLaReponse = false) => {
+  const jouerEtAnimer = useCallback(async (octets: ArrayBuffer, estLaReponse = false, garde?: {actuel:()=>boolean;commence?:()=>void}) => {
     /* Le haut-parleur d'abord, le son ensuite. Voir reveillerLeSon(). */
     const ctx = await reveillerLeSon();
     return new Promise<number>((fini) => {
@@ -1761,6 +1764,7 @@ export default function Home() {
       fini(ms);
     };
     ctx.decodeAudioData(octets.slice(0)).then((brut) => {
+      if(garde&&!garde.actuel()){rendre(0);return;}
       /* POSÉE, PAS PRESSÉE. Lamine, le 11 septembre 2026 : « ralentir de
          30 % la vitesse de sa voix, elle est trop agressive ». Le modèle de
          voix n'a AUCUN réglage de vitesse — vérifié dans sa documentation —
@@ -1805,6 +1809,7 @@ export default function Home() {
       };
       setMode("speaking");
       source.start();
+      garde?.commence?.();
       if (estLaReponse) envoyerLeTour();
       // Le filet : la durée du morceau, plus une seconde de marge.
       secours = setTimeout(() => rendre(duree), duree + 1000);
@@ -2569,6 +2574,8 @@ export default function Home() {
      Et si les deux mémoires sont vides ou refusées (navigation privée, place
      épuisée), on fait ce qu'on faisait avant : on va le chercher. Une mémoire
      qui tombe ne doit jamais rendre BIA muette. */
+  const sonsCourantsRef = useRef<SonCourant[]>([]);
+  const derniereReactionRef = useRef("");
   const octetsDuRepertoire = useCallback(async (adresse: string): Promise<ArrayBuffer> => {
     const vif = cacheSons.current.get(adresse);
     if (vif) return vif;
@@ -2703,6 +2710,19 @@ export default function Home() {
        On décide ici, une fois, sur la réponse ENTIÈRE — un fragment de
        quatre mots ne se juge pas, une réponse complète oui. */
     const langueDite = lecture?.langue ?? (estWolof(answer) ? "wo" : "fr");
+    // Current female Khalam recordings only. Lessons keep their fresh source
+    // pronunciation; an absent/unwarmed clip never delays ordinary synthesis.
+    if(!enLecon&&!lecture&&!suite&&essaiChatterboxActif()&&voixChatterboxBia()==="female"&&personaRef.current!=="rara"){
+      const son=sonPourTexte(sonsCourantsRef.current,answer,langueDite);
+      const octets=son&&cacheSons.current.get(son.adresse);
+      if(octets){
+        await prendreLaParole();if(!await peutParler())return;
+        const debut=performance.now();poserBorne(bornesRef.current,"enMain");
+        const duree=await jouerEtAnimer(octets,true,{actuel,commence:()=>{void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"sons_courants",usage:"reponse",ms:performance.now()-debut})}).catch(()=>{});}});
+        if(!actuel())return;
+        if(duree>0){stopMouth(answer);return;}
+      }
+    }
     const locale = voixLocaleBiaDisponible(personaRef.current);
     if (choixVoixBia() === "piper" && !locale) {
       setPanne("Piper est installé dans l’application du téléphone. Ouvre cette application pour l’utiliser, ou choisis Khalam Voice dans Moi.");
@@ -3126,7 +3146,7 @@ export default function Home() {
       if (ou === "apprentissage" || locale || essaiChatterboxActif()) { stopMouth(answer); return; }
       await parlerAvecLeTelephone(answer);
     }
-  }, [contexte, reveillerLeSon, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth]);
+  }, [contexte, reveillerLeSon, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth, jouerEtAnimer]);
 
 
 
@@ -3249,6 +3269,20 @@ export default function Home() {
       void attendreEnParlant(jeton, langueRef.current);
     }
 
+    const reaction=essaiChatterboxActif()&&voixChatterboxBia()==="female"&&personaRef.current!=="rara"&&!apprend.current&&!chantierMalDit.current&&!correctionDevoirRef.current&&!salutationAutonome(clean)
+      ? reactionDisponible(sonsCourantsRef.current.filter(s=>cacheSons.current.has(s.adresse)),langueRef.current,derniereReactionRef.current):undefined;
+    const annulerReaction=reaction?programmerReactionCourante({
+      actuel:()=>estLeTour(monTour)&&busyRef.current&&!carteOuverteRef.current,
+      arreter:()=>{if(estLeTour(monTour))couperSon();},
+      jouer:async actif=>{
+        const octets=cacheSons.current.get(reaction.adresse);if(!octets||!actif())return;
+        derniereReactionRef.current=reaction.cle;
+        const debut=performance.now();
+        await jouerEtAnimer(octets,false,{actuel:actif,commence:()=>{void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"sons_courants",usage:"reaction",ms:performance.now()-debut})}).catch(()=>{});}});
+        if(actif()){setMode("thinking");setFace("pensive");}
+      },
+    }):()=>{};
+
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -3352,6 +3386,7 @@ export default function Home() {
               if (!teteDite && estLeTour(monTour)) {
                 const tete = teteDeLaReponse(recu);
                 if (tete) {
+                  annulerReaction();
                   teteDite = tete;
                   /* La balise d'émotion est demandée en PREMIÈRE ligne : elle
                      est donc déjà arrivée, et le souffle peut partir juste. */
@@ -3388,6 +3423,7 @@ export default function Home() {
         data = (await response.json()) as { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
       }
 
+      annulerReaction();
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
       poserBorne(bornesRef.current, "modele");
       /* ── ET SI CE N'EST PLUS SON TOUR, ELLE SE TAIT ────────────────────
@@ -3691,6 +3727,7 @@ export default function Home() {
           (data as {dialogue_memorise?:boolean}).dialogue_memorise ? {langue:(data as {langue?:"fr"|"wo"}).langue||"wo",premierSon:()=>{}} : undefined);
       }
     } catch {
+      annulerReaction();
       if (!estLeTour(monTour)) return;
       emotionRef.current = "concernee";
       const fallback = "Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.";
@@ -3699,12 +3736,13 @@ export default function Home() {
       setMode("error");
       await speak(fallback);
     } finally {
+      annulerReaction();
       if (estLeTour(monTour)) {
         busyRef.current = false;
         questionEnVolRef.current = "";
       }
     }
-  }, [speak, attendreEnParlant, finirAttente, ouvrirUnTour, estLeTour, lectureContinue, stopMouth]);
+  }, [speak, attendreEnParlant, finirAttente, ouvrirUnTour, estLeTour, lectureContinue, stopMouth, couperSon, jouerEtAnimer]);
 
   /* LE TEXTE FRANÇAIS QU'ON COLLE, DIT EN WOLOF.
 
@@ -3987,6 +4025,28 @@ export default function Home() {
     })();
     return () => { vivant = false; };
   }, [code, audioParole]);
+
+  useEffect(()=>{
+    if(!code||!essaiChatterboxActif()||voixChatterboxBia()!=="female"||personaRef.current==="rara")return;
+    let vivant=true;let timer:ReturnType<typeof setTimeout>|undefined;
+    const charger=async()=>{
+      const bilan={demandes:0,deja_la:0,chargees:0,ratees:0,ms:0,octets:0};const debut=Date.now();
+      try{
+        const r=await fetch("/api/sons-courants",{cache:"no-store"});if(!r.ok)return;
+        const d=await r.json() as {sons:SonCourant[];attendus:number};if(!vivant)return;
+        sonsCourantsRef.current=d.sons;
+        for(const son of d.sons){
+          if(!vivant)return;bilan.demandes++;
+          if(cacheSons.current.has(son.adresse)){bilan.deja_la++;continue;}
+          try{const octets=await octetsDuRepertoire(son.adresse);bilan.chargees++;bilan.octets+=octets.byteLength;}catch{bilan.ratees++;}
+        }
+        if(vivant&&d.sons.length<d.attendus)timer=setTimeout(()=>void charger(),30000);
+      }catch{if(vivant)timer=setTimeout(()=>void charger(),30000);}
+      bilan.ms=Date.now()-debut;
+      if(bilan.demandes)void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"prechauffage",...bilan}),keepalive:true}).catch(()=>{});
+    };
+    void charger();return()=>{vivant=false;if(timer)clearTimeout(timer);};
+  },[code,octetsDuRepertoire]);
 
   /* ── ET LES SONS DU RÉPERTOIRE QUI OUVRENT ET FERMENT LES CONVERSATIONS ──
 

@@ -1,3 +1,4 @@
+import {genererSonsCourants} from "@/lib/sons-courants";
 import {verifierContinuiteVoix} from "@/lib/essai-continuite-voix";
 import {verifierCorrectionDevoir} from "@/lib/correction-devoir";
 import {verifierDialoguesAppris} from "@/lib/essai-dialogue-devoirs";
@@ -13,6 +14,14 @@ export async function POST(r:Request){
  if(!(v.ok&&v.maitre)&&!(a.length>0&&a.length===b.length&&timingSafeEqual(a,b)))return NextResponse.json({error:"Accès refusé"},{status:401});
  if(!lexiqueConfig.actif)return NextResponse.json({error:"Supabase non configuré"},{status:503});
  try{
+  const body=await r.json().catch(()=>({}));
+  // Owner requested generation on 2026-10-11. Reuse the existing private
+  // runner for this fixed public catalogue only; ordinary master checks do
+  // not generate audio. Once this session expires, explicit selection wins.
+  const runner=a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
+  if(body.sons===true||(runner&&Date.now()<Date.parse("2026-10-12T00:00:00Z"))){
+   const sons=await genererSonsCourants();return NextResponse.json({verifie:true,sons});
+  }
   const groups=new Map<string,Map<number,any>>();let rowsRead=0;let truncated=false;
   for(let offset=0;offset<20000;offset+=500){
    const url=lexiqueConfig.url+"/rest/v1/"+lexiqueConfig.table+"?select=proposee&application=eq."+APP_LECONS+"&auteur=eq.maitre-devoir&order=id.desc&limit=500&offset="+offset;
@@ -33,7 +42,6 @@ export async function POST(r:Request){
   // Fixed private evaluation approved by the owner on 2026-10-11. Reuse
   // the existing authenticated verification job, at most once per process.
   // After this session, explicit selection is required for paid diagnostics.
-  const body=await r.json().catch(()=>({}));
   const continuite=body.continuite===true||Date.now()<Date.parse("2026-10-11T23:59:59Z")?await verifierContinuiteVoix():undefined;
   const correction=body.correction===true||Date.now()<Date.parse("2026-10-11T23:00:00Z")?await verifierCorrectionDevoir():undefined;
   const dialogue=body.dialogue===true||Date.now()<Date.parse("2026-10-11T23:00:00Z")

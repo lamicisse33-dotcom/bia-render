@@ -56,6 +56,7 @@ const makeSpeak=new Function('env',`with(env){${compile('const speak = '+arrow+'
 function environment(fetchPromise) {
   let played=0, decoded=0, processed=0;
   const env={
+    sonPourTexte:()=>undefined,sonsCourantsRef:{current:[]},cacheSons:{current:new Map()},
     ouvrirRepliques,carteOuverteRef:{current:false},numeroDuTourRef:{current:1},porteRef:{current:null},
     personaRef:{current:'female'},codeRef:{current:'test'},bornesRef:{current:{}},langueRef:{current:'fr'},
     choixVoixBia:()=>"female",estWolof:()=>false,voixLocaleBiaDisponible:()=>true,noterRouteVoixBia:()=>{},essaiChatterboxActif:()=>true,
@@ -119,4 +120,18 @@ test('a short first clip primes its neighbour and schedules both without a gap',
  emit({type:'morceau',audio:'AA==',parties:2,partie:0,empreinte:'same'});await decoded.promise;await Promise.resolve();assert.equal(sounds.length,0);
  emit({type:'morceau',audio:'AA==',parties:2,partie:1,empreinte:'same'});emit({type:'fin'});controller.close();await pending;
  assert.equal(sounds.length,2);assert(Math.abs(sounds[1]-sounds[0]-.5)<.00001);
+});
+
+test('actual speak plays a warmed current-voice clip without a synthesis request',async()=>{
+ const {env}=environment(Promise.resolve());let played=0,stopped=0;
+ const bytes=new ArrayBuffer(2200);env.sonPourTexte=()=>({adresse:'cached'});env.cacheSons.current.set('cached',bytes);
+ env.jouerEtAnimer=async(b,answer,garde)=>{assert.equal(b,bytes);assert.equal(answer,true);assert(garde.actuel());played++;return 1000;};
+ env.fetch=async()=>{throw Error('No synthesis or download on a cache hit');};env.stopMouth=()=>stopped++;
+ await makeSpeak(env)('Bonjour.');assert.equal(played,1);assert.equal(stopped,1);
+});
+test('a cached reply cancelled while waiting for the speaker never plays',async()=>{
+ const {env}=environment(Promise.resolve());const gate=deferred();let played=0;
+ env.sonPourTexte=()=>({adresse:'cached'});env.cacheSons.current.set('cached',new ArrayBuffer(2200));env.porteRef.current={attendre:gate.promise};
+ env.jouerEtAnimer=async()=>{played++;return 1000;};const p=makeSpeak(env)('Bonjour.');
+ env.numeroDuTourRef.current++;env.porteRef.current=null;gate.resolve();await p;assert.equal(played,0);
 });

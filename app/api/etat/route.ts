@@ -1,3 +1,4 @@
+import {sonsCourantsEtat} from "@/lib/sons-courants-etat";
 import {resumeContinuiteVoix} from "@/lib/continuite-voix-etat";
 import {resumeCorrectionsDevoir} from "@/lib/correction-devoir";
 import {resumeDialogueDevoirs,essayerDialogueDevoirs,indexDialogue} from "@/lib/dialogue-devoirs";
@@ -239,6 +240,7 @@ export async function GET(request: Request) {
        si les textes ont été relus par Lamine. Tant que ce n'est pas le cas,
        rien ne s'enregistre et rien ne se sert de mémoire. */
     repertoire: etatRepertoire(),
+    sons_courants: sonsCourantsEtat,
     /* ── SON CORPUS DE VOIX, PENDANT QU'IL SE CONSTITUE ───────────────────
        Le 15 septembre 2026, il a dit oui pour qu'on garde sa voix avec ses
        transcriptions : c'est ce qui lui permettra un jour de se passer d'une
