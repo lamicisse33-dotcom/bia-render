@@ -5043,6 +5043,11 @@ export default function Home() {
           if (!rattrape && dit && await arreterSurTranscriptionIncertaine(d, monTour)) return;
           if (rattrape && dit) {
             // The preview may contain the missing beginning: verify the whole turn.
+            // A preceding answer still in flight must not discard this interruption.
+            if (busyRef.current) {
+              motsRattrapesRef.current = { texte: dit, quand: Date.now() };
+              setMode("thinking"); return;
+            }
             void askBia(dit, true, monTour); return;
           }
           dernierDitRef.current = dit;
