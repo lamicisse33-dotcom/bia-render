@@ -45,6 +45,19 @@ test('French borrowings from validated money lessons keep French pronunciation',
   assert.equal(parts.at(-1).langue, 'wo');
 });
 
+test('lesson 21 keeps the underlined Wolof words between French borrowings', () => {
+  const text = 'Bia, sama famille dafa may ték pression.';
+  const parts = passagesLanguesVoix(text, 'wo', ['carte bancaire']);
+  assert.equal(parts.map(p => p.texte).join(''), text);
+  assert.deepEqual(parts.map(p => [p.texte.trim(), p.langue]), [
+    ['Bia, sama', 'wo'], ['famille', 'fr'], ['dafa may ték', 'wo'], ['pression.', 'fr'],
+  ]);
+  const french = 'Bia, ma famille me met trop de pression.';
+  assert.deepEqual(passagesLanguesVoix(french, 'wo'), [{texte: french, langue: 'fr'}]);
+  const lesson = 'DEVOIR 21 – Famille, pression et choix personnels\nWolof : ' + text + '\nFrançais : ' + french;
+  assert.equal(passagesLanguesVoix(lesson).map(p => p.texte).join(''), lesson);
+});
+
 function route() {
   let parts = [{texte: 'Bul jël', langue: 'wo'}, {texte: 'suspicion', langue: 'fr'}];
   let calls = 0;
