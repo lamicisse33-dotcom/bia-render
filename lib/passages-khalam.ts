@@ -9,8 +9,7 @@ export async function preparerPassagesKhalam(texte:string, defaut:LangueVoix="wo
   const out:PassageVoix[]=[];
   // Re-read the existing persistent lexicon before each synthesis preparation.
   const lecons=await lireLecons(true);
-  const wave=lecons.find(l=>l.langue==="fr"&&l.texte.toLowerCase()==="wave");
-  const emprunts=wave&&wave.statut==="validé"?[wave.texte,"bus"]:["Wave","bus"];
+  const emprunts=[...new Set(["Wave","bus",...lecons.filter(l=>l.langue==="fr"&&l.statut==="validé").map(l=>l.texte)])];
   for(const passage of passagesLanguesVoix(texte,defaut,emprunts)){
     const prononce=await prononciationsApprises(texteKhalamVoix(passage.texte),passage.langue);
     for(const morceau of lecture?segmentsLecture(prononce):decouperVoixKhalam(prononce))
