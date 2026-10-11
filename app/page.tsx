@@ -1,7 +1,6 @@
 "use client";
 import {piperLocaleDisponible} from "@/lib/voix-piper-locale";
 
-import { contexteTranscription } from "@/lib/transcription-contexte-core";
 import { detecterLangue } from "@/lib/langue";
 import LectureApprentissage from "./LectureApprentissage";
 import {demandeLecture} from "@/lib/intention-lecture";
@@ -117,7 +116,6 @@ type Message = {
   trouve?: Resultat;
   /** Cette phrase a été corrigée à la main : c'est la bonne, pas la sienne. */
   corrige?: boolean;
-  transcriptionIncertaine?: boolean;
 };
 
 /* ── SES RENSEIGNEMENTS À LUI ───────────────────────────────────────────────
@@ -3077,51 +3075,7 @@ export default function Home() {
 
 
 
-  // One gate for the server ear, interrupted phrases and browser speech input.
-  // A failed or ambiguous verification never reaches chat, actions or lesson reading.
-  const arreterSurTranscriptionIncertaine = useCallback(async (d: {
-    texte?: string; verification?: { statut?: string; langue?: string };
-  }, monTour: number) => {
-    if (["conservee", "corrigee"].includes(d.verification?.statut || "")) return false;
-    await finirAttente("fr", false);
-    if (!estLeTour(monTour)) return true;
-    if (d.verification?.statut === "a_confirmer") {
-      const clarification = "Je n’ai pas bien saisi ce passage. Peux-tu le redire ?";
-      setSaisie(d.texte || "");
-      setHistory(items => [...items, { role: "user", text: d.texte || "", transcriptionIncertaine: true }, { role: "bia", text: clarification }]);
-      langueRef.current = "fr";
-      await speak(clarification);
-    } else {
-      setPanne("La vérification de la transcription est indisponible. Réessaie dans un instant.");
-    }
-    if (estLeTour(monTour)) setMode("ready");
-    return true;
-  }, [finirAttente, estLeTour, speak]);
-
-  const askBia = useCallback(async (question: string, parole = false, tourDonne?: number, transcriptionVerifiee = false) => {
-    if (!question.trim() || busyRef.current) return;
-    if (parole && !transcriptionVerifiee) {
-      const tourVerification = tourDonne ?? ouvrirUnTour();
-      tourDonne = tourVerification;
-      busyRef.current = true;
-      setMode("thinking"); setFace("pensive");
-      try {
-        const r = await fetch("/api/ecouter/corriger", {
-          method: "POST", headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-          body: JSON.stringify({ texte: question, historique: contexteTranscription(historyRef.current), indice_langue: langueDuFil.current }),
-        });
-        const d = r.ok ? await r.json() : {};
-        if (!estLeTour(tourVerification)) return;
-        if (await arreterSurTranscriptionIncertaine(d, tourVerification)) return;
-        question = String(d.texte || "");
-        langueRef.current = d.verification?.langue === "fr" ? "fr" : d.verification?.langue === "wo" || d.verification?.langue === "mixte" ? "wo" : langueDuFil.current;
-        langueDuFil.current = langueRef.current;
-      } catch {
-        if (estLeTour(tourVerification)) await arreterSurTranscriptionIncertaine({}, tourVerification);
-        return;
-      } finally { if (estLeTour(tourVerification)) busyRef.current = false; }
-    }
-    if (tourDonne !== undefined && !estLeTour(tourDonne)) return;
+  const askBia = useCallback(async (question: string, parole = false, tourDonne?: number) => {
     /* Le sens de sa phrase, demandé pendant qu'on prépare la réponse et
        attendu juste avant qu'elle ouvre la bouche. Voir plus bas. */
     const clean = question.trim();
@@ -3211,7 +3165,7 @@ export default function Home() {
           /* Une fenêtre qui saute par paliers, pas qui glisse : c'est ce
              qui permet au cache du fil de retrouver son préfixe quatre tours
              sur cinq. Voir lib/fenetre-du-fil.ts. */
-          history: fenetreDuFil(historyRef.current.filter(m => !m.transcriptionIncertaine)),
+          history: fenetreDuFil(historyRef.current),
           /* ── LE POINT QUI CLIGNOTE, ET QU'ELLE NE VOYAIT PAS ───────────
              Lamine, le 16 septembre 2026 : « ça continue à clignoter en bas.
              Je lui ai demandé d'arrêter d'écrire, elle dit qu'elle n'écrit
@@ -3647,7 +3601,7 @@ export default function Home() {
         questionEnVolRef.current = "";
       }
     }
-  }, [speak, attendreEnParlant, finirAttente, ouvrirUnTour, estLeTour, lectureContinue, arreterSurTranscriptionIncertaine]);
+  }, [speak, attendreEnParlant, finirAttente, ouvrirUnTour, estLeTour, lectureContinue]);
 
   /* LE TEXTE FRANÇAIS QU'ON COLLE, DIT EN WOLOF.
 
@@ -4809,7 +4763,8 @@ export default function Home() {
           return;
         }
 
-        // No acknowledgement is spoken until transcription verification finishes.
+        /* Elle répond MAINTENANT, sans attendre la transcription : c'est tout
+           l'intérêt: le silence après qu'on a parlé est le plus inquiétant. */
         /* ── ON NE MENT PLUS SUR LE FORMAT DE L'ENREGISTREMENT ──────────────
 
            Lamine, le 12 septembre 2026 : « quand j'ai écrit un message sur le
@@ -4863,7 +4818,6 @@ export default function Home() {
            lib/ecoute.ts). On envoie la langue de l'échange précédent — wolof
            au premier mot, parce que BIA est wolof d'abord. */
         forme.append("indice_langue", langueDuFil.current);
-        forme.append("historique", JSON.stringify(contexteTranscription(historyRef.current)));
 
         /* ── LE PRÉNOM NE DOIT PAS TOUCHER À L'ÉTAT DU MICRO ──────────────
 
@@ -4951,9 +4905,49 @@ export default function Home() {
         tTranscritRef.current = 0;
         tModeleRef.current = 0;
         langueRef.current = "wo";
-        // Lamine, 11 octobre : comprendre et corriger avant un seul mot.
-        // No acknowledgement, waiting phrase or breath during ASR + verification.
+        /* ── « AUSSITÔT ELLE DOIT DIRE D'ACCORD, JE VOIS ÇA » ─────────────
+
+           Sa demande du 12 septembre au soir, et l'endroit est ici : on vient
+           de fermer le micro, la transcription n'est même pas partie. Rien
+           n'est plus tôt que ça.
+
+           Le son est déjà dans le téléphone (c'est un enregistrement du
+           répertoire) donc il part en un dixième de seconde. L'attente
+           parlée, elle, prend la suite quand l'accusé a fini — sinon les deux
+           parleraient ensemble.
+
+           Tant que les phrases de service ne sont pas enregistrées,
+           choisirService rend null et rien ne change : une phrase promise
+           sans son serait un silence. */
+        const accuseSuite = !essaiChatterboxActif() && apresSalutationRef.current
+          ? choisirService("suite", dernierService.current) : null;
         apresSalutationRef.current = false;
+        if (accuseSuite) {
+          dernierService.current = accuseSuite.cle;
+          void (async () => {
+            try {
+              /* L'ADRESSE SE CONSTRUIT ICI, PAS AVEC sonDe(). Cette fonction
+                 lit la configuration Supabase du SERVEUR : dans le
+                 téléphone, elle rendrait une adresse vide. La page a déjà le
+                 dossier des sons — /api/etat le lui donne au chargement — et
+                 c'est ce même chemin qui sert pour la salutation d'accueil. */
+              const ou = adresseDuSon(accuseSuite.cle, langueDuFil.current as "wo" | "fr");
+              if (!ou) throw new Error("dossier des sons inconnu");
+              const octets = await octetsDuRepertoire(ou);
+              if (estLeTour(monTour) && attenteRef.current === jeton) await jouerEtAnimer(octets);
+            } catch { /* pas de son déposé : on enchaîne sur l'attente */ }
+            if (estLeTour(monTour) && attenteRef.current === jeton) {
+              void attendreEnParlant(jeton, langueRef.current);
+            }
+          })();
+        } else {
+          void attendreEnParlant(jeton, langueRef.current);
+        }
+        /* ── ET LE SOUFFLE, À CHAQUE TOUR ─────────────────────────────────
+           `attendreEnParlant` ne parle qu'au PREMIER échange — c'est sa
+           décision du 12 septembre, et elle tient. Le souffle, lui, n'est pas
+           une phrase : il revient à chaque fois, comme chez un être humain. */
+        void soufflerEnAttendant(jeton);
 
         try {
           /* ── ON N'ENVOIE PLUS LE SON S'IL EST DÉJÀ LÀ ────────────────────
@@ -4978,7 +4972,6 @@ export default function Home() {
           legere.append("total", String(morceaux.length));
           const indice = forme.get("indice_langue");
           if (indice !== null) legere.append("indice_langue", String(indice));
-          legere.append("historique", String(forme.get("historique") || "[]"));
           /* ── LE DERNIER MORCEAU ET LA DEMANDE VOYAGENT ENSEMBLE ──────────
 
              Le 19 septembre 2026. On attendait que le dernier morceau soit
@@ -5001,7 +4994,7 @@ export default function Home() {
           let r = await envoyer(complet ? legere : forme);
           if (complet && r.status === 409) { await Promise.allSettled(envois); r = await envoyer(forme); }
           if (!estCetEnregistrement(idEnr)) return;
-          const d = await r.json() as { texte?: string; panne?: boolean; motif?: string; suggestions_ecriture?: string[]; verification?: { statut?: string; langue?: string }; au_fil_de_leau?: boolean };
+          const d = await r.json() as { texte?: string; panne?: boolean; motif?: string; suggestions_ecriture?: string[]; au_fil_de_leau?: boolean };
           if (!estCetEnregistrement(idEnr)) return;
           /* SON OREILLE EST CASSÉE, CE N'EST PAS LA VOIX DE LA PERSONNE.
              Sans ça, BIA répétait « je ne t'entends pas bien, répète » à
@@ -5040,20 +5033,22 @@ export default function Home() {
           const rattrape = motsRattrapesRef.current;
           motsRattrapesRef.current = null;
           const dit = recoller(rattrape, d.texte || "");
-          if (!rattrape && dit && await arreterSurTranscriptionIncertaine(d, monTour)) return;
-          if (rattrape && dit) {
-            // The preview may contain the missing beginning: verify the whole turn.
-            // A preceding answer still in flight must not discard this interruption.
-            if (busyRef.current) {
-              motsRattrapesRef.current = { texte: dit, quand: Date.now() };
-              setMode("thinking"); return;
-            }
-            void askBia(dit, true, monTour); return;
+          if(Array.isArray(d.suggestions_ecriture)&&d.suggestions_ecriture.length){
+            setSaisie(dit);setConversation(true);
+            const clarification=d.suggestions_ecriture.length===1
+              ? "Est-ce que tu veux dire : "+d.suggestions_ecriture[0]
+              : "Je n’ai pas bien compris. Peux-tu répéter doucement ?";
+            setHistory(items=>[...items,{role:"user",text:dit},{role:"bia",text:clarification}]);
+            await finirAttente("fr",false);
+            if(!estLeTour(monTour))return;
+            langueRef.current="fr";
+            await speak(clarification);
+            if(estLeTour(monTour))setMode("ready");
+            return;
           }
           dernierDitRef.current = dit;
           if (dit) {
-            langueRef.current = d.verification?.langue === "fr" ? "fr"
-              : d.verification?.langue === "wo" || d.verification?.langue === "mixte" ? "wo" : langueDuFil.current;
+            langueRef.current = estWolof(dit) ? "wo" : "fr";
             langueDuFil.current = langueRef.current;
             /* ── QUAND ON RIT, ELLE RIT — SANS PASSER PAR PERSONNE ─────────
 
@@ -5099,7 +5094,7 @@ export default function Home() {
               setMode("thinking");
               return;
             }
-            void askBia(dit, true, monTour, true);
+            void askBia(dit, true, monTour);
           } else {
             /* ── ELLE N'A RIEN ENTENDU, ET ELLE RESTAIT FIGÉE ────────────
 
@@ -5201,7 +5196,7 @@ export default function Home() {
     } catch {
       setMode("error");
     }
-  }, [arreterEnregistrement, askBia, attendreEnParlant, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour, nouvelEnregistrement, estCetEnregistrement, arreterSurTranscriptionIncertaine]);
+  }, [arreterEnregistrement, askBia, attendreEnParlant, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour, nouvelEnregistrement, estCetEnregistrement]);
 
   /* L'attente a besoin de rouvrir le micro pour recevoir le prénom, mais elle
      est définie avant `ecouter`. Ce renvoi évite d'avoir à réordonner tout le
@@ -5229,7 +5224,7 @@ export default function Home() {
     recognition.onresult = (event: any) => {
       const transcript = Array.from(event.results as ArrayLike<any>)
         .map((r: any) => r[0].transcript).join("");
-      if (event.results[event.results.length - 1].isFinal) void askBia(transcript, true);
+      if (event.results[event.results.length - 1].isFinal) void askBia(transcript);
     };
     recognitionRef.current = recognition;
     return () => { recognition.stop(); recognitionRef.current = null; };

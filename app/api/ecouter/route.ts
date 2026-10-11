@@ -1,5 +1,4 @@
-import { verifierTranscriptionContextuelle } from "@/lib/transcription-contextuelle";
-import {vocabulaireAppris} from "@/lib/correction-transcription";
+import {corrigerTranscription,vocabulaireAppris} from "@/lib/correction-transcription";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { transcrire } from "@/lib/ecoute";
@@ -172,10 +171,10 @@ export async function POST(request: NextRequest) {
        saurait pas si le chemin rapide sert vraiment, ou s'il se replie en
        silence sur l'ancien depuis des jours — c'est exactement le genre
        d'aveuglement qui nous a coûté deux soirées sur la mémoire. */
-    let historique: unknown = [];
-    try { historique = JSON.parse(String(form.get("historique") || "[]").slice(0, 12000)); } catch {}
-    const ecriture = await verifierTranscriptionContextuelle(String(reco.texte || ""), historique, indice);
-    return NextResponse.json({ ...reco, ...ecriture, au_fil_de_leau: recousu, extrait });
+    let ecriture={texte:String(reco.texte||""),texte_brut:String(reco.texte||""),corrections_transcription:[] as Array<{entendu:string;corrige:string}>};
+    let correction_disponible=true;
+    try{ecriture=await corrigerTranscription(String(reco.texte||""));}catch{correction_disponible=false;}
+    return NextResponse.json({ ...reco,...ecriture,correction_disponible, au_fil_de_leau: recousu, extrait });
   } catch (err) {
     /* ── UNE ÉCOUTE QUI ÉCHOUE NE LAISSAIT AUCUNE TRACE ──────────────────
 

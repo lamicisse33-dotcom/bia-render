@@ -61,14 +61,11 @@ test('live pipeline waits for verifier, passes context as data and preserves raw
   const fail=await server.verifierTranscriptionContextuelle('Je veux parler.',[]);assert.equal(fail.verification.statut,'indisponible');assert.equal(fail.texte,'Je veux parler.');
  } finally {globalThis.fetch=oldFetch;if(oldProvider===undefined)delete process.env.BIA_LLM_PROVIDER;else process.env.BIA_LLM_PROVIDER=oldProvider;if(oldKey===undefined)delete process.env.CEREBRAS_API_KEY;else process.env.CEREBRAS_API_KEY=oldKey;}
 });
-test('all voice entry paths are gated before actions; full and light uploads carry context',()=>{
- const s=fs.readFileSync('app/page.tsx','utf8');
- const ask=s.slice(s.indexOf('const askBia ='),s.indexOf('const askBia =')+7000);
- assert(ask.indexOf('/api/ecouter/corriger')<ask.indexOf('demandeLecture(question)'));
- assert.match(ask,/await arreterSurTranscriptionIncertaine/);
- assert.match(s,/askBia\(transcript, true\)/);
- assert.match(s,/askBia\(dit, true, monTour, true\)/);
- assert.match(s,/forme.append\("historique"/);assert.match(s,/legere.append\("historique"/);
- const audio=s.slice(s.indexOf('const monTour = ouvrirUnTour();',s.indexOf('forme.append("audio"')),s.indexOf('const d = await r.json() as { texte?',s.indexOf('forme.append("audio"')));
- assert(!audio.includes('attendreEnParlant('));assert(!audio.includes('jouerEtAnimer('));assert(!audio.includes('soufflerEnAttendant('));
+test('emergency restoration keeps contextual verification out of the live voice path',()=>{
+ const page=fs.readFileSync('app/page.tsx','utf8');
+ const route=fs.readFileSync('app/api/ecouter/route.ts','utf8');
+ assert(!page.includes('/api/ecouter/corriger'));
+ assert(!page.includes('arreterSurTranscriptionIncertaine'));
+ assert(!route.includes('verifierTranscriptionContextuelle'));
+ assert(route.includes('corrigerTranscription'));
 });

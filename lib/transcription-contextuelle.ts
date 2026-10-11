@@ -9,7 +9,7 @@ const compte = g.biaCorrectionContexte ||= { appels: 0, avec_contexte: 0, corrig
   a_confirmer: 0, echecs: 0, ms: 0, dernier_ms: 0, dernier_refus: "", langues: {} };
 export function resumeCorrectionContexte() {
   return { ...compte, langues: { ...compte.langues }, ms_moyen: compte.appels ? Math.round(compte.ms / compte.appels) : null,
-    avant_reponse: true, historique_max_tours: 6, delai_modele_max_ms: 3500 };
+    actif: false, avant_reponse: false, motif_suspension: "retour_parcours_vocal_stable", historique_max_tours: 6, delai_modele_max_ms: 3500 };
 }
 // Reuse the selected conversation provider and credentials. No provider switch,
 // tools, retries or persistent history in this additional, bounded pass.
