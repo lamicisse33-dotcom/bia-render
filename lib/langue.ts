@@ -34,7 +34,7 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
     if (!tokens.length) {if(out.length)out[out.length-1].texte+=sentence;continue;}
     tokens[tokens.length-1]+=sentence.slice(tokens.join("").length);
     const labels=tokens.map(token=>{
-      const mots=token.toLocaleLowerCase().normalize("NFC").match(/\\p{L}+/gu)||[];
+      const mots=token.toLocaleLowerCase().normalize("NFC").match(/\p{L}+/gu)||[];
       if(mots.length===1&&emprunts.has(mots[0]))return "fr" as const;
       const {wo,fr}=indicesLangue(token);
       return wo ? "wo" as const : fr || /\d/u.test(token) ? "fr" as const : null;
