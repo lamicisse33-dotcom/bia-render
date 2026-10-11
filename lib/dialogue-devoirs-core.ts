@@ -80,11 +80,11 @@ export function chercherDialogues(index:DialogueAppris[],question:string,history
 }
 /** Implicit lesson speakers must not turn the person's first-person question
  * into BIA's own question. Explicit BIA labels remain authoritative. */
-export function paroleDeLaPersonne(fr:string){
+export function paroleDeLaPersonne(fr:string,wo=""){
  const t=normaliserDialogue(fr);
  if(/^(?:tu peux|vous pouvez) (?:dire|ecrire|repondre)\b|^je (?:comprends|t ecoute|vous ecoute|suis la pour|te propose|vous propose)\b/.test(t))return false;
  if(/\b(?:t|vous) (?:aider|proposer|expliquer|montrer|conseiller|accompagner)\b/.test(t))return false;
- if(fr.includes("?")&&/\b(?:je|mon|ma|mes|j ai|j aimerais)\b/.test(t))return true;
+ if(fr.includes("?")&&(/\b(?:je|mon|ma|mes|j ai|j aimerais)\b/.test(t)||/\b(?:laa|laay)\b/.test(normaliserDialogue(wo))))return true;
  return /^(?:(?:oui|non|mais|donc) )*(?:je |j ai |j aimerais |j espere |j attends |ma famille |mes parents |ma copine |mon copain |mon commerce |ils veulent que je |elles veulent que je )/.test(t);
 }
 /** Conservative facts explicitly stated by the speaker. These guards cover
@@ -129,7 +129,7 @@ export function paquetSelection(candidats:ReturnType<typeof chercherDialogues>,h
   }).sort((a,b)=>a.j-b.j);
   return {id:String(i),titre:c.d.titre,actif:c.actif,repliques:retenues.map(({p})=>({
    id:i+":"+p.id,wo:p.wo,fr:p.fr,role:p.role,deja_dite:deja.has(normaliserDialogue(p.wo))||deja.has(normaliserDialogue(p.fr)),
-   selectionnable:p.role!=="personne"&&!(p.role==="inconnu"&&paroleDeLaPersonne(p.fr))&&!questionDejaResolue(p.fr,faits)&&!ditsPersonne.has(normaliserDialogue(p.wo))&&!ditsPersonne.has(normaliserDialogue(p.fr))&&(p[langue].match(/\?/g)||[]).length<=1,
+   selectionnable:p.role!=="personne"&&!(p.role==="inconnu"&&paroleDeLaPersonne(p.fr,p.wo))&&!questionDejaResolue(p.fr,faits)&&!ditsPersonne.has(normaliserDialogue(p.wo))&&!ditsPersonne.has(normaliserDialogue(p.fr))&&(p[langue].match(/\?/g)||[]).length<=1,
   }))};
  });
 }

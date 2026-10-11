@@ -170,3 +170,10 @@ test('implicit first-person lesson questions belong to the person, with explicit
  assert.equal(core.paquetSelection([{d,actif:true,score:5,accords:1}],[],'fr')[0].repliques[0].selectionnable,true);
  assert(core.questionDejaResolue('Quel genre de business veux-tu faire ?',core.faitsExplicites('Je suis un petit commerçant.',[])));
 });
+
+test('Wolof first-person questions stay in the learner role even when French uses an infinitive',()=>{
+ const d=core.analyserDevoir(saved('Wolof : Naka laay mettreé ay limites ?\nFrançais : Comment poser des limites ?'));
+ assert.equal(core.paroleDeLaPersonne(d.repliques[0].fr,d.repliques[0].wo),true);
+ assert.equal(core.paquetSelection([{d,actif:true,score:5,accords:1}],[],'wo')[0].repliques[0].selectionnable,false);
+ assert.equal(core.paroleDeLaPersonne('Comment puis-je t’aider ?','Naka laa la mën a dimbali ?'),false);
+});

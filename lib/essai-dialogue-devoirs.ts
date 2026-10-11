@@ -37,7 +37,7 @@ export function verifierDialoguesAppris(){
   const bilan={quand:new Date().toISOString(),scenarios:resultats.length,tours:tours.length,
    repliques_exactes:tours.filter(t=>t.exacte).length,une_question_max:tours.every(t=>t.une_question_max),
    repetitions:tours.filter(t=>t.deja_dite).length,reprises_personne:tours.filter(t=>t.reprise_personne).length,
-   role_personne:tours.filter(t=>t.fr&&paroleDeLaPersonne(t.fr)).length,
+   role_personne:tours.filter(t=>t.fr&&paroleDeLaPersonne(t.fr,t.wo)).length,
    repliques_wolof:tours.filter(t=>t.langue==="wo").length,refus_respecte:refus===null,
    commerce_retrouve:/business|commerce|vente/i.test(resultats.find(r=>r.scenario==="commerce")?.tours[0]?.titre||""),
    question_deja_repondue:resultats.some(r=>r.tours.some(t=>r.scenario==="couple"&&/l.as appelée/.test(t.fr||"")||r.scenario==="mariage"&&/Sur quoi.*pression/.test(t.fr||""))),
