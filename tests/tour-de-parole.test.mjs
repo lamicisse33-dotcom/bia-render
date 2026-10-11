@@ -90,10 +90,19 @@ test('ordinary animated voice retains faithful segmentation, saved language and 
  const ctx={state:'running',currentTime:0,decodeAudioData:async()=>({duration:.01}),createBufferSource:()=>({connect(){},start(){sounds.push(true);}})};
  env.reveillerLeSon=async()=>ctx;env.ralentir=(_ctx,a)=>a;env.vitesseAudioBia=()=>1;env.enveloppeDe=()=>({valeurs:[1],pic:1,pas:.01});env.stopMouth=()=>stops++;
  env.fetch=async(url,opt)=>{if(url!=='/tts')return {ok:true};const b=JSON.parse(opt.body);bodies.push(b);return {ok:true,json:async()=>({audio:'AA==',parties:2,partie:b.partie,empreinte:'same-plan'})};};
- await makeSpeak(env)('Bonjour.',undefined,'lecture_devoirs',false,{langue:'fr',premierSon:()=>first++});
+ await makeSpeak(env)('Bonjour.',undefined,'lecture_devoirs',false,{langue:'fr',conserverTour:true,premierSon:()=>first++});
  assert.equal(sounds.length,2);assert.equal(first,1);assert.equal(stops,0);assert(bodies.every(b=>b.lecture_fidele===true&&b.langue==='fr'));assert.equal(bodies[1].empreinte,'same-plan');
 });
 test('a missing audio passage rejects the ordinary reader instead of silently moving on',async()=>{
  const {env}=environment(Promise.resolve({ok:true,json:async()=>({audio:null,parties:1,partie:0,empreinte:'same'})}));
- await assert.rejects(makeSpeak(env)('Bonjour.',undefined,'lecture_devoirs',false,{langue:'fr',premierSon(){throw Error('unexpected sound');}}),/aucun son/);
+ await assert.rejects(makeSpeak(env)('Bonjour.',undefined,'lecture_devoirs',false,{langue:'fr',conserverTour:true,premierSon(){throw Error('unexpected sound');}}),/aucun son/);
+});
+
+test('one learned reply finishes the ordinary voice turn after faithful playback',async()=>{
+ const {env}=environment(Promise.resolve());let stops=0;const bodies=[];
+ const ctx={state:'running',currentTime:0,decodeAudioData:async()=>({duration:.01}),createBufferSource:()=>({connect(){},start(){}})};
+ env.reveillerLeSon=async()=>ctx;env.ralentir=(_ctx,a)=>a;env.vitesseAudioBia=()=>1;env.enveloppeDe=()=>({valeurs:[1],pic:1,pas:.01});env.stopMouth=()=>stops++;
+ env.fetch=async(url,opt)=>{if(url!=='/tts')return {ok:true};bodies.push(JSON.parse(opt.body));return {ok:true,json:async()=>({audio:'AA==',parties:1,partie:0,empreinte:'learned'})};};
+ await makeSpeak(env)('Ndax am na problème ?',undefined,'réponse',false,{langue:'wo',premierSon(){}});
+ assert.equal(stops,1);assert.equal(bodies[0].lecture_fidele,true);assert.equal(bodies[0].langue,'wo');
 });

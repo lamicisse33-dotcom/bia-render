@@ -2638,7 +2638,7 @@ export default function Home() {
     setFace("yeux_ouverts");
   }, [finirAttente, couperSon, jouerSouffle, jouerEtAnimer, octetsDuRepertoire]);
 
-  const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse", suite = false, lecture?: {langue:"fr"|"wo";premierSon:()=>void}) => {
+  const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse", suite = false, lecture?: {langue:"fr"|"wo";premierSon:()=>void;conserverTour?:boolean}) => {
     /* La carte est ouverte : seul le guidage a le droit de parler. Voir la
        règle écrite près de `carteOuverteRef`. Ce qui arrive ici en retard —
        la fin d'une réponse, une phrase d'attente — meurt sans bruit. */
@@ -3061,11 +3061,11 @@ export default function Home() {
           duree_ms: Date.now() - debutTotal,
         }),
       }).catch(() => {});
-      if (!lecture) stopMouth(answer);
+      if (!lecture?.conserverTour) stopMouth(answer);
     } catch (e) {
       if (!actuel()) return;
       // The reader must stop at the failed passage, never skip the rest silently.
-      if (lecture) throw e;
+      if (lecture?.conserverTour) throw e;
       /* ── LE REPLI NE DOIT PLUS ÊTRE UN MYSTÈRE ──────────────────────────
 
          Lamine, le 12 septembre 2026, capture à l'appui : « elle écrit la
@@ -3125,7 +3125,7 @@ export default function Home() {
             const d=await r.json();if(!r.ok||!Array.isArray(d.devoirs))throw Error(d.error||"Impossible de charger les devoirs.");return d;
           },
           annoncer:(nombre,incomplets)=>setHistory(items=>[...items,{role:"bia",text:`Je lis les ${nombre} devoirs enregistrés.${incomplets?` ${incomplets} sauvegarde(s) incomplète(s) ne peuvent pas être lues.`:""}`}]),
-          parler:(texte,langue)=>speak(texte,undefined,"lecture_devoirs",false,{langue,premierSon:()=>{
+          parler:(texte,langue)=>speak(texte,undefined,"lecture_devoirs",false,{langue,conserverTour:true,premierSon:()=>{
             if(!premierSon){premierSon=true;mesurer("premier_son");}
           }}),
         });
@@ -3642,10 +3642,12 @@ export default function Home() {
              Kha, déjà dans public/sons/. */
           if (data.rireApres) await jouerSouffle(data.rireApres);
         }
-        catch { if (!estLeTour(monTour)) return; await speak(aDire, emotionRef.current, data.apprend ? "apprentissage" : "réponse"); }
+        catch { if (!estLeTour(monTour)) return; await speak(aDire, emotionRef.current, data.apprend ? "apprentissage" : "réponse", false,
+          (data as {dialogue_memorise?:boolean}).dialogue_memorise ? {langue:(data as {langue?:"fr"|"wo"}).langue||"wo",premierSon:()=>{}} : undefined); }
       } else {
         if (!estLeTour(monTour)) return;
-        await speak(aDire, emotionRef.current, data.apprend ? "apprentissage" : "réponse");
+        await speak(aDire, emotionRef.current, data.apprend ? "apprentissage" : "réponse", false,
+          (data as {dialogue_memorise?:boolean}).dialogue_memorise ? {langue:(data as {langue?:"fr"|"wo"}).langue||"wo",premierSon:()=>{}} : undefined);
       }
     } catch {
       if (!estLeTour(monTour)) return;

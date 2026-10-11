@@ -5,11 +5,11 @@ import {APP_LECONS} from "./lexique-apprentissage-core";
 type Bloc={version:2;type:"devoir";id:string;index:number;total:number;texte:string;date:string;statut?:"validé";date_validation?:string;langue?:"fr"|"wo"};
 const headers=()=>({apikey:lexiqueConfig.cle,Authorization:`Bearer ${lexiqueConfig.cle}`});
 let cache:{blocs:Bloc[];expires:number}|null=null;
-async function lireBlocs():Promise<Bloc[]>{
+async function lireBlocs(delaiMs=8000):Promise<Bloc[]>{
  if(!lexiqueConfig.actif)throw Error("Supabase non configuré");
  if(cache&&cache.expires>Date.now())return cache.blocs;
  const blocs:Bloc[]=[];const seen=new Set<string>();
- const signal=AbortSignal.timeout(8000);
+ const signal=AbortSignal.timeout(delaiMs);
  for(let offset=0;;offset+=500){
   const r=await fetch(`${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}?select=proposee&application=eq.${APP_LECONS}&auteur=eq.maitre-devoir&order=id.desc&limit=500&offset=${offset}`,{headers:headers(),cache:"no-store",signal});
   if(!r.ok)throw Error("Le lexique des devoirs ne répond pas");
@@ -54,8 +54,8 @@ export async function phrasesApprisesDevoirs(){
  return phrasesDevoirsValides(await lireBlocs());
 }
 
-export async function devoirsALire(){
+export async function devoirsALire(delaiMs=8000){
  const debut=Date.now();
- try{const resultat=assemblerDevoirs(await lireBlocs());noterChargementDevoirs(Date.now()-debut,resultat);return resultat;}
+ try{const resultat=assemblerDevoirs(await lireBlocs(delaiMs));noterChargementDevoirs(Date.now()-debut,resultat);return resultat;}
  catch(e){noterChargementDevoirs(Date.now()-debut);throw e;}
 }

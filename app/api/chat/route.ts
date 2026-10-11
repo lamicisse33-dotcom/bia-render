@@ -1,3 +1,4 @@
+import {dialoguerAvecDevoirs} from "@/lib/dialogue-devoirs";
 import {CONSIGNE_COMPREHENSION,dependDuContexte} from "@/lib/comprehension-conversation";
 import {contexteInstructions} from "@/lib/instructions-apprentissage";
 import {contexteDevoirs} from "@/lib/devoirs-apprentissage";
@@ -1369,6 +1370,15 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     }
 
     if(!question)return {corps:{reply:"Bindal walla waxal sa laaj.",source:"validation"}};
+
+    // Authenticate before accessing private lessons. Resolve learned replies before
+    // generic formulas: a yes/no must answer the preceding learned question.
+    if(maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours
+       &&!estUnSecours(question)&&!intentionMedia(question)&&!demandeDeNombre(question)){
+      const memorisee=await dialoguerAvecDevoirs(question,body.history);
+      if(memorisee)return {corps:memorisee};
+    }
+
 
     /* ── LE RÉPERTOIRE, AVANT TOUT LE RESTE ──────────────────────────────────
 

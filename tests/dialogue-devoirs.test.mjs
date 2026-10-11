@@ -1,0 +1,88 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import ts from 'typescript';
+const compile=s=>ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+function load(path,deps={},env={}){const module={exports:{}};new Function('require','module','exports',...Object.keys(env),compile(fs.readFileSync(path,'utf8')))(n=>{assert(n in deps,`Unexpected import ${n}`);return deps[n];},module,module.exports,...Object.values(env));return module.exports;}
+const core=load('lib/dialogue-devoirs-core.ts'),langue=load('lib/langue.ts');
+const saved=texte=>({id:'fixture',texte,langue:'wo',valide:true,date:'2026-10-11'});
+// Test-only wording; production never uses this fixture as a lesson.
+const fixture=saved(`DEVOIR 15 — Couple, messages et incompréhension
+1. Wolof : Personne : Bia, sama copine tontuwul sama message yi depuis démb.
+Français : Personne : Bia, ma copine ne répond plus à mes messages depuis hier.
+2. Wolof : BIA : Ndax am na problème ?
+Français : BIA : Vous vous êtes disputés ?
+3. Wolof : Personne : Waaw.
+Français : Personne : Oui.
+4. Wolof : BIA : Lan nga ko wax ?
+Français : BIA : Que lui as-tu dit ?
+5. Wolof : Personne : Déedéet.
+Français : Personne : Non.
+6. Wolof : BIA : Bul gaaw.
+Français : BIA : Laisse-lui un peu de temps.
+7. Wolof : BIA : Naka ? Lan ?
+Français : BIA : Comment ? Pourquoi ?`);
+const index=core.indexerDevoirs([fixture]);
+function service(fetch=async()=>{throw Error('Unexpected network');},devoirs=async()=>({devoirs:[fixture]})){
+ return load('lib/dialogue-devoirs.ts',{'./dialogue-devoirs-core':core,'./langue':langue,'./devoirs-apprentissage':{devoirsALire:devoirs}}, {fetch,globalThis:{},process:{env:{BIA_LLM_PROVIDER:'cerebras',CEREBRAS_API_KEY:'test-only'}}});
+}
+test('explicit bilingual pairs preserve text and roles without guessing missing translations',()=>{
+ assert.equal(core.analyserDevoir(saved('Wolof : 20 minutes.\nFrançais : 20 minutes.')).repliques[0].fr,'20 minutes.');
+ assert.equal(index[0].repliques.length,7);assert.equal(index[0].repliques[0].role,'personne');assert.equal(index[0].repliques[1].wo,'Ndax am na problème ?');
+ const d=core.analyserDevoir(saved('Wolof\n1. Naka ?\n2. Waaw.\nFrançais\n1. Comment ?\n2. Oui.'));
+ assert.deepEqual(d.repliques.map(x=>x.fr),['Comment ?','Oui.']);
+ const table=core.analyserDevoir(saved('| Wolof | Français |\n| --- | --- |\n| Naka ? | Comment ? |'));
+ assert.equal(table.repliques.length,1);assert.equal(table.repliques[0].wo,'Naka ?');
+ assert.equal(core.analyserDevoir(saved('Wolof : Naka ?')).repliques.length,0);
+ assert.equal(core.analyserDevoir(saved('- **Wolof :** Naka ?\n- **Français :** Comment ?')).repliques.length,1);
+});
+test('newest complete version of a numbered lesson wins',()=>{
+ const d=core.indexerDevoirs([{...fixture,id:'old',date:'2020'},fixture]);assert.equal(d.length,1);assert.equal(d[0].id,'fixture');
+});
+test('calls retrieve the messages lesson; a short answer retains the active dialogue',()=>{
+ assert.equal(core.chercherDialogues(index,'Ma copine ne répond plus à mes appels.',[]).length,1);
+ assert.equal(core.chercherDialogues(index,'Non.',[{role:'bia',text:'Vous vous êtes disputés ?'}])[0].actif,true);
+ assert.equal(core.chercherDialogues(index,'Quelle est la capitale du Japon ?',[]).length,0);
+});
+test('only a selectable, unspoken, single-question source string can be returned',()=>{
+ const packet=core.paquetSelection(core.chercherDialogues(index,'ma copine mes appels',[]),[],'wo');
+ assert.equal(core.resoudreSelection({statut:'selection',id:'0:1',reply:'invented'},packet,'wo').reply,'Ndax am na problème ?');
+ for(const id of ['0:0','0:2','0:6','0:999','999:1'])assert.equal(core.resoudreSelection({statut:'selection',id},packet,'fr').statut,'clarifier');
+ const again=core.paquetSelection(core.chercherDialogues(index,'oui',[{role:'bia',text:'Vous vous êtes disputés ?'}]),[{role:'bia',text:'Vous vous êtes disputés ?'}],'wo');
+ assert.equal(core.resoudreSelection({statut:'selection',id:'0:1'},again,'wo').statut,'clarifier');
+});
+test('large lessons are bounded while retaining follow-up neighbours and exact original IDs',()=>{
+ const lines=Array.from({length:300},(_,i)=>({id:String(i),wo:`W${i} `+'a'.repeat(150),fr:`F${i} `+'b'.repeat(150),role:'bia'}));
+ const packet=core.paquetSelection([{d:{...index[0],repliques:lines},actif:true,score:10,accords:0}],[{role:'bia',text:lines[240].fr}],'fr');
+ assert(JSON.stringify(packet).length<8500);assert(packet[0].repliques.some(p=>p.id==='0:241'));assert(packet[0].repliques.length<30);
+});
+test('short yes/no retains the last spoken language; explicit language switches win',()=>{
+ const {langueDuDialogue}=service();const h=[{role:'bia',text:'Ndax am na problème ?'}];
+ assert.equal(langueDuDialogue('Oui.',h),'wo');assert.equal(langueDuDialogue('Non.',h),'wo');assert.equal(langueDuDialogue('Réponds en français.',h),'fr');
+});
+test('actual selector request is bounded and final response is read from memory, never generated content',async()=>{
+ let body,signal;const api=service(async(url,opt)=>{assert.equal(url,'https://api.cerebras.ai/v1/chat/completions');body=JSON.parse(opt.body);signal=opt.signal;return {ok:true,json:async()=>({choices:[{message:{content:'{"statut":"selection","id":"0:1","reply":"inventé"}'},finish_reason:'stop'}]})};});
+ const r=await api.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',[]);
+ assert.equal(r.reply,'Vous vous êtes disputés ?');assert.equal(r.dialogue_memorise,true);assert.equal(r.apprend,undefined);assert.equal(body.max_completion_tokens,1536);assert.equal(signal.aborted,false);
+ assert.equal(JSON.parse(body.messages[1].content).devoirs[0].repliques[0].selectionnable,false);
+});
+test('yes and no can select different learned branches; off-topic returns to ordinary chat',async()=>{
+ const api=service();const history=[{role:'user',text:'ma copine mes appels'},{role:'bia',text:'Vous vous êtes disputés ?'}];
+ const choisir=async p=>({statut:'selection',id:p.question==='Oui.'?'0:3':'0:5'});
+ const yes=await api.dialoguerAvecDevoirs('Oui.',history,{index,choisir});const no=await api.dialoguerAvecDevoirs('Non.',history,{index,choisir});
+ assert.equal(yes.reply,'Que lui as-tu dit ?');assert.equal(no.reply,'Laisse-lui un peu de temps.');
+ assert.equal(await api.dialoguerAvecDevoirs('Parlons du Japon.',history,{index,choisir:async()=>({statut:'hors_sujet'})}),null);
+});
+test('invalid or repeated selection asks for clarification; provider failures do not produce invented Wolof',async()=>{
+ const api=service();const history=[{role:'bia',text:'Vous vous êtes disputés ?'}];
+ const r=await api.dialoguerAvecDevoirs('Non.',history,{index,choisir:async()=>({statut:'selection',id:'0:1'})});assert.equal(r.dialogue_memorise,false);assert.match(r.reply,/préciser/);
+ const err=await api.dialoguerAvecDevoirs('Non.',history,{index,choisir:async()=>{throw Error('timeout');}});assert.equal(err.dialogue_memorise,false);assert.match(err.reply,/Réessaie/);
+});
+test('real chat route gives the authenticated learned dialogue priority over generic repertoire',async()=>{
+ const source=fs.readFileSync('app/api/chat/route.ts','utf8'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);let fn;
+ ast.forEachChild(n=>{if(ts.isFunctionDeclaration(n)&&n.name?.text==='repondre')fn=n.getText(ast);});assert(fn);
+ let calls=0;const expected={reply:'Question apprise ?',dialogue_memorise:true};
+ const env={verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,dialoguerAvecDevoirs:async(q,h)=>{calls++;assert.equal(q,'Non.');assert.equal(h[0].text,'Question précédente ?');return expected;}};
+ const run=new Function('env',`with(env){${compile(fn)}return repondre;}`)(env);
+ const r=await run({message:'Non.',history:[{role:'bia',text:'Question précédente ?'}]},'valid-test-code',null);assert.deepEqual(r,{corps:expected});assert.equal(calls,1);
+});

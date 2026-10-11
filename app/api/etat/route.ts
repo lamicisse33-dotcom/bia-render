@@ -1,3 +1,4 @@
+import {resumeDialogueDevoirs,essayerDialogueDevoirs} from "@/lib/dialogue-devoirs";
 import {devoirsALire} from "@/lib/devoirs-apprentissage";
 import {resumeLectureDevoirs} from "@/lib/lecture-devoirs-etat";
 import { resumeCorrectionContexte } from "@/lib/transcription-contextuelle";
@@ -35,7 +36,8 @@ import { resumeChatterboxTest } from "@/lib/chatterbox-test-etat";
 
 /* Dit à l'interface quels moteurs sont réellement branchés, pour qu'elle
    choisisse le micro et la voix sans deviner. Ouvert : aucun moteur payant
-   n'est appelé ici.
+   n'est appelé par défaut. Le diagnostic explicite essai_dialogue est borné
+   à deux sélections fixes par démarrage, sans divulguer les devoirs.
 
    `derniere_panne` est la ligne qui manquait : quand BIA cesse de réfléchir,
    c'est ici qu'on lit pourquoi — le statut renvoyé par le modèle et le début
@@ -58,6 +60,7 @@ export async function GET(request: Request) {
      leçons : les NOMBRES sur le mur ouvert, jamais les phrases. Sans son
      code, `repertoire_rate` ne contient que des totaux. */
   if(new URL(request.url).searchParams.get("verifier_devoirs")==="1"){try{await devoirsALire();}catch{ /* The failure is counted, no lesson text leaves here. */ }}
+  if(new URL(request.url).searchParams.get("essai_dialogue")==="1")await essayerDialogueDevoirs();
   const verdict = verifierCode(request.headers.get("x-bia-code"));
   const maitre = verdict.ok && verdict.maitre;
   let entrees: number | null = null;
@@ -112,6 +115,7 @@ export async function GET(request: Request) {
     lexique_lecture: { ...lectureLexique(), mots_corriges: motsCorrigesCompte, ...(maitre ? { exemples: motsCorrigesExemples } : {}) },
     voix: voixConfig.fournisseur,
     ecoute: ecouteConfig.fournisseur,
+    dialogue_devoirs: resumeDialogueDevoirs(),
     lecture_devoirs: resumeLectureDevoirs(),
     transcription_contextuelle: resumeCorrectionContexte(),
     ecoute_configuration: {
