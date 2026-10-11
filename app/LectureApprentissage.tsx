@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useMemo,useRef,useState} from "react";
+import {routerApprentissage,type TypeApprentissage} from "@/lib/routage-apprentissage";
 import {LectureContinue,type Progression} from "@/lib/lecture-continue";
 import {ambiguitiesWolof} from "@/lib/langue";
 import type {Lecon} from "@/lib/lexique-apprentissage-core";
@@ -8,6 +9,10 @@ import {ouvrirFluxVoix,type MorceauVoix} from "@/lib/flux-khalam";
 
 export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false,obtenirAudio}:{obtenirAudio:()=>AudioContext;edition?:boolean;code:string;voice:"piper"|"female"|"male";
  demande:{texte:string;nonce:number;auto:boolean};onStart:()=>void;onClose:()=>void}){
+ const [typeMessage,setTypeMessage]=useState<TypeApprentissage>("exercice");
+ const [resultatMessage,setResultatMessage]=useState("");
+ const exercice=useRef({texte:"",valide:false,langue:"wo" as "fr"|"wo"});
+ const messageGeneration=useRef(0);
  const [texte,setTexte]=useState(demande.texte);const [langue,setLangue]=useState<"fr"|"wo">("wo");
  const [p,setP]=useState<Progression>({etat:"prêt",index:0,total:0});
  const [lecons,setLecons]=useState<Lecon[]>([]);const [info,setInfo]=useState("");
@@ -114,15 +119,43 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    if(generation===sauvegarde.current)setMemoire("Leçon complète sauvegardée et relue dans Supabase. Disponible pour les prochaines conversations.");
   }catch{if(valide)setValidationInfo("Validation incomplète : réessaie. Le devoir entier n’est pas encore confirmé.");if(generation===sauvegarde.current)setMemoire("Leçon non sauvegardée entièrement. Garde le texte et clique sur Réessayer la sauvegarde.");}
  }
- async function validerTout(){if(!toutCorrect||!texte.trim()||validationEnCours)return;setValidationEnCours(true);setValidationInfo("Validation et vérification du devoir entier…");try{await retenirDevoir(texte,true);}finally{setValidationEnCours(false);}}
+ async function validerTout(){if(typeMessage!=="exercice"||!toutCorrect||!texte.trim()||validationEnCours)return;exercice.current={texte,valide:true,langue};setValidationEnCours(true);setValidationInfo("Validation et vérification du devoir entier…");try{await retenirDevoir(texte,true);}finally{setValidationEnCours(false);}}
  useEffect(()=>{setToutCorrect(false);setValidationInfo("");},[texte,langue]);
- function lancer(t=texte){settings.current.onStart();void retenirDevoir(t);try{player.current?.demarrer(t);}catch(e){setInfo((e as Error).message);}}
+ async function traiter(t=texte){
+  const route=routerApprentissage(t),generation=++messageGeneration.current;
+  setTypeMessage(route.type);setResultatMessage("");player.current?.stop();
+  if(!route.contenu.trim()){setResultatMessage("Ajoute le contenu après le préfixe.");return;}
+  if(route.type==="exercice"){
+   setTexte(route.contenu);setRevus([]);setToutCorrect(false);setValidationInfo("");setMemoire("");
+   exercice.current={texte:route.contenu,valide:false,langue:settings.current.langue};
+   settings.current.onStart();player.current?.demarrer(route.contenu);return;
+  }
+  // Instructions, save commands and tests never enter the reader.
+  setP({etat:"prêt",index:0,total:0});
+  if(route.type==="memorisation"){
+   if(!edition){setResultatMessage("Code maître requis pour enregistrer.");return;}
+   if(!exercice.current.valide){setResultatMessage("Aucun devoir validé à enregistrer. Valide d’abord la lecture avec la case de confirmation.");return;}
+   setValidationEnCours(true);
+   try{await retenirDevoir(exercice.current.texte,true);}finally{setValidationEnCours(false);}
+   return;
+  }
+  setResultatMessage(route.type==="instruction"?"Application et sauvegarde de l’instruction…":"Test en cours, sans sauvegarde…");
+  try{
+   const r=await fetch(route.type==="instruction"?"/api/apprentissage/instruction":"/api/chat",{
+    method:"POST",headers:headers(),body:JSON.stringify(route.type==="instruction"?{texte:route.contenu}:{message:route.contenu,history:[],apprend:false,apprentissageTest:true})});
+   const d=await r.json();if(!r.ok||(route.type==="instruction"&&!d.verifie))throw Error(d.error||d.motif||"Traitement non confirmé");
+   if(generation===messageGeneration.current)setResultatMessage(route.type==="instruction"?"Instruction appliquée et enregistrée dans Supabase.":String(d.reply||"Aucune réponse au test."));
+  }catch(e){if(generation===messageGeneration.current)setResultatMessage((e as Error).message);}
+ }
+ function lancer(t=texte){void traiter(t);}
  useEffect(()=>{setTexte(demande.texte);if(demande.texte.trim())lancer(demande.texte);},[demande.nonce]);
  function coller(e:React.ClipboardEvent<HTMLTextAreaElement>){
   const ajout=e.clipboardData.getData("text");if(!ajout)return;
-  e.preventDefault();const a=e.currentTarget;
-  const complet=a.value.slice(0,a.selectionStart)+ajout+a.value.slice(a.selectionEnd);
-  setTexte(complet);setRevus([]);setInfo("Lecture automatique du texte complet.");lancer(complet);
+  e.preventDefault();
+  // A marked message is a new command, not text appended to the old lesson.
+  const route=routerApprentissage(ajout),a=e.currentTarget;
+  const complet=route.explicite?ajout:a.value.slice(0,a.selectionStart)+ajout+a.value.slice(a.selectionEnd);
+  setTexte(complet);lancer(complet);
  }
  async function garderEcriture(){setSaving(true);try{
   const r=await fetch("/api/apprentissage/transcription",{method:"POST",headers:headers(),body:JSON.stringify({entendu,corrige:ecrit,confirme:accordEcriture})});
@@ -136,22 +169,24 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   <div style={{maxWidth:760,margin:"0 auto",display:"grid",gap:14}}>
    <button type="button" onClick={()=>{player.current?.stop();onClose();}}>Fermer et arrêter</button>
    <h2>Apprentissage — lecture continue</h2>
-   <p>Mode apprentissage actif : chaque texte collé est lu automatiquement et entièrement, sans bouton de démarrage, résumé ni traduction. Un nouveau collage remplace la lecture en cours. Chaque leçon est sauvegardée automatiquement dans Supabase pour les conversations futures. Pour valider une prononciation, utilise le lexique ci-dessous.</p>
+   <p>Utilise INSTRUCTION:, EXERCICE:, MÉMORISATION: ou TEST:. Les préfixes passent en priorité. Seul un exercice est lu ; il est enregistré après ta validation. Un texte sans préfixe reste un exercice.</p>
+   <p role="status">mode_{typeMessage}</p>
+   <p role="status" aria-live="polite">{resultatMessage}</p>
    <label>Langue <select value={langue} disabled={validationEnCours||p.etat==="lecture"||p.etat==="pause"} onChange={e=>setLangue(e.target.value as "fr"|"wo")}><option value="wo">Wolof</option><option value="fr">Français</option></select></label>
-   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} disabled={validationEnCours} rows={10} onPaste={coller} onChange={e=>setTexte(e.target.value)} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
+   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} disabled={validationEnCours} rows={10} onPaste={coller} onChange={e=>{setTexte(e.target.value);exercice.current.valide=false;setToutCorrect(false);}} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
    <div style={{display:"flex",flexWrap:"wrap",gap:12}}>
-    <button type="button" disabled={!texte.trim()||p.etat==="lecture"||p.etat==="pause"} onClick={()=>lancer()}>DÉMARRER APPRENTISSAGE</button>
+    <button type="button" disabled={!texte.trim()||p.etat==="lecture"||p.etat==="pause"} onClick={()=>lancer()}>TRAITER LE MESSAGE</button>
     <button type="button" disabled={p.etat!=="lecture"} onClick={()=>player.current?.pause()}>PAUSE</button>
     <button type="button" disabled={p.etat!=="pause"&&p.etat!=="erreur"} onClick={()=>player.current?.reprendre()}>REPRENDRE</button>
     <button type="button" onClick={()=>player.current?.stop()}>STOP</button>
    </div>
-   <p role="status" aria-live="polite">{p.etat} — {Math.min(p.index+1,p.total)} / {p.total}{p.erreur?` — ${p.erreur}. Le segment est conservé. Reprendre pour réessayer.`:""}</p>
+   <p hidden={typeMessage!=="exercice"} role="status" aria-live="polite">{p.etat} — {Math.min(p.index+1,p.total)} / {p.total}{p.erreur?` — ${p.erreur}. Le segment est conservé. Reprendre pour réessayer.`:""}</p>
    {edition && <>
    <p role="status" aria-live="polite">{memoire}</p>
-   <button type="button" disabled={!texte.trim()} onClick={()=>void retenirDevoir(texte)}>Réessayer la sauvegarde de la leçon</button>
+   
    <h3>Valider le devoir entier</h3>
-   <label><input type="checkbox" checked={toutCorrect} disabled={validationEnCours} onChange={e=>setToutCorrect(e.target.checked)}/> J’ai tout écouté : la lecture correspond au texte et toutes les prononciations sont correctes.</label>
-   <button type="button" disabled={!toutCorrect||!texte.trim()||validationEnCours||p.etat==="lecture"||p.etat==="pause"} onClick={()=>void validerTout()}>{validationEnCours?"Enregistrement…":"VALIDER ET ENREGISTRER TOUT LE DEVOIR"}</button>
+   <label><input type="checkbox" checked={toutCorrect} disabled={validationEnCours||typeMessage!=="exercice"} onChange={e=>{setToutCorrect(e.target.checked);exercice.current.valide=e.target.checked;}}/> J’ai tout écouté : la lecture correspond au texte et toutes les prononciations sont correctes.</label>
+   <button type="button" disabled={typeMessage!=="exercice"||!toutCorrect||!texte.trim()||validationEnCours||p.etat==="lecture"||p.etat==="pause"} onClick={()=>void validerTout()}>{validationEnCours?"Enregistrement…":"VALIDER ET ENREGISTRER TOUT LE DEVOIR"}</button>
    <p role="status" aria-live="polite">{validationInfo}</p>
    <p>Cette validation conserve le texte complet et ton accord d’écoute, sans remplacer les corrections de prononciation déjà apprises.</p>
    <h3>Passages wolof à vérifier ({points.length})</h3>
