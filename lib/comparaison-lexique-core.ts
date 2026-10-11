@@ -1,0 +1,37 @@
+const norm=(s:string)=>s.normalize("NFC").toLowerCase().replace(/[.,!?;:]/g,"").replace(/\s+/g," ").trim();
+const tokens=(s:string)=>norm(s).match(/[\p{L}\p{M}\p{N}'’-]+/gu)||[];
+const distance=(a:string,b:string)=>{let p=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){const r=[i];for(let j=1;j<=b.length;j++)r[j]=Math.min(r[j-1]+1,p[j]+1,p[j-1]+Number(a[i-1]!==b[j-1]));p=r;}return p[b.length];};
+export function phrasesDevoirsValides(blocs:Array<{id:string;index:number;total:number;texte:string;statut?:string;date_validation?:string}>):string[]{
+ const groups=new Map<string,typeof blocs>();for(const b of blocs){const g=groups.get(b.id)||[];if(!g.some(x=>x.index===b.index))g.push(b);groups.set(b.id,g);}
+ const out=new Set<string>();
+ for(const g of groups.values()){
+  if(g.length!==g[0].total||!g.every(b=>b.total===g[0].total&&b.statut==="validé"&&b.date_validation))continue;
+  const lines=g.sort((a,b)=>a.index-b.index).map(b=>b.texte).join("\n").split("\n");
+  for(let line of lines){
+   line=line.trim();if(!line||/^(devoir|exercice|instruction|test|regle|règle|consigne|objectif|partie|correction)\b/i.test(line))continue;
+   const labelled=line.match(/^(?:wolof|français|francais)\s*:\s*(.+)$/i);
+   if(labelled)line=labelled[1];else if(/^[A-ZÀ-Ÿ\s—-]{8,}$/.test(line)||line.endsWith(":"))continue;
+   line=line.replace(/^(?:[A-Z]?\d+[.)—:-]?\s+)/,"").trim();
+   if(line.length>=3)out.add(line);
+  }
+ }
+ return [...out];
+}
+export function propositionsLexique(texte:string,candidats:string[]):string[]{
+ const a=tokens(texte);if(!a.length||a.length>80)return [];
+ const negatives=(w:string[])=>w.filter(x=>["pas","non","jamais","sans","ne","amul","bul","deedeet","déedéet","du","duma"].includes(x)).join("|");
+ const digits=(s:string)=>s.match(/\d+/g)?.join("|")||"";
+ if(candidats.some(c=>norm(c)===norm(texte)))return [];
+ const rows=[];
+ for(const c of new Set(candidats)){
+  const b=tokens(c);if(b.length!==a.length||digits(c)!==digits(texte)||negatives(b)!==negatives(a))continue;
+  let changed=0,cost=0;let safe=true;
+  for(let i=0;i<a.length;i++){
+   if(a[i]===b[i])continue;
+   changed++;const d=distance(a[i],b[i]);cost+=d;
+   if(a[i].length<4||b[i].length<4||d>Math.max(1,Math.floor(Math.max(a[i].length,b[i].length)*.25))){safe=false;break;}
+  }
+  if(safe&&changed>0&&changed<=2&&changed<=Math.max(1,Math.floor(a.length*.3)))rows.push({c,cost});
+ }
+ return rows.sort((x,y)=>x.cost-y.cost).slice(0,3).map(x=>x.c);
+}
