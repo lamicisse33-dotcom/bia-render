@@ -2353,7 +2353,10 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const demandeWeb = besoinDInternet(question, (body.history || []).filter(item => item.role === "user").map(item => String(item.text || "")));
     const rechercheViaGroq = false; // Lamine: no paid Groq web search; YouTube uses its existing Google key.
     if (demandeWeb && !webConfigure() && !rechercheViaGroq && (cerebras || local || gemini)) {
-      return {corps:{reply:"La recherche Internet n’est pas encore disponible. Je ne peux pas vérifier cette information en ligne pour le moment.",source:"recherche web non configurée"}};
+      // A keyword suggesting current information must not replace the whole
+      // conversation with a canned outage message. Let the brain answer the
+      // actual question, with an explicit restriction against invented lookup.
+      variable += "\nRECHERCHE WEB INDISPONIBLE POUR CE TOUR : réponds à la demande réelle de l’utilisateur. Tu peux converser, expliquer et utiliser les connaissances générales. Ne prétends pas avoir effectué une recherche ni vérifié une information actuelle. Si la demande exige vraiment une vérification en ligne, explique brièvement cette limite et propose ce que tu peux faire. Ne récite pas automatiquement « la recherche Internet n’est pas disponible » pour une salutation, une question sur ton écoute, une correction ou une plainte sur ton fonctionnement.";
     }
     // Cerebras/local/Gemini cannot execute Anthropic/Groq search tool formats.
     if (demandeWeb && webConfigure() && (cerebras || local || gemini)) {
