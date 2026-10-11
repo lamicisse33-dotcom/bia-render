@@ -4,8 +4,8 @@ const source=ts.transpile(fs.readFileSync(__dirname+'/../app/LectureApprentissag
 function mount(){const calls=[],read=[],effects=[];const react={useState:v=>[v,()=>{}],useRef:v=>({current:v}),useMemo:f=>f(),useEffect:f=>effects.push(f)};
 const modules={'react':react,'react/jsx-runtime':{jsx:(t,p)=>({t,p}),jsxs:(t,p)=>({t,p})},'@/lib/routage-apprentissage':parser.exports,'@/lib/lecture-continue':{LectureContinue:class{demarrer(t){read.push(t)}stop(){} pause(){} reprendre(){}}},'@/lib/langue':{ambiguitiesWolof:()=>[]},'@/lib/voix-piper-locale':{},'@/lib/flux-khalam':{}};
 const ctx={exports:{},require:n=>modules[n]||{},fetch:async(url,opts)=>{calls.push({url,body:opts?.body?JSON.parse(opts.body):null});return {ok:true,json:async()=>({lecons:[],verifie:true,valide:true,reply:'8 000 francs.'})}},crypto:require('crypto').webcrypto,TextEncoder,setTimeout,clearTimeout,AbortController};vm.createContext(ctx);vm.runInContext(source,ctx);
-const tree=ctx.exports.default({code:'test-fixture',voice:'female',demande:{texte:'',nonce:1,auto:false},onStart(){},onClose(){},edition:true,obtenirAudio:()=>({currentTime:0,resume:async()=>{}})});
-for(const f of effects)f();calls.length=0;
+const tree=ctx.exports.default({code:'test-fixture',voice:'female',demande:{texte:'Jërëjëf. Merci.',nonce:1,auto:false},onStart(){},onClose(){},edition:true,obtenirAudio:()=>({currentTime:0,resume:async()=>{}})});
+for(const f of effects)f();calls.length=0;read.length=0;
 const nodes=[];function walk(x){if(!x)return;if(Array.isArray(x)){x.forEach(walk);return;}if(typeof x==='object'){nodes.push(x);walk(x.p?.children)}}walk(tree);
 const area=nodes.find(n=>n.t==='textarea'&&n.p['aria-label']==='Texte complet de l’exercice');
 const confirm=nodes.find(n=>n.t==='input'&&n.p.type==='checkbox'&&n.p.checked===false&&!n.p.disabled);
