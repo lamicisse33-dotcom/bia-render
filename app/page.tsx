@@ -2215,6 +2215,19 @@ export default function Home() {
     const cleAttente = `${routeVoixBia()}:${voixChatterboxBia()}:${personaRef.current}:${voixLocaleBiaDisponible(personaRef.current) ? debitNatifRef.current : "serveur"}:${texte}`;
     const garde = attenteCache.current.get(cleAttente);
     if (garde) return garde;
+    const court = p.fichier.endsWith("-v1") && texte.length < 35;
+    const cacheUrl = "/__khalam_accuse_cache__/" + encodeURIComponent(cleAttente);
+    if(court && typeof caches!=="undefined"){
+      try{
+        const cache=await caches.open("khalam-accuses-v1");
+        const saved=await cache.match(cacheUrl);
+        if(saved){
+          const values=await saved.json() as string[];
+          const buffers=values.map(v=>octetsDeBase64(v));
+          if(buffers.length&&buffers.every(b=>b.byteLength>512)){attenteCache.current.set(cleAttente,buffers);return buffers;}
+        }
+      }catch{}
+    }
 
     /* ── LE FICHIER TOUT PRÊT : GRATUIT, INSTANTANÉ, D'UN SEUL BLOC ────────
 
@@ -2273,6 +2286,17 @@ export default function Home() {
       const suite = await demander(i);
       if (!suite.audio) break;
       morceaux.push(octetsDeBase64(suite.audio, suite.speed));
+    }
+    if(court&&typeof caches!=="undefined"){
+      try{
+        const values=morceaux.map(buffer=>{
+          let binary="";const bytes=new Uint8Array(buffer);
+          for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+          return btoa(binary);
+        });
+        const cache=await caches.open("khalam-accuses-v1");
+        await cache.put(cacheUrl,new Response(JSON.stringify(values),{headers:{"content-type":"application/json"}}));
+      }catch{}
     }
     attenteCache.current.set(cleAttente, morceaux);
     return morceaux;
@@ -2366,86 +2390,42 @@ export default function Home() {
      conversation. Ensuite, plus rien : le silence, et une lueur dorée qui
      respire près de son visage. Comme Siri, comme ChatGPT. Quand la réponse
      est prête, la lueur s'éteint et elle parle. */
-  const attendreEnParlant = useCallback(async (jeton: object, langue: Langue) => {
-    if (essaiChatterboxActif()) return;
-    // Après le premier échange, elle se tait : c'est toute la règle.
-    if (presentationFaiteRef.current) return;
-    presentationFaiteRef.current = true;
+  const accusCourts: Parole[] = [
+    {fichier:"accord-v1",fr:"D’accord.",wo:"D’accord."},
+    {fichier:"bien-v1",fr:"Très bien.",wo:"Très bien."},
+    {fichier:"instant-v1",fr:"Un instant.",wo:"Un instant."},
+    {fichier:"regarde-v1",fr:"Je regarde ça.",wo:"Je regarde ça."},
+    {fichier:"voyons-v1",fr:"Voyons ça.",wo:"Voyons ça."},
+  ];
+  const derniersAccusesRef = useRef<string[]>([]);
+  const cleAccuse = (p:Parole) => `${routeVoixBia()}:${voixChatterboxBia()}:${personaRef.current}:${voixLocaleBiaDisponible(personaRef.current) ? debitNatifRef.current : "serveur"}:${p.fr}`;
+  // Prepare one clip at a time while idle; never put synthesis on the response path.
+  useEffect(() => {
+    let alive=true,busy=false;
+    const timer=setInterval(async()=>{
+      if(!alive||busy||!codeRef.current||document.visibilityState!=="visible"||
+        modeRef.current!=="ready"||attenteRef.current||enregistreurRef.current?.state==="recording"||
+        voixLocaleBiaDisponible(personaRef.current))return;
+      const p=accusCourts.find(p=>!attenteCache.current.has(cleAccuse(p)));
+      if(!p)return;
+      busy=true;
+      try{await audioParole(p,"fr");}catch{}finally{busy=false;}
+    },8000);
+    return()=>{alive=false;clearInterval(timer);};
+  },[audioParole]);
 
-    const jouer = async (p: Parole, nom = "") => {
-      if (attenteRef.current !== jeton || stopAttenteRef.current) return false;
-      let morceaux: ArrayBuffer[];
-      try { morceaux = await audioParole(p, langue, nom); } catch { return false; }
-      if (attenteRef.current !== jeton || stopAttenteRef.current) return false;
-      await direParole(morceaux, jeton);
-      return attenteRef.current === jeton && !stopAttenteRef.current;
-    };
-
-    // 1. Elle a entendu. Et si elle ne connaît pas encore la personne, elle
-    //    demande son prénom — une seule fois dans la vie de l'appareil.
-    /* ── ELLE NE DEMANDE PAS SON NOM À SON PÈRE ──────────────────────────
-
-       Lamine, le 14 septembre 2026 : « elle doit m'appeler papa, pas un autre
-       nom quoi qu'il arrive… dès qu'elle détecte le code maître, même sur un
-       autre téléphone. »
-
-       Le code maître suffit à le reconnaître, et il le suit d'appareil en
-       appareil — c'est exactement ce qu'il demandait, et c'est plus sûr qu'un
-       timbre de voix. Lui demander « comment tu t'appelles ? » sur un
-       téléphone neuf reviendrait à ne pas reconnaître son père à la voix. */
-    const connu = estMaitreRef.current ? "papa" : nomRef.current.trim();
-    if (connu) {
-      if (!await jouer(PARTIE_1_CONNU, connu)) return;
-    } else {
-      if (!await jouer(PARTIE_1)) return;
-      /* Le micro se rouvre pour recevoir le prénom, et ce qu'il entend est
-         traité comme un prénom, jamais comme une nouvelle question. S'il ne
-         dit rien, la partie 2 part quand même : on ne laisse pas un silence
-         s'installer parce que quelqu'un n'a pas voulu se nommer. */
-      attendLeNomRef.current = true;
-      void ecouterRef.current?.();
-      /* ── POURQUOI ELLE SE « PLANTAIT » APRÈS UNE CORRECTION ──────────────
-
-         Signalé par Lamine le 11 septembre 2026 : « après avoir corrigé,
-         quand tu lui parles, elle se plante ; il faut fermer et rouvrir pour
-         qu'elle redevienne normale. »
-
-         Elle n'était pas plantée. Elle attendait un PRÉNOM, et elle a pris
-         sa phrase pour ce prénom — puis l'a jetée, sans répondre.
-
-         Le chemin exact : au premier échange elle demande « comment tu
-         t'appelles ? » et lève ce drapeau, le temps d'écouter la réponse.
-         Ouvrir la fenêtre de correction appelle taire(), qui coupe le tour en
-         cours ; cette boucle sortait alors par un `return` sec — SANS
-         rabaisser le drapeau. Il restait levé pour toujours. Tout ce qu'on
-         disait ensuite partait dans la case « prénom » et n'allait nulle
-         part. Recharger la page effaçait le drapeau : d'où « je ferme et je
-         rouvre, et elle redevient normale ».
-
-         Le drapeau se rabaisse désormais par un `finally` : quelle que soit
-         la façon dont on sort d'ici — fin normale, interruption, erreur — il
-         ne peut plus rester levé. */
-      try {
-        const limite = Date.now() + 9000;
-        while (attendLeNomRef.current && Date.now() < limite) {
-          if (attenteRef.current !== jeton || stopAttenteRef.current) return;
-          await pause(200);
-        }
-      } finally {
-        attendLeNomRef.current = false;
-      }
-      const tout_neuf = nomRef.current.trim();
-      if (tout_neuf) nouveauNomRef.current = tout_neuf;
-    }
-
-    /* 2. ET C'EST TOUT. Elle se tait, le visage reprend l'air pensif, et la
-       lueur dorée respire jusqu'à ce que la réponse arrive. Rien n'est
-       répété, rien ne se superpose, rien ne se coupe au milieu d'un mot. */
-    if (attenteRef.current === jeton && !stopAttenteRef.current) {
-      setMode("thinking");
-      setFace("pensive");
-    }
-  }, [audioParole, direParole]);
+  const attendreEnParlant = useCallback(async (jeton: object, _langue: Langue) => {
+    await pause(1400);
+    if(attenteRef.current!==jeton||stopAttenteRef.current||enregistreurRef.current?.state==="recording")return;
+    const disponibles=accusCourts.filter(p=>attenteCache.current.has(cleAccuse(p))&&!derniersAccusesRef.current.includes(p.fichier));
+    if(!disponibles.length)return;
+    const p=disponibles[Math.floor(Math.random()*disponibles.length)];
+    const morceaux=attenteCache.current.get(cleAccuse(p));
+    if(!morceaux)return;
+    derniersAccusesRef.current=[...derniersAccusesRef.current,p.fichier].slice(-3);
+    await direParole(morceaux,jeton);
+    if(attenteRef.current===jeton&&!stopAttenteRef.current){setMode("thinking");setFace("pensive");}
+  }, [direParole]);
 
   /* Le trait tiré à la fin de l'attente : du micro coupé jusqu'au son de la
      réponse. C'est ce total-là qu'il faudra meubler la prochaine fois. */
