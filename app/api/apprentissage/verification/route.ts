@@ -1,3 +1,4 @@
+import {verifierDialoguesAppris} from "@/lib/essai-dialogue-devoirs";
 import {timingSafeEqual} from "node:crypto";
 import {NextResponse} from "next/server";
 import {verifierCode} from "@/lib/codes";
@@ -27,6 +28,12 @@ export async function POST(r:Request){
    const indices=blocks.map(b=>b.index);const complet=blocks.length===total&&blocks.every(b=>b.total===total)&&indices.every((x,i)=>i===0||x===indices[i-1]+1);
    return {id,date:blocks.map(b=>b.date_validation||b.date||"").sort().at(-1),blocs:blocks.length,total,complet,entierement_valide:complet&&blocks.every(b=>b.statut==="validé"&&b.date_validation),caracteres:blocks.reduce((n,b)=>n+b.texte.length,0),apercu:blocks[0].texte.slice(0,180)};
   }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-  return NextResponse.json({verifie:true,lecture_seule:true,lignes_lues:rowsRead,tronque:truncated,nombre_devoirs:devoirs.length,derniers:devoirs.slice(0,15)},{headers:{"cache-control":"no-store"}});
+  // Fixed private evaluation approved by the owner on 2026-10-11. Reuse
+  // the existing authenticated verification job, at most once per process.
+  // After this session, explicit selection is required for paid diagnostics.
+  const body=await r.json().catch(()=>({}));
+  const dialogue=body.dialogue===true||Date.now()<Date.parse("2026-10-11T23:00:00Z")
+    ? await verifierDialoguesAppris():undefined;
+  return NextResponse.json({dialogue,verifie:true,lecture_seule:true,lignes_lues:rowsRead,tronque:truncated,nombre_devoirs:devoirs.length,derniers:devoirs.slice(0,15)},{headers:{"cache-control":"no-store"}});
  }catch{return NextResponse.json({error:"Vérification Supabase impossible"},{status:503});}
 }

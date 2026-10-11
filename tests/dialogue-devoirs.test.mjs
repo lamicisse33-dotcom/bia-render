@@ -100,3 +100,24 @@ test('public production diagnostic rejects before any private lesson reaches the
  const get=new Function('env',`with(env){${compile(fn)}return GET;}`)(env);
  const r=await get({url:'https://app.khalam.app/api/etat?essai_dialogue=1',headers:{get:()=>null}});assert.equal(r.status,401);assert.equal(calls,0);
 });
+
+test('the declared situation retrieves its lesson despite common synonyms and unrelated detail',()=>{
+ const lessons=[
+  core.analyserDevoir(saved('DEVOIR 21 — Le petit commerçant\nWolof : BIA : Ndax am na problème ?\nFrançais : BIA : Quel est ton problème ?')),
+  core.analyserDevoir({...saved('DEVOIR 22 — Jeune étudiant\nWolof : BIA : Naka ?\nFrançais : BIA : Comment se passent tes études ?'),id:'student'}),
+  core.analyserDevoir({...saved('DEVOIR 23 — Mariage refusé\nWolof : BIA : Lan nga bëgg ?\nFrançais : BIA : Que souhaites-tu ?'),id:'marriage'}),
+ ];
+ for(const [question,expected] of [['Je suis vendeur.','fixture'],['Je suis une élève.','student'],['Ma famille veut me marier.','marriage']]){
+  const found=core.chercherDialogues(lessons,question,[]);assert.equal(found[0]?.d.id,expected,question);
+ }
+});
+test('a follow-up request retains the lesson and may choose a learned suggestion',async()=>{
+ const api=service(),history=[{role:'user',text:'Ma copine ne répond plus à mes appels.'},{role:'bia',text:'Vous vous êtes disputés ?'},{role:'user',text:'Non.'},{role:'bia',text:'Laisse-lui un peu de temps.'}];
+ let packet;const r=await api.dialoguerAvecDevoirs('Et ensuite, que me proposes-tu ?',history,{index,choisir:async p=>{packet=p;return {statut:'selection',id:'0:3'};}});
+ assert.equal(packet.devoirs[0].actif,true);assert.equal(r.reply,'Que lui as-tu dit ?');assert.equal(r.dialogue_memorise,true);
+});
+test('lesson verification rejects anonymous access before any private evaluation',async()=>{
+ let evaluations=0;
+ const route=load('app/api/apprentissage/verification/route.ts',{'node:crypto':{timingSafeEqual:()=>false},'next/server':{NextResponse:{json:(body,opt)=>({body,...opt})}},'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/lexique':{lexiqueConfig:{actif:true}},'@/lib/lexique-apprentissage-core':{APP_LECONS:'test'},'@/lib/essai-dialogue-devoirs':{verifierDialoguesAppris:async()=>{evaluations++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test'}},Buffer});
+ const r=await route.POST({headers:{get:()=>null}});assert.equal(r.status,401);assert.equal(evaluations,0);
+});

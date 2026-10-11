@@ -55,7 +55,10 @@ export function indexerDevoirs(devoirs:DevoirALire[]){
 }
 const outils=new Set("le la les de des du un une et est sont je tu il elle on que qui quoi pour avec dans sur pas mais donc alors aussi plus moins pourquoi comment quand quel quelle bonjour merci oui non ai as suis peux peut veux faire fait ce cette ces mon ma mes ton ta tes au aux en se me te lui nos notre etre avoir cela tout tous comme son sa ses par si bien depuis maintenant vraiment deja encore reponds moi toi toi meme bia sama sa bi yi la ci ak te rekk nga naa dama ma ngi ko am na ndax".split(" "));
 function termes(s:string){
- const t=normaliserDialogue(s).replace(/\b(?:appels?|appeler|telephone|telephoner|messages?|sms|whatsapp)\b/g," message ").replace(/\b(?:cherie|copines?|copains?|petite amie|petit ami|partenaire|fiancee?)\b/g," copine ");
+ const t=normaliserDialogue(s).replace(/\b(?:appels?|appeler|telephone|telephoner|messages?|sms|whatsapp)\b/g," message ").replace(/\b(?:cherie|copines?|copains?|petite amie|petit ami|partenaire|fiancee?)\b/g," copine ")
+  .replace(/\b(?:etudiant(?:e)?s?|eleves?|lyceen(?:ne)?s?)\b/g," etudiant ")
+  .replace(/\b(?:commercant(?:e)?s?|vendeu(?:r|se)s?|boutiquier(?:e)?s?)\b/g," commerce ")
+  .replace(/\b(?:marier|mariee?s?|mariages?)\b/g," mariage ");;
  return new Set(t.split(" ").filter(w=>w.length>=3&&!outils.has(w)));
 }
 export function contexteDialogue(historique:unknown):TourDialogue[]{
@@ -68,8 +71,9 @@ export function chercherDialogues(index:DialogueAppris[],question:string,history
  const docs=index.filter(d=>d.repliques.length).map(d=>({d,mots:termes(d.titre+" "+d.repliques.map(p=>p.wo+" "+p.fr).join(" "))}));
  const df=new Map<string,number>();for(const doc of docs)for(const w of doc.mots)df.set(w,(df.get(w)||0)+1);
  return docs.map(({d,mots})=>{
+  const titre=termes(d.titre);
   const actif=Boolean(derniere)&&d.repliques.some(p=>[p.wo,p.fr].some(t=>normaliserDialogue(t)===normaliserDialogue(derniere)));
-  let score=0,accords=0;for(const mot of q)if(mots.has(mot)){accords++;score+=1+Math.log(1+docs.length/(df.get(mot)||1));}
+  let score=0,accords=0;for(const mot of q)if(mots.has(mot)){accords++;score+=1+Math.log(1+docs.length/(df.get(mot)||1))+(titre.has(mot)?3:0);}
   if(actif){score+=5;for(const mot of recent)if(mots.has(mot))score+=1;}
   return {d,actif,score,accords};
  }).filter(x=>x.actif||x.accords>=2||x.accords>=1&&x.score>=3.5).sort((a,b)=>b.score-a.score).slice(0,3);
