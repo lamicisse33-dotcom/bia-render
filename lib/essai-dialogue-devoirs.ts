@@ -8,10 +8,10 @@ export function verifierDialoguesAppris(){
  return essai??= (async()=>{
   const index=await indexDialogue(),originaux=(await devoirsALire()).devoirs;
   const scenarios=[
-   {nom:"couple",question:"Ma copine ne répond plus à mes appels."},
-   {nom:"commerce",question:"Je suis un petit commerçant et j’ai du mal à gérer mon commerce."},
-   {nom:"etudes",question:"Je suis étudiant et j’ai du mal à m’organiser pour mes études."},
-   {nom:"mariage",question:"Ma famille veut me marier à un homme que je ne veux pas épouser."},
+   {nom:"couple",question:"Ma copine ne répond plus à mes appels.",reponse:"Non, nous ne nous sommes pas disputés. Je l’ai déjà appelée, sans réponse."},
+   {nom:"commerce",question:"Je suis un petit commerçant et j’ai du mal à gérer mon commerce.",reponse:"Je vends des vêtements. Je ne sais pas combien je gagne vraiment."},
+   {nom:"etudes",question:"Je suis étudiant et j’ai du mal à m’organiser pour mes études.",reponse:"Je suis en terminale. J’aime l’informatique et l’anglais."},
+   {nom:"mariage",question:"Ma famille veut me marier à un homme que je ne veux pas épouser.",reponse:"J’ai essayé d’en parler à mes parents, mais ils ne m’écoutent pas."},
   ];
   const resultats=[];
   for(const scenario of scenarios){
@@ -26,8 +26,7 @@ export function verifierDialoguesAppris(){
      voisinage:d&&p?d.repliques.slice(Math.max(0,Number(p.id)-1),Number(p.id)+3):[]});
     if(!r?.dialogue_memorise)break;
     historique.push({role:"user",text:question},{role:"bia",text:r.reply});
-    const suivant=d?.repliques[Number(p?.id)+1];
-    question=tour===0&&suivant&&suivant.role!=="bia"?suivant.fr:"Et ensuite, que me proposes-tu ?";
+    question=tour===0?scenario.reponse:"Et ensuite, que me proposes-tu ?";
    }
    resultats.push({scenario:scenario.nom,candidats:chercherDialogues(index,scenario.question,[]).map(c=>c.d.titre),tours});
   }

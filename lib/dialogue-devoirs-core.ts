@@ -78,10 +78,32 @@ export function chercherDialogues(index:DialogueAppris[],question:string,history
   return {d,actif,score,accords};
  }).filter(x=>x.actif||x.accords>=2||x.accords>=1&&x.score>=3.5).sort((a,b)=>b.score-a.score).slice(0,3);
 }
+/** Conservative facts explicitly stated by the speaker. These guards cover
+ * observed failures; they do not claim general semantic understanding. */
+export function faitsExplicites(question:string,history:TourDialogue[]){
+ const textes=[...history.filter(t=>t.role==="user").map(t=>t.text),question].map(normaliserDialogue);
+ return {
+  appel:textes.some(t=>/\b(?:mes|nos) appels\b/.test(t)||/\b(?:j ai|je l ai|je lui ai) (?:deja )?(?:telephone|appelee?)\b/.test(t)),
+  commerce:textes.some(t=>/\bje suis (?:un |une )?(?:petit |petite )?(?:commercant|commercante|vendeur|vendeuse|boutiquier|boutiquiere)\b|\bje (?:tiens|gere) (?:un|une|mon|ma) (?:commerce|boutique|business)\b/.test(t))
+    && !/\b(?:commencer|ouvrir|lancer|demarrer) (?:un |une |mon |ma |nouveau |nouvelle )/.test(normaliserDialogue(question)),
+  pression:textes.some(t=>/\b(?:famille|parents)\b/.test(t)&&/\b(?:marier|epouser|mariage|metier)\b/.test(t)),
+  matieres:textes.some(t=>/\bj aime\b/.test(t)&&/\b(?:informatique|anglais|mathematiques|maths|histoire|francais|physique|chimie|biologie|philosophie|sciences)\b/.test(t)),
+  niveau:textes.some(t=>/\bje suis en (?:terminale|premiere|seconde|troisieme|licence|master|doctorat)\b/.test(t)),
+ };
+}
+export function questionDejaResolue(fr:string,faits:ReturnType<typeof faitsExplicites>){
+ const t=normaliserDialogue(fr);
+ return faits.appel&&/\b(?:tu l as|vous l avez|as tu|avez vous) (?:deja )?(?:appelee?|telephone)\b/.test(t)
+  || faits.commerce&&/\b(?:pour commencer|veux tu commencer|veux commencer|voulez commencer|pour demarrer)\b/.test(t)
+  || faits.pression&&/\b(?:sur quoi|pour quoi|quel sujet)\b.*\bpression\b/.test(t)
+  || faits.matieres&&/\b(?:quelles|quelle|quels) matieres\b.*\bprefer/.test(t)
+  || faits.niveau&&/\b(?:quel|ton|votre) niveau d etudes\b/.test(t);
+}
 /** Bound the selector's context without cutting or rewriting a source utterance.
  * Keep neighbours of both the latest reply and the new topic's matching lines. */
 export function paquetSelection(candidats:ReturnType<typeof chercherDialogues>,history:TourDialogue[],langue:"fr"|"wo",question=""){
  const deja=new Set(history.filter(t=>t.role==="bia").map(t=>normaliserDialogue(t.text)));
+ const faits=faitsExplicites(question,history);
  const ditsPersonne=new Set([...history.filter(t=>t.role==="user").map(t=>normaliserDialogue(t.text)),normaliserDialogue(question)]);
  const derniere=[...history].reverse().find(t=>t.role==="bia")?.text||"",mots=termes(question);
  return candidats.map((c,i)=>{
@@ -98,7 +120,7 @@ export function paquetSelection(candidats:ReturnType<typeof chercherDialogues>,h
   }).sort((a,b)=>a.j-b.j);
   return {id:String(i),titre:c.d.titre,actif:c.actif,repliques:retenues.map(({p})=>({
    id:i+":"+p.id,wo:p.wo,fr:p.fr,role:p.role,deja_dite:deja.has(normaliserDialogue(p.wo))||deja.has(normaliserDialogue(p.fr)),
-   selectionnable:p.role!=="personne"&&!ditsPersonne.has(normaliserDialogue(p.wo))&&!ditsPersonne.has(normaliserDialogue(p.fr))&&(p[langue].match(/\?/g)||[]).length<=1,
+   selectionnable:p.role!=="personne"&&!questionDejaResolue(p.fr,faits)&&!ditsPersonne.has(normaliserDialogue(p.wo))&&!ditsPersonne.has(normaliserDialogue(p.fr))&&(p[langue].match(/\?/g)||[]).length<=1,
   }))};
  });
 }

@@ -146,3 +146,15 @@ test('an explicit Wolof preference survives French follow-up answers until expli
  const {langueDuDialogue}=service();const h=[{role:'user',text:'Réponds en wolof.'},{role:'bia',text:'Naka ?'}];
  assert.equal(langueDuDialogue('Je suis en terminale.',h),'wo');assert.equal(langueDuDialogue('Réponds en français.',h),'fr');
 });
+
+test('facts stated by the speaker exclude redundant or inapplicable learned questions',()=>{
+ const facts=core.faitsExplicites('Ma copine ne répond plus à mes appels.',[]);
+ assert(core.questionDejaResolue('Est-ce que tu l’as appelée ?',facts));
+ assert(!core.questionDejaResolue('Est-ce que vous aviez un problème avant ça ?',facts));
+ assert(!core.questionDejaResolue('Est-ce que tu l’as appelée ?',core.faitsExplicites('Je voudrais l’appeler.',[])));
+ assert(core.questionDejaResolue('Quel budget as-tu pour commencer ?',core.faitsExplicites('Je suis un petit commerçant.',[])));
+ assert(!core.questionDejaResolue('Quel budget as-tu pour commencer ?',core.faitsExplicites('Je suis commerçant et je veux ouvrir une nouvelle boutique.',[])));
+ assert(core.questionDejaResolue('Sur quoi te mettent-ils la pression ?',core.faitsExplicites('Ma famille veut me marier.',[])));
+ assert(core.questionDejaResolue('Quel est ton niveau d’études actuellement ?',core.faitsExplicites('Je suis en terminale.',[])));
+ assert(core.questionDejaResolue('Quelles matières préfères-tu ?',core.faitsExplicites('J’aime l’informatique et l’anglais.',[])));
+});
