@@ -1,6 +1,7 @@
 import {devoirsALire} from "./devoirs-apprentissage";
 import {chercherDialogues,contexteDialogue,indexerDevoirs,paquetSelection,resoudreSelection,normaliserDialogue,finDuSujet,type DialogueAppris,type TourDialogue} from "./dialogue-devoirs-core";
 import {detecterLangue} from "./langue";
+import {salutationAutonome} from "./salutations-dialogue";
 
 const g=globalThis as typeof globalThis & {biaDialogueDevoirs?:{tours:number;selectionnes:number;hors_sujet:number;clarifications:number;erreurs:number;dernier_ms:number;devoirs:number;repliques:number;non_structures:number;dernier_statut:string;appels_modele:number;jetons_entree:number;jetons_sortie:number;dernier_modele_ms:number;diagnostic?:unknown;essai?:Promise<unknown>}};
 const etat=g.biaDialogueDevoirs??={tours:0,selectionnes:0,hors_sujet:0,clarifications:0,erreurs:0,dernier_ms:0,devoirs:0,repliques:0,non_structures:0,dernier_statut:"aucun",appels_modele:0,jetons_entree:0,jetons_sortie:0,dernier_modele_ms:0};
@@ -54,6 +55,7 @@ export async function dialoguerAvecDevoirs(question:string,historique:unknown,op
  const debut=Date.now(),diagnostic=options.diagnostic===true;const history=contexteDialogue(historique);
  if(!diagnostic)etat.tours++;
  try{
+  if(salutationAutonome(question)){if(!diagnostic)etat.dernier_statut="salutation";return null;}
   if(finDuSujet(question))return null;
   const index=options.index||await indexDialogue(),candidats=chercherDialogues(index,question,history);
   if(!candidats.length){if(!diagnostic){etat.hors_sujet++;etat.dernier_statut="non_couvert";}return null;}
@@ -75,8 +77,11 @@ export async function dialoguerAvecDevoirs(question:string,historique:unknown,op
    const [docId,lineId]=verdict.id.split(":");
    return {reply:verdict.reply,langue,emotion:"douce",source:"dialogue mémorisé (Supabase)",dialogue_memorise:true,lecon_id:candidats[Number(docId)].d.id,replique_id:lineId};
   }
-  if(!diagnostic){etat.clarifications++;etat.dernier_statut="clarifier";}
-  return {reply:"Peux-tu préciser ce qui te préoccupe le plus dans cette situation ?",langue:"fr" as const,emotion:"concernee",source:"dialogue mémorisé à préciser",dialogue_memorise:false};
+  // A rejected selection is not evidence that the person is unclear. Let
+  // ordinary conversation handle the actual message in its language. Keeping
+  // a fixed clarification here trapped greetings and every subsequent turn.
+  if(!diagnostic){etat.clarifications++;etat.dernier_statut="relais_conversation";}
+  return null;
  }catch(error){
   const brut=(error as Error)?.message||"",motif=/^(HTTP_\d{3}|sortie_tronquee|configuration_absente|fournisseur_non_pris_en_charge)$/.test(brut)?brut:(error as Error)?.name==="TimeoutError"?"delai_depasse":"consultation_ou_selection_impossible";
   if(!diagnostic){etat.erreurs++;etat.dernier_statut="indisponible";}

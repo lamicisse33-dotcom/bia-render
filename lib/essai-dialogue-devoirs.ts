@@ -34,7 +34,15 @@ export function verifierDialoguesAppris(){
   const premier=resultats[0]?.tours[0];
   const refus=premier?.exacte?await dialoguerAvecDevoirs("Je ne veux plus parler de ma copine. Arrêtons ce sujet.",[{role:"user",text:scenarios[0].question},{role:"bia",text:premier.reply!}],{index,diagnostic:true}):undefined;
   const tours=resultats.flatMap(r=>r.tours);
+  // Fixed regression for the owner's stuck session. The real lesson index
+  // and an active learned reply must not capture a standalone greeting.
+  const bloque:TourDialogue[]=[{role:"user",text:scenarios[0].question},
+   ...(premier?.reply?[{role:"bia",text:premier.reply}]:[]),
+   {role:"user",text:"Nanga def ?"},
+   {role:"bia",text:"Peux-tu préciser ce qui te préoccupe le plus dans cette situation ?"}];
+  const salutations=await Promise.all(["Salaamaleekum","Nanga def ?","Naka waa kër ga ?"].map(q=>dialoguerAvecDevoirs(q,bloque,{index,diagnostic:true})));
   const bilan={quand:new Date().toISOString(),scenarios:resultats.length,tours:tours.length,
+   salutations_testees:salutations.length,salutations_liberees:salutations.filter(r=>r===null).length,
    repliques_exactes:tours.filter(t=>t.exacte).length,une_question_max:tours.every(t=>t.une_question_max),
    repetitions:tours.filter(t=>t.deja_dite).length,reprises_personne:tours.filter(t=>t.reprise_personne).length,
    role_personne:tours.filter(t=>t.fr&&paroleDeLaPersonne(t.fr,t.wo)).length,

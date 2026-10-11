@@ -3,6 +3,12 @@ export type RepliqueApprise={id:string;wo:string;fr:string;role:"bia"|"personne"
 export type DialogueAppris={id:string;titre:string;date:string;repliques:RepliqueApprise[]};
 export type TourDialogue={role:string;text:string};
 export const normaliserDialogue=(s:string)=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim();
+const ancienneRelance=normaliserDialogue("Peux-tu préciser ce qui te préoccupe le plus dans cette situation ?");
+/** Retire only our obsolete automatic answer from model context. Never erase
+ * the user's words, including a quote/report of that answer. */
+export function sansRelanceAutomatique<T extends {role:string;text:string}>(history:T[]):T[]{
+ return history.filter(t=>!(["bia","assistant"].includes(t.role)&&normaliserDialogue(t.text)===ancienneRelance));
+}
 const propre=(s:string)=>s.trim().replace(/^[#>*\s]+/,"").replace(/^[-–—]\s+/,"").replace(/\*\*/g,"").replace(/\s*\|\s*$/," ").trim();
 const contenu=(s:string)=>s.replace(/^\s*(?:[A-Z]?\d{1,4}[.)\]:—-]\s+|[A-Z]?\d{1,4}\s+(?=(?:Wolof|Fran[cç]ais|WO|FR)\b))/,"").trim();
 function roleEtTexte(s:string):{texte:string;role:RepliqueApprise["role"]}{
@@ -63,7 +69,7 @@ function termes(s:string){
 }
 export function contexteDialogue(historique:unknown):TourDialogue[]{
  if(!Array.isArray(historique))return [];
- return historique.filter(t=>t&&["user","bia","assistant"].includes(t.role)&&typeof t.text==="string").slice(-40).map(t=>({role:t.role==="user"?"user":"bia",text:t.text.slice(0,1800)}));
+ return sansRelanceAutomatique(historique.filter(t=>t&&["user","bia","assistant"].includes(t.role)&&typeof t.text==="string").slice(-40).map(t=>({role:t.role==="user"?"user":"bia",text:t.text.slice(0,1800)})));
 }
 export function chercherDialogues(index:DialogueAppris[],question:string,history:TourDialogue[]){
  const q=termes(question),recent=termes(history.filter(t=>t.role==="user").slice(-2).map(t=>t.text).join(" "));

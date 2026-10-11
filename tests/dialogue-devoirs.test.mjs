@@ -5,6 +5,8 @@ import ts from 'typescript';
 const compile=s=>ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 function load(path,deps={},env={}){const module={exports:{}};new Function('require','module','exports',...Object.keys(env),compile(fs.readFileSync(path,'utf8')))(n=>{assert(n in deps,`Unexpected import ${n}`);return deps[n];},module,module.exports,...Object.values(env));return module.exports;}
 const core=load('lib/dialogue-devoirs-core.ts'),langue=load('lib/langue.ts');
+const normalisation=load('lib/normaliser.ts'),textes=load('lib/repertoire-textes.ts'),services=load('lib/services-textes.ts');
+const salutations=load('lib/salutations-dialogue.ts',{'./normaliser':normalisation,'./repertoire-textes':textes,'./services-textes':services});
 const saved=texte=>({id:'fixture',texte,langue:'wo',valide:true,date:'2026-10-11'});
 // Test-only wording; production never uses this fixture as a lesson.
 const fixture=saved(`DEVOIR 15 — Couple, messages et incompréhension
@@ -24,7 +26,7 @@ Français : BIA : Laisse-lui un peu de temps.
 Français : BIA : Comment ? Pourquoi ?`);
 const index=core.indexerDevoirs([fixture]);
 function service(fetch=async()=>{throw Error('Unexpected network');},devoirs=async()=>({devoirs:[fixture]})){
- return load('lib/dialogue-devoirs.ts',{'./dialogue-devoirs-core':core,'./langue':langue,'./devoirs-apprentissage':{devoirsALire:devoirs}}, {fetch,globalThis:{},process:{env:{BIA_LLM_PROVIDER:'cerebras',CEREBRAS_API_KEY:'test-only'}}});
+ return load('lib/dialogue-devoirs.ts',{'./salutations-dialogue':salutations,'./dialogue-devoirs-core':core,'./langue':langue,'./devoirs-apprentissage':{devoirsALire:devoirs}}, {fetch,globalThis:{},process:{env:{BIA_LLM_PROVIDER:'cerebras',CEREBRAS_API_KEY:'test-only'}}});
 }
 test('explicit bilingual pairs preserve text and roles without guessing missing translations',()=>{
  assert.equal(core.analyserDevoir(saved('Wolof : 20 minutes.\nFrançais : 20 minutes.')).repliques[0].fr,'20 minutes.');
@@ -74,9 +76,9 @@ test('yes and no can select different learned branches; off-topic returns to ord
  assert.equal(yes.reply,'Que lui as-tu dit ?');assert.equal(no.reply,'Laisse-lui un peu de temps.');
  assert.equal(await api.dialoguerAvecDevoirs('Parlons du Japon.',history,{index,choisir:async()=>({statut:'hors_sujet'})}),null);
 });
-test('invalid or repeated selection asks for clarification; provider failures do not produce invented Wolof',async()=>{
+test('invalid or repeated selection releases normal conversation; provider failures remain explicit',async()=>{
  const api=service();const history=[{role:'bia',text:'Vous vous êtes disputés ?'}];
- const r=await api.dialoguerAvecDevoirs('Non.',history,{index,choisir:async()=>({statut:'selection',id:'0:1'})});assert.equal(r.dialogue_memorise,false);assert.match(r.reply,/préciser/);
+ const r=await api.dialoguerAvecDevoirs('Non.',history,{index,choisir:async()=>({statut:'selection',id:'0:1'})});assert.equal(r,null);
  const err=await api.dialoguerAvecDevoirs('Non.',history,{index,choisir:async()=>{throw Error('timeout');}});assert.equal(err.dialogue_memorise,false);assert.match(err.reply,/Réessaie/);
 });
 test('real chat route gives the authenticated learned dialogue priority over generic repertoire',async()=>{
@@ -84,6 +86,7 @@ test('real chat route gives the authenticated learned dialogue priority over gen
  ast.forEachChild(n=>{if(ts.isFunctionDeclaration(n)&&n.name?.text==='repondre')fn=n.getText(ast);});assert(fn);
  let calls=0;const expected={reply:'Question apprise ?',dialogue_memorise:true};
  const env={corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected write')},devoirsALire:async()=>({devoirs:[]}),verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,dialoguerAvecDevoirs:async(q,h)=>{calls++;assert.equal(q,'Non.');assert.equal(h[0].text,'Question précédente ?');return expected;}};
+ env.sansRelanceAutomatique=core.sansRelanceAutomatique;
  const run=new Function('env',`with(env){${compile(fn)}return repondre;}`)(env);
  const r=await run({message:'Non.',history:[{role:'bia',text:'Question précédente ?'}]},'valid-test-code',null);assert.deepEqual(r,{corps:{...expected,origine_devoir:null}});assert.equal(calls,1);
 });
@@ -139,7 +142,7 @@ test('compact coherence check can choose a valid alternative but cannot introduc
    return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify(calls===1?{statut:'selection',id:'0:1',alternatives:['0:5','0:0']}:{statut:'selection',id:selected})},finish_reason:'stop'}]})};
   });
   const r=await api.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',[]);
-  assert.equal(calls,2);if(selected==='0:5')assert.equal(r.reply,'Laisse-lui un peu de temps.');else assert.equal(r.dialogue_memorise,false);
+  assert.equal(calls,2);if(selected==='0:5')assert.equal(r.reply,'Laisse-lui un peu de temps.');else assert.equal(r,null);
  }
 });
 test('an explicit Wolof preference survives French follow-up answers until explicitly changed',()=>{
@@ -176,4 +179,42 @@ test('Wolof first-person questions stay in the learner role even when French use
  assert.equal(core.paroleDeLaPersonne(d.repliques[0].fr,d.repliques[0].wo),true);
  assert.equal(core.paquetSelection([{d,actif:true,score:5,accords:1}],[],'wo')[0].repliques[0].selectionnable,false);
  assert.equal(core.paroleDeLaPersonne('Comment puis-je t’aider ?','Naka laa la mën a dimbali ?'),false);
+});
+
+const obsolete='Peux-tu préciser ce qui te préoccupe le plus dans cette situation ?';
+test('greetings release even an active lesson before any Supabase or model request',async()=>{
+ let reads=0,calls=0;
+ const api=service(async()=>{calls++;throw Error('No model for greetings');},async()=>{reads++;throw Error('No database for greetings');});
+ for(const history of [[],[{role:'bia',text:'Vous vous êtes disputés ?'}],[{role:'user',text:'Réponds en wolof.'},{role:'bia',text:obsolete},{role:'user',text:'Nanga def ?'},{role:'bia',text:obsolete}]]){
+  for(const question of ['Salaamaleekum','Nanga def ?','Bia, naka nga def ?','Naka waa kër ga ?','Bonjour','Bonsoir']){
+   assert.equal(await api.dialoguerAvecDevoirs(question,history),null,question);
+  }
+ }
+ assert.equal(reads,0);assert.equal(calls,0);
+ for(const question of ['Oui.','Non.','Waaw.','Déedéet.','Bonjour, ma copine ne répond plus à mes appels.','Salut, je suis commerçant.'])assert.equal(salutations.salutationAutonome(question),false,question);
+});
+test('obsolete clarifications never become model examples or change the requested language',async()=>{
+ const h=[{role:'user',text:'Réponds en wolof.'},{role:'bia',text:obsolete},{role:'user',text:'Nanga def ?'},{role:'bia',text:obsolete}];
+ assert.equal(core.contexteDialogue(h).filter(t=>t.role==='bia').length,0);
+ assert.deepEqual(core.sansRelanceAutomatique([{role:'user',text:obsolete}]),[{role:'user',text:obsolete}]);
+ const api=service();let calls=0;
+ for(let i=0;i<2;i++)assert.equal(await api.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',h,{index,choisir:async p=>{calls++;assert.equal(p.langue,'wo');assert(!p.historique.some(t=>t.text===obsolete));return {statut:'clarifier'};}}),null);
+ assert.equal(calls,2);
+ const r=await api.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',h,{index,choisir:async()=>({statut:'selection',id:'0:1'})});
+ assert.equal(r.reply,index[0].repliques[1].wo);assert.equal(r.dialogue_memorise,true);
+});
+test('authenticated chat with the stuck history reaches the actual greeting repertoire',async()=>{
+ const repertoire=load('lib/repertoire.ts',{'./lexique':{lexiqueConfig:{actif:false}},'./normaliser':normalisation,'./empreinte':load('lib/empreinte.ts'),'./nombres':{pourLaVoix:s=>s},'./repertoire-textes':textes,'./base-textes':load('lib/base-textes.ts'),'./services-textes':services,'./formes-neuves':load('lib/formes-neuves.ts',{'./formes-de-plus':load('lib/formes-de-plus.ts')}),'./a-refaire':load('lib/a-refaire.ts')});
+ const source=fs.readFileSync('app/api/chat/route.ts','utf8'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);let fn;
+ ast.forEachChild(n=>{if(ts.isFunctionDeclaration(n)&&n.name?.text==='repondre')fn=n.getText(ast);});
+ const api=service(async()=>{throw Error('No selector call');},async()=>{throw Error('No lesson read');});
+ const env={...repertoire,...services,sansRelanceAutomatique:core.sansRelanceAutomatique,dialoguerAvecDevoirs:api.dialoguerAvecDevoirs,
+  corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected write')},verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,
+  repertoireActif:()=>true,RELU_BLAGUES:false,noterRate(){},SONS_QUI_DISENT_AUTRE_CHOSE:new Set(),gesteDe:()=>null};
+ const run=new Function('env',`with(env){${compile(fn)}return repondre;}`)(env);
+ for(const message of ['Salaamaleekum','Nanga def ?','Naka waa kër ga ?']){
+  const r=await run({message,history:[{role:'bia',text:'Vous vous êtes disputés ?'},{role:'user',text:'Nanga def ?'},{role:'bia',text:obsolete},{role:'bia',text:obsolete}]},'valid-test-code',null);
+  assert.equal(r.corps.source,'répertoire (gratuit)',message);assert.equal(r.corps.salutation,true);
+  assert.equal(r.corps.reply,repertoire.trouverDansRepertoire(message).wolof);
+ }
 });

@@ -3,6 +3,7 @@ import {corrigerDevoir} from "@/lib/correction-devoir";
 import {origineReplique} from "@/lib/correction-devoir-core";
 import {devoirsALire} from "@/lib/devoirs-apprentissage";
 import {dialoguerAvecDevoirs} from "@/lib/dialogue-devoirs";
+import {sansRelanceAutomatique} from "@/lib/dialogue-devoirs-core";
 import {CONSIGNE_COMPREHENSION,dependDuContexte} from "@/lib/comprehension-conversation";
 import {contexteInstructions} from "@/lib/instructions-apprentissage";
 import {contexteDevoirs} from "@/lib/devoirs-apprentissage";
@@ -1376,6 +1377,10 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     }
 
     if(!question)return {corps:{reply:"Bindal walla waxal sa laaj.",source:"validation"}};
+
+    // Existing browser sessions still send the obsolete repeated fallback.
+    // Do not teach the conversational model to repeat that routing failure.
+    body={...body,history:sansRelanceAutomatique(body.history||[])};
 
     // Authenticate before accessing private lessons. Resolve learned replies before
     // generic formulas: a yes/no must answer the preceding learned question.
