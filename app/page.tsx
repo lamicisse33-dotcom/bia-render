@@ -5034,9 +5034,17 @@ export default function Home() {
           motsRattrapesRef.current = null;
           const dit = recoller(rattrape, d.texte || "");
           if(Array.isArray(d.suggestions_ecriture)&&d.suggestions_ecriture.length){
-            setSaisie(dit);setConversation(true);setClavier(true);
-            setPanne("Écriture à vérifier : "+d.suggestions_ecriture.join(" / ")+". Corrige ou confirme le texte avec le bouton Envoyer.");
-            setMode("ready");return;
+            setSaisie(dit);setConversation(true);
+            const clarification=d.suggestions_ecriture.length===1
+              ? "Est-ce que tu veux dire : "+d.suggestions_ecriture[0]
+              : "Je n’ai pas bien compris. Peux-tu répéter doucement ?";
+            setHistory(items=>[...items,{role:"user",text:dit},{role:"bia",text:clarification}]);
+            await finirAttente("fr",false);
+            if(!estLeTour(monTour))return;
+            langueRef.current="fr";
+            await speak(clarification);
+            if(estLeTour(monTour))setMode("ready");
+            return;
           }
           dernierDitRef.current = dit;
           if (dit) {
