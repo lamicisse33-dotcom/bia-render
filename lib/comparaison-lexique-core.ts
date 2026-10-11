@@ -33,5 +33,21 @@ export function propositionsLexique(texte:string,candidats:string[]):string[]{
   }
   if(safe&&changed>0&&changed<=2&&changed<=Math.max(1,Math.floor(a.length*.3)))rows.push({c,cost});
  }
- return rows.sort((x,y)=>x.cost-y.cost).slice(0,3).map(x=>x.c);
+ // Match a word inside a new sentence only when a validated neighbour agrees.
+ const known=new Set<string>();const contexts=new Map<string,Set<string>>();
+ for(const sentence of candidats){const words=tokens(sentence);for(let i=0;i<words.length;i++){
+  const w=words[i];known.add(w);const around=contexts.get(w)||new Set<string>();
+  if(i>0)around.add("left:"+words[i-1]);if(i+1<words.length)around.add("right:"+words[i+1]);contexts.set(w,around);
+ }}
+ if(a.length>=3)for(let i=0;i<a.length;i++){
+  const heard=a[i];if(known.has(heard)||heard.length<4||/\\d/.test(heard))continue;
+  for(const [word,around]of contexts){
+   if(word.length<4||Math.abs(word.length-heard.length)>1||/\\d/.test(word))continue;
+   if(!(i>0&&around.has("left:"+a[i-1]))&&!(i+1<a.length&&around.has("right:"+a[i+1])))continue;
+   const d=distance(heard,word);if(d!==1)continue;
+   const re=new RegExp("(?<![\\\\p{L}\\\\p{M}\\\\p{N}])"+heard.replace(/[.*+?^$()|[\\]\\\\]/g,"\\\\ return rows.sort((x,y)=>x.cost-y.cost).slice(0,3).map(x=>x.c);")+"(?![\\\\p{L}\\\\p{M}\\\\p{N}])","iu");
+   rows.push({c:texte.replace(re,word),cost:d+1});
+  }
+ }
+ return [...new Set(rows.sort((x,y)=>x.cost-y.cost).map(x=>x.c))].slice(0,3);
 }
