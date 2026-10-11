@@ -6,6 +6,7 @@ import LectureApprentissage from "./LectureApprentissage";
 import {originePassageLu,type SourceDevoir,type OrigineDevoir} from "@/lib/correction-devoir-core";
 import {lireDevoirsConversation} from "@/lib/lecture-devoirs-conversation";
 import {demandeLecture,demandeLectureMemoire} from "@/lib/intention-lecture";
+import {ouvrirRepliques} from "@/lib/flux-repliques";
 import { ouvrirFluxVoix, type MorceauVoix } from "@/lib/flux-khalam";
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -2743,7 +2744,25 @@ export default function Home() {
     const routeVoix = routeVoixBia();
     const voixChoisie = voixChatterboxBia();
     let empreinteLecture: string | undefined;
+    const continu=Boolean(lecture&&essaiChatterboxActif());
+    let connexion:Promise<ReturnType<typeof ouvrirRepliques>>|null=null;
+    const ouvrirConnexion=()=>{
+      const abort=new AbortController();fluxVoixRef.current.add(abort);
+      let timer=setTimeout(()=>abort.abort(),12000);
+      const recu=()=>{clearTimeout(timer);timer=setTimeout(()=>abort.abort(),12000);};
+      const finir=()=>{clearTimeout(timer);fluxVoixRef.current.delete(abort);};
+      return fetch(routeVoix,{method:"POST",signal:abort.signal,
+        headers:{"content-type":"application/json","x-bia-code":codeRef.current},
+        body:JSON.stringify({texte:answer,voice:voixChoisie,langue:langueDite,lecture_fidele:true,continu:true})
+      }).then(r=>{if(!r.ok){finir();throw Error("La voix est indisponible. Réessaie.");}return ouvrirRepliques(r,finir,recu);}).catch(e=>{finir();throw e;});
+    };
     const demander = async (partie: number) => {
+      if(continu){
+        connexion??=ouvrirConnexion();
+        const d=await (await connexion).morceau(partie);
+        if(!actuel())throw Error("tour interrompu");
+        return d;
+      }
       let dernier = "voix indisponible";
       for (let essai = 0; essai < 3; essai++) {
         if (!actuel()) throw new Error("tour interrompu");
@@ -3020,7 +3039,7 @@ export default function Home() {
            moitié de l'histoire jamais dite : on retente CE morceau une
            fois, et s'il manque encore, on saute SEULEMENT lui — la suite
            continue, morceau après morceau, jusqu'au bout. */
-        if (!morceau || !morceau.audio) {
+        if ((!morceau || !morceau.audio) && !continu) {
           try { morceau = await demander(i); } catch { morceau = null; }
         }
         if (perdu()) return;
@@ -3058,6 +3077,7 @@ export default function Home() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           type: "lecture",
+          continu,
           morceaux: segments.length,
           couture_max_ms: coutures.length ? Math.max(...coutures) : 0,
           couture_totale_ms: coutures.reduce((a, b) => a + b, 0),

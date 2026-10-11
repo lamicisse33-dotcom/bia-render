@@ -118,7 +118,7 @@ test('a follow-up request retains the lesson and may choose a learned suggestion
 });
 test('lesson verification rejects anonymous access before any private evaluation',async()=>{
  let evaluations=0;
- const route=load('app/api/apprentissage/verification/route.ts',{'@/lib/correction-devoir':{verifierCorrectionDevoir:async()=>{evaluations++;}},'node:crypto':{timingSafeEqual:()=>false},'next/server':{NextResponse:{json:(body,opt)=>({body,...opt})}},'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/lexique':{lexiqueConfig:{actif:true}},'@/lib/lexique-apprentissage-core':{APP_LECONS:'test'},'@/lib/essai-dialogue-devoirs':{verifierDialoguesAppris:async()=>{evaluations++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test'}},Buffer});
+ const route=load('app/api/apprentissage/verification/route.ts',{'@/lib/essai-continuite-voix':{verifierContinuiteVoix:async()=>{evaluations++;}},'@/lib/correction-devoir':{verifierCorrectionDevoir:async()=>{evaluations++;}},'node:crypto':{timingSafeEqual:()=>false},'next/server':{NextResponse:{json:(body,opt)=>({body,...opt})}},'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/lexique':{lexiqueConfig:{actif:true}},'@/lib/lexique-apprentissage-core':{APP_LECONS:'test'},'@/lib/essai-dialogue-devoirs':{verifierDialoguesAppris:async()=>{evaluations++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test'}},Buffer});
  const r=await route.POST({headers:{get:()=>null}});assert.equal(r.status,401);assert.equal(evaluations,0);
 });
 

@@ -1,3 +1,4 @@
+import {resumeContinuiteVoix} from "@/lib/continuite-voix-etat";
 import {resumeCorrectionsDevoir} from "@/lib/correction-devoir";
 import {resumeDialogueDevoirs,essayerDialogueDevoirs,indexDialogue} from "@/lib/dialogue-devoirs";
 import {devoirsALire} from "@/lib/devoirs-apprentissage";
@@ -121,6 +122,7 @@ export async function GET(request: Request) {
     voix: voixConfig.fournisseur,
     ecoute: ecouteConfig.fournisseur,
     corrections_devoirs:resumeCorrectionsDevoir(),
+    continuite_voix:resumeContinuiteVoix(),
     dialogue_devoirs: resumeDialogueDevoirs(),
     lecture_devoirs: resumeLectureDevoirs(),
     transcription_contextuelle: resumeCorrectionContexte(),

@@ -62,6 +62,7 @@ function route() {
   let parts = [{texte: 'Bul jël', langue: 'wo'}, {texte: 'suspicion', langue: 'fr'}];
   let calls = 0;
   const {POST} = load('app/api/chatterbox-test/bia/route.ts', {
+    '@/lib/cache-voix-dialogue':load('lib/cache-voix-dialogue.ts'),'@/lib/continuite-voix-etat':{continuiteVoix:{}},
     '@/lib/passages-khalam': {preparerPassagesKhalam: async () => parts},
     '@/lib/langue': {detecterLangue: () => 'wo'},
     'next/server': {NextRequest: Request, NextResponse: {json: (data, init) => Response.json(data, init)}},

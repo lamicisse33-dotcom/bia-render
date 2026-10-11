@@ -1,3 +1,4 @@
+import {verifierContinuiteVoix} from "@/lib/essai-continuite-voix";
 import {verifierCorrectionDevoir} from "@/lib/correction-devoir";
 import {verifierDialoguesAppris} from "@/lib/essai-dialogue-devoirs";
 import {timingSafeEqual} from "node:crypto";
@@ -33,9 +34,10 @@ export async function POST(r:Request){
   // the existing authenticated verification job, at most once per process.
   // After this session, explicit selection is required for paid diagnostics.
   const body=await r.json().catch(()=>({}));
+  const continuite=body.continuite===true||Date.now()<Date.parse("2026-10-11T23:59:59Z")?await verifierContinuiteVoix():undefined;
   const correction=body.correction===true||Date.now()<Date.parse("2026-10-11T23:00:00Z")?await verifierCorrectionDevoir():undefined;
   const dialogue=body.dialogue===true||Date.now()<Date.parse("2026-10-11T23:00:00Z")
     ? await verifierDialoguesAppris():undefined;
-  return NextResponse.json({correction,dialogue,verifie:true,lecture_seule:!correction,lignes_lues:rowsRead,tronque:truncated,nombre_devoirs:devoirs.length,derniers:devoirs.slice(0,15)},{headers:{"cache-control":"no-store"}});
+  return NextResponse.json({continuite,correction,dialogue,verifie:true,lecture_seule:!correction,lignes_lues:rowsRead,tronque:truncated,nombre_devoirs:devoirs.length,derniers:devoirs.slice(0,15)},{headers:{"cache-control":"no-store"}});
  }catch{return NextResponse.json({error:"Vérification Supabase impossible"},{status:503});}
 }

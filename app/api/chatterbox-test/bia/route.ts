@@ -1,3 +1,5 @@
+import {continuiteVoix} from "@/lib/continuite-voix-etat";
+import {CacheVoixDialogue} from "@/lib/cache-voix-dialogue";
 import { preparerPassagesKhalam } from "@/lib/passages-khalam";
 import { detecterLangue } from "@/lib/langue";
 import { NextRequest, NextResponse } from "next/server";
@@ -14,6 +16,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 100;
 
+const repliquesEnCache=new CacheVoixDialogue<{status:number;data:any}>();
 const inFlight = new Map<string, Promise<{ status: number; data: any }>>();
 const accuses = new CacheAccusesLecon<{status:number; data:any}>();
 
@@ -55,6 +58,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({error:"La préparation vocale a changé. Réessaie ce passage.",code:"DECOUPAGE_MODIFIE"},
       {status:409,headers:{"cache-control":"no-store"}});
   }
+  async function rendrePartie(partie:number){
   const langue = parts[partie]?.langue || defaut;
   const headers = { "cache-control": "no-store" };
   const common = {
@@ -74,7 +78,7 @@ export async function POST(request: NextRequest) {
   const id = createHash("sha256")
     .update(JSON.stringify([process.env.CHATTERBOX_TEST_URL, serverKey, voice, common.langue, "mixed-language-profiles-v3", parts[partie].texte]))
     .digest("hex");
-  const cached = accuses.get(id, parts[partie].texte);
+  const cached = (body.lecture_fidele===true?repliquesEnCache.get(id):undefined)||accuses.get(id, parts[partie].texte);
   let pending = cached ? Promise.resolve(cached) : inFlight.get(id);
   const shared = Boolean(pending);
   if (!pending) {
@@ -112,6 +116,7 @@ export async function POST(request: NextRequest) {
       }, { status: status === 200 ? 502 : status, headers: { ...headers, ...(status === 429 ? { "retry-after": "2" } : {}) } });
     }
     const output = data.output;
+    if(!cached&&body.lecture_fidele===true&&typeof output.audio_base64==="string")repliquesEnCache.set(id,{status,data},output.audio_base64.length*2+2048);
     // Cache only successfully validated audio from the active trained model.
     if (!cached && output.checkpoint_sha256 === "8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f") {
       accuses.set(id, parts[partie].texte, {status, data});
@@ -131,6 +136,31 @@ export async function POST(request: NextRequest) {
   } finally {
     if (inFlight.get(id) === pending) inFlight.delete(id);
   }
+  }
+  if(body.continu===true){
+    if(partie!==0||body.lecture_fidele!==true||parts.length>120)return NextResponse.json({error:"Lecture continue invalide."},{status:400});
+    const encoder=new TextEncoder();let annule=false;const debutFlux=Date.now();continuiteVoix.flux++;
+    const stream=new ReadableStream<Uint8Array>({
+      async start(controller){
+        const emit=(x:unknown)=>controller.enqueue(encoder.encode(JSON.stringify(x)+"\n"));
+        try{
+          for(let i=0;i<parts.length;i++){
+            if(annule||request.signal.aborted)return;
+            const r=await rendrePartie(i),d=await r.json();
+            if(annule||request.signal.aborted)return;
+            if(!r.ok||!d.audio)throw Error(d.error||"La voix n’a pas terminé la phrase.");
+            continuiteVoix.clips++;if(d.audio_en_cache)continuiteVoix.cache++;
+            if(i===0)continuiteVoix.premier_morceau_ms=Date.now()-debutFlux;
+            emit({type:"morceau",...d});
+          }
+          emit({type:"fin"});controller.close();
+        }catch(e){continuiteVoix.erreurs++;if(!annule&&!request.signal.aborted){emit({type:"erreur",error:e instanceof Error?e.message:"Flux vocal interrompu."});controller.close();}}
+      },cancel(){annule=true;}
+    });
+    return new Response(stream,{headers:{"content-type":"application/x-ndjson; charset=utf-8","cache-control":"no-store, no-transform","x-accel-buffering":"no"}});
+  }
+  return rendrePartie(partie);
+
 }
 
 

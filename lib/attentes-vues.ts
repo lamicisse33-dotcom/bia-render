@@ -81,6 +81,7 @@ export function resumeAttentes() {
    décodage n'a pas suivi et qu'on entend une couture. */
 
 export type Lecture = {
+  continu?:boolean;
   morceaux: number;
   couture_max_ms: number;
   couture_totale_ms: number;
@@ -96,6 +97,7 @@ export function noterLecture(l: Partial<Lecture>) {
     return Number.isFinite(x) && x >= 0 && x < 600000 ? x : 0;
   };
   lectures = [...lectures, {
+    continu:l.continu===true,
     morceaux: entier(l.morceaux),
     couture_max_ms: entier(l.couture_max_ms),
     couture_totale_ms: entier(l.couture_totale_ms),
