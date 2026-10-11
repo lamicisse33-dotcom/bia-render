@@ -10,7 +10,7 @@ export type LangueVoix = "wo" | "fr";
 // conservative: unknown words and homographs must not all become French.
 const EMPRUNTS_FRANCAIS = ["Wave", "bus", "prix", "transfert", "transferts", "cash", "famille", "familles", "pression", "pressions"];
 const COMMUNS = new Set(["ma","la","te","lu","nu","man","fan"]);
-function indicesLangue(texte: string) {
+export function indicesLangue(texte: string) {
   let wo=0, fr=0;
   for (const mot of texte.toLowerCase().normalize("NFC").match(/\p{L}+/gu) || []) {
     if (COMMUNS.has(mot)) continue;

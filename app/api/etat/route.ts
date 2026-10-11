@@ -1,3 +1,4 @@
+import { resumeCorrectionContexte } from "@/lib/transcription-contextuelle";
 import { resumeTransmissionMemoire } from "@/lib/conversation-groq";
 import { resumeLimiteGroq } from "@/lib/reprise-modele";
 import { etatConversation } from "@/lib/conversation-etat";
@@ -108,6 +109,7 @@ export async function GET(request: Request) {
     lexique_lecture: { ...lectureLexique(), mots_corriges: motsCorrigesCompte, ...(maitre ? { exemples: motsCorrigesExemples } : {}) },
     voix: voixConfig.fournisseur,
     ecoute: ecouteConfig.fournisseur,
+    transcription_contextuelle: resumeCorrectionContexte(),
     ecoute_configuration: {
       soynade_selectionnee: (process.env.STT_PROVIDER || "soynade") === "soynade",
       locale_selectionnee: process.env.STT_PROVIDER === "local_wolof",
