@@ -18,14 +18,17 @@ export function verifierContinuiteVoix(){return etat.essai??=(async()=>{
    const passes=[];
    for(let essai=0;essai<2;essai++){
     const debut=Date.now();const r=await fetch("https://app.khalam.app/api/chatterbox-test/bia",{method:"POST",headers:{"content-type":"application/json","x-chatterbox-test-key":process.env.CHATTERBOX_TEST_KEY||""},body:JSON.stringify({texte,voice:"female",langue:"wo",lecture_fidele:true,continu:true}),signal:AbortSignal.timeout(40000)});
-    const flux=ouvrirRepliques(r,()=>{});let total=1,fin=0,gap=0,first=0,hits=0;const arrivals=[];
+    const flux=ouvrirRepliques(r,()=>{});let total=1,fin=0,gap=0,first=0,hits=0;const arrivals:number[]=[],durations:number[]=[];
     for(let i=0;i<total;i++){
      const clip=await flux.morceau(i) as Awaited<ReturnType<typeof flux.morceau>>&{audio_en_cache?:boolean};
      const t=Date.now()-debut;arrivals.push(t);total=clip.parties;if(!i)first=t;
      if(i)gap=Math.max(gap,Math.max(0,t+60-fin));
-     fin=Math.max(fin,t+60)+1000*dureeParlee(clip.audio!);if(clip.audio_en_cache)hits++;
+     const duration=dureeParlee(clip.audio!);durations.push(duration);fin=Math.max(fin,t+60)+1000*duration;if(clip.audio_en_cache)hits++;
     }
-    passes.push({premier_morceau_ms:first,parties:total,arrivees_ms:arrivals,couture_estimee_max_ms:Math.round(gap),cache:hits});
+    const son=(total>1&&durations[0]<1.6?arrivals[1]:arrivals[0])+60;
+    fin=son+1000*durations[0];gap=0;
+    for(let i=1;i<total;i++){gap=Math.max(gap,Math.max(0,arrivals[i]+60-fin));fin=Math.max(fin,arrivals[i]+60)+1000*durations[i];}
+    passes.push({premier_morceau_ms:first,premier_son_estime_ms:son,parties:total,arrivees_ms:arrivals,couture_estimee_max_ms:Math.round(gap),cache:hits});
    }
    cases.push({type:cases.length?"wolof_francais":"wolof",passes});
   }

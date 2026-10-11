@@ -35,3 +35,9 @@ test('actual server streams faithful chunks using one plan; replay reuses audio 
  const first=await f.morceau(0);assert.equal(first.audio,'Dañu bëgg ma def');assert.equal(r.plans(),1);r.gate.resolve();assert.equal((await f.morceau(1)).audio,'lu ma bëggul.');
  const replay=ouvrirRepliques(await r.request(),()=>{});assert.equal((await replay.morceau(0)).audio_en_cache,true);assert.equal((await replay.morceau(1)).audio_en_cache,true);assert.equal(r.calls(),2);
 });
+
+test('validating a source correction invalidates even identical previously generated audio',async()=>{
+ const r=route();r.gate.resolve();const f=ouvrirRepliques(await r.request(),()=>{});await f.morceau(0);await f.morceau(1);assert.equal(r.calls(),2);
+ globalThis.biaGenerationDevoirs=(globalThis.biaGenerationDevoirs||0)+1;
+ const next=ouvrirRepliques(await r.request(),()=>{});assert.equal((await next.morceau(0)).audio_en_cache,false);await next.morceau(1);assert.equal(r.calls(),4);
+});

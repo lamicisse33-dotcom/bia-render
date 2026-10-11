@@ -4,7 +4,7 @@ import { APP_LECONS, dernieresLecons, appliquerRegles, reglesLeconsMixtes, type 
 let cache:{lecons:Lecon[];expires:number}|null=null;
 let lectureEnCours:Promise<Lecon[]>|null=null;
 let revision=0;
-function invaliderLecons(){revision++;cache=null;lectureEnCours=null;}
+function invaliderLecons(){const g=globalThis as typeof globalThis&{biaGenerationPrononciation?:number};g.biaGenerationPrononciation=(g.biaGenerationPrononciation||0)+1;revision++;cache=null;lectureEnCours=null;}
 export function lireLecons(force=false):Promise<Lecon[]> {
   if(!force&&cache&&cache.expires>Date.now())return Promise.resolve(cache.lecons);
   if(lectureEnCours)return lectureEnCours;

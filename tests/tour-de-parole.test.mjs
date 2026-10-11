@@ -107,3 +107,16 @@ test('one learned reply finishes the ordinary voice turn after faithful playback
  await makeSpeak(env)('Ndax am na problème ?',undefined,'réponse',false,{langue:'wo',premierSon(){}});
  assert.equal(stops,1);assert.equal(bodies[0].lecture_fidele,true);assert.equal(bodies[0].langue,'wo');
 });
+
+test('a short first clip primes its neighbour and schedules both without a gap',async()=>{
+ const {env}=environment(Promise.resolve());const sounds=[];let controller;const decoded=deferred();
+ env.fetch=async(url)=>url==='/tts'?new Response(new ReadableStream({start(c){controller=c;}})):{ok:true};
+ const ctx={state:'running',currentTime:0,decodeAudioData:async()=>{decoded.resolve();return {duration:.5};},createBufferSource:()=>({connect(){},start(t){sounds.push(t);}})};
+ env.reveillerLeSon=async()=>ctx;env.ralentir=(_ctx,a)=>a;env.vitesseAudioBia=()=>1;env.enveloppeDe=()=>({valeurs:[1],pic:1,pas:.01});
+ const pending=makeSpeak(env)('Bul jël suspicion.',undefined,'lecture_devoirs',false,{langue:'wo',conserverTour:true,premierSon(){}});
+ await new Promise(r=>setTimeout(r,0));const enc=new TextEncoder();
+ const emit=x=>controller.enqueue(enc.encode(JSON.stringify(x)+'\n'));
+ emit({type:'morceau',audio:'AA==',parties:2,partie:0,empreinte:'same'});await decoded.promise;await Promise.resolve();assert.equal(sounds.length,0);
+ emit({type:'morceau',audio:'AA==',parties:2,partie:1,empreinte:'same'});emit({type:'fin'});controller.close();await pending;
+ assert.equal(sounds.length,2);assert(Math.abs(sounds[1]-sounds[0]-.5)<.00001);
+});

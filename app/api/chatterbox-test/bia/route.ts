@@ -75,8 +75,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ...common, audio: null, error: "Le moteur Chatterbox de test n’est pas configuré." }, { status: 503, headers });
   }
   const started = Date.now();
+  const revisions=globalThis as typeof globalThis&{biaGenerationDevoirs?:number;biaGenerationPrononciation?:number};
   const id = createHash("sha256")
-    .update(JSON.stringify([process.env.CHATTERBOX_TEST_URL, serverKey, voice, common.langue, "mixed-language-profiles-v3", parts[partie].texte]))
+    .update(JSON.stringify([process.env.CHATTERBOX_TEST_URL, serverKey, voice, common.langue, "mixed-language-profiles-v3",revisions.biaGenerationDevoirs||0,revisions.biaGenerationPrononciation||0, parts[partie].texte]))
     .digest("hex");
   const cached = (body.lecture_fidele===true?repliquesEnCache.get(id):undefined)||accuses.get(id, parts[partie].texte);
   let pending = cached ? Promise.resolve(cached) : inFlight.get(id);

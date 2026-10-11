@@ -2947,6 +2947,14 @@ export default function Home() {
         // Internal audio packet boundaries can fall inside a syllable.
         // Keep every sample; silence trimming applies only to whole clips.
         const mémoire = ralentir(ctx, continu ? brut : sansSilence(ctx, brut), vitesseAudioBia(octets));
+        // A very short first clip (often a French/Wolof boundary) cannot
+        // cover synthesis of its neighbour. Prime one clip, preserving all
+        // samples and normal speaking speed instead of leaving a mid-word gap.
+        if(continu&&quand===0&&total>1&&mémoire.duration<1.6){
+          const suivant=await enVol.get(1);
+          if(!suivant?.audio)throw new Error("La voix n’a pas pu préparer la suite.");
+          if(perdu()||!await peutParler()||perdu())return;
+        }
         const { valeurs, pic, pas } = enveloppeDe(mémoire);
         const source = ctx.createBufferSource();
         source.buffer = mémoire;
