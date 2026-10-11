@@ -86,11 +86,34 @@ function callback(name){
  const js=ts.transpileModule('const fn='+source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
  return new Function('env',`with(env){${js};return fn;}`);
 }
-test('actual question handler opens saved memory even during a busy stalled turn, before chat',async()=>{
- const events=[];
- const fn=callback('askBia')({demandeLectureMemoire,fermerConversation:()=>events.push('close'),taire:()=>events.push('stop'),setSaisie(){},setClavier(){},setLectureContinue:d=>events.push(d),busyRef:{current:true}});
- await fn('Lis à haute voix tous les devoirs que tu as en mémoire',true);
- assert.deepEqual(events.slice(0,2),['close','stop']);assert.equal(events[2].source,'memoire');assert.equal(events[2].texte,'');
+const {lireDevoirsConversation}=load('lib/lecture-devoirs-conversation.ts',{'./lecture-continue':{segmentsLecture}});
+function normalReader({gate=null,fail=false}={}){
+ const panels=[],calls=[],spoken=[],history=[],states=[];let turn=0;
+ const env={demandeLectureMemoire,lireDevoirsConversation,
+   taire:()=>turn++,setLectureContinue:p=>panels.push(p),setSaisie(){},setClavier(){},setPanne(){},
+   numeroDuTourRef:{get current(){return turn;}},estLeTour:n=>n===turn,fluxVoixRef:{current:new Set()},
+   busyRef:{current:true},questionEnVolRef:{current:'old question'},setMode:m=>states.push(m),setFace(){},setHistory:f=>{const next=f(history);history.splice(0,history.length,...next);},codeRef:{current:'fixture'},stopMouth:()=>states.push('ready'),
+   fetch:async(url,options)=>{calls.push({url,options});if(url==='/api/apprentissage/devoir'){if(gate)await gate;return {ok:true,json:async()=>({devoirs:[{texte:'Bonjour. Bonne lecture.',langue:'fr'},{texte:'Ñu ngi fi.',langue:'wo'}],incomplets:0})};}return {ok:true};},
+   speak:async(text,emotion,where,suite,options)=>{if(fail)throw Error('Voix indisponible');spoken.push({text,where,langue:options.langue});options.premierSon();},
+ };
+ return {env,panels,calls,spoken,history,states,stop:()=>turn++,run:()=>callback('askBia')(env)('Lis à haute voix tous les devoirs que tu as en mémoire',true)};
+}
+test('actual question handler reads with BIA ordinary voice, no learning window or model call',async()=>{
+ const r=normalReader();await r.run();
+ assert.deepEqual(r.panels,[null]);assert.deepEqual(r.spoken.map(x=>[x.text,x.langue]),[['Bonjour. ','fr'],['Bonne lecture.','fr'],['Ñu ngi fi.','wo']]);assert(r.spoken.every(x=>x.where==='lecture_devoirs'));
+ assert(r.calls.every(c=>c.url==='/api/apprentissage/devoir'||c.url==='/api/mesure'));assert.equal(r.calls.filter(c=>c.options.body&&JSON.parse(c.options.body).etape==='premier_son').length,1);
+ assert.equal(r.env.busyRef.current,false);assert.equal(r.states.at(-1),'ready');
+});
+test('stopping during memory loading cannot start a late normal reading',async()=>{
+ let release;const gate=new Promise(r=>release=r);const r=normalReader({gate});const pending=r.run();r.stop();release();await pending;assert.equal(r.spoken.length,0);
+});
+test('normal reading failure stops without claiming completion or opening learning',async()=>{
+ const r=normalReader({fail:true});await r.run();assert.equal(r.spoken.length,0);assert.deepEqual(r.panels,[null]);assert(!r.calls.some(c=>c.options.body&&JSON.parse(c.options.body).etape==='fin'));assert(r.history.some(x=>x.text==='Voix indisponible'));
+});
+test('ordinary voice sequence stops on error or interruption without skipping or continuing later',async()=>{
+ const devoirs=[{texte:'Premier. Deuxième.',langue:'fr'},{texte:'Ñu ngi fi.',langue:'wo'}];const spoken=[];
+ await assert.rejects(lireDevoirsConversation({charger:async()=>({devoirs,incomplets:0}),actuel:()=>true,annoncer(){},parler:async t=>{spoken.push(t);throw Error('failed');}}),/failed/);assert.deepEqual(spoken,['Premier. ']);
+ let active=true;const next=[];assert.equal(await lireDevoirsConversation({charger:async()=>({devoirs,incomplets:0}),actuel:()=>active,annoncer(){},parler:async t=>{next.push(t);active=false;}}),false);assert.deepEqual(next,['Premier. ']);
 });
 test('actual thinking gate releases the prepared reply and buffers a late question without another model call',async()=>{
  const {recoller}=load('lib/sa-propre-voix.ts',{'./normaliser':load('lib/normaliser.ts')});let opened=0;

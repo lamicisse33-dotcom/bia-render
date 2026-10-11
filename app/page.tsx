@@ -3,6 +3,7 @@ import {piperLocaleDisponible} from "@/lib/voix-piper-locale";
 
 import { detecterLangue } from "@/lib/langue";
 import LectureApprentissage from "./LectureApprentissage";
+import {lireDevoirsConversation} from "@/lib/lecture-devoirs-conversation";
 import {demandeLecture,demandeLectureMemoire} from "@/lib/intention-lecture";
 import { ouvrirFluxVoix, type MorceauVoix } from "@/lib/flux-khalam";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -2637,7 +2638,7 @@ export default function Home() {
     setFace("yeux_ouverts");
   }, [finirAttente, couperSon, jouerSouffle, jouerEtAnimer, octetsDuRepertoire]);
 
-  const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse", suite = false) => {
+  const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse", suite = false, lecture?: {langue:"fr"|"wo";premierSon:()=>void}) => {
     /* La carte est ouverte : seul le guidage a le droit de parler. Voir la
        règle écrite près de `carteOuverteRef`. Ce qui arrive ici en retard —
        la fin d'une réponse, une phrase d'attente — meurt sans bruit. */
@@ -2697,7 +2698,7 @@ export default function Home() {
 
        On décide ici, une fois, sur la réponse ENTIÈRE — un fragment de
        quatre mots ne se juge pas, une réponse complète oui. */
-    const langueDite = estWolof(answer) ? "wo" : "fr";
+    const langueDite = lecture?.langue ?? (estWolof(answer) ? "wo" : "fr");
     const locale = voixLocaleBiaDisponible(personaRef.current);
     if (choixVoixBia() === "piper" && !locale) {
       setPanne("Piper est installé dans l’application du téléphone. Ouvre cette application pour l’utiliser, ou choisis Khalam Voice dans Moi.");
@@ -2738,6 +2739,7 @@ export default function Home() {
 
     const routeVoix = routeVoixBia();
     const voixChoisie = voixChatterboxBia();
+    let empreinteLecture: string | undefined;
     const demander = async (partie: number) => {
       let dernier = "voix indisponible";
       for (let essai = 0; essai < 3; essai++) {
@@ -2775,9 +2777,18 @@ export default function Home() {
               method: "POST", signal: abort.signal,
               headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
               body: JSON.stringify({ texte: answer, partie, ou, langue: langueDite, voice: voixChoisie,
-                tete: !suite && partie === 0, audioPrompt: voixAudioPrompt() }),
+                tete: !suite && partie === 0, audioPrompt: voixAudioPrompt(),
+                ...(lecture ? {lecture_fidele:true,empreinte:empreinteLecture} : {}) }),
             });
-            if (r.ok) return await r.json() as { parties: number; audio: string | null; type_mime?: string; fabrication_ms?: number; speed?: number };
+            if (r.ok) {
+              const d = await r.json() as MorceauVoix;
+              if (lecture && essaiChatterboxActif()) {
+                if(d.partie!==partie || typeof d.empreinte!=="string" || (empreinteLecture && d.empreinte!==empreinteLecture))
+                  throw new Error("La préparation du devoir a changé. Relance la lecture.");
+                if(partie===0)empreinteLecture=d.empreinte;
+              }
+              return d;
+            }
           } finally { clearTimeout(timeout); fluxVoixRef.current.delete(abort); }
           dernier = r.status === 429 ? "moteur vocal occupé" : `voix indisponible (HTTP ${r.status})`;
           if (![429, 502, 503, 504].includes(r.status)) break;
@@ -2823,6 +2834,7 @@ export default function Home() {
       await prendreLaParole();
       if (!await peutParler()) return;
       if (!bloc.audio) {
+        if (lecture) throw new Error("La voix n’a produit aucun son pour ce passage.");
         if (essaiChatterboxActif()) {
           setPanne("KHALAM Voice n’a produit aucun son. Réessaie l’essai vocal.");
           stopMouth(answer); return;
@@ -2938,6 +2950,7 @@ export default function Home() {
         if (!premiereSyllabeFaite) {
           premiereSyllabeFaite = true;
           noterRouteVoixBia("lecture", locale);
+          lecture?.premierSon();
           if (ou === "réponse") {
             envoyerLeTour(Date.now() + Math.round((debut - ctx.currentTime) * 1000));
           }
@@ -3048,9 +3061,11 @@ export default function Home() {
           duree_ms: Date.now() - debutTotal,
         }),
       }).catch(() => {});
-      stopMouth(answer);
+      if (!lecture) stopMouth(answer);
     } catch (e) {
       if (!actuel()) return;
+      // The reader must stop at the failed passage, never skip the rest silently.
+      if (lecture) throw e;
       /* ── LE REPLI NE DOIT PLUS ÊTRE UN MYSTÈRE ──────────────────────────
 
          Lamine, le 12 septembre 2026, capture à l'appui : « elle écrit la
@@ -3090,8 +3105,39 @@ export default function Home() {
        attendu juste avant qu'elle ouvre la bouche. Voir plus bas. */
     const clean = question.trim();
     if (demandeLectureMemoire(clean)) {
-      fermerConversation(); taire(); setSaisie(""); setClavier(false);
-      setLectureContinue({texte:"",nonce:Date.now(),auto:true,source:"memoire"}); return;
+      // This is ordinary conversation: keep BIA's face and the interruption microphone.
+      taire(); setLectureContinue(null); setSaisie(""); setClavier(false); setPanne("");
+      const monTour = numeroDuTourRef.current;
+      const actuel = () => estLeTour(monTour);
+      const abort = new AbortController(); fluxVoixRef.current.add(abort);
+      const debut = performance.now(); let premierSon = false;
+      const mesurer = (etape:"premier_son"|"fin"|"erreur") => {void fetch("/api/mesure", {
+        method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({type:"lecture_devoirs",interface:"conversation",etape,ms:performance.now()-debut}),keepalive:true,
+      }).catch(()=>{});};
+      busyRef.current=true; questionEnVolRef.current=""; setMode("thinking");setFace("pensive");
+      setHistory(items=>[...items,{role:"user",text:clean}]);
+      try {
+        const termine = await lireDevoirsConversation({
+          actuel,
+          charger:async()=>{
+            const r=await fetch("/api/apprentissage/devoir",{headers:{"x-bia-code":codeRef.current},cache:"no-store",signal:AbortSignal.any([abort.signal,AbortSignal.timeout(10000)])});
+            const d=await r.json();if(!r.ok||!Array.isArray(d.devoirs))throw Error(d.error||"Impossible de charger les devoirs.");return d;
+          },
+          annoncer:(nombre,incomplets)=>setHistory(items=>[...items,{role:"bia",text:`Je lis les ${nombre} devoirs enregistrés.${incomplets?` ${incomplets} sauvegarde(s) incomplète(s) ne peuvent pas être lues.`:""}`}]),
+          parler:(texte,langue)=>speak(texte,undefined,"lecture_devoirs",false,{langue,premierSon:()=>{
+            if(!premierSon){premierSon=true;mesurer("premier_son");}
+          }}),
+        });
+        if(termine&&actuel())mesurer("fin");
+      } catch(e) {
+        if(actuel()) {mesurer("erreur");const message=e instanceof Error?e.message:"Lecture des devoirs interrompue.";
+          setPanne(message);setHistory(items=>[...items,{role:"bia",text:message}]);setClavier(true);}
+      } finally {
+        fluxVoixRef.current.delete(abort);
+        if(actuel()){busyRef.current=false;questionEnVolRef.current="";stopMouth();}
+      }
+      return;
     }
     const lectureDemandee=demandeLecture(question);
     if (lectureDemandee) {
@@ -3615,7 +3661,7 @@ export default function Home() {
         questionEnVolRef.current = "";
       }
     }
-  }, [speak, attendreEnParlant, finirAttente, ouvrirUnTour, estLeTour, lectureContinue]);
+  }, [speak, attendreEnParlant, finirAttente, ouvrirUnTour, estLeTour, lectureContinue, stopMouth]);
 
   /* LE TEXTE FRANÇAIS QU'ON COLLE, DIT EN WOLOF.
 
