@@ -1,5 +1,23 @@
 export const MAX_SEGMENT = 500;
 
+/** The trained Wolof voice can omit the middle of even a seven-word sentence.
+ * Short, balanced groups retained the words in live comparison recordings.
+ * This preserves text; it is not an acoustic guarantee for unseen sentences. */
+export function segmentsLectureWolof(texte:string):string[] {
+  const out:string[]=[];
+  for(const sentence of segmentsLecture(texte,140).flatMap(s=>s.split(/(?<=[:;])(?=\s)/u))){
+    const words=sentence.match(/\s*\S+\s*/gu)||[];
+    if(!words.length)continue;
+    const groups=Math.ceil(words.length/4);
+    let at=0;
+    for(let group=0;group<groups;group++){
+      const count=Math.ceil((words.length-at)/(groups-group));
+      out.push(words.slice(at,at+count).join(""));at+=count;
+    }
+  }
+  return out;
+}
+
 /** Preserve every character. A long sentence is split at punctuation first,
  * then a conjunction/word boundary only when the engine limit requires it. */
 export function segmentsLecture(texte: string, max = MAX_SEGMENT): string[] {

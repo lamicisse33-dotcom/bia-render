@@ -6,6 +6,7 @@ import {ambiguitiesWolof} from "@/lib/langue";
 import type {Lecon} from "@/lib/lexique-apprentissage-core";
 import {lirePiperLocale,piperLocaleDisponible} from "@/lib/voix-piper-locale";
 import {ouvrirFluxVoix,type MorceauVoix} from "@/lib/flux-khalam";
+import {morceauxLecture} from "@/lib/lecture-morceaux";
 
 export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false,obtenirAudio}:{obtenirAudio:()=>AudioContext;edition?:boolean;code:string;voice:"piper"|"female"|"male";
  demande:{texte:string;nonce:number;auto:boolean};onStart:()=>void;onClose:()=>void}){
@@ -55,7 +56,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
     return lirePiperLocale(preparation.texte,partie,signal);
    }
    if(secoursComplet){
-    const r=await fetch("/api/chatterbox-test/bia",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:settings.current.langue,voice:settings.current.voice,partie,empreinte})});
+    const r=await fetch("/api/chatterbox-test/bia",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:settings.current.langue,voice:settings.current.voice,partie,empreinte,lecture_fidele:true})});
     const d=await r.json();if(!r.ok||!d.audio)throw Error(d.error||"Voix indisponible");
     if(d.partie!==partie||(empreinte!==undefined&&d.empreinte!==empreinte))throw Error("Le passage reçu ne correspond pas à la lecture. Réessaie ce passage.");
     return d as MorceauVoix;
@@ -69,16 +70,8 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    }catch(error){cleanup();if(!signal.aborted)secoursComplet=true;throw error;}
   };
   async function* packets(value:{text:string;first:MorceauVoix},signal:AbortSignal){
-   let piece=value.first;
-   const total=piece.parties;
-   if(!Number.isSafeInteger(total)||total<1)throw Error("Découpage vocal invalide");
-   for(let part=0;part<total;part++){
-    if(part)piece=await demander(value.text,part,signal,value.first.empreinte);
-    if(piece.parties!==total)throw Error("Le découpage a changé pendant la lecture. Réessaie ce passage.");
-    try{if(!piece.audio)throw Error("Morceau vocal absent");yield piece.audio;
-     if(piece.flux)for await(const packet of piece.flux)yield packet;
-    }catch(error){if(!signal.aborted)secoursComplet=true;throw error;}finally{piece.annuler?.();}
-   }
+   try{yield* morceauxLecture(value.first,(part,empreinte)=>demander(value.text,part,signal,empreinte),signal,settings.current.voice!=="piper");}
+   catch(error){if(!signal.aborted)secoursComplet=true;throw error;}
   }
   const jouer=async(value:unknown,signal:AbortSignal)=>{
    for await(const base64 of packets(value as {text:string;first:MorceauVoix},signal)){

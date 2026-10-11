@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   }
   const defaut = body.langue === "fr" || body.langue === "wo" ? body.langue : detecterLangue(body.texte);
   let parts: Awaited<ReturnType<typeof preparerPassagesKhalam>>;
-  try { parts = await preparerPassagesKhalam(body.texte, defaut); }
+  try { parts = await preparerPassagesKhalam(body.texte, defaut, false, body.lecture_fidele === true); }
   catch { return NextResponse.json({error:"Le lexique n'a pas répondu. Réessaie."},{status:503}); }
   // A count alone cannot detect a replacement/reordering of equal-sized plans.
   // Bind subsequent chunks to the exact text, languages and voice of part zero.
