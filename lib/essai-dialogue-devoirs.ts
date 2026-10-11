@@ -1,6 +1,6 @@
 import {devoirsALire} from "./devoirs-apprentissage";
 import {dialoguerAvecDevoirs,indexDialogue,publierDiagnosticDialogue} from "./dialogue-devoirs";
-import {chercherDialogues,type TourDialogue} from "./dialogue-devoirs-core";
+import {chercherDialogues,paroleDeLaPersonne,type TourDialogue} from "./dialogue-devoirs-core";
 // Owner-approved fixed evaluation. Only the existing authenticated learning
 // verification route can request the private report. No chats or lessons written.
 let essai:Promise<unknown>|undefined;
@@ -37,6 +37,7 @@ export function verifierDialoguesAppris(){
   const bilan={quand:new Date().toISOString(),scenarios:resultats.length,tours:tours.length,
    repliques_exactes:tours.filter(t=>t.exacte).length,une_question_max:tours.every(t=>t.une_question_max),
    repetitions:tours.filter(t=>t.deja_dite).length,reprises_personne:tours.filter(t=>t.reprise_personne).length,
+   role_personne:tours.filter(t=>t.fr&&paroleDeLaPersonne(t.fr)).length,
    repliques_wolof:tours.filter(t=>t.langue==="wo").length,refus_respecte:refus===null,
    commerce_retrouve:/business|commerce|vente/i.test(resultats.find(r=>r.scenario==="commerce")?.tours[0]?.titre||""),
    question_deja_repondue:resultats.some(r=>r.tours.some(t=>r.scenario==="couple"&&/l.as appelée/.test(t.fr||"")||r.scenario==="mariage"&&/Sur quoi.*pression/.test(t.fr||""))),

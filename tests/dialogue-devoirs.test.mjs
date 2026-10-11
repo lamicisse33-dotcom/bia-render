@@ -158,3 +158,15 @@ test('facts stated by the speaker exclude redundant or inapplicable learned ques
  assert(core.questionDejaResolue('Quel est ton niveau d’études actuellement ?',core.faitsExplicites('Je suis en terminale.',[])));
  assert(core.questionDejaResolue('Quelles matières préfères-tu ?',core.faitsExplicites('J’aime l’informatique et l’anglais.',[])));
 });
+
+test('implicit first-person lesson questions belong to the person, with explicit assistant offers preserved',()=>{
+ for(const fr of ['Qu’est-ce que je peux écrire ?','Quels domaines puis-je regarder ?','Et si mes parents refusent ?','Je suis en terminale.','Ils veulent que je fasse quelque chose que je ne veux pas.']){
+  assert(core.paroleDeLaPersonne(fr),fr);
+  const d=core.analyserDevoir(saved('Wolof : Texte test.\nFrançais : '+fr));const packet=core.paquetSelection([{d,actif:true,score:5,accords:1}],[],'wo');
+  assert.equal(core.resoudreSelection({statut:'selection',id:'0:0'},packet,'wo').statut,'clarifier');
+ }
+ for(const fr of ['Comment puis-je t’aider ?','Je comprends.','Tu peux écrire : « Comment vas-tu ? Je veux savoir si tout va bien.','Est-ce que tu leur as parlé ?'])assert.equal(core.paroleDeLaPersonne(fr),false,fr);
+ const d=core.analyserDevoir(saved('Wolof : BIA : Ndax ?\nFrançais : BIA : Puis-je te poser une question ?'));
+ assert.equal(core.paquetSelection([{d,actif:true,score:5,accords:1}],[],'fr')[0].repliques[0].selectionnable,true);
+ assert(core.questionDejaResolue('Quel genre de business veux-tu faire ?',core.faitsExplicites('Je suis un petit commerçant.',[])));
+});

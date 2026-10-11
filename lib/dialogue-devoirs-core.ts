@@ -78,6 +78,15 @@ export function chercherDialogues(index:DialogueAppris[],question:string,history
   return {d,actif,score,accords};
  }).filter(x=>x.actif||x.accords>=2||x.accords>=1&&x.score>=3.5).sort((a,b)=>b.score-a.score).slice(0,3);
 }
+/** Implicit lesson speakers must not turn the person's first-person question
+ * into BIA's own question. Explicit BIA labels remain authoritative. */
+export function paroleDeLaPersonne(fr:string){
+ const t=normaliserDialogue(fr);
+ if(/^(?:tu peux|vous pouvez) (?:dire|ecrire|repondre)\b|^je (?:comprends|t ecoute|vous ecoute|suis la pour|te propose|vous propose)\b/.test(t))return false;
+ if(/\b(?:t|vous) (?:aider|proposer|expliquer|montrer|conseiller|accompagner)\b/.test(t))return false;
+ if(fr.includes("?")&&/\b(?:je|mon|ma|mes|j ai|j aimerais)\b/.test(t))return true;
+ return /^(?:(?:oui|non|mais|donc) )*(?:je |j ai |j aimerais |j espere |j attends |ma famille |mes parents |ma copine |mon copain |mon commerce |ils veulent que je |elles veulent que je )/.test(t);
+}
 /** Conservative facts explicitly stated by the speaker. These guards cover
  * observed failures; they do not claim general semantic understanding. */
 export function faitsExplicites(question:string,history:TourDialogue[]){
@@ -94,7 +103,7 @@ export function faitsExplicites(question:string,history:TourDialogue[]){
 export function questionDejaResolue(fr:string,faits:ReturnType<typeof faitsExplicites>){
  const t=normaliserDialogue(fr);
  return faits.appel&&/\b(?:tu l as|vous l avez|as tu|avez vous) (?:deja )?(?:appelee?|telephone)\b/.test(t)
-  || faits.commerce&&/\b(?:pour commencer|veux tu commencer|veux commencer|voulez commencer|pour demarrer)\b/.test(t)
+  || faits.commerce&&/\b(?:pour commencer|veux tu commencer|veux commencer|voulez commencer|pour demarrer|(?:genre|type) de business veux tu faire)\b/.test(t)
   || faits.pression&&/\b(?:sur quoi|pour quoi|quel sujet)\b.*\bpression\b/.test(t)
   || faits.matieres&&/\b(?:quelles|quelle|quels) matieres\b.*\bprefer/.test(t)
   || faits.niveau&&/\b(?:quel|ton|votre) niveau d etudes\b/.test(t);
@@ -120,7 +129,7 @@ export function paquetSelection(candidats:ReturnType<typeof chercherDialogues>,h
   }).sort((a,b)=>a.j-b.j);
   return {id:String(i),titre:c.d.titre,actif:c.actif,repliques:retenues.map(({p})=>({
    id:i+":"+p.id,wo:p.wo,fr:p.fr,role:p.role,deja_dite:deja.has(normaliserDialogue(p.wo))||deja.has(normaliserDialogue(p.fr)),
-   selectionnable:p.role!=="personne"&&!questionDejaResolue(p.fr,faits)&&!ditsPersonne.has(normaliserDialogue(p.wo))&&!ditsPersonne.has(normaliserDialogue(p.fr))&&(p[langue].match(/\?/g)||[]).length<=1,
+   selectionnable:p.role!=="personne"&&!(p.role==="inconnu"&&paroleDeLaPersonne(p.fr))&&!questionDejaResolue(p.fr,faits)&&!ditsPersonne.has(normaliserDialogue(p.wo))&&!ditsPersonne.has(normaliserDialogue(p.fr))&&(p[langue].match(/\?/g)||[]).length<=1,
   }))};
  });
 }
