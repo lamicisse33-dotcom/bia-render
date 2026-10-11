@@ -1,3 +1,5 @@
+import {phrasesApprisesDevoirs} from "./devoirs-apprentissage";
+import {propositionsLexique} from "./comparaison-lexique-core";
 import {ajouterCorrection,lexiqueConfig} from "./lexique";
 import {APP_LECONS} from "./lexique-apprentissage-core";
 import {lireLecons} from "./lexique-apprentissage";
@@ -30,16 +32,20 @@ export function appliquerCorrectionsTranscription(texte:string,regles:Regle[]){
  const corrige=motifs.length?texte.normalize("NFC").replace(new RegExp(`(?<![\\p{L}\\p{M}\\p{N}])(?:${motifs.join("|")})(?![\\p{L}\\p{M}\\p{N}])`,"giu"),m=>{const c=map.get(normaliser(m))!;if(m!==c)corrections.push({entendu:m,corrige:c});return c;}):texte;
  return {texte:corrige,texte_brut:texte,corrections_transcription:corrections};
 }
-export function suggestionsEcriture(texte:string,candidats:string[]){
- const source=normaliser(texte).replace(/[.,!?;:]/g,"");if(source.length<6||source.length>400)return [];
- const uniques=[...new Set(candidats)].filter(c=>normaliser(c).replace(/[.,!?;:]/g,"")!==source);
- function distance(a:string,b:string){let prev=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){const row=[i];for(let j=1;j<=b.length;j++)row[j]=Math.min(row[j-1]+1,prev[j]+1,prev[j-1]+Number(a[i-1]!==b[j-1]));prev=row;}return prev[b.length];}
- if(candidats.some(c=>normaliser(c).replace(/[.,!?;:]/g,"")===source))return [];
- return uniques.filter(c=>{const target=normaliser(c).replace(/[.,!?;:]/g,"");return Math.abs(target.length-source.length)<=2&&distance(source,target)<=Math.min(2,Math.floor(source.length*.12));}).slice(0,3);
-}
+export const suggestionsEcriture=propositionsLexique;
 export async function corrigerTranscription(texte:string){
  const regles=await lireCorrectionsTranscription();const resultat=appliquerCorrectionsTranscription(texte,regles);
- let lecons:string[]=[];try{lecons=(await lireLecons()).filter(l=>l.statut==="validé").map(l=>l.texte);}catch{}
+ const lecons=await phrasesLexiqueComplet();
  return {...resultat,suggestions_ecriture:suggestionsEcriture(resultat.texte,[...regles.map(r=>r.corrige),...lecons])};
 }
-export async function vocabulaireAppris(){return (await lireLecons()).filter(l=>l.statut==="validé").map(l=>l.texte).slice(0,100);}
+export async function phrasesLexiqueComplet(){
+ const resultats=await Promise.allSettled([lireLecons(),phrasesApprisesDevoirs()]);
+ const individuelles=resultats[0].status==="fulfilled"?resultats[0].value.filter(l=>l.statut==="validé").map(l=>l.texte):[];
+ const devoirs=resultats[1].status==="fulfilled"?resultats[1].value:[];
+ if(resultats.every(r=>r.status==="rejected"))throw Error("Lexique indisponible");
+ return [...new Set([...individuelles,...devoirs])];
+}
+export async function vocabulaireAppris(){
+ const phrases=await phrasesLexiqueComplet();
+ return [...new Set(phrases.flatMap(p=>[p,...p.match(/[\p{L}\p{M}'’-]{3,}/gu)||[]]))];
+}
