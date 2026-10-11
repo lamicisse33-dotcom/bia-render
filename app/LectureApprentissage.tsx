@@ -72,7 +72,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    if(!Number.isSafeInteger(total)||total<1)throw Error("Découpage vocal invalide");
    for(let part=0;part<total;part++){
     if(part)piece=await demander(value.text,part,signal);
-    if(piece.parties!==total||piece.partie!==part)throw Error("Le découpage a changé pendant la lecture. Réessaie ce passage.");
+    if(piece.parties!==total)throw Error("Le découpage a changé pendant la lecture. Réessaie ce passage.");
     try{if(!piece.audio)throw Error("Morceau vocal absent");yield piece.audio;
      if(piece.flux)for await(const packet of piece.flux)yield packet;
     }catch(error){if(!signal.aborted)secoursComplet=true;throw error;}finally{piece.annuler?.();}
