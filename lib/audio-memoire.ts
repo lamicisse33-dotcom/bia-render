@@ -92,3 +92,9 @@ export async function servirAudioMemoire(id:string){
 }
 
 export function noterLectureAudioMemoire(x:{ms?:unknown}){if(typeof x.ms!=='number'||!Number.isFinite(x.ms)||x.ms<0||x.ms>30000)return;etat.bilan.lectures_navigateur=(etat.bilan.lectures_navigateur||0)+1;etat.bilan.dernier_demarrage_ms=Math.round(x.ms);}
+
+/** Only returned by the authenticated operator diagnostic, never public state. */
+export async function diagnosticFormatsAudioMemoire(){
+ await catalogueAudioMemoire();const ids=etat.catalogue?.aVerifier||[];const {devoirs}=await devoirsALire();
+ return {passages:ids,devoirs:devoirs.filter(d=>ids.some(x=>x.startsWith('devoir:'+d.id+':'))).map(d=>({id:d.id,langue:d.langue,texte:d.texte.slice(0,12000)}))};
+}

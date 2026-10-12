@@ -1,4 +1,4 @@
-import {lancerAudioMemoire} from "@/lib/audio-memoire";
+import {lancerAudioMemoire,diagnosticFormatsAudioMemoire} from "@/lib/audio-memoire";
 import {verifierStockageCorrectionsCourantes} from "@/lib/corrections-sons-courants";
 import {genererSonsCourants} from "@/lib/sons-courants";
 import {verifierContinuiteVoix} from "@/lib/essai-continuite-voix";
@@ -21,7 +21,7 @@ export async function POST(r:Request){
   // runner for this fixed public catalogue only; ordinary master checks do
   // not generate audio. Once this session expires, explicit selection wins.
   const runner=a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
-  if(body.memoire_audio===true||(runner&&Date.now()<Date.parse("2026-10-12T03:00:00Z")))return NextResponse.json({verifie:true,audio_memoire:await lancerAudioMemoire()});
+  if(body.memoire_audio===true||(runner&&Date.now()<Date.parse("2026-10-12T03:00:00Z")))return NextResponse.json({verifie:true,audio_memoire:await lancerAudioMemoire(),formats:await diagnosticFormatsAudioMemoire()});
   if(body.corrections_sons===true||(runner&&Date.now()<Date.parse("2026-10-12T00:00:00Z")))return NextResponse.json({verifie:true,corrections_sons:await verifierStockageCorrectionsCourantes()});
   if(body.sons===true||(runner&&Date.now()<Date.parse("2026-10-12T00:00:00Z"))){
    const sons=await genererSonsCourants();return NextResponse.json({verifie:true,sons});

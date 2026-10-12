@@ -2716,19 +2716,6 @@ export default function Home() {
        On décide ici, une fois, sur la réponse ENTIÈRE — un fragment de
        quatre mots ne se juge pas, une réponse complète oui. */
     const langueDite = lecture?.langue ?? (estWolof(answer) ? "wo" : "fr");
-    // An exact validated utterance can use its private prerecorded audio.
-    // Lessons retain their language, turn cancellation, and continuous-reading gates.
-    if(!enLecon&&!suite&&essaiChatterboxActif()&&voixChatterboxBia()==="female"&&personaRef.current!=="rara"){
-      const octets=await lireAudioMemoire(answer,langueDite);
-      if(!actuel())return;
-      if(octets){
-        await prendreLaParole();if(!await peutParler())return;
-        const debut=performance.now();poserBorne(bornesRef.current,"enMain");
-        const duree=await jouerEtAnimer(octets,true,{actuel,commence:()=>{lecture?.premierSon();void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"audio_memoire",ms:performance.now()-debut})}).catch(()=>{});}});
-        if(!actuel())return;
-        if(duree>0){if(!lecture?.conserverTour)stopMouth(answer);return;}
-      }
-    }
     // Current female Khalam recordings only. Lessons keep their fresh source
     // pronunciation; an absent/unwarmed clip never delays ordinary synthesis.
     if(!enLecon&&!lecture&&!suite&&essaiChatterboxActif()&&voixChatterboxBia()==="female"&&personaRef.current!=="rara"){
@@ -2740,6 +2727,19 @@ export default function Home() {
         const duree=await jouerEtAnimer(octets,true,{actuel,commence:()=>{void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"sons_courants",usage:"reponse",ms:performance.now()-debut})}).catch(()=>{});}});
         if(!actuel())return;
         if(duree>0){stopMouth(answer);return;}
+      }
+    }
+    // An exact validated utterance can use its private prerecorded audio.
+    // Lessons retain their language, turn cancellation, and continuous-reading gates.
+    if(!enLecon&&!suite&&!sonPourTexte(sonsCourantsRef.current,answer,langueDite)&&essaiChatterboxActif()&&voixChatterboxBia()==="female"&&personaRef.current!=="rara"){
+      const octets=await lireAudioMemoire(answer,langueDite);
+      if(!actuel())return;
+      if(octets){
+        await prendreLaParole();if(!await peutParler())return;
+        const debut=performance.now();poserBorne(bornesRef.current,"enMain");
+        const duree=await jouerEtAnimer(octets,true,{actuel,commence:()=>{lecture?.premierSon();void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"audio_memoire",ms:performance.now()-debut})}).catch(()=>{});}});
+        if(!actuel())return;
+        if(duree>0){if(!lecture?.conserverTour)stopMouth(answer);return;}
       }
     }
     const locale = voixLocaleBiaDisponible(personaRef.current);
