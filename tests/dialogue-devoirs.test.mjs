@@ -76,10 +76,10 @@ test('yes and no can select different learned branches; off-topic returns to ord
  assert.equal(yes.reply,'Que lui as-tu dit ?');assert.equal(no.reply,'Laisse-lui un peu de temps.');
  assert.equal(await api.dialoguerAvecDevoirs('Parlons du Japon.',history,{index,choisir:async()=>({statut:'hors_sujet'})}),null);
 });
-test('invalid or repeated selection releases normal conversation; provider failures remain explicit',async()=>{
+test('invalid or repeated selection releases normal conversation; provider failures release chat and remain visible in counters',async()=>{
  const api=service();const history=[{role:'bia',text:'Vous vous êtes disputés ?'}];
  const r=await api.dialoguerAvecDevoirs('Non.',history,{index,choisir:async()=>({statut:'selection',id:'0:1'})});assert.equal(r,null);
- const err=await api.dialoguerAvecDevoirs('Non.',history,{index,choisir:async()=>{throw Error('timeout');}});assert.equal(err.dialogue_memorise,false);assert.match(err.reply,/Réessaie/);
+ const err=await api.dialoguerAvecDevoirs('Non.',history,{index,choisir:async()=>{throw Error('timeout');}});assert.equal(err,null);assert.equal(api.resumeDialogueDevoirs().erreurs,1);assert.equal(api.resumeDialogueDevoirs().relais_erreur,1);assert.equal(api.resumeDialogueDevoirs().dernier_motif,'consultation_ou_selection_impossible');
 });
 test('real chat route gives the authenticated learned dialogue priority over generic repertoire',async()=>{
  const source=fs.readFileSync('app/api/chat/route.ts','utf8'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);let fn;
@@ -224,7 +224,7 @@ test('authenticated chat with the stuck history reaches the actual greeting repe
 });
 
 
-test('Anthropic selects and verifies an exact learned reply using its native API',async()=>{
+test('Anthropic selects an exact source reply in one request',async()=>{
  const bodies=[];
  const api=service(async(url,init)=>{
   assert.equal(url,'https://api.anthropic.com/v1/messages');assert.equal(init.headers['x-api-key'],'test-anthropic');
@@ -232,5 +232,36 @@ test('Anthropic selects and verifies an exact learned reply using its native API
   return Response.json({content:[{type:'text',text:'{"statut":"selection","id":"0:1","reply":"inventé"}'}],stop_reason:'end_turn',usage:{input_tokens:100,output_tokens:20}});
  },undefined,{BIA_LLM_PROVIDER:'anthropic',ANTHROPIC_API_KEY:'test-anthropic'});
  const r=await api.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',[]);
- assert.equal(bodies.length,2);assert.equal(r.reply,'Vous vous êtes disputés ?');assert.equal(r.dialogue_memorise,true);assert.equal(api.resumeDialogueDevoirs().jetons_entree,200);
+ assert.equal(bodies.length,1);assert.equal(r.reply,'Vous vous êtes disputés ?');assert.equal(r.dialogue_memorise,true);assert.equal(api.resumeDialogueDevoirs().jetons_entree,100);
+});
+
+
+test('a timed-out Anthropic selection releases conversation instead of speaking an outage',async()=>{
+ const api=service(async()=>{throw new DOMException('test timeout','TimeoutError');},undefined,{BIA_LLM_PROVIDER:'anthropic',ANTHROPIC_API_KEY:'test-only'});
+ assert.equal(await api.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',[]),null);
+ assert.equal(api.resumeDialogueDevoirs().dernier_motif,'delai_depasse');
+ assert.equal(api.resumeDialogueDevoirs().relais_erreur,1);
+});
+test('old outage answers cannot contaminate the next selection, but user reports remain',()=>{
+ const text='Le moteur qui m’aide à choisir une réponse est indisponible pour le moment. Réessaie.';
+ const h=[{role:'user',text:'Réponds en wolof.'},{role:'bia',text},{role:'user',text}];
+ assert.deepEqual(core.sansRelanceAutomatique(h),[h[0],h[2]]);
+});
+test('single-pass Anthropic still rejects invalid, person, repeated and multi-question source IDs',async()=>{
+ for(const id of ['0:0','0:1','0:6','99:99']){
+  const api=service(async()=>Response.json({content:[{type:'text',text:JSON.stringify({statut:'selection',id})}]}),undefined,{BIA_LLM_PROVIDER:'anthropic',ANTHROPIC_API_KEY:'test-only'});
+  assert.equal(await api.dialoguerAvecDevoirs('Non.',[{role:'bia',text:'Vous vous êtes disputés ?'}]),null);
+ }
+});
+
+
+test('a valid Sonnet reply arriving after the old 2.5 s deadline is accepted without a second call',async()=>{
+ let calls=0;
+ const api=service(async(url,init)=>{
+  calls++;
+  await new Promise((resolve,reject)=>{const timer=setTimeout(resolve,2700);init.signal.addEventListener('abort',()=>{clearTimeout(timer);reject(init.signal.reason);},{once:true});});
+  return Response.json({content:[{type:'text',text:'{"statut":"selection","id":"0:1"}'}]});
+ },undefined,{BIA_LLM_PROVIDER:'anthropic',ANTHROPIC_API_KEY:'test-only'});
+ const r=await api.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',[]);
+ assert.equal(r?.reply,'Vous vous êtes disputés ?');assert.equal(calls,1);assert.equal(api.resumeDialogueDevoirs().erreurs,0);
 });

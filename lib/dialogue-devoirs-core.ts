@@ -3,11 +3,15 @@ export type RepliqueApprise={id:string;wo:string;fr:string;role:"bia"|"personne"
 export type DialogueAppris={id:string;titre:string;date:string;repliques:RepliqueApprise[]};
 export type TourDialogue={role:string;text:string};
 export const normaliserDialogue=(s:string)=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim();
-const ancienneRelance=normaliserDialogue("Peux-tu préciser ce qui te préoccupe le plus dans cette situation ?");
+const anciennesRelances=new Set([
+ "Peux-tu préciser ce qui te préoccupe le plus dans cette situation ?",
+ "Le moteur qui m’aide à choisir une réponse est indisponible pour le moment. Réessaie.",
+ "Je n’arrive pas à consulter mes leçons pour le moment. Réessaie.",
+].map(normaliserDialogue));
 /** Retire only our obsolete automatic answer from model context. Never erase
  * the user's words, including a quote/report of that answer. */
 export function sansRelanceAutomatique<T extends {role:string;text:string}>(history:T[]):T[]{
- return history.filter(t=>!(["bia","assistant"].includes(t.role)&&normaliserDialogue(t.text)===ancienneRelance));
+ return history.filter(t=>!(["bia","assistant"].includes(t.role)&&anciennesRelances.has(normaliserDialogue(t.text))));
 }
 const propre=(s:string)=>s.trim().replace(/^[#>*\s]+/,"").replace(/^[-–—]\s+/,"").replace(/\*\*/g,"").replace(/\s*\|\s*$/," ").trim();
 const contenu=(s:string)=>s.replace(/^\s*(?:[A-Z]?\d{1,4}[.)\]:—-]\s+|[A-Z]?\d{1,4}\s+(?=(?:Wolof|Fran[cç]ais|WO|FR)\b))/,"").trim();

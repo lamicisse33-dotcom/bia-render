@@ -23,3 +23,22 @@ test('rejected credentials and billing errors stay explicit',async()=>{
  assert.equal(r.status,status);assert.equal(api.resumeAnthropic().erreurs,1);
  }
 });
+
+
+test('local timeouts are distinguished from an actual provider 503 and survive later success',async()=>{
+ let n=0;const api=load(async()=>{if(n++===0)throw new DOMException('slow','TimeoutError');return Response.json({content:[]});});
+ const init={body:JSON.stringify({model:api.MODELE_SONNET})};
+ const r=await api.fetchAnthropic('https://test',init);
+ assert.equal(r.status,504);assert.equal(r.headers.get('x-bia-erreur'),'delai_depasse');
+ await api.fetchAnthropic('https://test',init);
+ assert.equal(api.resumeAnthropic().dernier_statut,200);assert.equal(api.resumeAnthropic().derniere_erreur.motif,'delai_depasse');
+ const provider=load(async()=>new Response('',{status:503}));
+ assert.equal((await provider.fetchAnthropic('https://test',init)).status,503);
+ assert.equal(provider.resumeAnthropic().derniere_erreur.motif,'fournisseur_HTTP_503');
+});
+test('the caller cancellation signal is preserved',async()=>{
+ const controller=new AbortController();controller.abort();
+ const api=load(async(url,init)=>{assert.equal(init.signal.aborted,true);throw init.signal.reason;});
+ const r=await api.fetchAnthropic('https://test',{signal:controller.signal,body:'{}'});
+ assert.equal(r.headers.get('x-bia-erreur'),'annule');
+});

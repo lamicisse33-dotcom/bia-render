@@ -27,6 +27,9 @@ jobs:
           node tests/piper-locale.test.mjs
           node tests/piper-web.test.mjs
 
+      - name: Vérifier Claude et le dialogue mémorisé
+        run: node --test tests/cerveau-anthropic.test.mjs tests/dialogue-devoirs.test.mjs
+
       - name: Compiler Next.js
         run: npm run build
 

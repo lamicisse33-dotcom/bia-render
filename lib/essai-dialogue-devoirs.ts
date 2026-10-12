@@ -3,9 +3,9 @@ import {dialoguerAvecDevoirs,indexDialogue,publierDiagnosticDialogue} from "./di
 import {chercherDialogues,paroleDeLaPersonne,type TourDialogue} from "./dialogue-devoirs-core";
 // Owner-approved fixed evaluation. Only the existing authenticated learning
 // verification route can request the private report. No chats or lessons written.
-let essai:Promise<unknown>|undefined;
-export function verifierDialoguesAppris(){
- return essai??= (async()=>{
+let essai:ReturnType<typeof executerEssai>|undefined;
+export function verifierDialoguesAppris(){return essai??=executerEssai();}
+async function executerEssai(){
   const index=await indexDialogue(),originaux=(await devoirsALire()).devoirs;
   const scenarios=[
    {nom:"couple",question:"Ma copine ne répond plus à mes appels.",reponse:"Non, nous ne nous sommes pas disputés. Je l’ai déjà appelée, sans réponse."},
@@ -52,5 +52,4 @@ export function verifierDialoguesAppris(){
    ms_max:Math.max(...tours.map(t=>t.ms)),details_prives:true};
   publierDiagnosticDialogue(bilan);
   return {bilan,resultats,non_interpretes:index.filter(d=>!d.repliques.length).map(d=>({titre:d.titre,apercu:originaux.find(o=>o.id===d.id)?.texte.slice(0,1600)}))};
- })();
 }
