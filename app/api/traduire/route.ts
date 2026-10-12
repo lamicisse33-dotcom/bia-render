@@ -1,3 +1,4 @@
+import {fetchAnthropic,MODELE_SONNET} from "@/lib/cerveau-anthropic";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { noterPanne } from "@/lib/panne";
@@ -59,10 +60,10 @@ export async function POST(request: NextRequest) {
     if (!texte) return NextResponse.json({ erreur: "rien à lire" }, { status: 400 });
 
     const apiKey = process.env.BIA_LLM_API_KEY || process.env.ANTHROPIC_API_KEY;
-    const model = process.env.BIA_LLM_MODEL || "claude-sonnet-5";
+    const model = process.env.BIA_LLM_MODEL || MODELE_SONNET;
     if (!apiKey) return NextResponse.json({ erreur: "clé absente" }, { status: 500 });
 
-    const response = await fetch(
+    const response = await fetchAnthropic(
       `${process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com"}/v1/messages`,
       {
         method: "POST",

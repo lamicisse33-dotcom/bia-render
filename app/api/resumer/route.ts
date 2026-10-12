@@ -1,3 +1,4 @@
+import {fetchAnthropic,MODELE_SONNET} from "@/lib/cerveau-anthropic";
 import { appelerCerebras } from "@/lib/cerveau-cerebras";
 import { CONSIGNE_RESUME_CONVERSATION } from "@/lib/conversation-groq";
 import { NextRequest, NextResponse } from "next/server";
@@ -46,10 +47,10 @@ export async function POST(request: NextRequest) {
             ...(/^(?:openai\/)?gpt-oss-/.test(model) ? {reasoning_effort: "low", include_reasoning: false} : {}),
             temperature: 0.35, service_tier: "on_demand" }),
         }, Date.now() + 20_000, false)
-      : await fetch("https://api.anthropic.com/v1/messages", {
+      : await fetchAnthropic("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-          body: JSON.stringify({model: process.env.BIA_LLM_MODEL || "claude-sonnet-5", max_tokens: 600, system: consigne, messages}),
+          body: JSON.stringify({model: process.env.BIA_LLM_MODEL || MODELE_SONNET, max_tokens: 600, system: consigne, messages}),
         });
     if (!r.ok) {
       console.error("BIA — résumé refusé :", r.status, (await r.text().catch(() => "")).slice(0, 300));

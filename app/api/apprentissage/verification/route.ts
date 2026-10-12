@@ -1,3 +1,4 @@
+import {verifierSonnet} from "@/lib/essai-sonnet";
 import {verifierSecoursModele} from "@/lib/essai-secours-modele";
 import {lancerAudioMemoire,diagnosticFormatsAudioMemoire} from "@/lib/audio-memoire";
 import {verifierStockageCorrectionsCourantes} from "@/lib/corrections-sons-courants";
@@ -22,6 +23,9 @@ export async function POST(r:Request){
   // runner for this fixed public catalogue only; ordinary master checks do
   // not generate audio. Once this session expires, explicit selection wins.
   const runner=a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
+  // Explicit Sonnet switch requested by the owner on 12 October. Fixed
+  // authenticated preflight, once per process, without changing configuration.
+  if(body.sonnet===true||(runner&&Date.now()<Date.parse("2026-10-12T05:00:00Z")))return NextResponse.json({verifie:true,lecture_seule:true,sonnet:await verifierSonnet()});
   // Recovery requested on 12 October: fixed read-only proof through the same
   // authenticated runner, once per process; no generation or source edits.
   if(body.secours_modele===true||(runner&&Date.now()<Date.parse("2026-10-12T05:00:00Z")))return NextResponse.json({verifie:true,lecture_seule:true,secours_modele:await verifierSecoursModele()});

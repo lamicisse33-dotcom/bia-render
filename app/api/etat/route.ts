@@ -1,3 +1,4 @@
+import {resumeAnthropic,MODELE_SONNET} from "@/lib/cerveau-anthropic";
 import {resumeSecoursCerebras} from "@/lib/cerveau-cerebras";
 import {resumeAudioMemoire} from "@/lib/audio-memoire";
 import {sonsCourantsEtat} from "@/lib/sons-courants-etat";
@@ -141,6 +142,7 @@ export async function GET(request: Request) {
     fournisseur_modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase(),
     cerveau_local: resumeCerveauLocal(),
     conversation: etatConversation(),
+    anthropic: resumeAnthropic(),
     secours_modele: resumeSecoursCerebras(),
     derniere_limite_groq: resumeLimiteGroq(),
     modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "cerebras" ? (process.env.CEREBRAS_MODEL || "gpt-oss-120b") : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "local"
@@ -149,7 +151,7 @@ export async function GET(request: Request) {
       ? (process.env.GROQ_MODEL || "openai/gpt-oss-120b")
       : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "gemini"
         ? (process.env.GEMINI_MODEL || "gemini-3.7-flash")
-        : (process.env.BIA_LLM_MODEL || "claude-sonnet-5"),
+        : (process.env.BIA_LLM_MODEL || MODELE_SONNET),
     cle_modele: Boolean(process.env.BIA_LLM_PROVIDER === "cerebras" ? process.env.CEREBRAS_API_KEY : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "local"
       ? process.env.LOCAL_LLM_API_KEY
       : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "groq"

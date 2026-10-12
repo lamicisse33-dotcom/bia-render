@@ -1,3 +1,4 @@
+import {fetchAnthropic,MODELE_SONNET,messagesAnthropic} from "@/lib/cerveau-anthropic";
 import {correctionCourantePour} from "@/lib/corrections-sons-courants";
 import {corrigerDevoirConversation} from "@/lib/correction-devoir-conversation";
 import {corrigerDevoir} from "@/lib/correction-devoir";
@@ -1708,7 +1709,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       ? (process.env.GEMINI_MODEL||"gemini-3.7-flash")
       : groq
         ? (process.env.GROQ_MODEL||"openai/gpt-oss-120b")
-        : (process.env.BIA_LLM_MODEL||"claude-sonnet-5");
+        : (process.env.BIA_LLM_MODEL||MODELE_SONNET);
     if(!apiKey){
       const detail=cerebras ? "CEREBRAS_API_KEY n’est pas définie." : local ? "LOCAL_LLM_API_KEY n’est pas définie." : gemini
         ?"GEMINI_API_KEY n'est pas définie."
@@ -2601,7 +2602,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        « sans aucun réglage facultatif » (c'en est un), et plus jamais dès que
        le modèle en a refusé une — voir noterAmorceRefusee(). */
     const amorceDe = (o: { avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean }) =>
-      !gemini && !groq && amorcePermise() && o.reflexion !== "allumee" && !o.avecOutil && !o.sansAmorce && !amorceRefusee() ? AMORCE_EMOTION : "";
+      !gemini && !groq && model!==MODELE_SONNET && amorcePermise() && o.reflexion !== "allumee" && !o.avecOutil && !o.sansAmorce && !amorceRefusee() ? AMORCE_EMOTION : "";
     const corpsDuModele = (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
     }) => JSON.stringify({
@@ -2675,13 +2676,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     };
 
     const limiteGroq = Date.now() + (effortConversation(question, Boolean(body.apprend)) === "low" ? 12_000 : 20_000);
-    const appelerGroq = async (o: {
-      plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
-    }) => {
-      /* Groq Free limite actuellement ce modèle à 8k TPM. Le socle Anthropic
-         complet dépasse à lui seul cette enveloppe (~16k jetons avec le fil).
-         On envoie donc à Groq un socle compact, sans perdre l'identité de BIA,
-         les règles Wolof ni les corrections propres à la question. */
+    const messagesDuTour = (o:{avecOutil:boolean}) => {
       const outils=[
         "Les commandes d'écran se placent en fin de réponse, sans être prononcées.",
         "CARTE : [[carte:lieu ou recherche]] pour afficher un lieu ou un itinéraire.",
@@ -2694,12 +2689,17 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           ? "La recherche web est disponible pour cette réponse : vérifie les faits actuels avec elle."
           : "Pas de recherche web pour cette réponse : ne prétends pas avoir vérifié des faits actuels.",
       ].filter(Boolean).join("\n");
-      const messages=messagesConversation({
+      return messagesConversation({
         question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
         contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, ""),
         souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: savoir || "",
         resume, outils, nom: estRara ? "Rara" : "BIA", maitre: verdict.maitre,
       });
+    };
+    const appelerGroq = async (o: {
+      plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
+    }) => {
+      const messages=messagesDuTour(o);
       const debutConversation=Date.now();
       let r=local
         ? await appelerCerveauLocal(messages as MessageLocal[], o.plafond)
@@ -2773,10 +2773,10 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       ? appelerGemini({...o,avecOutil:false})
       : groq
         ? appelerGroq({...o,reflexion:"eteinte"})
-        : fetch(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`, {
+        : fetchAnthropic(`${process.env.ANTHROPIC_BASE_URL||"https://api.anthropic.com"}/v1/messages`, {
             method: "POST",
             headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-            body: (amorceDe(o) && noterAmorceEnvoyee(), corpsDuModele(o)),
+            body: JSON.stringify({...JSON.parse(corpsDuModele(o)),...messagesAnthropic(messagesDuTour(o))}),
           });
 
     /* Plafond descendu de 500 à 300 le 11 septembre 2026 : « elle doit dire

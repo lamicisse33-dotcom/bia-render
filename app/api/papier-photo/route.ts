@@ -1,3 +1,4 @@
+import {fetchAnthropic,MODELE_SONNET} from "@/lib/cerveau-anthropic";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { noterPanne } from "@/lib/panne";
@@ -142,7 +143,7 @@ export async function POST(request: NextRequest) {
     }
 
     const apiKey = process.env.BIA_LLM_API_KEY || process.env.ANTHROPIC_API_KEY;
-    const model = process.env.BIA_LLM_MODEL || "claude-sonnet-5";
+    const model = process.env.BIA_LLM_MODEL || MODELE_SONNET;
     if (!apiKey) return NextResponse.json({ erreur: "clé absente" }, { status: 500 });
 
     /* Les repères passent DEVANT, chacun annoncé par son nom : c'est ce qui
@@ -154,7 +155,7 @@ export async function POST(request: NextRequest) {
       { type: "image", source: { type: "base64", media_type: r.media, data: r.data } },
     ]));
 
-    const response = await fetch(
+    const response = await fetchAnthropic(
       `${process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com"}/v1/messages`,
       {
         method: "POST",

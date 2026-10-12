@@ -1,3 +1,4 @@
+import {fetchAnthropic,MODELE_SONNET} from "@/lib/cerveau-anthropic";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
 import { noterPanne } from "@/lib/panne";
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
   if (!cle) return NextResponse.json({ sens: null });
 
   try {
-    const r = await fetch(`${process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com"}/v1/messages`, {
+    const r = await fetchAnthropic(`${process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com"}/v1/messages`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: process.env.BIA_LLM_MODEL || "claude-sonnet-5",
+        model: process.env.BIA_LLM_MODEL || MODELE_SONNET,
         /* Court exprès : c'est une traduction, pas un commentaire — et le
            plafond est ce qui empêche le modèle de partir en explication. */
         max_tokens: 120,
