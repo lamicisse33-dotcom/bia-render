@@ -7,20 +7,29 @@ let diagnostic:Promise<unknown>|undefined;
 /** Private, read-only replay of recent owner recordings. No corpus duplication. */
 export function verifierLatenceSalutation(){return diagnostic??=(async()=>{
  const table=process.env.SUPABASE_TABLE_CORPUS||'khalam_corpus';
- const r=await fetch(`${lexiqueConfig.url}/rest/v1/${table}?select=cle,chemin,entendu,verifie,langue,type_audio&order=cle.desc&limit=30`,{headers:{apikey:lexiqueConfig.cle,Authorization:`Bearer ${lexiqueConfig.cle}`},cache:'no-store',signal:AbortSignal.timeout(5000)});
+ const r=await fetch(`${lexiqueConfig.url}/rest/v1/${table}?select=cle,chemin,entendu,verifie,langue,type_audio&order=cle.desc&limit=200`,{headers:{apikey:lexiqueConfig.cle,Authorization:`Bearer ${lexiqueConfig.cle}`},cache:'no-store',signal:AbortSignal.timeout(5000)});
  if(!r.ok)throw Error('Corpus indisponible');
  const lignes=await r.json() as ExtraitCorpus[];
- // Today's short greetings only; never replay an unrelated private topic.
+ // Prefer actual short owner greetings; keep their original date explicit.
  const recentes=lignes.filter(e=>e.cle.startsWith('2026-10-12/'));
- const exemples=recentes.filter(e=>salutationReconnue(e.verifie||e.entendu)).slice(0,3);
+ const exemples=lignes.filter(e=>salutationReconnue(e.verifie||e.entendu)).slice(0,3);
+ let temoin:Blob|undefined;
+ if(!exemples.length){
+  // A synthetic control measures the pipeline, never the owner's microphone.
+  const {fabriquerSon}=await import('./sons-courants');
+  const son=await fabriquerSon({texte:'Nanga def ?',langue:'wo'});
+  temoin=new Blob([new Uint8Array(son.mp3)],{type:'audio/mpeg'});
+ }
+ const essais=exemples.length?exemples:[null,null,null];
  const resultats=[];
  const {POST}=await import('../app/api/chat/route');
  const {NextRequest}=await import('next/server');
- for(const e of exemples){
-  const source=await lireExtraitAudio(e.chemin);if(!source)continue;
-  const audio=await source.blob();
+ for(const e of essais){
+  let audio=temoin;
+  if(e){const source=await lireExtraitAudio(e.chemin);if(!source)continue;audio=await source.blob();}
+  if(!audio)continue;
   const t=Date.now();
-  const ecoute=await preparerEcoute(audio,e.chemin.split('/').at(-1)!,'wo');
+  const ecoute=await preparerEcoute(audio,e?.chemin.split('/').at(-1)||'temoin-nanga-def.mp3','wo');
   const debutChat=Date.now();
   // Do not send unrelated ASR errors to a paid model in this greeting test.
   const salut=salutationReconnue(ecoute.ecriture.texte);
@@ -34,9 +43,9 @@ export function verifierLatenceSalutation(){return diagnostic??=(async()=>{
     audio_ms=Date.now()-ts;
    }
   }
-  resultats.push({entendu_initial:e.entendu,texte:ecoute.ecriture.texte,cle:salut?.cle||null,chronometrage:ecoute.chronometrage,chat_ms,audio_ms,audio_octets,source:reponse?.source||null,total_serveur_ms:Date.now()-t});
+  resultats.push({origine:e?"enregistrement_archive":"temoin_synthetique",date_extrait:e?.cle.split("/")[0]||null,entendu_initial:e?.entendu||"Nanga def ?",texte:ecoute.ecriture.texte,cle:salut?.cle||null,chronometrage:ecoute.chronometrage,chat_ms,audio_ms,audio_octets,source:reponse?.source||null,total_serveur_ms:Date.now()-t});
  }
- const bilan={date:new Date().toISOString(),extraits_recents:recentes.length,essais:resultats.length,salutations:resultats.filter(x=>x.source==='salutation mémorisée').length,audios_disponibles:resultats.filter(x=>x.audio_octets>1000).length,lecture_navigateur_mesuree:false,resultats:resultats.map(({entendu_initial,texte,...publics})=>publics)};
+ const bilan={date:new Date().toISOString(),lignes_lues:lignes.length,extraits_recents:recentes.length,essais:resultats.length,salutations:resultats.filter(x=>x.source==='salutation mémorisée').length,audios_disponibles:resultats.filter(x=>x.audio_octets>1000).length,lecture_navigateur_mesuree:false,resultats:resultats.map(({entendu_initial,texte,...publics})=>publics)};
  // Public diagnostics contain no user transcript or private recording URL.
  noterDiagnosticEcoute(bilan);
  return {...bilan,resultats,dernieres_transcriptions:recentes.slice(0,5).map(e=>({texte:e.entendu,salutation:salutationReconnue(e.entendu)?.cle||null}))};
