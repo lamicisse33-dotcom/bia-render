@@ -5,7 +5,7 @@ import type {Lecon} from './lexique-apprentissage-core';
 import {VERSION_SONS_COURANTS} from './sons-courants-core';
 export type PhraseMemoire={texte:string;langue:'fr'|'wo';sources:string[]};
 export type AudioMemoire=PhraseMemoire&{id:string;octets?:number;secondes?:number};
-export function inventorierMemoire(devoirs:DevoirALire[],lecons:Lecon[],anciennes:Array<{source:string;corrigee:string;langue?:string;auteur?:string}>){
+export function inventorierMemoire(devoirs:DevoirALire[],lecons:Lecon[],anciennes:Array<{source:string;corrigee:string;langue?:string;auteur?:string}>,partage:Array<{id:string;fr:string;wo:string}>=[]){
  const phrases=new Map<string,PhraseMemoire>(),aVerifier:string[]=[];let devoirsValides=0;
  function ajouter(texte:string,langue:'fr'|'wo',source:string){
   texte=texte.trim();if(!texte)return;
@@ -35,6 +35,7 @@ export function inventorierMemoire(devoirs:DevoirALire[],lecons:Lecon[],ancienne
   ajouter(e.corrigee,e.langue==='fr'?'fr':'wo','ancienne:'+e.source);
   if(e.auteur==='maitre-lecon'&&e.source)ajouter(e.source,'fr','ancienne:'+e.source);
  }
+ for(const p of partage){ajouter(p.fr,'fr','lexique-partage:'+p.id);ajouter(p.wo,'wo','lexique-partage:'+p.id);}
  return {phrases:[...phrases.values()],devoirsValides,aVerifier};
 }
 export const idAudioMemoire=(p:PhraseMemoire,passages:unknown)=>createHash('sha256').update(JSON.stringify(['memoire-v1',VERSION_SONS_COURANTS,p.langue,p.texte,passages])).digest('hex');

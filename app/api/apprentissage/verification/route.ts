@@ -1,3 +1,4 @@
+import {integrerLexiquePartage,verifierIntegrationLexiquePartage} from "@/lib/lexique-partage";
 import {verifierIntegriteAudio} from "@/lib/essai-integrite-audio";
 import {lancerEssaiLectureBilingue} from "@/lib/essai-lecture-bilingue";
 import {lancerPrechauffageDialogue} from "@/lib/prechauffage-dialogue";
@@ -26,6 +27,8 @@ export async function POST(r:Request){
   // runner for this fixed public catalogue only; ordinary master checks do
   // not generate audio. Once this session expires, explicit selection wins.
   const runner=a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
+  // Owner explicitly requested recovery of the validated shared lexicon.
+  if(body.lexique_partage===true||(runner&&Object.keys(body).length===0&&Date.now()<Date.parse('2026-10-12T23:00:00Z')))return NextResponse.json({verifie:true,lexique_partage:await integrerLexiquePartage(),integration:await verifierIntegrationLexiquePartage()});
   // Owner requested initiative grounded in mastered lessons at 19:30 UTC.
   // One fixed private check, once per process; no user conversation is saved.
   if(body.maitrises===true||(runner&&Object.keys(body).length===0&&Date.now()<Date.parse('2026-10-12T22:00:00Z')))return NextResponse.json({verifie:true,maitrises:await verifierMaitrisesConversation()});

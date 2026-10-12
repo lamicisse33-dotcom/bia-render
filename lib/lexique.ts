@@ -89,40 +89,30 @@ export async function ajouterCorrection(e: Entree): Promise<number> {
 let lectureDuLexique = { colonnes: "", motif: "" };
 export function lectureLexique() { return { ...lectureDuLexique }; }
 
+let chargement:Promise<Entree[]>|null=null;
 export async function toutes(): Promise<Entree[]> {
-  if (cache && Date.now() < cache.jusqua) return cache.valeurs;
-  if (!lexiqueConfig.actif) return enMemoire;
-
-  const base = `${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}`;
-  const escalier = [
-    "source,corrigee,proposee,langue,application",
-    "source,corrigee,langue,application",
-  ];
-  let refus = "";
-  for (const colonnes of escalier) {
-    let r: Response;
-    try {
-      r = await fetch(`${base}?select=${colonnes}&order=id.desc&limit=800`, { headers: entetes() });
-    } catch (err) {
-      lectureDuLexique = { colonnes, motif: (err as Error).message };
-      return cache?.valeurs || [];
+ if(cache&&Date.now()<cache.jusqua)return cache.valeurs;
+ if(!lexiqueConfig.actif)return enMemoire;
+ if(chargement)return chargement;
+ chargement=(async()=>{
+  const base=`${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}`;
+  const signal=AbortSignal.timeout(8000);
+  for(const colonnes of ["id,source,corrigee,proposee,langue,application","id,source,corrigee,langue,application"]){
+   try{
+    const valeurs:Entree[]=[];let curseur:string|undefined;const vus=new Set<string>();
+    for(;;){
+     const r=await fetch(`${base}?select=${colonnes}&or=(application.is.null,application.neq.bia-apprentissage-v1)&order=id.desc&limit=500${curseur===undefined?'':'&id=lt.'+curseur}`,{headers:entetes(),cache:'no-store',signal});
+     if(!r.ok){if(r.status===400&&curseur===undefined)break;throw Error('Supabase '+r.status);}
+     const page=await r.json() as Array<Entree&{id:number|string}>;if(!Array.isArray(page))throw Error('Lexique invalide');
+     valeurs.push(...page.filter(e=>e.application!=="bia-apprentissage-v1"));
+     if(!page.length){cache={valeurs,jusqua:Date.now()+60000};lectureDuLexique={colonnes,motif:''};return valeurs;}
+     const fin=String(page.at(-1)?.id);if(!/^[0-9a-f-]{1,64}$/i.test(fin)||vus.has(fin))throw Error('Pagination invalide');vus.add(fin);curseur=fin;
     }
-    if (!r.ok) {
-      refus = `Supabase ${r.status} : ${(await r.text().catch(() => "")).slice(0, 160)}`;
-      lectureDuLexique = { colonnes, motif: refus };
-      continue;
-    }
-      const valeurs = (await r.json() as Entree[]).filter(e => e.application !== "bia-apprentissage-v1");
-    /* Si on a dû redescendre, on garde le motif du refus : c'est ce qui
-       dira, sur /api/etat, que les mots corrigés ne peuvent pas être lus. */
-    lectureDuLexique = { colonnes, motif: refus ? `marche du dessus refusée — ${refus}` : "" };
-    // Une minute de cache : sans ça, chaque question rappelle Supabase et
-    // ajoute un aller-retour au délai de réponse, pour un lexique qui ne
-    // change que lorsqu'un testeur corrige.
-    cache = { valeurs, jusqua: Date.now() + 60_000 };
-    return valeurs;
+   }catch{lectureDuLexique={colonnes,motif:'Lecture complète indisponible — dernier index conservé'};cache={valeurs:cache?.valeurs||[],jusqua:Date.now()+15000};return cache.valeurs;}
   }
-  return cache?.valeurs || [];
+  lectureDuLexique={colonnes:'',motif:'Colonnes du lexique indisponibles'};return cache?.valeurs||[];
+ })().finally(()=>{chargement=null;});
+ return chargement;
 }
 
 const normaliser = (s: string)=> String(s || "").toLowerCase()

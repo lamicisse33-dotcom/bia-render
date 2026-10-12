@@ -1,3 +1,4 @@
+import {indexLexiquePartage} from "./lexique-partage";
 import {createHash,randomUUID} from 'node:crypto';
 import {devoirsALire} from './devoirs-apprentissage';
 import {lireLecons} from './lexique-apprentissage';
@@ -26,8 +27,8 @@ export async function catalogueAudioMemoire(force=false):Promise<AudioMemoire[]>
  if(!force&&etat.catalogue&&etat.catalogue.expire>Date.now()&&etat.catalogue.generation===generation)return etat.catalogue.phrases;
  if(etat.lecture)return etat.lecture;
  etat.lecture=(async()=>{
-  const [{devoirs},lecons,anciennes,regles]=await Promise.all([devoirsALire(),lireLecons(true),anciennesValidees(),reglesPrononciation()]);
-  const inventaire=inventorierMemoire(devoirs,lecons,anciennes);
+  const [{devoirs},lecons,anciennes,regles,partage]=await Promise.all([devoirsALire(),lireLecons(true),anciennesValidees(),reglesPrononciation(),indexLexiquePartage()]);
+  const inventaire=inventorierMemoire(devoirs,lecons,anciennes,partage.map(d=>({...d.repliques[0],id:d.id})));
   const phrases=inventaire.phrases.map(p=>({...p,id:idAudioMemoire(p,preparerAvecRegles(p.texte,p.langue,lecons,regles,false,true))}));
   etat.catalogue={phrases,aVerifier:inventaire.aVerifier,expire:Date.now()+15000,generation};etat.bilan.devoirs_valides=inventaire.devoirsValides;etat.bilan.a_verifier=inventaire.aVerifier.length;
   actualiser(phrases);return phrases;

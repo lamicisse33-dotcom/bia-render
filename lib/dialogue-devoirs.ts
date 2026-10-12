@@ -1,3 +1,4 @@
+import {indexLexiquePartage,resumeLexiquePartage} from "./lexique-partage";
 import {cleDialogue,chargerDialoguesRapides,chercherChoixRapide,garderChoixRapide,resumeDialoguesRapides} from "./dialogue-rapide";
 import {fetchAnthropic,contenuAnthropic,MODELE_SONNET,reglagesSonnet} from "./cerveau-anthropic";
 import {appelerCerebras} from "./cerveau-cerebras";
@@ -8,19 +9,25 @@ import {salutationAutonome} from "./salutations-dialogue";
 
 const g=globalThis as typeof globalThis & {biaDialogueDevoirs?:{tours:number;selectionnes:number;hors_sujet:number;clarifications:number;erreurs:number;dernier_ms:number;devoirs:number;repliques:number;non_structures:number;dernier_statut:string;appels_modele:number;jetons_entree:number;jetons_sortie:number;dernier_modele_ms:number;dernier_motif?:string;relais_erreur?:number;erreurs_diagnostic?:number;diagnostic?:unknown;essai?:Promise<unknown>}};
 const etat=g.biaDialogueDevoirs??={tours:0,selectionnes:0,hors_sujet:0,clarifications:0,erreurs:0,dernier_ms:0,devoirs:0,repliques:0,non_structures:0,dernier_statut:"aucun",appels_modele:0,jetons_entree:0,jetons_sortie:0,dernier_modele_ms:0};
-export function resumeDialogueDevoirs(){const {essai,...publics}=etat;return {actif:true,source:"Supabase",reponse:"une réplique mémorisée, sans réécriture",...publics,acces_direct:resumeDialoguesRapides()};}
+export function resumeDialogueDevoirs(){const {essai,...publics}=etat;return {actif:true,source:"Supabase",reponse:"une réplique mémorisée, sans réécriture",...publics,lexique_partage:resumeLexiquePartage(),acces_direct:resumeDialoguesRapides()};}
 export function publierDiagnosticDialogue(bilan:Record<string,unknown>){etat.diagnostic=bilan;}
 export async function indexDialogue(){
  void chargerDialoguesRapides();
- const {devoirs}=await devoirsALire(1500);const index=indexerDevoirs(devoirs);
+ const [{devoirs},partage]=await Promise.all([devoirsALire(1500),indexLexiquePartage()]);const index=indexerDevoirs(devoirs);
  etat.devoirs=index.length;etat.repliques=index.reduce((n,d)=>n+d.repliques.length,0);etat.non_structures=index.filter(d=>!d.repliques.length).length;
- return index;
+ const formulations=new Set(index.flatMap(d=>d.repliques.map(p=>normaliserDialogue(p.fr))));
+ return [...index,...partage.filter(d=>!formulations.has(normaliserDialogue(d.repliques[0].fr)))];
 }
 export async function contexteMaitrises(question:string,historique:unknown){
- const carte=maitrisesPourConversation(await indexDialogue(),question,contexteDialogue(historique));
+ const index=await indexDialogue(),history=contexteDialogue(historique);
+ const carte={...maitrisesPourConversation(index,question,history),references_lexique:[] as Array<{fr:string;wo:string}>};
+ let taille=0;
+ for(const c of chercherDialogues(index.filter(d=>d.id.startsWith("lexique:")),question,history))for(const p of c.d.repliques){
+  const n=p.fr.length+p.wo.length;if(taille+n>2500)continue;taille+=n;carte.references_lexique.push({fr:p.fr,wo:p.wo});
+ }
  return CONSIGNE_MAITRISES+"\nDOMAINES VALIDÉS DISPONIBLES\n"+JSON.stringify(carte);
 }
-const CONSIGNE=`Tu sélectionnes UNE réplique dans les devoirs bilingues mémorisés de BIA. Tu n'écris et ne traduis AUCUNE réponse.
+const CONSIGNE=`Tu sélectionnes UNE formulation exacte dans les devoirs et le lexique KHALAM validé. Les entrées « Lexique KHALAM » sont des équivalences français-wolof, PAS des couples question-réponse : leur phrase peut être dite par BIA uniquement si son sens répond au tour réel. Ne traduis jamais la question de la personne à la place de lui répondre. Tu n'écris et ne traduis AUCUNE réponse.
 Les devoirs contiennent les deux interlocuteurs : une plainte de la personne n'est pas la réponse de BIA. Comprends les versions françaises pour sélectionner la réplique de l'assistante qui convient au DERNIER message. Ne joue jamais le rôle de la personne. "Bia, ma copine ne répond plus..." appelle la question ou la réponse appropriée du devoir, pas une répétition de la plainte.
 Suis la logique du dialogue : pose une seule question puis attends. Le dernier oui/non répond à la dernière question de BIA ; une négation ou une correction peut changer la branche. Ne suppose pas la réponse suivante du devoir et n'avance pas d'un cran automatiquement. Ne redemande pas une information déjà donnée. N'affirme pas un exemple fictif du devoir comme un fait concernant cette personne. Vérifie les nombres, personnes et circonstances ; des conseils fondés sur une dispute ne conviennent pas si la personne vient de nier toute dispute.
 BIA anime la discussion à partir de ses leçons : après avoir répondu au point de la personne, elle peut sélectionner une relance, une suggestion ou une proposition déjà apprise qui prolonge naturellement CE sujet. Si aucune réponse directe n'existe, cherche une question apprise qui éclaire la difficulté ou un conseil appris sur un aspect voisin pertinent, avant de choisir clarifier. Les réponses brèves ("d'accord", "et ensuite", "que me conseilles-tu") invitent à poursuivre le fil, jamais à répéter le début du devoir.
@@ -82,7 +89,7 @@ export async function dialoguerAvecDevoirs(question:string,historique:unknown,op
    const v=resoudreSelection({statut:"selection",id:doc+":"+connu.replique},devoirs,langue);
    if(v.statut==="selection"){
     if(!diagnostic){etat.selectionnes++;etat.dernier_statut="acces_direct";}
-    return {reply:v.reply,langue,emotion:"douce",source:"dialogue mémorisé (Supabase)",dialogue_memorise:true,lecon_id:connu.devoir,replique_id:connu.replique,acces_direct:true};
+    return {reply:v.reply,langue,emotion:"douce",source:connu.devoir.startsWith("lexique:")?"lexique KHALAM validé (Supabase)":"dialogue mémorisé (Supabase)",dialogue_memorise:true,lecon_id:connu.devoir,replique_id:connu.replique,acces_direct:true};
    }
   }
   const sonnet=(process.env.BIA_LLM_PROVIDER||"anthropic").toLowerCase()==="anthropic";
@@ -106,7 +113,7 @@ export async function dialoguerAvecDevoirs(question:string,historique:unknown,op
    if(!diagnostic){etat.selectionnes++;etat.dernier_statut="selection";}
    const [docId,lineId]=verdict.id.split(":");
    if(!options.choisir)garderChoixRapide(cle,{devoir:candidats[Number(docId)].d.id,replique:lineId});
-   return {reply:verdict.reply,langue,emotion:"douce",source:"dialogue mémorisé (Supabase)",dialogue_memorise:true,lecon_id:candidats[Number(docId)].d.id,replique_id:lineId};
+   return {reply:verdict.reply,langue,emotion:"douce",source:candidats[Number(docId)].d.id.startsWith("lexique:")?"lexique KHALAM validé (Supabase)":"dialogue mémorisé (Supabase)",dialogue_memorise:true,lecon_id:candidats[Number(docId)].d.id,replique_id:lineId};
   }
   // A rejected selection is not evidence that the person is unclear. Let
   // ordinary conversation handle the actual message in its language. Keeping
