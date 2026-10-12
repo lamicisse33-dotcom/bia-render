@@ -1,3 +1,4 @@
+import {resumePrechauffageDialogue} from "@/lib/prechauffage-dialogue";
 import {resumePiperWeb} from "@/lib/piper-web-etat";
 import {resumeAnthropic,MODELE_SONNET} from "@/lib/cerveau-anthropic";
 import {resumeSecoursCerebras} from "@/lib/cerveau-cerebras";
@@ -249,6 +250,7 @@ export async function GET(request: Request) {
     repertoire: etatRepertoire(),
     sons_courants: sonsCourantsEtat,
     audio_memoire: resumeAudioMemoire(),
+    prechauffage_dialogue: resumePrechauffageDialogue(),
     /* ── SON CORPUS DE VOIX, PENDANT QU'IL SE CONSTITUE ───────────────────
        Le 15 septembre 2026, il a dit oui pour qu'on garde sa voix avec ses
        transcriptions : c'est ce qui lui permettra un jour de se passer d'une

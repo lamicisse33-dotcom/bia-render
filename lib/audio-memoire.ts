@@ -6,11 +6,13 @@ import {lexiqueConfig} from './lexique';
 import {preparerAvecRegles} from './passages-khalam-core';
 import {inventorierMemoire,idAudioMemoire,type AudioMemoire} from './audio-memoire-core';
 import {assurerMemoire,lireObjetMemoire,ecrireObjetMemoire,objetsMemoire,supprimerObjetMemoire} from './audio-memoire-stockage';
-type Bilan={actif:boolean;statut:string;total:number;prets:number;restants:number;echecs:number;a_verifier:number;devoirs_valides:number;octets:number;mis_a_jour:string;dernier_ms:number;lectures:number;lectures_navigateur?:number;dernier_demarrage_ms?:number;derniere_erreur?:string};
+type Bilan={actif:boolean;statut:string;total:number;prets:number;restants:number;echecs:number;a_verifier:number;devoirs_valides:number;octets:number;mis_a_jour:string;dernier_ms:number;lectures:number;lectures_navigateur?:number;dernier_demarrage_ms?:number;derniere_erreur?:string;reponses_jointes?:number;cache_serveur?:number;dernier_acces_ms?:number};
 type Echec={essais:number;motif:string};
-type Etat={bilan:Bilan;catalogue?:{phrases:AudioMemoire[];aVerifier:string[];expire:number};prets:Map<string,number>;worker?:Promise<void>;timer?:ReturnType<typeof setTimeout>;lecture?:Promise<AudioMemoire[]>;reprise?:Promise<void>;echecs:Record<string,Echec>;indexCharge:boolean;attentes:Map<string,number>};
+type Etat={bilan:Bilan;catalogue?:{phrases:AudioMemoire[];aVerifier:string[];expire:number;generation:number};prets:Map<string,number>;worker?:Promise<void>;timer?:ReturnType<typeof setTimeout>;lecture?:Promise<AudioMemoire[]>;reprise?:Promise<void>;echecs:Record<string,Echec>;indexCharge:boolean;attentes:Map<string,number>};
 const global=globalThis as typeof globalThis&{biaAudioMemoire?:Etat};
 const etat:Etat=global.biaAudioMemoire??={bilan:{actif:false,statut:'non_lance',total:0,prets:0,restants:0,echecs:0,a_verifier:0,devoirs_valides:0,octets:0,mis_a_jour:'',dernier_ms:0,lectures:0},prets:new Map(),echecs:{},indexCharge:false,attentes:new Map()};
+const gAudio=globalThis as typeof globalThis&{biaAudiosPrecharges?:Map<string,Uint8Array>;biaAudiosChargements?:Map<string,Promise<Uint8Array|null>>};
+const audios=gAudio.biaAudiosPrecharges??=new Map(),chargements=gAudio.biaAudiosChargements??=new Map();
 const hash=(b:Uint8Array)=>createHash('sha256').update(b).digest('hex');
 export const resumeAudioMemoire=()=>({...etat.bilan});
 async function anciennesValidees(){
@@ -20,13 +22,14 @@ async function anciennesValidees(){
  }return rows;
 }
 export async function catalogueAudioMemoire(force=false):Promise<AudioMemoire[]>{
- if(!force&&etat.catalogue&&etat.catalogue.expire>Date.now())return etat.catalogue.phrases;
+ const generation=(globalThis as typeof globalThis&{biaGenerationDevoirs?:number}).biaGenerationDevoirs||0;
+ if(!force&&etat.catalogue&&etat.catalogue.expire>Date.now()&&etat.catalogue.generation===generation)return etat.catalogue.phrases;
  if(etat.lecture)return etat.lecture;
  etat.lecture=(async()=>{
   const [{devoirs},lecons,anciennes,regles]=await Promise.all([devoirsALire(),lireLecons(true),anciennesValidees(),reglesPrononciation()]);
   const inventaire=inventorierMemoire(devoirs,lecons,anciennes);
   const phrases=inventaire.phrases.map(p=>({...p,id:idAudioMemoire(p,preparerAvecRegles(p.texte,p.langue,lecons,regles,false,true))}));
-  etat.catalogue={phrases,aVerifier:inventaire.aVerifier,expire:Date.now()+15000};etat.bilan.devoirs_valides=inventaire.devoirsValides;etat.bilan.a_verifier=inventaire.aVerifier.length;
+  etat.catalogue={phrases,aVerifier:inventaire.aVerifier,expire:Date.now()+15000,generation};etat.bilan.devoirs_valides=inventaire.devoirsValides;etat.bilan.a_verifier=inventaire.aVerifier.length;
   actualiser(phrases);return phrases;
  })().finally(()=>{etat.lecture=undefined;});return etat.lecture;
 }
@@ -44,6 +47,7 @@ async function initialiser(){
  etat.prets=await objetsMemoire();const erreurs=await lireObjetMemoire('echecs.json');if(erreurs)etat.echecs=await erreurs.json();etat.indexCharge=true;
 }
 export function reprendreAudioMemoire(){
+ if(etat.bilan.actif&&etat.indexCharge)return Promise.resolve();
  if(etat.reprise)return etat.reprise;
  etat.reprise=(async()=>{
   if(!lexiqueConfig.actif)return;
@@ -88,7 +92,29 @@ export async function listeAudioMemoire(){
 }
 export async function servirAudioMemoire(id:string){
  const phrases=await catalogueAudioMemoire();if(!phrases.some(p=>p.id===id))return null;
- const r=await lireObjetMemoire('sons/'+id+'.mp3');if(r){etat.bilan.lectures++;}return r;
+ const b=await octetsAudioMemoire(id);if(b){etat.bilan.lectures++;return new Response(b,{headers:{'content-type':'audio/mpeg'}});}return null;
+}
+
+async function octetsAudioMemoire(id:string):Promise<Uint8Array|null>{
+ const connu=audios.get(id);if(connu){etat.bilan.cache_serveur=(etat.bilan.cache_serveur||0)+1;return connu;}
+ if(chargements.has(id))return chargements.get(id)!;
+ const p=(async()=>{try{const r=await lireObjetMemoire('sons/'+id+'.mp3');if(!r)return null;const b=new Uint8Array(await r.arrayBuffer());if(b.length<1000||b.length>1_000_000)return null;audios.set(id,b);while(audios.size>128)audios.delete(audios.keys().next().value!);return b;}finally{chargements.delete(id);}})();
+ chargements.set(id,p);return p;
+}
+/** Only exact current validated audio, attached to the authenticated chat reply.
+ * No GPU generation here. Source/pronunciation changes remove the old ID. */
+export async function audioPourReponse(texte:string,langue:'fr'|'wo'){
+ const debut=Date.now();
+ try{
+  await reprendreAudioMemoire();
+  const phrases=await catalogueAudioMemoire(),i=phrases.findIndex(p=>p.langue===langue&&p.texte===texte.trim());
+  if(i<0||!etat.prets.has(phrases[i].id))return null;
+  const p=phrases[i],octets=await octetsAudioMemoire(p.id);if(!octets)return null;
+  // Small, bounded read-ahead of nearby source lines while the current audio plays.
+  void (async()=>{for(const q of phrases.slice(i+1,i+9).filter(q=>q.langue===langue&&etat.prets.has(q.id)))try{await octetsAudioMemoire(q.id);}catch{}})();
+  etat.bilan.reponses_jointes=(etat.bilan.reponses_jointes||0)+1;
+  return {id:p.id,base64:Buffer.from(octets).toString('base64')};
+ }catch{return null;}finally{etat.bilan.dernier_acces_ms=Date.now()-debut;}
 }
 
 export function noterLectureAudioMemoire(x:{ms?:unknown}){if(typeof x.ms!=='number'||!Number.isFinite(x.ms)||x.ms<0||x.ms>30000)return;etat.bilan.lectures_navigateur=(etat.bilan.lectures_navigateur||0)+1;etat.bilan.dernier_demarrage_ms=Math.round(x.ms);}

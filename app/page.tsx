@@ -505,7 +505,7 @@ export default function Home() {
     return () => document.removeEventListener("visibilitychange", visible);
   }, []);
   const [code, setCode] = useState<string | null>(null);
-  const lireAudioMemoire=useAudioMemoire(code);
+  const {lire:lireAudioMemoire,installer:installerAudioMemoire}=useAudioMemoire(code);
   useEffect(()=>{if(code&&piperWebActif())void preparerPiperWeb(code).catch(e=>setEtatSecours(e.message));},[code]);
   const [codeSaisi, setCodeSaisi] = useState("");
   const [codeErreur, setCodeErreur] = useState("");
@@ -3469,6 +3469,8 @@ export default function Home() {
       /* La formulation de service qu'elle vient de servir : on la retient
          pour ne pas la resservir juste après. */
       if (data.service) dernierService.current = data.service;
+      const sonJoint=data as typeof data&{audio_memorise?:{id:string;base64:string};langue?:"fr"|"wo"};
+      if(sonJoint.audio_memorise&&sonJoint.langue)installerAudioMemoire(data.reply,sonJoint.langue,sonJoint.audio_memorise);
       const provenance=data as typeof data&{origine_devoir?:SourceDevoir|null;correction_devoir?:OrigineDevoir|null};
       if("correction_devoir" in provenance)correctionDevoirRef.current=provenance.correction_devoir||null;
       if("origine_devoir" in provenance)origineDevoirRef.current=provenance.origine_devoir||null;
@@ -3774,7 +3776,7 @@ export default function Home() {
         questionEnVolRef.current = "";
       }
     }
-  }, [speak, attendreEnParlant, finirAttente, ouvrirUnTour, estLeTour, lectureContinue, stopMouth, couperSon, jouerEtAnimer]);
+  }, [speak, installerAudioMemoire, attendreEnParlant, finirAttente, ouvrirUnTour, estLeTour, lectureContinue, stopMouth, couperSon, jouerEtAnimer]);
 
   /* LE TEXTE FRANÇAIS QU'ON COLLE, DIT EN WOLOF.
 

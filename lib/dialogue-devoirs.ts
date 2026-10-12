@@ -1,3 +1,4 @@
+import {cleDialogue,chargerDialoguesRapides,chercherChoixRapide,garderChoixRapide,resumeDialoguesRapides} from "./dialogue-rapide";
 import {fetchAnthropic,contenuAnthropic,MODELE_SONNET,reglagesSonnet} from "./cerveau-anthropic";
 import {appelerCerebras} from "./cerveau-cerebras";
 import {devoirsALire} from "./devoirs-apprentissage";
@@ -7,9 +8,10 @@ import {salutationAutonome} from "./salutations-dialogue";
 
 const g=globalThis as typeof globalThis & {biaDialogueDevoirs?:{tours:number;selectionnes:number;hors_sujet:number;clarifications:number;erreurs:number;dernier_ms:number;devoirs:number;repliques:number;non_structures:number;dernier_statut:string;appels_modele:number;jetons_entree:number;jetons_sortie:number;dernier_modele_ms:number;dernier_motif?:string;relais_erreur?:number;erreurs_diagnostic?:number;diagnostic?:unknown;essai?:Promise<unknown>}};
 const etat=g.biaDialogueDevoirs??={tours:0,selectionnes:0,hors_sujet:0,clarifications:0,erreurs:0,dernier_ms:0,devoirs:0,repliques:0,non_structures:0,dernier_statut:"aucun",appels_modele:0,jetons_entree:0,jetons_sortie:0,dernier_modele_ms:0};
-export function resumeDialogueDevoirs(){const {essai,...publics}=etat;return {actif:true,source:"Supabase",reponse:"une réplique mémorisée, sans réécriture",...publics};}
+export function resumeDialogueDevoirs(){const {essai,...publics}=etat;return {actif:true,source:"Supabase",reponse:"une réplique mémorisée, sans réécriture",...publics,acces_direct:resumeDialoguesRapides()};}
 export function publierDiagnosticDialogue(bilan:Record<string,unknown>){etat.diagnostic=bilan;}
 export async function indexDialogue(){
+ void chargerDialoguesRapides();
  const {devoirs}=await devoirsALire(1500);const index=indexerDevoirs(devoirs);
  etat.devoirs=index.length;etat.repliques=index.reduce((n,d)=>n+d.repliques.length,0);etat.non_structures=index.filter(d=>!d.repliques.length).length;
  return index;
@@ -54,7 +56,7 @@ export function langueDuDialogue(question:string,history:TourDialogue[]):"fr"|"w
  const precedent=[...history].reverse().find(t=>t.role==="user"&&t.text.length>15);
  return detecterLangue(question,precedent?detecterLangue(precedent.text):"wo");
 }
-type ReponseDevoir={reply:string;langue:"fr"|"wo";emotion:string;source:string;dialogue_memorise:boolean;lecon_id?:string;replique_id?:string;motif?:string};
+type ReponseDevoir={reply:string;langue:"fr"|"wo";emotion:string;source:string;dialogue_memorise:boolean;lecon_id?:string;replique_id?:string;motif?:string;acces_direct?:boolean};
 export async function dialoguerAvecDevoirs(question:string,historique:unknown,options:{index?:DialogueAppris[];choisir?:(p:unknown)=>Promise<unknown>;diagnostic?:boolean}={}):Promise<ReponseDevoir|null>{
  const debut=Date.now(),diagnostic=options.diagnostic===true;const history=contexteDialogue(historique);
  if(!diagnostic)etat.tours++;
@@ -64,6 +66,16 @@ export async function dialoguerAvecDevoirs(question:string,historique:unknown,op
   const index=options.index||await indexDialogue(),candidats=chercherDialogues(index,question,history);
   if(!candidats.length){if(!diagnostic){etat.hors_sujet++;etat.dernier_statut="non_couvert";}return null;}
   const langue=langueDuDialogue(question,history),devoirs=paquetSelection(candidats,history,langue,question);
+  const cle=cleDialogue(index,question,history);
+  const connu=options.choisir?undefined:chercherChoixRapide(cle);
+  if(connu){
+   const doc=candidats.findIndex(c=>c.d.id===connu.devoir);
+   const v=resoudreSelection({statut:"selection",id:doc+":"+connu.replique},devoirs,langue);
+   if(v.statut==="selection"){
+    if(!diagnostic){etat.selectionnes++;etat.dernier_statut="acces_direct";}
+    return {reply:v.reply,langue,emotion:"douce",source:"dialogue mémorisé (Supabase)",dialogue_memorise:true,lecon_id:connu.devoir,replique_id:connu.replique,acces_direct:true};
+   }
+  }
   const sonnet=(process.env.BIA_LLM_PROVIDER||"anthropic").toLowerCase()==="anthropic";
   // The former 2.5 s budget cut off the coherence check mid-request.
   // French source lines suffice for selection; exact Wolof stays in the local
@@ -84,6 +96,7 @@ export async function dialoguerAvecDevoirs(question:string,historique:unknown,op
   if(verdict.statut==="selection"){
    if(!diagnostic){etat.selectionnes++;etat.dernier_statut="selection";}
    const [docId,lineId]=verdict.id.split(":");
+   if(!options.choisir)garderChoixRapide(cle,{devoir:candidats[Number(docId)].d.id,replique:lineId});
    return {reply:verdict.reply,langue,emotion:"douce",source:"dialogue mémorisé (Supabase)",dialogue_memorise:true,lecon_id:candidats[Number(docId)].d.id,replique_id:lineId};
   }
   // A rejected selection is not evidence that the person is unclear. Let

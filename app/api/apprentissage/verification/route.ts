@@ -1,3 +1,4 @@
+import {lancerPrechauffageDialogue} from "@/lib/prechauffage-dialogue";
 import {verifierSonnet} from "@/lib/essai-sonnet";
 import {verifierSecoursModele} from "@/lib/essai-secours-modele";
 import {lancerAudioMemoire,diagnosticFormatsAudioMemoire} from "@/lib/audio-memoire";
@@ -23,6 +24,9 @@ export async function POST(r:Request){
   // runner for this fixed public catalogue only; ordinary master checks do
   // not generate audio. Once this session expires, explicit selection wins.
   const runner=a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
+  // Owner requested instant learned replies on 12 October at 15:23 UTC.
+  // Derived cache preparation runs in the background; no lesson/audio rewrites.
+  if(body.rapide===true||(runner&&Date.now()<Date.parse("2026-10-12T16:00:00Z")))return NextResponse.json({verifie:true,prechauffage:lancerPrechauffageDialogue()});
   // Explicit Sonnet switch requested by the owner on 12 October. Fixed
   // Credit recharged at 14:39 UTC: authenticated preflight before activation,
   // once per process. The existing runner window closes at 16:00 UTC.

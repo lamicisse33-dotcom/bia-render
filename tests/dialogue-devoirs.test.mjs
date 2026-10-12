@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
+import crypto from 'node:crypto';
 const compile=s=>ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 function load(path,deps={},env={}){const module={exports:{}};new Function('require','module','exports',...Object.keys(env),compile(fs.readFileSync(path,'utf8')))(n=>{assert(n in deps,`Unexpected import ${n}`);return deps[n];},module,module.exports,...Object.values(env));return module.exports;}
 const core=load('lib/dialogue-devoirs-core.ts'),langue=load('lib/langue.ts');
@@ -26,7 +27,8 @@ Français : BIA : Laisse-lui un peu de temps.
 Français : BIA : Comment ? Pourquoi ?`);
 const index=core.indexerDevoirs([fixture]);
 function service(fetch=async()=>{throw Error('Unexpected network');},devoirs=async()=>({devoirs:[fixture]}),config={}){
- return load('lib/dialogue-devoirs.ts',{'./cerveau-anthropic':load('lib/cerveau-anthropic.ts',{}, {fetch,globalThis:{},process:{env:{}}}),'./cerveau-cerebras':{appelerCerebras:(url,init)=>fetch(url,init)},'./salutations-dialogue':salutations,'./dialogue-devoirs-core':core,'./langue':langue,'./devoirs-apprentissage':{devoirsALire:devoirs}}, {fetch,globalThis:{},process:{env:{BIA_LLM_PROVIDER:'cerebras',CEREBRAS_API_KEY:'test-only',...config}}});
+ const rapide=load('lib/dialogue-rapide.ts',{'node:crypto':crypto,'./audio-memoire-stockage':{lireObjetMemoire:async()=>null,ecrireObjetMemoire:async()=>{}}},{globalThis:{},setTimeout:()=>({unref(){}})});
+ return load('lib/dialogue-devoirs.ts',{'./dialogue-rapide':rapide,...{'./cerveau-anthropic':load('lib/cerveau-anthropic.ts',{}, {fetch,globalThis:{},process:{env:{}}}),'./cerveau-cerebras':{appelerCerebras:(url,init)=>fetch(url,init)},'./salutations-dialogue':salutations,'./dialogue-devoirs-core':core,'./langue':langue,'./devoirs-apprentissage':{devoirsALire:devoirs}}}, {fetch,globalThis:{},process:{env:{BIA_LLM_PROVIDER:'cerebras',CEREBRAS_API_KEY:'test-only',...config}}});
 }
 test('explicit bilingual pairs preserve text and roles without guessing missing translations',()=>{
  assert.equal(core.analyserDevoir(saved('Wolof : 20 minutes.\nFrançais : 20 minutes.')).repliques[0].fr,'20 minutes.');
@@ -85,10 +87,10 @@ test('real chat route gives the authenticated learned dialogue priority over gen
  const source=fs.readFileSync('app/api/chat/route.ts','utf8'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);let fn;
  ast.forEachChild(n=>{if(ts.isFunctionDeclaration(n)&&n.name?.text==='repondre')fn=n.getText(ast);});assert(fn);
  let calls=0;const expected={reply:'Question apprise ?',dialogue_memorise:true};
- const env={corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected write')},devoirsALire:async()=>({devoirs:[]}),verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,dialoguerAvecDevoirs:async(q,h)=>{calls++;assert.equal(q,'Non.');assert.equal(h[0].text,'Question précédente ?');return expected;}};
+ const env={audioPourReponse:async()=>null,corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected write')},devoirsALire:async()=>({devoirs:[]}),verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,dialoguerAvecDevoirs:async(q,h)=>{calls++;assert.equal(q,'Non.');assert.equal(h[0].text,'Question précédente ?');return expected;}};
  env.sansRelanceAutomatique=core.sansRelanceAutomatique;
  const run=new Function('env',`with(env){${compile(fn)}return repondre;}`)(env);
- const r=await run({message:'Non.',history:[{role:'bia',text:'Question précédente ?'}]},'valid-test-code',null);assert.deepEqual(r,{corps:{...expected,origine_devoir:null}});assert.equal(calls,1);
+ const r=await run({message:'Non.',history:[{role:'bia',text:'Question précédente ?'}]},'valid-test-code',null);assert.deepEqual(r,{corps:{...expected,origine_devoir:null,audio_memorise:null}});assert.equal(calls,1);
 });
 
 test('an older learned reply is not repeated after four subsequent exchanges',()=>{
@@ -121,7 +123,7 @@ test('a follow-up request retains the lesson and may choose a learned suggestion
 });
 test('lesson verification rejects anonymous access before any private evaluation',async()=>{
  let evaluations=0;
- const route=load('app/api/apprentissage/verification/route.ts',{'@/lib/essai-sonnet':{verifierSonnet:async()=>{evaluations++;}},'@/lib/essai-secours-modele':{verifierSecoursModele:async()=>{evaluations++;}},'@/lib/audio-memoire':{lancerAudioMemoire:async()=>{evaluations++;}},'@/lib/corrections-sons-courants':{verifierStockageCorrectionsCourantes:async()=>{evaluations++;}},'@/lib/sons-courants':{genererSonsCourants:async()=>{evaluations++;}},'@/lib/essai-continuite-voix':{verifierContinuiteVoix:async()=>{evaluations++;}},'@/lib/correction-devoir':{verifierCorrectionDevoir:async()=>{evaluations++;}},'node:crypto':{timingSafeEqual:()=>false},'next/server':{NextResponse:{json:(body,opt)=>({body,...opt})}},'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/lexique':{lexiqueConfig:{actif:true}},'@/lib/lexique-apprentissage-core':{APP_LECONS:'test'},'@/lib/essai-dialogue-devoirs':{verifierDialoguesAppris:async()=>{evaluations++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test'}},Buffer});
+ const route=load('app/api/apprentissage/verification/route.ts',{'@/lib/prechauffage-dialogue':{lancerPrechauffageDialogue:()=>{}},'@/lib/essai-sonnet':{verifierSonnet:async()=>{evaluations++;}},'@/lib/essai-secours-modele':{verifierSecoursModele:async()=>{evaluations++;}},'@/lib/audio-memoire':{lancerAudioMemoire:async()=>{evaluations++;}},'@/lib/corrections-sons-courants':{verifierStockageCorrectionsCourantes:async()=>{evaluations++;}},'@/lib/sons-courants':{genererSonsCourants:async()=>{evaluations++;}},'@/lib/essai-continuite-voix':{verifierContinuiteVoix:async()=>{evaluations++;}},'@/lib/correction-devoir':{verifierCorrectionDevoir:async()=>{evaluations++;}},'node:crypto':{timingSafeEqual:()=>false},'next/server':{NextResponse:{json:(body,opt)=>({body,...opt})}},'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/lexique':{lexiqueConfig:{actif:true}},'@/lib/lexique-apprentissage-core':{APP_LECONS:'test'},'@/lib/essai-dialogue-devoirs':{verifierDialoguesAppris:async()=>{evaluations++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test'}},Buffer});
  const r=await route.POST({headers:{get:()=>null}});assert.equal(r.status,401);assert.equal(evaluations,0);
 });
 
@@ -264,4 +266,17 @@ test('a valid Sonnet reply arriving after the old 2.5 s deadline still receives 
  },undefined,{BIA_LLM_PROVIDER:'anthropic',ANTHROPIC_API_KEY:'test-only'});
  const r=await api.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',[]);
  assert.equal(r?.reply,'Vous vous êtes disputés ?');assert.equal(calls,2);assert.equal(api.resumeDialogueDevoirs().erreurs,0);
+});
+
+
+test('a verified choice is reused without another model call, but a changed fact or lesson is not',async()=>{
+ let calls=0;
+ const api=service(async()=>{calls++;return Response.json({content:[{type:'text',text:'{"statut":"selection","id":"0:1"}'}]});},undefined,{BIA_LLM_PROVIDER:'anthropic',ANTHROPIC_API_KEY:'test'});
+ const q='Ma copine ne répond plus à mes appels.';
+ const a=await api.dialoguerAvecDevoirs(q,[],{index});assert.equal(calls,2);
+ const b=await api.dialoguerAvecDevoirs('Bia, '+q+' Réponds en wolof.',[],{index});
+ assert.equal(calls,2);assert.equal(b.acces_direct,true);assert.equal(b.reply,index[0].repliques[1].wo);
+ await api.dialoguerAvecDevoirs(q,[{role:'user',text:'Nous ne nous sommes pas disputés.'}],{index});assert.equal(calls,4);
+ const changed=structuredClone(index);changed[0].repliques[1].wo='Source corrigée.';
+ const c=await api.dialoguerAvecDevoirs(q,[],{index:changed});assert.equal(calls,6);assert.notEqual(c.acces_direct,true);
 });

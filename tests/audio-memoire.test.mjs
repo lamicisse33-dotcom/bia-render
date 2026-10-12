@@ -48,3 +48,11 @@ test('an interrupted or concurrent take does not block preparing other lesson re
  f.objects.set('verrous/'+first.id+'.json',JSON.stringify({owner:'other-worker',debut:Date.now()}));
  await s.pump();assert.equal(f.generations(),0);await s.pump();assert.equal(f.generations(),1);assert.equal(s.api.resumeAudioMemoire().prets,1);
 });
+
+
+test('a current stored recording is attached to chat, reused without synthesis, and removed after correction',async()=>{
+ const f=fixture(),s=f.server();await s.api.lancerAudioMemoire();await s.pump();
+ const son=await s.api.audioPourReponse('Nanga def ?','wo');assert(son);assert.equal(Buffer.from(son.base64,'base64').length,2500);
+ const again=await s.api.audioPourReponse('Nanga def ?','wo');assert.equal(again.id,son.id);assert.equal(f.generations(),1);assert(s.api.resumeAudioMemoire().cache_serveur>0);
+ f.change();await s.api.catalogueAudioMemoire(true);assert.equal(await s.api.audioPourReponse('Nanga def ?','wo'),null);
+});

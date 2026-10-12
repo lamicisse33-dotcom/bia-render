@@ -1,3 +1,4 @@
+import {audioPourReponse} from "@/lib/audio-memoire";
 import {fetchAnthropic,MODELE_SONNET,messagesAnthropic} from "@/lib/cerveau-anthropic";
 import {correctionCourantePour} from "@/lib/corrections-sons-courants";
 import {corrigerDevoirConversation} from "@/lib/correction-devoir-conversation";
@@ -1390,12 +1391,15 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        &&!estUnSecours(question)&&!intentionMedia(question)&&!demandeDeNombre(question)){
       const memorisee=await dialoguerAvecDevoirs(question,body.history);
       if(memorisee){
+        // Audio is read from the existing private library, never regenerated.
+        // Reading alongside provenance avoids an extra browser/server round trip.
+        const audioPromesse=memorisee.dialogue_memorise?Promise.race([audioPourReponse(memorisee.reply,memorisee.langue),new Promise<null>(resolve=>setTimeout(()=>resolve(null),700))]):Promise.resolve(null);
         let origine_devoir:unknown=null;
         if(memorisee.dialogue_memorise){
           const d=(await devoirsALire(1500)).devoirs.find(d=>d.id===memorisee.lecon_id);
           if(d)origine_devoir=origineReplique(d,memorisee.replique_id!,memorisee.langue)||{devoir_id:d.id,indisponible:true};
         }
-        return {corps:{...memorisee,origine_devoir}};
+        return {corps:{...memorisee,origine_devoir,audio_memorise:await audioPromesse}};
       }
     }
 
