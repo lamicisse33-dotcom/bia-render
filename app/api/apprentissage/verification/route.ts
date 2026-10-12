@@ -1,3 +1,4 @@
+import {verifierSecoursModele} from "@/lib/essai-secours-modele";
 import {lancerAudioMemoire,diagnosticFormatsAudioMemoire} from "@/lib/audio-memoire";
 import {verifierStockageCorrectionsCourantes} from "@/lib/corrections-sons-courants";
 import {genererSonsCourants} from "@/lib/sons-courants";
@@ -21,6 +22,9 @@ export async function POST(r:Request){
   // runner for this fixed public catalogue only; ordinary master checks do
   // not generate audio. Once this session expires, explicit selection wins.
   const runner=a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
+  // Recovery requested on 12 October: fixed read-only proof through the same
+  // authenticated runner, once per process; no generation or source edits.
+  if(body.secours_modele===true||(runner&&Date.now()<Date.parse("2026-10-12T05:00:00Z")))return NextResponse.json({verifie:true,lecture_seule:true,secours_modele:await verifierSecoursModele()});
   if(body.memoire_audio===true||(runner&&Date.now()<Date.parse("2026-10-12T03:00:00Z")))return NextResponse.json({verifie:true,audio_memoire:await lancerAudioMemoire(),formats:await diagnosticFormatsAudioMemoire()});
   if(body.corrections_sons===true||(runner&&Date.now()<Date.parse("2026-10-12T00:00:00Z")))return NextResponse.json({verifie:true,corrections_sons:await verifierStockageCorrectionsCourantes()});
   if(body.sons===true||(runner&&Date.now()<Date.parse("2026-10-12T00:00:00Z"))){

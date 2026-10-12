@@ -2720,7 +2720,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           ...(o.avecOutil ? {tools:[{type:"browser_search"}]} : {}),
         }),
       }, limiteGroq, false);
-      if(cerebras && !r.ok && [429,500,502,503,504,529].includes(r.status) && process.env.GROQ_API_KEY && Date.now()+1000<limiteGroq){
+      if(cerebras && r.headers.get("x-bia-provider")!=="groq" && !r.ok && [429,500,502,503,504,529].includes(r.status) && process.env.GROQ_API_KEY && Date.now()+1000<limiteGroq){
         console.warn("BIA_MODEL_PROVIDER_FALLBACK", JSON.stringify({from:"cerebras",to:"groq",status:r.status}));
         r=await fetchGroqAvecSecours("https://api.groq.com/openai/v1/chat/completions",{
           method:"POST",
@@ -2742,6 +2742,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         if(!local)noterConversation({ok:false,modele:model,attendu:model,effort:effortConversation(question,Boolean(body.apprend)),ms:Date.now()-debutConversation,messages:messages.length});
         return r;
       }
+      const fournisseurEffectif=r.headers.get("x-bia-provider")||(local ? "local" : cerebras && !rechercheViaGroq ? "cerebras" : "groq");
       const diffuse = Boolean(emettre && r.headers.get("content-type")?.includes("text/event-stream"));
       let premierTexteFlux = 0;
       const g=diffuse ? await lireFluxConversation(r, (texte) => {
@@ -2755,7 +2756,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return new Response(JSON.stringify({
         content:texte?[{type:"text",text:texte}]:[],
         usage:{
-          fournisseur:local ? "local" : cerebras && !rechercheViaGroq ? "cerebras" : "groq",
+          fournisseur:fournisseurEffectif,
           nom_modele:String(g.model||model),
           input_tokens:Math.max(0,(Number(usage.prompt_tokens)||0)-(Number((usage.prompt_tokens_details as {cached_tokens?:number}|undefined)?.cached_tokens)||0)),
           cache_read_input_tokens:Number((usage.prompt_tokens_details as {cached_tokens?:number}|undefined)?.cached_tokens)||0,
@@ -2763,7 +2764,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         },
         stop_reason:g.choices?.[0]?.finish_reason==="length" ? "max_tokens" : String(g.choices?.[0]?.finish_reason||"end_turn"),
         types:texte?["text"]:[],
-      }),{status:200,headers:{"content-type":"application/json","x-bia-provider":local ? "local" : cerebras ? "cerebras" : "groq",...(diffuse ? {"x-bia-deja-diffuse":"true"} : {})}});
+      }),{status:200,headers:{"content-type":"application/json","x-bia-provider":fournisseurEffectif,...(diffuse ? {"x-bia-deja-diffuse":"true"} : {})}});
     };
 
     const appelerLeModele = (o: {

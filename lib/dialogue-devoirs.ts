@@ -1,9 +1,10 @@
+import {appelerCerebras} from "./cerveau-cerebras";
 import {devoirsALire} from "./devoirs-apprentissage";
 import {chercherDialogues,contexteDialogue,indexerDevoirs,paquetSelection,resoudreSelection,normaliserDialogue,finDuSujet,type DialogueAppris,type TourDialogue} from "./dialogue-devoirs-core";
 import {detecterLangue} from "./langue";
 import {salutationAutonome} from "./salutations-dialogue";
 
-const g=globalThis as typeof globalThis & {biaDialogueDevoirs?:{tours:number;selectionnes:number;hors_sujet:number;clarifications:number;erreurs:number;dernier_ms:number;devoirs:number;repliques:number;non_structures:number;dernier_statut:string;appels_modele:number;jetons_entree:number;jetons_sortie:number;dernier_modele_ms:number;diagnostic?:unknown;essai?:Promise<unknown>}};
+const g=globalThis as typeof globalThis & {biaDialogueDevoirs?:{tours:number;selectionnes:number;hors_sujet:number;clarifications:number;erreurs:number;dernier_ms:number;devoirs:number;repliques:number;non_structures:number;dernier_statut:string;appels_modele:number;jetons_entree:number;jetons_sortie:number;dernier_modele_ms:number;dernier_motif?:string;diagnostic?:unknown;essai?:Promise<unknown>}};
 const etat=g.biaDialogueDevoirs??={tours:0,selectionnes:0,hors_sujet:0,clarifications:0,erreurs:0,dernier_ms:0,devoirs:0,repliques:0,non_structures:0,dernier_statut:"aucun",appels_modele:0,jetons_entree:0,jetons_sortie:0,dernier_modele_ms:0};
 export function resumeDialogueDevoirs(){const {essai,...publics}=etat;return {actif:true,source:"Supabase",reponse:"une réplique mémorisée, sans réécriture",...publics};}
 export function publierDiagnosticDialogue(bilan:Record<string,unknown>){etat.diagnostic=bilan;}
@@ -33,7 +34,8 @@ async function selectionner(payload:unknown,consigne=CONSIGNE,fin=Date.now()+250
  const url=local?(process.env.LOCAL_LLM_URL||"").replace(/\/$/,"")+"/brain/v1/chat/completions":cerebras?"https://api.cerebras.ai/v1/chat/completions":"https://api.groq.com/openai/v1/chat/completions";
  const model=local?process.env.LOCAL_LLM_MODEL||"Oolel-v0.1-Q8_0":cerebras?process.env.CEREBRAS_MODEL||"gpt-oss-120b":process.env.GROQ_MODEL||"openai/gpt-oss-120b";
  const debut=Date.now();etat.appels_modele++;
- const r=await fetch(url,{method:"POST",cache:"no-store",signal:AbortSignal.timeout(Math.max(1,fin-Date.now())),headers:{"content-type":"application/json",...(local?{"X-Brain-Key":key}:{authorization:`Bearer ${key}`})},body:JSON.stringify({model,temperature:0,stream:false,messages:[{role:"system",content:consigne},{role:"user",content:JSON.stringify(payload)}],...(local?{max_tokens:256}:{max_completion_tokens:1536,...(/gpt-oss/.test(model)?{reasoning_effort:"low"}:{}),...(cerebras?{reasoning_format:"hidden"}:{include_reasoning:false})})})});
+ const init:RequestInit={method:"POST",cache:"no-store",signal:AbortSignal.timeout(Math.max(1,fin-Date.now())),headers:{"content-type":"application/json",...(local?{"X-Brain-Key":key}:{authorization:`Bearer ${key}`})},body:JSON.stringify({model,temperature:0,stream:false,messages:[{role:"system",content:consigne},{role:"user",content:JSON.stringify(payload)}],...(local?{max_tokens:256}:{max_completion_tokens:1536,...(/gpt-oss/.test(model)?{reasoning_effort:"low"}:{}),...(cerebras?{reasoning_format:"hidden"}:{include_reasoning:false})})})};
+ const r=cerebras?await appelerCerebras(url,init,fin):await fetch(url,init);
  etat.dernier_modele_ms=Date.now()-debut;
  if(!r.ok)throw Error("HTTP_"+r.status);const data=await r.json();
  etat.jetons_entree+=Number(data.usage?.prompt_tokens)||0;etat.jetons_sortie+=Number(data.usage?.completion_tokens)||0;
@@ -84,8 +86,8 @@ export async function dialoguerAvecDevoirs(question:string,historique:unknown,op
   return null;
  }catch(error){
   const brut=(error as Error)?.message||"",motif=/^(HTTP_\d{3}|sortie_tronquee|configuration_absente|fournisseur_non_pris_en_charge)$/.test(brut)?brut:(error as Error)?.name==="TimeoutError"?"delai_depasse":"consultation_ou_selection_impossible";
-  if(!diagnostic){etat.erreurs++;etat.dernier_statut="indisponible";}
-  return {reply:"Je n’arrive pas à consulter mes leçons pour le moment. Réessaie.",langue:"fr" as const,emotion:"concernee",source:"mémoire des devoirs indisponible",dialogue_memorise:false,motif};
+  if(!diagnostic){etat.erreurs++;etat.dernier_statut="indisponible";etat.dernier_motif=motif;}
+  return {reply:/^HTTP_/.test(motif)?"Le moteur qui m’aide à choisir une réponse est indisponible pour le moment. Réessaie.":"Je n’arrive pas à consulter mes leçons pour le moment. Réessaie.",langue:"fr" as const,emotion:"concernee",source:"mémoire des devoirs indisponible",dialogue_memorise:false,motif};
  }finally{if(!diagnostic)etat.dernier_ms=Date.now()-debut;}
 }
 /** Fixed, once-per-process production proof. No query, corpus, reply, identifier,

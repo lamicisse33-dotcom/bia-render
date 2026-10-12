@@ -1,3 +1,4 @@
+import {resumeSecoursCerebras} from "@/lib/cerveau-cerebras";
 import {resumeAudioMemoire} from "@/lib/audio-memoire";
 import {sonsCourantsEtat} from "@/lib/sons-courants-etat";
 import {resumeContinuiteVoix} from "@/lib/continuite-voix-etat";
@@ -140,6 +141,7 @@ export async function GET(request: Request) {
     fournisseur_modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase(),
     cerveau_local: resumeCerveauLocal(),
     conversation: etatConversation(),
+    secours_modele: resumeSecoursCerebras(),
     derniere_limite_groq: resumeLimiteGroq(),
     modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "cerebras" ? (process.env.CEREBRAS_MODEL || "gpt-oss-120b") : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "local"
       ? (process.env.LOCAL_LLM_MODEL || "Oolel-v0.1-Q8_0")

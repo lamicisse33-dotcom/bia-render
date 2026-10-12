@@ -57,6 +57,8 @@ export async function fetchGroqAvecSecours(url: string, init: RequestInit, limit
   const body = JSON.parse(String(init.body || "{}")) as Record<string, unknown>;
   if (!autoriserPetitModele || body.model !== "openai/gpt-oss-120b" || Date.now() + 1000 >= limite) return reponse;
   let besoin = [429, 502, 503, 504, 529].includes(reponse.status);
+  // Do not consume a successful live stream to inspect a JSON-only fallback.
+  if (reponse.ok && reponse.headers.get("content-type")?.includes("text/event-stream")) return reponse;
   if (reponse.ok) {
     const data = await reponse.clone().json().catch(() => null);
     besoin = data?.choices?.[0]?.finish_reason === "length" && !String(data?.choices?.[0]?.message?.content || "").trim();

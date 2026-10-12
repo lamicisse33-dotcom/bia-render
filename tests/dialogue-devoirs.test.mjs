@@ -26,7 +26,7 @@ Français : BIA : Laisse-lui un peu de temps.
 Français : BIA : Comment ? Pourquoi ?`);
 const index=core.indexerDevoirs([fixture]);
 function service(fetch=async()=>{throw Error('Unexpected network');},devoirs=async()=>({devoirs:[fixture]})){
- return load('lib/dialogue-devoirs.ts',{'./salutations-dialogue':salutations,'./dialogue-devoirs-core':core,'./langue':langue,'./devoirs-apprentissage':{devoirsALire:devoirs}}, {fetch,globalThis:{},process:{env:{BIA_LLM_PROVIDER:'cerebras',CEREBRAS_API_KEY:'test-only'}}});
+ return load('lib/dialogue-devoirs.ts',{'./cerveau-cerebras':{appelerCerebras:(url,init)=>fetch(url,init)},'./salutations-dialogue':salutations,'./dialogue-devoirs-core':core,'./langue':langue,'./devoirs-apprentissage':{devoirsALire:devoirs}}, {fetch,globalThis:{},process:{env:{BIA_LLM_PROVIDER:'cerebras',CEREBRAS_API_KEY:'test-only'}}});
 }
 test('explicit bilingual pairs preserve text and roles without guessing missing translations',()=>{
  assert.equal(core.analyserDevoir(saved('Wolof : 20 minutes.\nFrançais : 20 minutes.')).repliques[0].fr,'20 minutes.');
@@ -121,7 +121,7 @@ test('a follow-up request retains the lesson and may choose a learned suggestion
 });
 test('lesson verification rejects anonymous access before any private evaluation',async()=>{
  let evaluations=0;
- const route=load('app/api/apprentissage/verification/route.ts',{'@/lib/audio-memoire':{lancerAudioMemoire:async()=>{evaluations++;}},'@/lib/corrections-sons-courants':{verifierStockageCorrectionsCourantes:async()=>{evaluations++;}},'@/lib/sons-courants':{genererSonsCourants:async()=>{evaluations++;}},'@/lib/essai-continuite-voix':{verifierContinuiteVoix:async()=>{evaluations++;}},'@/lib/correction-devoir':{verifierCorrectionDevoir:async()=>{evaluations++;}},'node:crypto':{timingSafeEqual:()=>false},'next/server':{NextResponse:{json:(body,opt)=>({body,...opt})}},'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/lexique':{lexiqueConfig:{actif:true}},'@/lib/lexique-apprentissage-core':{APP_LECONS:'test'},'@/lib/essai-dialogue-devoirs':{verifierDialoguesAppris:async()=>{evaluations++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test'}},Buffer});
+ const route=load('app/api/apprentissage/verification/route.ts',{'@/lib/essai-secours-modele':{verifierSecoursModele:async()=>{evaluations++;}},'@/lib/audio-memoire':{lancerAudioMemoire:async()=>{evaluations++;}},'@/lib/corrections-sons-courants':{verifierStockageCorrectionsCourantes:async()=>{evaluations++;}},'@/lib/sons-courants':{genererSonsCourants:async()=>{evaluations++;}},'@/lib/essai-continuite-voix':{verifierContinuiteVoix:async()=>{evaluations++;}},'@/lib/correction-devoir':{verifierCorrectionDevoir:async()=>{evaluations++;}},'node:crypto':{timingSafeEqual:()=>false},'next/server':{NextResponse:{json:(body,opt)=>({body,...opt})}},'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/lexique':{lexiqueConfig:{actif:true}},'@/lib/lexique-apprentissage-core':{APP_LECONS:'test'},'@/lib/essai-dialogue-devoirs':{verifierDialoguesAppris:async()=>{evaluations++;}}},{process:{env:{CHATTERBOX_TEST_KEY:'test'}},Buffer});
  const r=await route.POST({headers:{get:()=>null}});assert.equal(r.status,401);assert.equal(evaluations,0);
 });
 
