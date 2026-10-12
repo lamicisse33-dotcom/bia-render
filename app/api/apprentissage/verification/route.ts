@@ -1,3 +1,4 @@
+import {verifierPrisesVoix} from "@/lib/essai-prises-voix";
 import {verifierLatenceSalutation} from "@/lib/essai-latence-salutation";
 import {integrerLexiquePartage,verifierIntegrationLexiquePartage} from "@/lib/lexique-partage";
 import {verifierSalutations} from '@/lib/reponse-salutation';
@@ -29,6 +30,7 @@ export async function POST(r:Request){
   // runner for this fixed public catalogue only; ordinary master checks do
   // not generate audio. Once this session expires, explicit selection wins.
   const runner=a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
+  if(body.prises_etu035===true||(runner&&Object.keys(body).length===0&&Date.now()<Date.parse("2026-10-13T00:00:00Z")))return NextResponse.json({verifie:true,prises_etu035:await verifierPrisesVoix()});
   // Owner reported missing "ra" in BIA-ETU-035 at 22:13 UTC.
   // Fixed read-only comparison; no lesson or production audio is replaced.
   if(body.omissions_etu035===true||(runner&&Object.keys(body).length===0&&Date.now()<Date.parse("2026-10-13T00:00:00Z")))return NextResponse.json({verifie:true,lecture_bilingue:lancerEssaiLectureBilingue()});

@@ -60,15 +60,16 @@ test('lesson 21 keeps the underlined Wolof words between French borrowings', () 
 
 function route() {
   let parts = [{texte: 'Bul jël', langue: 'wo'}, {texte: 'suspicion', langue: 'fr'}];
-  let calls = 0;
-  const {POST} = load('app/api/chatterbox-test/bia/route.ts', {
+  let calls = 0;const inputs=[];
+  const {POST} = load('app/api/chatterbox-test/bia/route.ts', {'@/lib/prise-voix':load('lib/prise-voix.ts',{'node:crypto':crypto}),
     '@/lib/cache-voix-dialogue':load('lib/cache-voix-dialogue.ts'),'@/lib/continuite-voix-etat':{continuiteVoix:{}},
     '@/lib/passages-khalam': {preparerPassagesKhalam: async () => parts},
     '@/lib/langue': {detecterLangue: () => 'wo'},
     'next/server': {NextRequest: Request, NextResponse: {json: (data, init) => Response.json(data, init)}},
     'node:crypto': crypto,
     '@/lib/codes': {verifierCode: () => ({ok: true})},
-    '../route': {POST: async () => {
+    '../route': {POST: async request => {
+      inputs.push((await request.json()).input);
       calls++;
       return Response.json({status: 'COMPLETED', output: {voice: 'female', audio_base64: 'test', generation_ms: 1}});
     }},
@@ -80,7 +81,7 @@ function route() {
       method: 'POST', headers: {'content-type': 'application/json'},
       body: JSON.stringify({texte: 'Bul jël suspicion', voice: 'female', ...extra}),
     })),
-    change: value => {parts = value;}, calls: () => calls,
+    change: value => {parts = value;}, calls: () => calls, inputs,
   };
 }
 
@@ -131,4 +132,17 @@ test('validated French expression vocabulary is recognized without forcing share
 test('an isolated learned French homograph does not override Wolof grammar',()=>{
  const p=passagesLanguesVoix('Dama xam prix la.','wo',['la','ma']);
  assert.deepEqual(p.map(x=>[x.texte.trim(),x.langue]),[['Dama xam','wo'],['prix','fr'],['la.','wo']]);
+});
+
+test('a new take reaches the GPU with a different seed while normal reading and replay keep their cache',async()=>{
+ const r=route();
+ await r.request({lecture_fidele:true});
+ await r.request({lecture_fidele:true,nouvelle_prise:'retake-one'});
+ await r.request({lecture_fidele:true,nouvelle_prise:'retake-one'});
+ await r.request({lecture_fidele:true,nouvelle_prise:'retake-two'});
+ assert.equal(r.calls(),3);
+ assert.equal(r.inputs[0].seed,913);
+ assert.notEqual(r.inputs[1].seed,r.inputs[0].seed);
+ assert.notEqual(r.inputs[1].seed,r.inputs[2].seed);
+ assert(r.inputs.every(i=>i.text==='Bul jël'&&i.language==='wo'&&Number.isSafeInteger(i.seed)));
 });

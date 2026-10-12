@@ -62,10 +62,12 @@ export async function POST(request: NextRequest) {
     const voice = body?.input?.voice === "male" ? "male" : "female";
     const language = body.input.language === "fr" || body.input.language === "wo" ? body.input.language : detecterLangue(text);
     const francais = language === "fr";
+    const seed = body.input.seed === undefined ? 913 : body.input.seed;
+    if (!Number.isSafeInteger(seed) || seed < 0 || seed > 2147483647) return NextResponse.json({error:"Prise vocale invalide."},{status:400});
     const response = await fetch(`${c.url}/tts`, {
       method: "POST", cache: "no-store",
       headers: { "content-type": "application/json", "X-Khalam-Key": c.key },
-      body: JSON.stringify({ input: { text, voice, language, language_id: "fr", temperature: francais ? .3 : .4,
+      body: JSON.stringify({ input: { text, voice, language, seed, language_id: "fr", temperature: francais ? .3 : .4,
         ...(francais ? { exaggeration: .25, cfg_weight: .7 } : {}),
         preserve_segment: body.input.preserve_segment === true } }),
       signal: AbortSignal.timeout(90000),

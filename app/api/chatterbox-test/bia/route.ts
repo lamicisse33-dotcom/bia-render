@@ -1,3 +1,4 @@
+import {grainePriseVoix} from "@/lib/prise-voix";
 import {continuiteVoix} from "@/lib/continuite-voix-etat";
 import {CacheVoixDialogue} from "@/lib/cache-voix-dialogue";
 import { preparerPassagesKhalam } from "@/lib/passages-khalam";
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
         const response = await testSynthesis(new NextRequest(request.url, {
           method: "POST",
           headers: { "content-type": "application/json", "x-chatterbox-test-key": serverKey },
-          body: JSON.stringify({ input: { text: parts[partie].texte, voice, language: common.langue, preserve_segment: true } }),
+          body: JSON.stringify({ input: { text: parts[partie].texte, voice, language: common.langue, seed:grainePriseVoix(body.nouvelle_prise,voice,partie), preserve_segment: true } }),
         }));
         const data = await response.json();
         // Count one real generation, even when multiple requests share it.
