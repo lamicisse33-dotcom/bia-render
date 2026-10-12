@@ -1,4 +1,5 @@
 import {ouvrirRepliques} from "./flux-repliques";
+import {bordsAudio} from "./bords-audio";
 import {continuiteVoix as etat} from "./continuite-voix-etat";
 /** WAV clip duration after the same conservative edge trim as the web player. */
 function dureeParlee(base64:string){
@@ -6,10 +7,10 @@ function dureeParlee(base64:string){
  if(b.toString("ascii",0,4)!=="RIFF"||b.toString("ascii",8,12)!=="WAVE")throw Error("wav");
  for(let p=12;p+8<=b.length;){const n=b.readUInt32LE(p+4),kind=b.toString("ascii",p,p+4);if(p+8+n>b.length)throw Error("wav");if(kind==="fmt "){format=b.readUInt16LE(p+8);channels=b.readUInt16LE(p+10);rate=b.readUInt32LE(p+12);bits=b.readUInt16LE(p+22);}if(kind==="data")data=b.subarray(p+8,p+8+n);p+=8+n+(n%2);}
  if(!data||format!==1||bits!==16||!rate||!channels)throw Error("pcm");
- const step=2*channels,length=Math.floor(data.length/step);let a=0,z=length;
- while(a<z&&Math.abs(data.readInt16LE(a*step))/32768<.006)a++;
- while(z>a&&Math.abs(data.readInt16LE((z-1)*step))/32768<.006)z--;
- return (Math.min(length,z+rate*.025)-Math.max(0,a-rate*.025))/rate;
+ const step=2*channels,length=Math.floor(data.length/step),pcm=data;
+ const canaux=Array.from({length:channels},(_,c)=>Int16Array.from({length},(_,i)=>pcm.readInt16LE(i*step+c*2)));
+ const {debut,fin}=bordsAudio(canaux,rate);
+ return (fin-debut)/rate;
 }
 export function verifierContinuiteVoix(){return etat.essai??=(async()=>{
  const cases=[];

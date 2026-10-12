@@ -1,3 +1,4 @@
+import {verifierIntegriteAudio} from "@/lib/essai-integrite-audio";
 import {lancerPrechauffageDialogue} from "@/lib/prechauffage-dialogue";
 import {verifierSonnet} from "@/lib/essai-sonnet";
 import {verifierSecoursModele} from "@/lib/essai-secours-modele";
@@ -24,6 +25,9 @@ export async function POST(r:Request){
   // runner for this fixed public catalogue only; ordinary master checks do
   // not generate audio. Once this session expires, explicit selection wins.
   const runner=a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
+  // Owner requested investigation of skipped words at 16:28 UTC. Two fixed
+  // synthesis probes, once per process; no lesson or stored audio changes.
+  if(body.integrite_audio===true||(runner&&Date.now()<Date.parse("2026-10-12T18:00:00Z")))return NextResponse.json({verifie:true,integrite_audio:await verifierIntegriteAudio()});
   // Owner requested instant learned replies on 12 October at 15:23 UTC.
   // Derived cache preparation runs in the background; no lesson/audio rewrites.
   if(body.rapide===true||(runner&&Date.now()<Date.parse("2026-10-12T16:00:00Z")))return NextResponse.json({verifie:true,prechauffage:lancerPrechauffageDialogue()});

@@ -33,7 +33,7 @@ test('audio generation is authenticated before any paid request',async()=>{
  const r=await route.POST({headers:{get:()=>null}});assert.equal(r.status,401);assert.equal(calls,0);
 });
 test('assembled PCM keeps every spoken sample in order and rejects silence or mismatched rates',()=>{
- const assemble=load('lib/assembler-sons-courants.ts',{'./mp3':{lireWav:b=>b}}).assemblerSonsCourants;
+ const assemble=load('lib/assembler-sons-courants.ts',{'./mp3':{lireWav:b=>b},'./bords-audio':load('lib/bords-audio.ts')}).assemblerSonsCourants;
  const a={hz:24000,canaux:1,pcm:Int16Array.from([...Array(1000).fill(0),...Array(2400).fill(1200),...Array(1000).fill(0)])};
  const b={...a,pcm:Int16Array.from([...Array(1000).fill(0),...Array(2400).fill(-1800),...Array(1000).fill(0)])};
  const r=assemble([a,b]),samples=new Int16Array(r.wav,44);assert.equal([...samples].filter(x=>x===1200).length,2400);assert.equal([...samples].filter(x=>x===-1800).length,2400);assert(samples.indexOf(1200)<samples.indexOf(-1800));

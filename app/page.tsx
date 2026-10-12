@@ -1,4 +1,5 @@
 "use client";
+import {sansSilence} from "@/lib/bords-audio";
 import {useAudioMemoire} from "@/lib/use-audio-memoire";
 import {sonPourTexte,reactionDisponible,type SonCourant} from "@/lib/sons-courants-core";
 import {programmerReactionCourante} from "@/lib/reaction-courante";
@@ -351,32 +352,6 @@ function extensionDe(type: string): string {
     : t.includes("ogg") ? "ogg"
     : t.includes("wav") ? "wav"
     : "webm";
-}
-
-/* Chaque morceau de voix arrive avec du silence au début et à la fin. Mis
-   bout à bout, ces silences s'additionnent et créent, entre deux phrases, un
-   blanc assez long pour qu'on croie BIA arrivée au bout de sa réponse — et
-   qu'on lui coupe la parole. On les rogne, en gardant 25 ms de marge : couper
-   au ras rendrait l'attaque sèche. */
-function sansSilence(ctx: AudioContext, brut: AudioBuffer): AudioBuffer {
-  const donnees = brut.getChannelData(0);
-  const SEUIL = 0.006;
-  let fin = donnees.length;
-  while (fin > 1 && Math.abs(donnees[fin - 1]) < SEUIL) fin -= 1;
-  let debut = 0;
-  while (debut < fin && Math.abs(donnees[debut]) < SEUIL) debut += 1;
-
-  const marge = Math.round(brut.sampleRate * 0.025);
-  debut = Math.max(0, debut - marge);
-  fin = Math.min(donnees.length, fin + marge);
-  const garde = fin - debut;
-  if (garde < 1 || garde > donnees.length - marge) return brut;   // rien à gagner
-
-  const coupe = ctx.createBuffer(brut.numberOfChannels, garde, brut.sampleRate);
-  for (let c = 0; c < brut.numberOfChannels; c++) {
-    coupe.copyToChannel(brut.getChannelData(c).slice(debut, fin), c);
-  }
-  return coupe;
 }
 
 const rythmesAudioBia = new WeakMap<ArrayBuffer, number>();
@@ -3095,10 +3070,7 @@ export default function Home() {
            partait à la poubelle sans un mot — sans même l'erreur qui aurait
            fait lire la réponse par le téléphone à la place.
 
-           Une phrase perdue au milieu d'une histoire vaut mieux que la
-           moitié de l'histoire jamais dite : on retente CE morceau une
-           fois, et s'il manque encore, on saute SEULEMENT lui — la suite
-           continue, morceau après morceau, jusqu'au bout. */
+           Un échec est retenté puis signalé : aucun passage ne doit être sauté. */
         if ((!morceau || !morceau.audio) && !continu) {
           try { morceau = await demander(i); } catch { morceau = null; }
         }
