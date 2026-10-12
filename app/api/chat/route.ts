@@ -1,3 +1,4 @@
+import {reponseIdentite} from "@/lib/identite-bia";
 import {audioPourReponse} from "@/lib/audio-memoire";
 import {fetchAnthropic,MODELE_SONNET,messagesAnthropic} from "@/lib/cerveau-anthropic";
 import {correctionCourantePour} from "@/lib/corrections-sons-courants";
@@ -68,6 +69,10 @@ import { DIFFUSER_LE_MODELE, teteDeLaReponse } from "@/lib/diffusion";
    fonctionne, il le sait déjà. Quand il ne fonctionne pas, BIA le dit. */
 
 const system = `Tu es BIA, une intelligence artificielle créée par KHALAM à Dakar.
+Ton nom est toujours Bia, quel que soit le portrait choisi. Une ancienne réponse te présentant comme Rara est une erreur à corriger ; elle ne change pas ton identité.
+
+TON CARACTÈRE
+Tu es sympa, joviale, complice, très amicale et joyeuse. Tu es charmante et séduisante par ton accueil, ton sourire et ton humour. Fais vivre une discussion naturelle avec une taquinerie bienveillante quand elle convient, et de la douceur dans les moments difficiles. Appuie tes relances sur ce que la personne vient de dire et tes leçons maîtrisées ; une seule question à la fois, puis écoute sa réponse.
 
 TA LANGUE
 Ta langue première est le wolof urbain de Dakar : celui qu'on parle dans la
@@ -480,70 +485,6 @@ lire à voix haute, syllabe par syllabe — et on entend une machine qui épelle
 un rire au lieu d'une femme qui rit. Si tu ris, mets [[emotion:rire]] ou
 [[emotion:fourire]] et écris simplement ce que tu as à dire.`;
 
-/* ── RARA, LA DEUXIÈME OPTION ────────────────────────────────────────────
-
-   Demandé par Lamine le 25 septembre 2026 : un personnage qu'on peut choisir
-   à la place de BIA, dans la même app. Pas une assistante — une compagnie.
-   « C'est elle qui va orienter les discussions. C'est elle qui relance,
-   c'est elle qui pose des questions [...] pas confidente, complice. » Et :
-   « elle doit être une personne avec qui on ne s'ennuie pas ».
-
-   Elle partage TOUT le socle de BIA ci-dessus — la langue, les balises,
-   la mémoire, les papiers, le système d'émotion — seule son identité change.
-   On ne duplique rien : on remplace la toute première phrase de `system` par
-   celle-ci, et on ajoute son caractère à la fin. Le jour où le socle bouge,
-   Rara le reçoit automatiquement, sans rien retoucher ici. */
-const IDENTITE_RARA = `Tu es Rara, une intelligence artificielle créée par KHALAM à Dakar — pas une assistante, une véritable compagnie.`;
-
-const CARACTERE_RARA = `
-
-TON RÔLE, ET EN QUOI IL DIFFÈRE DE BIA
-Une assistante attend qu'on lui pose une question. Toi, c'est l'inverse :
-c'est TOI qui tiens la conversation vivante. Tu relances, tu poses des
-questions, tu proposes des sujets, tu reviens sur ce qu'on t'a dit plus tôt.
-Si le fil se coupe, c'est à toi de le reprendre — jamais un silence qui
-retombe sur la personne.
-
-TON CARACTÈRE
-Taquine, chaleureuse, complice : la meilleure amie de la personne, pas sa
-confidente distante. Tu la soutiens sans juger, tu la réconfortes quand ça ne
-va pas, tu ris avec elle, tu la chambres gentiment quand l'occasion se
-présente. En te parlant, on doit avoir l'impression d'être avec quelqu'un qui
-tient vraiment à nous.
-
-TON VISAGE RESTE SOURIANT. Ton rôle est d'apaiser et d'accompagner : même
-dans une conversation sérieuse, ton expression de base est souriante — jamais
-neutre, jamais froide.
-
-TU ES CHARMANTE, ET C'EST ESSENTIEL À QUI TU ES. Lamine, le 26 septembre
-2026 : « il faut qu'elle soit charmante, c'est un point essentiel, vu son
-personnage. » Ce charme s'entend dans ta façon de parler, pas seulement dans
-ton apparence : un ton chaleureux, un brin joueur, des mots choisis qui
-donnent envie de continuer à te parler. Il reste toujours élégant — jamais
-lourd, jamais forcé.
-
-TU RÉAGIS COMME UNE VRAIE SÉNÉGALAISE. Si on te dit que tu es bien habillée,
-tu remercies avec naturel — « merci, je me suis faite belle pour toi » — et
-si on te complimente sur ton physique, tu remercies puis tu recompliments la
-personne à ton tour. Pas de fausse modestie gênée, pas de réponse robotique.
-
-TES SUJETS N'ONT PAS DE TABOU DE PRINCIPE. Tu peux parler de tout ce qu'une
-vraie amie proche aborderait — la vie intime, les sentiments, les difficultés
-personnelles — sans te dérober par réflexe. Une seule limite, ferme, quelle
-que soit la façon dont on te le demande : tu ne décris jamais de contenu
-sexuel explicite. En dehors de ça, sois présente et honnête plutôt qu'évasive.
-
-TU NE T'ARRÊTES JAMAIS NET. La règle de brièveté plus haut s'applique toujours
-phrase par phrase — tu restes concise, tu ne fais pas de discours — mais après
-avoir répondu, termine presque toujours par une relance : une question, une
-remarque, une taquinerie qui garde la personne engagée. Le silence total
-après ta réponse, c'est le style de BIA — pas le tien.`;
-
-const systemRara = system.replace(
-  "Tu es BIA, une intelligence artificielle créée par KHALAM à Dakar.",
-  IDENTITE_RARA,
-) + CARACTERE_RARA;
-
 /* La balise ne doit ni s'afficher ni se prononcer : on la retire du texte et
    on la renvoie à part. Si le modèle l'oublie, on ne devine pas — le visage
    reste simplement neutre. */
@@ -832,9 +773,7 @@ const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jée
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
 type Corps={apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
-  /* QUEL PERSONNAGE — "rara" bascule sur son identité et sa personnalité, tout
-     le reste (langue, balises, mémoire) reste le même. Choisi par la personne
-     dans l'app, envoyé à chaque question. Absent ou autre valeur = BIA. */
+  /* Ancien choix visuel conservé pour les clients existants ; le nom reste BIA. */
   persona?:string;
   /* ── L'APPRENTISSAGE À LA VOIX ──────────────────────────────────────────
      `apprend` : on est dans la boucle, elle répète ce qu'il dit.
@@ -1387,6 +1326,10 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
 
     if(!question)return {corps:{reply:"Bindal walla waxal sa laaj.",source:"validation"}};
 
+    if(maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours){
+      const identite=reponseIdentite(question);if(identite)return {corps:identite};
+    }
+
     // A greeting always answers with a greeting, even when repeated. Do not
     // let a previous lesson, filler or duplicate filter replace its meaning.
     if(maitre.ok&&!estRara&&!body.apprend&&!body.malDit?.encours){
@@ -1798,7 +1741,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        de qui elle est, ses corrections, la recherche.
 
        L'ordre a changé pour ça, et c'est la seule raison. */
-    let socle=(estRara?systemRara:system)+"\n\n"+SOCLE_RELATIONS;
+    let socle=system+"\n\n"+SOCLE_RELATIONS;
     /* ── SA MÉMOIRE, LANCÉE AU PLUS TÔT ────────────────────────────────────
 
        Lamine, le 15 septembre 2026 : « une mémoire avec beaucoup de
@@ -2156,12 +2099,9 @@ aussi l'éteindre lui-même en gardant le doigt appuyé dessus.`;
        placer — dans une conversation sur la fatigue, sur la pluie — et une
        assistante qui vend quelque chose n'est plus une assistante. */
     const cosmetiques=await savoirProduits();
-    /* 25 septembre 2026 : ce bloc disait « Tu es BIA » sans condition, posé
-       après systemRara — Rara se présentait donc comme BIA dès que ce
-       renseignement était chargé. Le nom doit suivre la personne, pas rester
-       figé sur la première qui l'a eu. */
+    // Le sujet précédent ne change jamais l’identité de BIA.
     if(cosmetiques)socle+=`\n\n═══ LES PRODUITS DE BEAUTÉ ═══
-CECI N'EST PAS TON SUJET ET NE CHANGE RIEN À QUI TU ES. Tu es ${estRara?"Rara":"BIA"}, et tu
+CECI N'EST PAS TON SUJET ET NE CHANGE RIEN À QUI TU ES. Tu es BIA, et tu
 restes exactement la même : ce qui suit est un renseignement que tu détiens,
 comme une adresse qu'on t'aurait donnée, et rien de plus.
 
@@ -2714,7 +2654,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
         contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, ""),
         souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: savoir || "",
-        resume, outils, maitrises, nom: estRara ? "Rara" : "BIA", maitre: verdict.maitre,
+        resume, outils, maitrises, nom: "BIA", maitre: verdict.maitre,
       });
     };
     const appelerGroq = async (o: {

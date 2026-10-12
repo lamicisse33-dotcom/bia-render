@@ -1,3 +1,4 @@
+import {resumeIdentite} from "@/lib/identite-bia";
 import {resumeEssaiPrises} from "@/lib/essai-prises-voix";
 import {resumePreparationEcoute} from "@/lib/preparer-ecoute";
 import {resumeIntegriteAudio} from "@/lib/essai-integrite-audio";
@@ -135,6 +136,7 @@ export async function GET(request: Request) {
     ecoute: ecouteConfig.fournisseur,
     corrections_devoirs:resumeCorrectionsDevoir(),
     continuite_voix:resumeContinuiteVoix(),
+    identite: resumeIdentite(),
     prises_voix: resumeEssaiPrises(),
     integrite_audio:resumeIntegriteAudio(),
     lecture_bilingue:resumeLectureBilingue(),

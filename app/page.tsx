@@ -329,12 +329,6 @@ type Recognition = {
 };
 
 const welcomeBia = "Salaam! Man maa di BIA. Waxal ak man ci wolof walla ci français.";
-/* 25 septembre 2026 : le seul texte d'accueil disait « Man maa di BIA »
-   (« je suis BIA ») quelle que soit la personne choisie — Rara se
-   présentait donc comme BIA dès l'écran vide, avant même le premier
-   message. Sa propre phrase, même forme, son propre nom. */
-const welcomeRara = "Salaam! Man maa di Rara. Waxal ak man ci wolof walla ci français.";
-
 const pause = (ms: number) => new Promise((fini) => setTimeout(fini, ms));
 
 /* ── L'EXTENSION QUI CORRESPOND AU VRAI FORMAT ──────────────────────────────
@@ -7214,12 +7208,12 @@ export default function Home() {
         {estMaitre&&<a className="papier-lien" href="/codes">Créer des codes utilisateurs →</a>}
         <div className="papier-actions">
           <button type="button" onClick={() => { setPapierOuvert(false); ouvrirClavier(); }}>Conversation écrite</button>
-          <button type="button" onClick={() => choisirPersona(persona === "rara" ? "bia" : "rara")}>Personnage : {persona === "rara" ? "Rara" : "BIA"}</button>
+          <button type="button" onClick={() => choisirPersona(persona === "rara" ? "bia" : "rara")}>Apparence de Bia : {persona === "rara" ? "1" : "2"}</button>
           {conversation ? <button type="button" onClick={annulerCeQueJeDis}>Annuler ma phrase</button> : null}
           <button type="button" disabled={mode !== "ready" || conversation} onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
         </div>
         {panne ? <p role="alert">{panne}</p> : null}
-        <p className="papier-titre">La voix de {persona === "rara" ? "Rara" : "BIA"}</p>
+        <p className="papier-titre">La voix de Bia</p>
         <fieldset style={{ margin: "12px 0", padding: 12, border: "1px solid #8c7549", borderRadius: 12 }}>
           <legend>Choisir la voix</legend>
           {([
@@ -7713,7 +7707,7 @@ export default function Home() {
         </div>
 
         <div className="fil scrollbar-thin" ref={filRef}>
-          {history.length === 0 ? <p className="fil-vide">{persona === "rara" ? welcomeRara : welcomeBia}</p> : null}
+          {history.length === 0 ? <p className="fil-vide">{welcomeBia}</p> : null}
           {history.map((m, i) => {
             /* UN PAPIER SUR LE FIL. Il reste à sa place dans la conversation,
                comme n'importe quel message — mais c'est une carte qu'on
