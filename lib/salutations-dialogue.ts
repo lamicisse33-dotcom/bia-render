@@ -6,7 +6,9 @@ import {sonne} from "./normaliser";
 // a problem still belongs to the lesson; yes/no answers must keep its context.
 const entrees=REPERTOIRE.filter(e=>SALUTATIONS.has(e.cle));
 const formes=new Map(entrees.flatMap(e=>e.formes.map(f=>[sonne(f),e] as const)));
-for(const [cle,variantes] of Object.entries({salut:['hello','hey','bonjour à toi','bonjour à vous','salut à toi','salam aleykoum','assalamou aleykoum','as salam aleykoum'],'ca-va':['comment ça va','comment allez-vous','tu vas bien','vous allez bien']})){
+// Measured local ASR output for the fixed Nanga def audio control: Nangudeef.
+// This alias still requires the entire utterance to be greetings only.
+for(const [cle,variantes] of Object.entries({salut:['hello','hey','bonjour à toi','bonjour à vous','salut à toi','salam aleykoum','assalamou aleykoum','as salam aleykoum'],'ca-va':['nangudeef','comment ça va','comment allez-vous','tu vas bien','vous allez bien']})){
  const entree=entrees.find(e=>e.cle===cle);if(entree)for(const forme of variantes)formes.set(sonne(forme),entree);
 }
 export function salutationReconnue(question:string){

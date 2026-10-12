@@ -7,10 +7,10 @@ function load(path,deps={}){const m={exports:{}};new Function('require','module'
 const textes=load('lib/repertoire-textes.ts'),normaliser=load('lib/normaliser.ts'),services=load('lib/services-textes.ts');
 const salut=load('lib/salutations-dialogue.ts',{'./repertoire-textes':textes,'./normaliser':normaliser,'./services-textes':services});
 test('whole and combined French/Wolof greetings are identified without swallowing a real request',()=>{
- for(const [q,key] of [['Bonjour','salut'],['Bonsoir Bia','bonsoir'],['Bia, bonjour !','salut'],['Nanga def ?','ca-va'],['Salut, comment vas-tu ?','ca-va'],['Bonjour, comment ça va ?','ca-va'],['Salaamaleekum','salut'],['Assalamou aleykoum','salut'],['Bonjour bonjour','salut']]){
+ for(const [q,key] of [['Bonjour','salut'],['Bonsoir Bia','bonsoir'],['Bia, bonjour !','salut'],['Nanga def ?','ca-va'],['Nangudeef.','ca-va'],['Bia, nangudeef ?','ca-va'],['Salut, comment vas-tu ?','ca-va'],['Bonjour, comment ça va ?','ca-va'],['Salaamaleekum','salut'],['Assalamou aleykoum','salut'],['Bonjour bonjour','salut']]){
   assert.equal(salut.salutationReconnue(q)?.cle,key,q);assert.equal(salut.accusePertinent(q),false,q);
  }
- for(const q of ['Bonjour, ma copine ne répond plus','Bonjour, cherche une pharmacie','Ça va pas du tout','Je suis triste','Non','D’accord','Merci','Tu me dis bonjour'])assert.equal(salut.salutationReconnue(q),undefined,q);
+ for(const q of ['Nangudeef, je veux lire mes devoirs','Bonjour, ma copine ne répond plus','Bonjour, cherche une pharmacie','Ça va pas du tout','Je suis triste','Non','D’accord','Merci','Tu me dis bonjour'])assert.equal(salut.salutationReconnue(q),undefined,q);
 });
 test('acknowledgements need an explicit action, never social speech, distress or a question',()=>{
  for(const q of ['','Bonjour','Bonsoir','Nanga def','Merci','Au revoir','Je suis triste','Mon père est mort','Non','D’accord','Combien coûte un sac de riz ?','Pourquoi tu répètes ?'])assert.equal(salut.accusePertinent(q),false,q);
