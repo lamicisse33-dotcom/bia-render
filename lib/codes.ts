@@ -63,7 +63,7 @@ export function verifierCode(brut: string | null, compter=true): Verdict {
   if (Math.floor(Date.now() / 60000) > expiration) return { ok: false, raison: "expire" };
 
   const utilise = (compteurs.get(code) || 0) + (compter ? 1 : 0);
-  if (utilise > MAX_QUESTIONS) return { ok: false, raison: "epuise" };
+  if (compter ? utilise > MAX_QUESTIONS : utilise >= MAX_QUESTIONS) return { ok: false, raison: "epuise" };
   if(compter)compteurs.set(code, utilise);
   return { ok: true, maitre: false };
 }

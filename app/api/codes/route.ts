@@ -69,7 +69,7 @@ function entetes(origine: string | null): Record<string, string> {
    comme la page d'écoute des voix. Un testeur qui ouvre les réglages ne doit
    pas tomber sur un bouton qui coûte deux centimes l'appui. */
 export async function GET(request: NextRequest) {
-  const verdict = verifierCode(request.headers.get("x-bia-code"));
+  const verdict = verifierCode(request.headers.get("x-bia-code"),false);
   if (!verdict.ok || !verdict.maitre) {
     return NextResponse.json({ maitre: false }, { status: 401 });
   }
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     /* Le code maître vient de l'en-tête (comme pour l'Interprète) ou du corps :
        les deux marchent, personne n'a à se souvenir duquel. */
     const maitre = propre(process.env.BIA_CODE_MAITRE);
-    const donne = propre(request.headers.get("x-code-acces") || body.maitre);
+    const donne = propre(request.headers.get("x-bia-code") || request.headers.get("x-code-acces") || body.maitre);
     if (!maitre || donne !== maitre) {
       return NextResponse.json({ erreur: "Code maître refusé." }, { status: 403, headers: tete });
     }
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
       heures,
       questions,
       application: "BIA",
-      adresse: "bia.khalam.app",
+      adresse: "app.khalam.app",
     }, { headers: tete });
   } catch {
     return NextResponse.json({ erreur: "Requête mal formée." }, { status: 400, headers: tete });

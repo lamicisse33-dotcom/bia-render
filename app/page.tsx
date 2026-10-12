@@ -1,4 +1,5 @@
 "use client";
+import {verifierAcces} from '@/lib/acces-client';
 import {sansSilence} from "@/lib/bords-audio";
 import {useAudioMemoire} from "@/lib/use-audio-memoire";
 import {sonPourTexte,reactionDisponible,type SonCourant} from "@/lib/sons-courants-core";
@@ -484,6 +485,8 @@ export default function Home() {
   useEffect(()=>{if(code&&piperWebActif())void preparerPiperWeb(code).catch(e=>setEtatSecours(e.message));},[code]);
   const [codeSaisi, setCodeSaisi] = useState("");
   const [codeErreur, setCodeErreur] = useState("");
+  const [verificationCode, setVerificationCode] = useState(false);
+  const verificationCodeRef = useRef(false);
   const [moteurs, setMoteurs] = useState<{ voix: string; ecoute: string } | null>(null);
   const [tenue, setTenue] = useState<string>("nouvelle");
   /* ── RARA, LE DEUXIÈME PERSONNAGE ───────────────────────────────────────
@@ -1313,10 +1316,10 @@ export default function Home() {
     mesuresRef.current = lireMesures();
   }, []);
 
-  // Le code est gardé sur l'appareil : le testeur ne le retape pas à chaque fois.
+  // Préremplir le champ, mais toujours afficher la porte et vérifier le code.
   useEffect(() => {
     try {
-      const g = localStorage.getItem("bia-code"); if (g) setCode(g);
+      const g = localStorage.getItem("bia-code"); if (g) setCodeSaisi(g);
       /* Les verdicts déjà posés sur cet appareil : le compte doit être juste
          dès l'ouverture, sinon le premier appui paraît remettre à zéro. */
       setCompteVerdicts(compterVerdicts(lireVerdicts()));
@@ -7318,6 +7321,7 @@ export default function Home() {
     return (
       <>
         <p className="papier-titre">Moi</p>
+        {estMaitre&&<a className="papier-lien" href="/codes">Créer des codes utilisateurs →</a>}
         <div className="papier-actions">
           <button type="button" onClick={() => { setPapierOuvert(false); ouvrirClavier(); }}>Conversation écrite</button>
           <button type="button" onClick={() => choisirPersona(persona === "rara" ? "bia" : "rara")}>Personnage : {persona === "rara" ? "Rara" : "BIA"}</button>
@@ -7606,12 +7610,19 @@ export default function Home() {
   }
 
   async function entrer() {
+    if(verificationCodeRef.current)return;
     const propre = codeSaisi.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    if (propre.length < 6) { setCodeErreur("Code trop court."); return; }
-    try { localStorage.setItem("bia-code", propre); } catch {}
-    setCode(propre);
-    setCodeSaisi("");
+    if (!propre) { setCodeErreur("Saisis ton code d’accès."); return; }
+    verificationCodeRef.current=true;setVerificationCode(true);
     setCodeErreur("");
+    try{
+      const v=await verifierAcces(propre);
+      try { localStorage.setItem("bia-code", propre); } catch {}
+      setEstMaitre(v.maitre);estMaitreRef.current=v.maitre;
+      setCode(propre);setCodeSaisi("");
+    }catch(e){
+      setCodeErreur(e instanceof Error&&e.name==='Error'?e.message:'Connexion indisponible. Réessaie dans un instant.');
+    }finally{verificationCodeRef.current=false;setVerificationCode(false);}
   }
 
   if (!code) {
@@ -7620,23 +7631,28 @@ export default function Home() {
         <div className="portrait" aria-hidden="true" data-tenue={tenue} data-persona={persona}><div className="avatar" data-face="yeux_ouverts" /></div>
         <section className="porte">
           <p className="porte-titre">BIA</p>
+          <p className="porte-texte">Entre ton code d’accès pour parler avec BIA.</p>
           <p className="porte-texte">Duggal sa kod ngir waxtaan ak BIA.</p>
           <div className="saisie">
             <input
+              type="password"
+              disabled={verificationCode}
               value={codeSaisi}
               onChange={(e) => setCodeSaisi(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") void entrer(); }}
-              placeholder="KOD"
+              placeholder="Code d’accès"
               aria-label="Code d'accès"
               autoCapitalize="characters"
               autoComplete="off"
               enterKeyHint="go"
             />
-            <button type="button" onClick={() => void entrer()} disabled={!codeSaisi.trim()} aria-label="Entrer">
+            <button type="button" onClick={() => void entrer()} disabled={verificationCode||!codeSaisi.trim()} aria-label="Entrer">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12 2-12 2Z" /></svg>
             </button>
           </div>
-          {codeErreur ? <p className="porte-erreur">{codeErreur}</p> : null}
+          {verificationCode ? <p className="porte-texte" role="status">Vérification du code…</p> : null}
+          {codeErreur ? <p className="porte-erreur" role="alert">{codeErreur}</p> : null}
+          <p style={{textAlign:'center',marginBottom:0}}><a href="/codes" style={{color:'#d4af37'}}>Espace maître — créer des codes</a></p>
         </section>
 
         {/* ── ELLE S'INSTALLE AUSSI DEPUIS LA PORTE ──────────────────────────
@@ -7660,6 +7676,7 @@ export default function Home() {
 
   return (
     <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
+      <a href="/" aria-label="Changer de code d’accès" style={{position:'absolute',top:'max(12px, env(safe-area-inset-top))',left:12,zIndex:8,color:'#d4af37',background:'#101014dd',borderRadius:18,padding:'10px 14px',textDecoration:'none'}}>Code d’accès</a>
       <div className={eclipse ? "portrait eclipse" : rallume ? "portrait rallume" : "portrait"}
         aria-hidden="true" data-tenue={tenue} data-persona={persona}>
         {/* ── DEUX COUCHES, POUR QUE LE VISAGE NE SAUTE PLUS ─────────────
