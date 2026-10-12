@@ -34,7 +34,7 @@ jobs:
         run: npm run build
 
       - name: Vérifier la conservation des sons faibles
-        run: node --test tests/bords-audio.test.mjs tests/sons-courants.test.mjs tests/continuite-voix.test.mjs tests/lecture-fidele.test.mjs tests/lecture-bilingue.test.mjs
+        run: node --test tests/bords-audio.test.mjs tests/sons-courants.test.mjs tests/continuite-voix.test.mjs tests/lecture-fidele.test.mjs tests/lecture-bilingue.test.mjs tests/lecteur-audio-continu.test.mjs tests/profil-langue-voix.test.mjs
 
       - name: Python
         uses: actions/setup-python@v5

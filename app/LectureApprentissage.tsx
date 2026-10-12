@@ -1,4 +1,6 @@
 "use client";
+import {LecteurAudioContinu} from "@/lib/lecteur-audio-continu";
+import {sansSilence} from "@/lib/bords-audio";
 import {lirePiperWeb,mesurerPiperWeb} from "@/lib/piper-web";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {routerApprentissage,type TypeApprentissage} from "@/lib/routage-apprentissage";
@@ -46,15 +48,10 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   if(!r.ok)throw new Error(d.error);setLecons(d.lecons);setInfo("Lexique Supabase chargé.");}catch{setInfo("Lexique inaccessible. Les validations ne sont pas confirmées.");}}
  useEffect(()=>{
   const ctx=obtenirAudio();
-  let courant:{buffer:AudioBuffer;offset:number;depuis:number;source:AudioBufferSourceNode|null;fin:()=>void;rejeter:(e:Error)=>void}|null=null;
-  const suspendre=()=>{if(courant?.source){courant.offset+=Math.max(0,ctx.currentTime-courant.depuis);courant.source.onended=null;courant.source.stop();courant.source.disconnect();courant.source=null;}};
-  const reprendreSon=()=>{if(!courant||courant.source)return;
-   if(ctx.state!=="running"){const e=new Error("Le navigateur a suspendu le son. Appuie sur REPRENDRE pour activer la voix.");e.name="AudioSuspendu";const rejeter=courant.rejeter;courant=null;rejeter(e);return;}
-   const s=ctx.createBufferSource();s.buffer=courant.buffer;s.connect(ctx.destination);courant.source=s;courant.depuis=ctx.currentTime;
-   s.onended=()=>{s.disconnect();if(courant?.source===s){const fin=courant.fin;courant=null;fin();}};
-   s.start(0,Math.min(courant.offset,courant.buffer.duration));
-   if(!premierSon.current){premierSon.current=true;mesurer("premier_son");if(settings.current.voice==="piper-web")mesurerPiperWeb("lecture",performance.now()-depuis.current);}};
-  const arreterSon=()=>{suspendre();if(courant){const rejeter=courant.rejeter;courant=null;rejeter(new Error("arrêté"));}};
+  let lecteur:LecteurAudioContinu|null=null;
+  const suspendre=()=>lecteur?.pause();
+  const reprendreSon=()=>lecteur?.reprendre();
+  const arreterSon=()=>{lecteur?.arreter();lecteur=null;};
   let preparation:{original:string;langue:string;texte:string}|null=null;
   let secoursComplet=true;
   const demander=async(text:string,partie:number,signal:AbortSignal,empreinte?:string,langue=settings.current.langue)=>{
@@ -87,23 +84,29 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    catch(error){if(!signal.aborted)secoursComplet=true;throw error;}
   }
   const jouer=async(value:unknown,signal:AbortSignal)=>{
-   for await(const base64 of packets(value as {text:string;first:MorceauVoix;langue:"fr"|"wo"},signal)){
-    while(enPause.current&&!signal.aborted)await new Promise(r=>setTimeout(r,60));
-    if(signal.aborted)throw Error("arrêté");
-    const bytes=Uint8Array.from(atob(base64),c=>c.charCodeAt(0));
-    const buffer=await ctx.decodeAudioData(bytes.buffer);
-    if(signal.aborted)throw Error("arrêté");
-    if(!await reveiller(ctx)){const e=new Error("Le navigateur a suspendu le son. Appuie sur REPRENDRE pour activer la voix.");e.name="AudioSuspendu";throw e;}
-    if(signal.aborted)throw Error("arrêté");
-    await new Promise<void>((resolve,reject)=>{
-     const abort=()=>arreterSon();
-     const clear=()=>signal.removeEventListener("abort",abort);
-     courant={buffer,offset:0,depuis:0,source:null,fin:()=>{clear();resolve();},rejeter:e=>{clear();reject(e);}};
-     signal.addEventListener("abort",abort,{once:true});
-     if(signal.aborted){arreterSon();return;}
-     if(!enPause.current)reprendreSon();
-    });
-   }
+   const debutLecture=performance.now();
+   const file=new LecteurAudioContinu(ctx,()=>{
+    if(!premierSon.current){premierSon.current=true;mesurer("premier_son");if(settings.current.voice==="piper-web")mesurerPiperWeb("lecture",performance.now()-depuis.current);}
+   });
+   lecteur=file;
+   const abort=()=>file.arreter();signal.addEventListener("abort",abort,{once:true});
+   if(enPause.current)file.pause();
+   try{
+    for await(const base64 of packets(value as {text:string;first:MorceauVoix;langue:"fr"|"wo"},signal)){
+     if(signal.aborted)throw Error("arrêté");
+     const bytes=Uint8Array.from(atob(base64),c=>c.charCodeAt(0));
+     const buffer=await ctx.decodeAudioData(bytes.buffer);
+     if(signal.aborted)throw Error("arrêté");
+     if(!await reveiller(ctx)){const e=new Error("Le navigateur a suspendu le son. Appuie sur REPRENDRE pour activer la voix.");e.name="AudioSuspendu";throw e;}
+     if(signal.aborted)throw Error("arrêté");
+     // Decode and schedule the next complete clip BEFORE the current one ends.
+     // Streaming packets can end inside a syllable: retain them verbatim.
+     file.ajouter((value as {first:MorceauVoix}).first.flux?buffer:sansSilence(ctx,buffer));
+    }
+    await file.terminer();
+    void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'lecture',continu:true,...file.bilan,duree_ms:performance.now()-debutLecture}),keepalive:true}).catch(()=>{});
+   }catch(e){file.arreter(e instanceof Error?e:Error("Lecture interrompue"));throw e;}
+   finally{signal.removeEventListener("abort",abort);if(lecteur===file)lecteur=null;}
   };
   player.current=new LectureContinue(async(text,signal,langue=settings.current.langue)=>{
    return {text,langue,first:await demander(text,0,signal,undefined,langue)};

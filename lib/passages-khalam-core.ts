@@ -6,7 +6,8 @@ import {segmentsLecture,segmentsLectureWolof} from './lecture-continue';
 export function preparerAvecRegles(texte:string,defaut:LangueVoix,lecons:Lecon[],anciennes:Array<{mot:string;dire:string}>,lecture=false,lectureFiable=false):PassageVoix[]{
  const out:PassageVoix[]=[];
  const emprunts=[...new Set(['Wave','bus',...lecons.filter(l=>l.langue==='fr'&&l.statut==='validé').map(l=>l.texte)])];
- for(const passage of passagesLanguesVoix(texte,defaut,emprunts)){
+ const wolof=lecons.filter(l=>l.langue==='wo'&&l.statut==='validé').map(l=>l.texte);
+ for(const passage of passagesLanguesVoix(texte,defaut,emprunts,wolof)){
   const prononce=appliquerRegles(texteKhalamVoix(passage.texte),reglesLeconsMixtes(lecons,passage.langue,anciennes));
   const morceaux=lectureFiable&&passage.langue==='wo'?segmentsLectureWolof(prononce):lecture?segmentsLecture(prononce):decouperVoixKhalam(prononce);
   for(const morceau of morceaux)if(morceau.trim())out.push({texte:morceau,langue:passage.langue});

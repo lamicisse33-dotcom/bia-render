@@ -23,6 +23,7 @@ export async function GET() {
     const response = await fetch(`${c.url}/health`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
     if (!response.ok) return NextResponse.json({ ok: false, error: "Le serveur de test ne répond pas." }, { status: 503 });
     const data = await response.json();
+
     if (!data.ok || !CHECKPOINTS.has(data.checkpoint_sha256)) {
       return NextResponse.json({ ok: false, error: "Le modèle entraîné n’est pas encore prêt." }, { status: 503 });
     }
@@ -78,6 +79,11 @@ export async function POST(request: NextRequest) {
       }, { status: response.status === 429 ? 429 : 502, headers: response.status === 429 ? { "retry-after": "2" } : {} });
     }
     const data = await response.json();
+    const modeleAttendu=francais?'b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75':'8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f';
+    if(data.status==='COMPLETED'&&data.output?.checkpoint_sha256!==modeleAttendu){
+      console.error('BIA_VOICE_FAILURE',JSON.stringify({code:'LANGUE_VOIX_INCORRECTE',langue:language}));
+      return NextResponse.json({error:'Le moteur n’a pas utilisé la voix de la langue demandée.',code:'LANGUE_VOIX_INCORRECTE'},{status:502});
+    }
     if (data.status !== "COMPLETED" || !data.output?.audio_base64 ||
         typeof data.output.audio_base64 !== "string" ||
         !CHECKPOINTS.has(data.output.checkpoint_sha256) ||

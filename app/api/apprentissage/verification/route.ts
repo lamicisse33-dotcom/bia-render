@@ -1,4 +1,5 @@
 import {verifierIntegriteAudio} from "@/lib/essai-integrite-audio";
+import {lancerEssaiLectureBilingue} from "@/lib/essai-lecture-bilingue";
 import {lancerPrechauffageDialogue} from "@/lib/prechauffage-dialogue";
 import {verifierSonnet} from "@/lib/essai-sonnet";
 import {verifierSecoursModele} from "@/lib/essai-secours-modele";
@@ -25,6 +26,8 @@ export async function POST(r:Request){
   // runner for this fixed public catalogue only; ordinary master checks do
   // not generate audio. Once this session expires, explicit selection wins.
   const runner=a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
+  // Fixed five-phrase diagnosis authorized by the owner at 18:59 UTC.
+  if(body.lecture_bilingue===true||(runner&&Date.now()<Date.parse('2026-10-12T22:00:00Z')))return NextResponse.json({verifie:true,lecture_bilingue:lancerEssaiLectureBilingue()});
   // Owner requested investigation of skipped words at 16:28 UTC. Two fixed
   // synthesis probes, once per process; no lesson or stored audio changes.
   if(body.integrite_audio===true||(runner&&Date.now()<Date.parse("2026-10-12T18:00:00Z")))return NextResponse.json({verifie:true,integrite_audio:await verifierIntegriteAudio()});

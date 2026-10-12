@@ -10,6 +10,9 @@ export type LangueVoix = "wo" | "fr";
 // conservative: unknown words and homographs must not all become French.
 const EMPRUNTS_FRANCAIS = ["Wave", "bus", "prix", "transfert", "transferts", "cash", "famille", "familles", "pression", "pressions"];
 const COMMUNS = new Set(["ma","la","te","lu","nu","man","fan"]);
+// These Wolof x-words must not inherit French from a preceding borrowing.
+for(const mot of ['xam','xamuma','xamoo','xamul','xamunu','xamle','xamante','xalaat','xalaatal','xalaatuma','xalaatam','xale','xaley','xarit','xaritam','xaritoo','xool','xoolal','xoolaat','xooluma','xew','xewul','xewxew','xaalis','xaalisu','xaj','xorom','xol','xolu','xolam','xey','xëy','xeex','xëcc','xel','xelam','xéewël','xibaar','xibaaru','xar','xaar','xaaral','xaari','wax','waxal','waxuma','waxul','waxoon','ndax','ndaxam','bëggul','bëgguma','ngii','fay','fayee','may','ték','warra'])MOTS_WOLOF.add(mot);
+for(const mot of ['message','messages','appel','appels','appeler','appelée','appeler','répondre','répond','réponse','réponses','problème','problèmes','explication','explications','expliquer','exemple','exemples','exercice','exercices','examen','examens','excuse','excuses','expression','expressions','expérience','expériences','exactement','ex','copain','copine','relation','relations','situation','solutions','solution','conseil','conseils','discussion','discuter','téléphone','numéro','numéros','crédit','crédits','réseau','internet','connexion','contact','contacts','rendez-vous','rendez','carte','bancaire','banque','boutique','client','clients','cliente','clientes','commerce','commerçant','commerçante','étudiant','étudiante','études','école','université','cours','devoir','devoirs','leçon','leçons','mariage','marier','amour','couple','confiance','preuve','preuves','risque','risques','raison','raisons','immédiatement','doute','doutes','important','importante','normal','normale','naturel','naturelle','budget','dépense','dépenses','paiement','payer','argent','montant','reste','refus','refuser','accepter','décider','signifier','signifie','clarifier','comprendre'])MOTS_FRANCAIS.add(mot);
 export function indicesLangue(texte: string) {
   let wo=0, fr=0;
   for (const mot of texte.toLowerCase().normalize("NFC").match(/\p{L}+/gu) || []) {
@@ -29,10 +32,12 @@ export function detecterLangue(texte:string, defaut:LangueVoix="wo"):LangueVoix 
 export type PassageVoix = {texte:string; langue:LangueVoix};
 /** Preserve the source exactly. Unknown words inherit their neighbouring context.
  * This is a lexical detector, not a guarantee for every homograph or unknown word. */
-export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", empruntsFrancais:readonly string[]=[]):PassageVoix[] {
+export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", empruntsFrancais:readonly string[]=[], expressionsWolof:readonly string[]=[]):PassageVoix[] {
   const out:PassageVoix[]=[];
   empruntsFrancais=[...EMPRUNTS_FRANCAIS,...empruntsFrancais];
   const emprunts=new Set([...empruntsFrancais,"franc","francs","CFA","FCFA","XOF"].map(m=>m.toLocaleLowerCase().normalize("NFC")));
+  const motsDe=(phrases:readonly string[])=>new Set(phrases.flatMap(p=>p.toLowerCase().normalize('NFC').match(/\p{L}+/gu)||[]));
+  const apprisFr=motsDe(empruntsFrancais),apprisWo=motsDe(expressionsWolof);
   for (const sentence of Array.from(new Intl.Segmenter("fr",{granularity:"sentence"}).segment(texte),s=>s.segment)) {
     const tokens=Array.from(sentence.matchAll(/\s*\S+/gu),m=>m[0]);
     if (!tokens.length) {if(out.length)out[out.length-1].texte+=sentence;continue;}
@@ -60,13 +65,26 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
       const mots=token.toLocaleLowerCase().normalize("NFC").match(/[\p{L}\p{N}]+/gu)||[];
       if(mots.length===1&&emprunts.has(mots[0]))return "fr" as const;
       const {wo,fr}=indicesLangue(token);
-      return wo ? "wo" as const : fr || /\d/u.test(token) ? "fr" as const : null;
+      if(wo)return 'wo' as const;
+      if(fr||/\d/u.test(token))return 'fr' as const;
+      if(mots.length===1&&!COMMUNS.has(mots[0])){
+        if(apprisFr.has(mots[0])&&!apprisWo.has(mots[0]))return 'fr' as const;
+        if(apprisWo.has(mots[0])&&!apprisFr.has(mots[0]))return 'wo' as const;
+      }
+      return null;
     });
-    const first=labels.find(l=>l!==null)||detecterLangue(sentence,defaut);
-    let current:LangueVoix=first;
+    // Neutral words follow the sentence or matching neighbours, never blindly
+    // the last French borrowing ("prix la", "message bi", "explication xale...").
+    const base=detecterLangue(sentence,defaut);
+    const resolues=labels.map((label,i)=>{
+      if(label)return label;
+      const gauche=labels.slice(0,i).reverse().find(Boolean),droite=labels.slice(i+1).find(Boolean);
+      return gauche&&droite&&gauche===droite?gauche:base;
+    });
+    let current:LangueVoix=resolues[0]||base;
     let buf="";
     for(let i=0;i<tokens.length;i++){
-      const label=labels[i]||current;
+      const label=resolues[i];
       if(label!==current&&buf){out.push({texte:buf,langue:current});buf="";}
       current=label;buf+=tokens[i];
     }

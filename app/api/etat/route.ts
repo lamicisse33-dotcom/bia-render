@@ -1,4 +1,5 @@
 import {resumeIntegriteAudio} from "@/lib/essai-integrite-audio";
+import {resumeLectureBilingue} from "@/lib/essai-lecture-bilingue";
 import {resumePrechauffageDialogue} from "@/lib/prechauffage-dialogue";
 import {resumePiperWeb} from "@/lib/piper-web-etat";
 import {resumeAnthropic,MODELE_SONNET} from "@/lib/cerveau-anthropic";
@@ -132,6 +133,7 @@ export async function GET(request: Request) {
     corrections_devoirs:resumeCorrectionsDevoir(),
     continuite_voix:resumeContinuiteVoix(),
     integrite_audio:resumeIntegriteAudio(),
+    lecture_bilingue:resumeLectureBilingue(),
     dialogue_devoirs: resumeDialogueDevoirs(),
     lecture_devoirs: resumeLectureDevoirs(),
     transcription_contextuelle: resumeCorrectionContexte(),

@@ -113,3 +113,18 @@ test('changed words, order or language with the same part count stop before synt
     assert.notEqual((await retry.json()).empreinte, first.empreinte);
   }
 });
+
+test('French borrowings cannot carry Wolof x-words or neutral grammar into the French engine',()=>{
+ for(const text of ['Dama bëgg explication, xalaatal ci.','Dama xam prix la.','Message bi xale yi bind.','Ndax message bi leer na ci li mu signifier, wala dafa am bennene explication.']){
+  const p=passagesLanguesVoix(text,'wo');assert.equal(p.map(x=>x.texte).join(''),text);
+  for(const x of p){if(/\b(?:xalaatal|xam|xale)\b/u.test(x.texte))assert.equal(x.langue,'wo');if(/\b(?:explication|message|Message|prix|signifier)\b/u.test(x.texte))assert.equal(x.langue,'fr');}
+ }
+ assert.equal(passagesLanguesVoix('Dama xam prix la.','wo').at(-1).langue,'wo');
+ assert.deepEqual(passagesLanguesVoix('Explique exactement cet exercice avec un exemple.','wo'),[{texte:'Explique exactement cet exercice avec un exemple.',langue:'fr'}]);
+});
+
+test('validated French expression vocabulary is recognized without forcing shared Wolof words into French',()=>{
+ const text='Dama bëgg assurance bi.';const p=passagesLanguesVoix(text,'wo',['une assurance automobile'],['Dama bëgg']);
+ assert.equal(p.map(x=>x.texte).join(''),text);assert(p.some(x=>x.langue==='fr'&&x.texte.trim()==='assurance'));
+ assert.equal(p.at(-1).langue,'wo');
+});
