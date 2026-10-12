@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {lireObjetMemoire,ecrireObjetMemoire} from './audio-memoire-stockage';
 import type {DialogueAppris,TourDialogue} from './dialogue-devoirs-core';
+import {sansSalutationsInitiales} from './salutations-dialogue';
 type Choix={devoir:string;replique:string};
 type Etat={choix:Map<string,Choix>;charge:boolean;chargement?:Promise<void>;ecriture?:Promise<void>;timer?:ReturnType<typeof setTimeout>;revision:number;sauvee:number;bilan:{trouves:number;manquants:number;sauvegardes:number;erreurs_stockage:number}};
 const g=globalThis as typeof globalThis&{biaChoixVerifies?:Etat};
@@ -11,9 +12,10 @@ const fichier='dialogue/choix-verifies-v1.json';
 // similarity shortcut: only punctuation, address and explicit language request.
 export function texteCle(s:string){return s.normalize('NFC').toLowerCase().replace(/[’‘]/g,"'").replace(/^\s*bia\s*[,!:]?\s+/u,'').replace(/\b(?:réponds|reponds)\s+en\s+(?:wolof|français|francais)\s*[.!?]?\s*$/u,'').replace(/[.,!?;:«»“”…]/g,' ').replace(/\s+/g,' ').trim();}
 export function cleDialogue(index:DialogueAppris[],question:string,history:TourDialogue[]){
- return createHash('sha256').update(JSON.stringify(['choix-verifie-v1',index,texteCle(question),history.map(t=>({role:t.role,text:texteCle(t.text)})).filter(t=>t.text)])).digest('hex');
+ return createHash('sha256').update(JSON.stringify(['choix-verifie-v1',index,texteCle(question),sansSalutationsInitiales(history).map(t=>({role:t.role,text:texteCle(t.text)})).filter(t=>t.text)])).digest('hex');
 }
 export function resumeDialoguesRapides(){return {...bilan,choix:choix.size,charge:etat.charge};}
+export function choixPrepares(){return [...new Map([...choix.values()].map(v=>[v.devoir+':'+v.replique,v])).values()];}
 export function chargerDialoguesRapides(){
  if(etat.charge)return Promise.resolve();
  return etat.chargement??=(async()=>{try{

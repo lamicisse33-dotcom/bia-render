@@ -4,5 +4,7 @@ export async function register(){
   void reprendreAudioMemoire();
   const {chargerDialoguesRapides}=await import("./lib/dialogue-rapide");
   void chargerDialoguesRapides();
+  const {rechaufferAudiosPrepares}=await import('./lib/prechauffage-dialogue');
+  void rechaufferAudiosPrepares();
  }
 }

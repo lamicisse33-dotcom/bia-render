@@ -1,13 +1,22 @@
 import {dialoguerAvecDevoirs,indexDialogue,resumeDialogueDevoirs} from './dialogue-devoirs';
 import {devoirsALire} from './devoirs-apprentissage';
 import {paroleDeLaPersonne} from './dialogue-devoirs-core';
-import {cleDialogue,chargerDialoguesRapides,garderChoixRapide,sauverDialoguesRapides} from './dialogue-rapide';
+import {cleDialogue,chargerDialoguesRapides,garderChoixRapide,sauverDialoguesRapides,choixPrepares} from './dialogue-rapide';
 import {audioPourReponse} from './audio-memoire';
 import {verifierDialoguesAppris} from './essai-dialogue-devoirs';
 const initial={statut:'non_lance',total:0,traites:0,prepares:0,sans_reponse:0,erreurs:0,acces_directs:0,audios_joints:0,appels_modele_relecture:0,ms_max:0,ms_moyen:0};
 const g=globalThis as typeof globalThis&{biaPrechauffageDialogue?:{bilan:typeof initial;travail?:Promise<void>}};
 const etat:{bilan:typeof initial;travail?:Promise<void>}=g.biaPrechauffageDialogue??={bilan:initial};const {bilan}=etat;
 export const resumePrechauffageDialogue=()=>({...bilan});
+/** Restart recovery reads existing recordings only; it never calls Claude. */
+export async function rechaufferAudiosPrepares(){
+ try{await chargerDialoguesRapides();const index=await indexDialogue();
+  for(const v of choixPrepares().slice(-64)){
+   const p=index.find(d=>d.id===v.devoir)?.repliques.find(p=>p.id===v.replique);
+   if(p){await audioPourReponse(p.wo,'wo');await audioPourReponse(p.fr,'fr');}
+  }
+ }catch{}
+}
 /** Owner-requested preparation of known openings, not a free-form prompt API.
  * Only the existing authenticated diagnostic can start paid preparation.
  * Writes derived routing cache only; never modifies lessons or recordings. */

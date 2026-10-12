@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import ts from 'typescript';import crypto from 'node:crypto';
 function load(file,deps={},env={}){const m={exports:{}};new Function('require','module','exports',...Object.keys(env),ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(n=>{assert(n in deps,n);return deps[n];},m,m.exports,...Object.values(env));return m.exports;}
 test('verified routes survive restart without storing user history and invalidate on source or facts',async()=>{
- let stored;const deps={'node:crypto':crypto,'./audio-memoire-stockage':{lireObjetMemoire:async()=>stored?Response.json(JSON.parse(stored)):null,ecrireObjetMemoire:async(path,body)=>{stored=body;}}};
+ let stored;const deps={'./salutations-dialogue':{sansSalutationsInitiales:h=>h},'node:crypto':crypto,'./audio-memoire-stockage':{lireObjetMemoire:async()=>stored?Response.json(JSON.parse(stored)):null,ecrireObjetMemoire:async(path,body)=>{stored=body;}}};
  const server=()=>load('lib/dialogue-rapide.ts',deps,{globalThis:{},setTimeout:()=>({unref(){}})});
  const a=server(),index=[{id:'d',titre:'Couple',date:'1',repliques:[{id:'0',wo:'W',fr:'F',role:'bia'}]}],history=[{role:'user',text:'Je l’ai appelée cinq fois.'}];
  const key=a.cleDialogue(index,'Non.',history);a.garderChoixRapide(key,{devoir:'d',replique:'0'});await a.sauverDialoguesRapides();

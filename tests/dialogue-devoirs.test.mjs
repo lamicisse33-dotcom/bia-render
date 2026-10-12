@@ -27,7 +27,7 @@ Français : BIA : Laisse-lui un peu de temps.
 Français : BIA : Comment ? Pourquoi ?`);
 const index=core.indexerDevoirs([fixture]);
 function service(fetch=async()=>{throw Error('Unexpected network');},devoirs=async()=>({devoirs:[fixture]}),config={}){
- const rapide=load('lib/dialogue-rapide.ts',{'node:crypto':crypto,'./audio-memoire-stockage':{lireObjetMemoire:async()=>null,ecrireObjetMemoire:async()=>{}}},{globalThis:{},setTimeout:()=>({unref(){}})});
+ const rapide=load('lib/dialogue-rapide.ts',{'./salutations-dialogue':salutations,'node:crypto':crypto,'./audio-memoire-stockage':{lireObjetMemoire:async()=>null,ecrireObjetMemoire:async()=>{}}},{globalThis:{},setTimeout:()=>({unref(){}})});
  return load('lib/dialogue-devoirs.ts',{'./dialogue-rapide':rapide,...{'./cerveau-anthropic':load('lib/cerveau-anthropic.ts',{}, {fetch,globalThis:{},process:{env:{}}}),'./cerveau-cerebras':{appelerCerebras:(url,init)=>fetch(url,init)},'./salutations-dialogue':salutations,'./dialogue-devoirs-core':core,'./langue':langue,'./devoirs-apprentissage':{devoirsALire:devoirs}}}, {fetch,globalThis:{},process:{env:{BIA_LLM_PROVIDER:'cerebras',CEREBRAS_API_KEY:'test-only',...config}}});
 }
 test('explicit bilingual pairs preserve text and roles without guessing missing translations',()=>{
@@ -279,4 +279,12 @@ test('a verified choice is reused without another model call, but a changed fact
  await api.dialoguerAvecDevoirs(q,[{role:'user',text:'Nous ne nous sommes pas disputés.'}],{index});assert.equal(calls,4);
  const changed=structuredClone(index);changed[0].repliques[1].wo='Source corrigée.';
  const c=await api.dialoguerAvecDevoirs(q,[],{index:changed});assert.equal(calls,6);assert.notEqual(c.acces_direct,true);
+});
+
+test('known greeting pairs do not delay a prepared topic; unknown facts are kept',()=>{
+ const e=textes.REPERTOIRE.find(e=>e.cle==='salut');
+ const h=[{role:'user',text:e.formes[0]},{role:'bia',text:e.wolof}];
+ assert.deepEqual(salutations.sansSalutationsInitiales(h),[]);
+ assert.deepEqual(salutations.sansSalutationsInitiales([...h,{role:'user',text:'Je suis malade.'}]),[{role:'user',text:'Je suis malade.'}]);
+ const personal=[{role:'user',text:e.formes[0]},{role:'bia',text:'Tu m’as dit avoir perdu ton travail.'}];assert.deepEqual(salutations.sansSalutationsInitiales(personal),personal);
 });
