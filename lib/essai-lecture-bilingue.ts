@@ -11,6 +11,9 @@ export function lancerEssaiLectureBilingue(){
  etat.travail=(async()=>{
   const {POST}=await import('../app/api/chatterbox-test/bia/route');const {NextRequest}=await import('next/server');
   const phrases=[
+   ['wo','Déédéét,dama ragal ñu mer.'],
+   ['wo','Déédéét, dama ragal ñu mer.'],
+   ['wo','ragal'],
    ['wo','Dañu bëgg ma def lu ma bëggul.'],
    ['wo','Xale yi dañuy xalaat ci seen xarit.'],
    ['wo','Bul jël décision ci suspicion rekk.'],

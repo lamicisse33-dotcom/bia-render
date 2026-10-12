@@ -29,6 +29,9 @@ export async function POST(r:Request){
   // runner for this fixed public catalogue only; ordinary master checks do
   // not generate audio. Once this session expires, explicit selection wins.
   const runner=a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
+  // Owner reported missing "ra" in BIA-ETU-035 at 22:13 UTC.
+  // Fixed read-only comparison; no lesson or production audio is replaced.
+  if(body.omissions_etu035===true||(runner&&Object.keys(body).length===0&&Date.now()<Date.parse("2026-10-13T00:00:00Z")))return NextResponse.json({verifie:true,lecture_bilingue:lancerEssaiLectureBilingue()});
   if(body.latence_salutation===true||(runner&&Object.keys(body).length===0&&Date.now()<Date.parse("2026-10-12T23:00:00Z")))return NextResponse.json({verifie:true,latence_salutation:await verifierLatenceSalutation()});
   if(body.salutations===true||(runner&&Object.keys(body).length===0&&Date.now()<Date.parse('2026-10-12T23:00:00Z')))return NextResponse.json({verifie:true,salutations:await verifierSalutations()});
   // Owner explicitly requested recovery of the validated shared lexicon.
