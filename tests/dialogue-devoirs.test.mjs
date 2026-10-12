@@ -318,3 +318,11 @@ test('refusing the current topic excludes it from new proposals and exposes anot
  const carte=core.maitrisesPourConversation([...index,autre],'Changeons de sujet.',[{role:'user',text:'Ma copine ne répond plus à mes messages.'},{role:'bia',text:'Vous vous êtes disputés ?'}]);
  assert.equal(carte.initiative,'nouveau_sujet');assert.deepEqual(carte.domaines.map(d=>d.titre),[autre.titre]);
 });
+
+test('explicit invitation to lead bypasses irrelevant learned clarifications without a model or database call',async()=>{
+ const api=service(async()=>{throw Error('No selection call');},async()=>{throw Error('No read before conversational proposal');});
+ for(const q of ['Choisis un sujet.','Je veux discuter.','De quoi veux-tu parler ?','Nanu waxtaan.']){
+  assert.equal(await api.dialoguerAvecDevoirs(q,[]),null,q);
+  assert.equal(api.resumeDialogueDevoirs().dernier_statut,'initiative_conversation');
+ }
+});
