@@ -87,3 +87,25 @@ test('MAR-013 keeps ak with its preceding clause without altering source spellin
  assert.equal(parts.map(p=>p.texte).join('').replace(/\s/g,''),mixed.replace(/\s/g,''));
  assert(parts.some(p=>p.langue==='fr'&&p.texte.includes('décision')));
 });
+
+test('an isolated final bi joins its French noun without consuming other Wolof speech',()=>{
+ const original=[{texte:'Kon',langue:'wo'},{texte:'mariage',langue:'fr'},{texte:'bi.',langue:'wo'}];
+ assert.deepEqual(preparation.lierBiFinal(original),[{texte:'Kon',langue:'wo'},{texte:'mariage bi.',langue:'fr'}]);
+ assert.equal(original[1].texte,'mariage');
+ for(const texte of ['bi,','bi ci kër ga.','xam.','bii.']){
+  const p=[{texte:'mariage',langue:'fr'},{texte,langue:'wo'},{texte:'suite',langue:'wo'}];
+  assert.deepEqual(preparation.lierBiFinal(p),p);
+ }
+ const p=[{texte:'mariage.',langue:'fr'},{texte:'bi.',langue:'wo'}];assert.deepEqual(preparation.lierBiFinal(p),p);
+ const wo=[{texte:'kër',langue:'wo'},{texte:'bi.',langue:'wo'}];assert.deepEqual(preparation.lierBiFinal(wo),wo);
+});
+
+test('default faithful and conversational preparation eliminate the isolated final bi clip',async()=>{
+ for(const fidele of [false,true])for(const mot of ['mariage','message','prix']){
+  const plan=await preparerPassagesKhalam('Dama bëgg '+mot+' bi.','wo',false,fidele);
+  assert.equal(plan.at(-1).texte,mot+' bi.');assert.equal(plan.at(-1).langue,'fr');
+  assert(!plan.some(p=>p.texte.trim()==='bi.'));
+ }
+ const plan=await preparerPassagesKhalam('Dama xam prix la.','wo',false,true);
+ assert.equal(plan.at(-1).langue,'wo');assert.equal(plan.at(-1).texte.trim(),'la.');
+});
