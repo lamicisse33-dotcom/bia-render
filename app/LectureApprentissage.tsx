@@ -1,4 +1,5 @@
 "use client";
+import {lirePiperWeb,mesurerPiperWeb} from "@/lib/piper-web";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {routerApprentissage,type TypeApprentissage} from "@/lib/routage-apprentissage";
 import {LectureContinue,type Progression} from "@/lib/lecture-continue";
@@ -10,7 +11,7 @@ import {reveiller} from "@/lib/reveil-du-son";
 import type {DevoirALire} from "@/lib/lecture-devoirs-core";
 import {morceauxLecture} from "@/lib/lecture-morceaux";
 
-export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false,obtenirAudio}:{obtenirAudio:()=>AudioContext;edition?:boolean;code:string;voice:"piper"|"female"|"male";
+export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false,obtenirAudio}:{obtenirAudio:()=>AudioContext;edition?:boolean;code:string;voice:"piper"|"piper-web"|"female"|"male";
  demande:{texte:string;nonce:number;auto:boolean;source?:"memoire"};onStart:()=>void;onClose:()=>void}){
  const depuis=useRef(0);const premierSon=useRef(false);
  const lectureMemoire=useRef(false);lectureMemoire.current=demande.source==="memoire";
@@ -52,20 +53,20 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    const s=ctx.createBufferSource();s.buffer=courant.buffer;s.connect(ctx.destination);courant.source=s;courant.depuis=ctx.currentTime;
    s.onended=()=>{s.disconnect();if(courant?.source===s){const fin=courant.fin;courant=null;fin();}};
    s.start(0,Math.min(courant.offset,courant.buffer.duration));
-   if(!premierSon.current){premierSon.current=true;mesurer("premier_son");}};
+   if(!premierSon.current){premierSon.current=true;mesurer("premier_son");if(settings.current.voice==="piper-web")mesurerPiperWeb("lecture",performance.now()-depuis.current);}};
   const arreterSon=()=>{suspendre();if(courant){const rejeter=courant.rejeter;courant=null;rejeter(new Error("arrêté"));}};
   let preparation:{original:string;langue:string;texte:string}|null=null;
   let secoursComplet=true;
   const demander=async(text:string,partie:number,signal:AbortSignal,empreinte?:string,langue=settings.current.langue)=>{
-   signal=AbortSignal.any([signal,AbortSignal.timeout(12000)]);
-   if(settings.current.voice==="piper"){
-    if(!piperLocaleDisponible())throw Error("Ouvre BIA installée sur le téléphone pour utiliser Piper.");
+   signal=AbortSignal.any([signal,AbortSignal.timeout(settings.current.voice==="piper-web"?45000:12000)]);
+   if(settings.current.voice==="piper"||settings.current.voice==="piper-web"){
+    if(settings.current.voice==="piper"&&!piperLocaleDisponible())throw Error("Ouvre BIA installée sur le téléphone pour utiliser Piper.");
     if(!preparation||preparation.original!==text||preparation.langue!==langue){
      const r=await fetch("/api/apprentissage/preparer",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:langue})});
      const d=await r.json();if(!r.ok||typeof d.texte!=="string")throw Error(d.error||"Lexique indisponible");
      preparation={original:text,langue:langue,texte:d.texte};
     }
-    return lirePiperLocale(preparation.texte,partie,signal);
+    return settings.current.voice==="piper-web"?lirePiperWeb(preparation.texte,partie,settings.current.code,signal):lirePiperLocale(preparation.texte,partie,signal);
    }
    if(secoursComplet){
     const r=await fetch("/api/chatterbox-test/bia",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:langue,voice:settings.current.voice,partie,empreinte,lecture_fidele:true})});
@@ -82,7 +83,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    }catch(error){cleanup();if(!signal.aborted)secoursComplet=true;throw error;}
   };
   async function* packets(value:{text:string;first:MorceauVoix;langue:"fr"|"wo"},signal:AbortSignal){
-   try{yield* morceauxLecture(value.first,(part,empreinte)=>demander(value.text,part,signal,empreinte,value.langue),signal,settings.current.voice!=="piper");}
+   try{yield* morceauxLecture(value.first,(part,empreinte)=>demander(value.text,part,signal,empreinte,value.langue),signal,(settings.current.voice!=="piper"&&settings.current.voice!=="piper-web"));}
    catch(error){if(!signal.aborted)secoursComplet=true;throw error;}
   }
   const jouer=async(value:unknown,signal:AbortSignal)=>{

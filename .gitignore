@@ -23,3 +23,6 @@ _to_delete/
 outils/sorties-voix-locale/
 outils/essai-voix-femmes/
 __pycache__/
+
+# Copied from the pinned ONNX runtime at build time
+public/piper/runtime/

@@ -1,5 +1,6 @@
 "use client";
 
+import {fetchVoixBia,piperWebActif,mesurerPiperWeb} from "./piper-web";
 import { useCallback, useRef, useState } from "react";
 import { ralentir, vitesseChoisie } from "@/lib/ralentir";
 import { essaiChatterboxActif, routeVoixBia, voixChatterboxBia } from "@/lib/chatterbox-essai";
@@ -57,6 +58,8 @@ export function useParler(code: string): Parleur {
   const [signes, setSignes] = useState(0);
   const ctxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const abortRef=useRef<AbortController|null>(null);
+  const sources=useRef(new Set<AudioBufferSourceNode>());
 
   const contexte = useCallback(() => {
     if (!ctxRef.current || ctxRef.current.state === "closed") {
@@ -68,7 +71,8 @@ export function useParler(code: string): Parleur {
   }, []);
 
   const taire = useCallback(() => {
-    try { sourceRef.current?.stop(); } catch {}
+    abortRef.current?.abort();abortRef.current=null;
+    for(const source of sources.current){try{source.stop();}catch{}}sources.current.clear();
     sourceRef.current = null;
     setJoue("");
   }, []);
@@ -79,6 +83,7 @@ export function useParler(code: string): Parleur {
     if (!code) { setEtat("Il faut ton code d'accès, en haut."); return; }
 
     taire();
+    const abort=new AbortController();abortRef.current=abort;
     setJoue(quoi);
     setEtat("");
     // Keep every part of this reading on the same selected voice.
@@ -94,11 +99,12 @@ export function useParler(code: string): Parleur {
       let envoyes = 0;
 
       while (partie < total) {
-        const r = await fetch(route, {
-          method: "POST",
+        const r = await fetchVoixBia(route, {
+          method: "POST", signal:abort.signal,
           headers: { "content-type": "application/json", "x-bia-code": code },
           body: JSON.stringify({ texte: propre, partie, ou: "essai", voice }),
         });
+        if(abort.signal.aborted)return;
         if (r.status === 401) { setEtat("Ce code n'est pas valable."); setJoue(""); return; }
         const d = await r.json() as {
           parties?: number; audio?: string | null; erreur?: string; moteur?: string;
@@ -121,19 +127,25 @@ export function useParler(code: string): Parleur {
         }
         const octets = Uint8Array.from(atob(d.audio), (c) => c.charCodeAt(0)).buffer;
         const brut = await ctx.decodeAudioData(octets.slice(0));
-        const pose = ralentir(ctx, brut, chatterbox ? 1 : vitesseChoisie());
+        if(abort.signal.aborted)return;
+        const pose = ralentir(ctx, brut, chatterbox || piperWebActif() ? 1 : vitesseChoisie());
         const source = ctx.createBufferSource();
         source.buffer = pose;
         source.connect(ctx.destination);
+        quand=Math.max(quand,ctx.currentTime+.05);
+        sources.current.add(source);
         source.start(quand);
+        if(piperWebActif()&&partie===0)mesurerPiperWeb("lecture");
         quand += pose.duration;
         sourceRef.current = source;
-        if (partie === total - 1) source.onended = () => setJoue("");
+        const last=partie===total-1;
+        source.onended=()=>{sources.current.delete(source);if(last&&!abort.signal.aborted)setJoue("");};
         envoyes += propre.length / total;
         partie++;
       }
       setSignes((n) => n + Math.round(envoyes));
     } catch (e) {
+      if(abort.signal.aborted)return;
       setEtat(String((e as Error).message));
       setJoue("");
     }

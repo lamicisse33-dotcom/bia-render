@@ -59,6 +59,7 @@ import { fenetreDuFil } from "@/lib/fenetre-du-fil";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 import { lireLeRire } from "@/lib/rires";
+import {piperWebActif,fetchVoixBia,preparerPiperWeb,etatPiperWeb,vitessePiperWeb,mesurerPiperWeb} from "@/lib/piper-web";
 import { choixVoixBia, choisirVoixBia, essaiChatterboxActif, routeVoixBia, voixChatterboxBia, type ChoixVoixBia } from "@/lib/chatterbox-essai";
 import { reveiller } from "@/lib/reveil-du-son";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
@@ -390,6 +391,7 @@ function octetsDeBase64(b64: string, vitesseSource?: number) {
 /* BIA et Rara partagent le moteur installé dans la même application iPhone.
    Les personnalités restent distinctes ; hors application, la voix est inchangée. */
 function voixLocaleBiaDisponible(_persona = "rara"): boolean {
+  if(piperWebActif())return true;
   if (typeof window === "undefined" || essaiChatterboxActif()) return false;
   const moteur = (window as Window & { BiaLocalVoice?: { epoch?: number; settings?: unknown } }).BiaLocalVoice;
   return typeof moteur?.epoch === "number" && typeof moteur.settings === "function";
@@ -488,7 +490,10 @@ export default function Home() {
      temoin, une panne du moteur ressemblait a une reponse ordinaire. */
   const [panne, setPanne] = useState("");
   const [choixVoix, setChoixVoix] = useState<ChoixVoixBia>("piper");
-  const essaiChatterbox = choixVoix !== "piper";
+  const essaiChatterbox = choixVoix === "male" || choixVoix === "female";
+  const [etatSecours,setEtatSecours]=useState("");
+  const [prepareSecours,setPrepareSecours]=useState(false);
+  useEffect(()=>{const change=()=>setEtatSecours(etatPiperWeb());window.addEventListener("bia-piper-web",change);return()=>window.removeEventListener("bia-piper-web",change);},[]);
   const [erreurChoixVoix, setErreurChoixVoix] = useState("");
   useEffect(() => { setChoixVoix(choixVoixBia()); }, []);
   const [voixLocalePresente, setVoixLocalePresente] = useState(false);
@@ -501,6 +506,7 @@ export default function Home() {
   }, []);
   const [code, setCode] = useState<string | null>(null);
   const lireAudioMemoire=useAudioMemoire(code);
+  useEffect(()=>{if(code&&piperWebActif())void preparerPiperWeb(code).catch(e=>setEtatSecours(e.message));},[code]);
   const [codeSaisi, setCodeSaisi] = useState("");
   const [codeErreur, setCodeErreur] = useState("");
   const [moteurs, setMoteurs] = useState<{ voix: string; ecoute: string } | null>(null);
@@ -601,6 +607,7 @@ export default function Home() {
     let actif = true;
     const synchroniser = () => {
       if (essaiChatterboxActif()) { setDebit(1); return; }
+      if(piperWebActif()){debitNatifRef.current=vitessePiperWeb();setDebit(debitNatifRef.current);return;}
       const voix = voixAvecDebitNatif();
       if (voix?.getSpeed) {
         void voix.getSpeed().then((d) => { if (actif) { debitNatifRef.current = d.speed; setDebit(d.speed); } }).catch(() => { if (actif) setErreurDebit("Impossible de lire le réglage de la voix."); });
@@ -618,6 +625,7 @@ export default function Home() {
   const changerDebit = (valeur: number) => {
     if (essaiChatterboxActif()) return;
     setDebit(valeur); debitNatifRef.current = valeur; setErreurDebit("");
+    if(piperWebActif()){try{localStorage.setItem("bia-piper-web-speed",String(valeur));}catch{}return;}
     const voix = voixAvecDebitNatif();
     if (voixLocaleBiaDisponible()) {
       try { localStorage.setItem("bia-native-speed-ui", String(valeur)); } catch {}
@@ -629,12 +637,13 @@ export default function Home() {
   const vitesseAudioBia = (octets: ArrayBuffer) => {
     if (essaiChatterboxActif()) return 1;
     const source = rythmesAudioBia.get(octets);
+    if(piperWebActif())return source?debitNatifRef.current/source:1;
     return voixLocaleBiaDisponible(personaRef.current) && source
       ? debitNatifRef.current / source : vitesseChoisie();
   };
   useEffect(() => {
     // Écrit à chaque mouvement : elle le lira au mot suivant, sans rien relancer.
-    if (essaiChatterboxActif()) return;
+    if (essaiChatterboxActif() || piperWebActif()) return;
     try { localStorage.setItem(CLE_VITESSE, String(debit)); } catch {}
   }, [debit]);
 
@@ -2098,7 +2107,7 @@ export default function Home() {
          réflexion alors qu'il n'y a eu aucune réflexion. */
   const souffleDattenteRef = useRef<AudioBufferSourceNode | null>(null);
   const soufflerEnAttendant = useCallback(async (jeton: object) => {
-    if (essaiChatterboxActif()) return;
+    if (essaiChatterboxActif() || piperWebActif()) return;
     if (carteOuverteRef.current) return;
     const souffle = souffleDe("reflexion");
     if (!souffle) return;
@@ -2151,7 +2160,7 @@ export default function Home() {
      coup au lieu d'être annoncée puis jouée. Si le fichier n'est pas encore
      déposé, on ne fait rien — le visage rit en silence, comme avant. */
   const jouerSouffle = useCallback(async (emotion: string, sansPrelude = false) => {
-    if (essaiChatterboxActif()) return;
+    if (essaiChatterboxActif() || piperWebActif()) return;
     /* Carte ouverte : pas de rire, pas de soupir, rien. Une seule voix quand
        on conduit — la meme regle que speak() et direSonTeutFait(). */
     if (carteOuverteRef.current) return;
@@ -2202,7 +2211,7 @@ export default function Home() {
      plaint pas. Le bruit de frappe et le petit clavier suffisent déjà à
      montrer qu'elle travaille. */
   const direEnregistre = useCallback(async (quoi: string) => {
-    if (essaiChatterboxActif()) return;
+    if (essaiChatterboxActif() || piperWebActif()) return;
     try {
       const fichier = `/sons/${quoi}.mp3`;
       let octets = cacheSons.current.get(fichier);
@@ -2227,6 +2236,7 @@ export default function Home() {
      S'il n'est pas encore fabriqué, on le synthétise et on le garde en
      mémoire pour la durée de la session. */
   const audioParole = useCallback(async (p: Parole, langue: Langue, nom = "") => {
+    if(piperWebActif())return [];
     const texte = dire(p, langue, nom);
     const cleAttente = `${routeVoixBia()}:${voixChatterboxBia()}:${personaRef.current}:${voixLocaleBiaDisponible(personaRef.current) ? debitNatifRef.current : "serveur"}:${texte}`;
     const garde = attenteCache.current.get(cleAttente);
@@ -2286,7 +2296,7 @@ export default function Home() {
        première phrase — sept secondes au lieu de quarante-deux — et BIA
        repartait au début, encore et encore. C'est ce que Lamine a entendu. */
     const demander = async (partie: number): Promise<MorceauVoix> => {
-      const r = await fetch(routeVoixBia(), {
+      const r = await fetchVoixBia(routeVoixBia(), {
         method: "POST",
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
         body: JSON.stringify({ texte, partie, voice: voixChatterboxBia(), ou: "attente", audioPrompt: voixAudioPrompt() }),
@@ -2632,7 +2642,7 @@ export default function Home() {
   }, []);
 
   const direSonTeutFait = useCallback(async (adresse: string, emotion?: string) => {
-    if (essaiChatterboxActif()) { setMode("ready"); setFace("yeux_ouverts"); return; }
+    if (essaiChatterboxActif() || piperWebActif()) { setMode("ready"); setFace("yeux_ouverts"); return; }
     /* LA MEME REGLE QUE speak() : carte ouverte, BIA se tait. Une reponse
        enregistree ne passe pas par speak(), donc elle echappait a la garde —
        et c'est justement la reponse la plus frequente quand on demande un
@@ -2742,6 +2752,7 @@ export default function Home() {
         if(duree>0){if(!lecture?.conserverTour)stopMouth(answer);return;}
       }
     }
+    const piperCommence=performance.now();
     const locale = voixLocaleBiaDisponible(personaRef.current);
     if (choixVoixBia() === "piper" && !locale) {
       setPanne("Piper est installé dans l’application du téléphone. Ouvre cette application pour l’utiliser, ou choisis Khalam Voice dans Moi.");
@@ -2831,10 +2842,10 @@ export default function Home() {
           }
           const abort = new AbortController();
           fluxVoixRef.current.add(abort);
-          const timeout = setTimeout(() => abort.abort(new DOMException("La voix tarde à répondre", "TimeoutError")), 12000);
+          const timeout = setTimeout(() => abort.abort(new DOMException("La voix tarde à répondre", "TimeoutError")), piperWebActif()?45000:12000);
           let r: Response;
           try {
-            r = await fetch(routeVoix, {
+            r = await fetchVoixBia(routeVoix, {
               method: "POST", signal: abort.signal,
               headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
               body: JSON.stringify({ texte: answer, partie, ou, langue: langueDite, voice: voixChoisie,
@@ -2856,6 +2867,7 @@ export default function Home() {
           if (r.status === 429) attente = Math.min(5000, Math.max(2000, (Number(r.headers.get("retry-after")) || 2) * 1000));
         } catch (e) {
           if (!actuel()) throw new Error("tour interrompu");
+          if(piperWebActif())throw e;
           if (e instanceof Error && e.name === "TimeoutError") throw new Error("La voix met trop de temps à répondre. Réessaie.");
           dernier = "connexion au moteur vocal interrompue";
         }
@@ -3019,6 +3031,7 @@ export default function Home() {
         if (!premiereSyllabeFaite) {
           premiereSyllabeFaite = true;
           noterRouteVoixBia("lecture", locale);
+          if(piperWebActif())mesurerPiperWeb("lecture",performance.now()-piperCommence);
           lecture?.premierSon();
           if (ou === "réponse") {
             envoyerLeTour(Date.now() + Math.round((debut - ctx.currentTime) * 1000));
@@ -4035,7 +4048,7 @@ export default function Home() {
     let vivant = true;
     void (async () => {
       for (const langue of ["wo", "fr"] as const) {
-        if (essaiChatterboxActif()) return;
+        if (essaiChatterboxActif() || piperWebActif()) return;
         for (const parole of A_FABRIQUER) {
           if (!vivant) return;
           try { await audioParole(parole, langue); } catch { return; }
@@ -4083,7 +4096,7 @@ export default function Home() {
     void (async () => {
       /* On laisse passer les paroles d'attente (ci-dessus) et la salutation
          d'ouverture : elles passent avant. */
-      if (essaiChatterboxActif()) return;
+      if (essaiChatterboxActif() || piperWebActif()) return;
       await new Promise((r) => setTimeout(r, 4000));
       if (!vivant) return;
       const bilan = { demandes: 0, deja_la: 0, chargees: 0, ratees: 0, ms: 0, octets: 0 };
@@ -4145,7 +4158,7 @@ export default function Home() {
   useEffect(() => {
     const reveiller = () => {
       contexte();
-      if (essaiChatterboxActif()) return;
+      if (essaiChatterboxActif() || piperWebActif()) return;
       if (salueRef.current || !code) return;
       salueRef.current = true;
       /* Elle ne coupe jamais la parole à personne : si elle est déjà en
@@ -7292,8 +7305,12 @@ export default function Home() {
     setPapierOuvert(true);
   }
 
-  function appliquerChoixVoix(choix: ChoixVoixBia) {
+  async function appliquerChoixVoix(choix: ChoixVoixBia) {
     setErreurChoixVoix("");
+    if(choix==="piper-web"){
+      taire();setPrepareSecours(true);
+      try{await preparerPiperWeb(codeRef.current);}catch(e){setErreurChoixVoix(String(e instanceof Error?e.message:e));return;}finally{setPrepareSecours(false);}
+    }
     if (!choisirVoixBia(choix)) {
       setErreurChoixVoix("Le choix n’a pas pu être enregistré sur ce téléphone.");
       return;
@@ -7340,22 +7357,25 @@ export default function Home() {
           {([
             ["male", "Homme — KHALAM Voice"],
             ["female", "Femme — KHALAM Voice"],
-            ["piper", "Piper — moteur sur le téléphone"],
+            ["piper-web", "Khalam V2 (Piper) — secours dans le navigateur"],
+            ["piper", "Piper — test installé sur le téléphone"],
           ] as const).map(([valeur, label]) => (
             <label key={valeur} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 48, cursor: "pointer" }}>
               <input type="radio" name="bia-voix" value={valeur} checked={choixVoix === valeur}
-                onChange={() => appliquerChoixVoix(valeur)} style={{ accentColor: "#d4af37", width: 20, height: 20 }} />
+                disabled={prepareSecours} onChange={() => {void appliquerChoixVoix(valeur);}} style={{ accentColor: "#d4af37", width: 20, height: 20 }} />
               <span>{label}</span>
             </label>
           ))}
         </fieldset>
-        <p className="papier-note">Ton choix est mémorisé sur ce téléphone. KHALAM Voice utilise le serveur de test.</p>
+        <p className="papier-note">Ton choix est mémorisé dans ce navigateur. Khalam V2 fonctionne sur cet appareil et reste indépendant du serveur Khalam Voice. Le premier téléchargement fait 77 Mo.</p>
+        {etatSecours && <p className="papier-note" role="status">{etatSecours}</p>}
+        <a className="papier-lien" href="/voix/secours">Préparer et écouter Khalam V2 →</a>
         {erreurChoixVoix && <p className="panne" role="alert">{erreurChoixVoix}</p>}
         <button type="button" className="papier-lien" disabled={mode !== "ready" || conversation}
           onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
         {panne && <p className="panne" role="alert">{panne}</p>}
         <p className="papier-note" role="status" data-bia-voice-status>
-          {essaiChatterbox ? `KHALAM Voice · voix ${choixVoix === "female" ? "de femme" : "d’homme"} · serveur de test` : voixLocalePresente
+          {choixVoix === "piper-web" ? "Khalam V2 · voix de femme · moteur dans ce navigateur" : essaiChatterbox ? `KHALAM Voice · voix ${choixVoix === "female" ? "de femme" : "d’homme"} · serveur de test` : voixLocalePresente
             ? `Voix locale ${epoqueVoixLocaleBia()} — moteur installé sur cet iPhone`
             : "Piper absent de cette fenêtre — ouvre BIA installée sur le téléphone"}
         </p>
@@ -7374,7 +7394,7 @@ export default function Home() {
             onChange={(e) => changerDebit(Number(e.target.value))} />
           <span className="papier-debit-bornes"><i>Plus lentement</i><i>Plus vite</i></span>
         </div>
-        {voixLocalePresente && <button type="button" className="papier-lien" onClick={() => { void voixAvecDebitNatif()?.settings?.().catch(() => setErreurDebit("Impossible d’ouvrir l’écoute.")); }}>Écouter et régler la voix locale →</button>}
+        {voixLocalePresente && choixVoix !== "piper-web" && <button type="button" className="papier-lien" onClick={() => { void voixAvecDebitNatif()?.settings?.().catch(() => setErreurDebit("Impossible d’ouvrir l’écoute.")); }}>Écouter et régler la voix locale →</button>}
 
         {erreurDebit && <p className="papier-note" role="alert">{erreurDebit}</p>}
 
@@ -7660,7 +7680,7 @@ export default function Home() {
   /* ── ONBOARDING VOIX ────────────────────────────────────────────────────
      Affiché une seule fois, au premier lancement, si aucune belle voix
      française féminine n'est trouvée sur l'appareil. */
-  if (!essaiChatterbox && onboarding.besoin && onboarding.verifie) {
+  if (!essaiChatterbox && choixVoix !== "piper-web" && onboarding.besoin && onboarding.verifie) {
     return <OnboardingVoix onTermine={() => onboarding.passer()} />;
   }
 

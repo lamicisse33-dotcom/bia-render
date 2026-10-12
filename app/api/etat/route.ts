@@ -1,3 +1,4 @@
+import {resumePiperWeb} from "@/lib/piper-web-etat";
 import {resumeAnthropic,MODELE_SONNET} from "@/lib/cerveau-anthropic";
 import {resumeSecoursCerebras} from "@/lib/cerveau-cerebras";
 import {resumeAudioMemoire} from "@/lib/audio-memoire";
@@ -115,6 +116,7 @@ export async function GET(request: Request) {
        n'existe pas : on prend l'heure de démarrage du serveur, qui change à
        chaque redémarrage — même effet, sans rien à configurer. */
     version: VERSION,
+    piper_web: resumePiperWeb(),
     // La tenue de BIA — réglable depuis /reglage, lue par tout le monde ici.
     tenue: tenueActuelle(),
     /* 21 septembre : ce qui manquait pour voir que les mots corrigés ne

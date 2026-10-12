@@ -7,8 +7,8 @@
     "node": ">=20.9.0"
   },
   "scripts": {
-    "dev": "node outils/poser-le-worker.mjs && next dev",
-    "build": "node outils/poser-le-worker.mjs && next build",
+    "dev": "node outils/poser-piper-web.mjs && node outils/poser-le-worker.mjs && next dev",
+    "build": "node outils/poser-piper-web.mjs && node outils/poser-le-worker.mjs && next build",
     "start": "next start -p ${PORT:-3000}",
     "voix:locale": "python3 outils/wolof_local_server.py"
   },
@@ -16,6 +16,7 @@
     "@breezystack/lamejs": "^1.2.7",
     "maplibre-gl": "^6.9.0",
     "next": "15.5.4",
+    "onnxruntime-web": "1.23.2",
     "pdfkit": "^0.20.2",
     "react": "19.1.0",
     "react-dom": "19.1.0"
