@@ -8,9 +8,9 @@ import {inventorierMemoire,idAudioMemoire,type AudioMemoire} from './audio-memoi
 import {assurerMemoire,lireObjetMemoire,ecrireObjetMemoire,objetsMemoire,supprimerObjetMemoire} from './audio-memoire-stockage';
 type Bilan={actif:boolean;statut:string;total:number;prets:number;restants:number;echecs:number;a_verifier:number;devoirs_valides:number;octets:number;mis_a_jour:string;dernier_ms:number;lectures:number;lectures_navigateur?:number;dernier_demarrage_ms?:number;derniere_erreur?:string};
 type Echec={essais:number;motif:string};
-type Etat={bilan:Bilan;catalogue?:{phrases:AudioMemoire[];aVerifier:string[];expire:number};prets:Map<string,number>;worker?:Promise<void>;timer?:ReturnType<typeof setTimeout>;lecture?:Promise<AudioMemoire[]>;reprise?:Promise<void>;echecs:Record<string,Echec>;indexCharge:boolean};
+type Etat={bilan:Bilan;catalogue?:{phrases:AudioMemoire[];aVerifier:string[];expire:number};prets:Map<string,number>;worker?:Promise<void>;timer?:ReturnType<typeof setTimeout>;lecture?:Promise<AudioMemoire[]>;reprise?:Promise<void>;echecs:Record<string,Echec>;indexCharge:boolean;attentes:Map<string,number>};
 const global=globalThis as typeof globalThis&{biaAudioMemoire?:Etat};
-const etat:Etat=global.biaAudioMemoire??={bilan:{actif:false,statut:'non_lance',total:0,prets:0,restants:0,echecs:0,a_verifier:0,devoirs_valides:0,octets:0,mis_a_jour:'',dernier_ms:0,lectures:0},prets:new Map(),echecs:{},indexCharge:false};
+const etat:Etat=global.biaAudioMemoire??={bilan:{actif:false,statut:'non_lance',total:0,prets:0,restants:0,echecs:0,a_verifier:0,devoirs_valides:0,octets:0,mis_a_jour:'',dernier_ms:0,lectures:0},prets:new Map(),echecs:{},indexCharge:false,attentes:new Map()};
 const hash=(b:Uint8Array)=>createHash('sha256').update(b).digest('hex');
 export const resumeAudioMemoire=()=>({...etat.bilan});
 async function anciennesValidees(){
@@ -57,13 +57,13 @@ async function travailler(){
  etat.worker=(async()=>{
   try{
    const phrases=await catalogueAudioMemoire();
-   const p=phrases.filter(p=>!etat.prets.has(p.id)&&(etat.echecs[p.id]?.essais||0)<3).sort((a,b)=>Number(b.langue==='wo')-Number(a.langue==='wo'))[0];
-   if(!p){etat.bilan.statut=etat.bilan.restants?'a_verifier':'termine';await checkpoint();programmer(60000);return;}
+   const p=phrases.filter(p=>!etat.prets.has(p.id)&&(etat.echecs[p.id]?.essais||0)<3&&(etat.attentes.get(p.id)||0)<Date.now()).sort((a,b)=>Number(b.langue==='wo')-Number(a.langue==='wo'))[0];
+   if(!p){etat.bilan.statut=etat.bilan.restants?(etat.bilan.echecs?'a_verifier':'reprise_en_attente'):'termine';await checkpoint();programmer(60000);return;}
    etat.bilan.statut='generation';const debut=Date.now(),claim='verrous/'+p.id+'.json',owner=randomUUID();
    const deja=await lireObjetMemoire('sons/'+p.id+'.mp3');
    if(deja){const bytes=new Uint8Array(await deja.arrayBuffer());const meta=await lireObjetMemoire('details/'+p.id+'.json');if(!meta||bytes.length<=1000||(await meta.json()).sha256!==hash(bytes)){etat.echecs[p.id]={essais:3,motif:'Audio présent sans confirmation valide'};await ecrireObjetMemoire('echecs.json',JSON.stringify(etat.echecs),'application/json',true);}else etat.prets.set(p.id,bytes.length);await checkpoint();programmer();return;}
    const verrou=await lireObjetMemoire(claim);
-   if(verrou){const v=await verrou.json();if(Date.now()-v.debut<10*60*1000){programmer(15000);return;}await supprimerObjetMemoire(claim);}
+   if(verrou){const v=await verrou.json();if(Date.now()-v.debut<10*60*1000){etat.attentes.set(p.id,v.debut+10*60*1000);programmer(500);return;}await supprimerObjetMemoire(claim);}
    try{await ecrireObjetMemoire(claim,JSON.stringify({owner,debut:Date.now()}),'application/json');}catch{programmer(15000);return;}
    try{
     const {fabriquerSon}=await import('./sons-courants');

@@ -42,3 +42,9 @@ test('validated plain Wolof exercises retain all five Wave lines without adding 
  const d=core.inventorierMemoire([{...devoir,id:'wave',texte}],[],[]);
  assert.deepEqual(d.phrases.map(p=>p.texte),texte.split('\n'));assert(d.phrases.every(p=>p.langue==='wo'));assert.equal(d.aVerifier.length,0);
 });
+
+test('an interrupted or concurrent take does not block preparing other lesson replies',async()=>{
+ const f=fixture(),s=f.server();await s.api.lancerAudioMemoire();const first=(await s.api.catalogueAudioMemoire())[0];
+ f.objects.set('verrous/'+first.id+'.json',JSON.stringify({owner:'other-worker',debut:Date.now()}));
+ await s.pump();assert.equal(f.generations(),0);await s.pump();assert.equal(f.generations(),1);assert.equal(s.api.resumeAudioMemoire().prets,1);
+});
