@@ -6,6 +6,7 @@ import {resumeAnthropic,MODELE_SONNET} from "@/lib/cerveau-anthropic";
 import {resumeSecoursCerebras} from "@/lib/cerveau-cerebras";
 import {resumeAudioMemoire} from "@/lib/audio-memoire";
 import {sonsCourantsEtat} from "@/lib/sons-courants-etat";
+import {resumeSalutations} from '@/lib/reponse-salutation';
 import {resumeContinuiteVoix} from "@/lib/continuite-voix-etat";
 import {resumeCorrectionsDevoir} from "@/lib/correction-devoir";
 import {resumeDialogueDevoirs,essayerDialogueDevoirs,indexDialogue} from "@/lib/dialogue-devoirs";
@@ -253,6 +254,7 @@ export async function GET(request: Request) {
        rien ne s'enregistre et rien ne se sert de mémoire. */
     repertoire: etatRepertoire(),
     sons_courants: sonsCourantsEtat,
+    salutations: resumeSalutations(),
     audio_memoire: resumeAudioMemoire(),
     prechauffage_dialogue: resumePrechauffageDialogue(),
     /* ── SON CORPUS DE VOIX, PENDANT QU'IL SE CONSTITUE ───────────────────

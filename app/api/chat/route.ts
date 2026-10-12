@@ -6,6 +6,7 @@ import {corrigerDevoir} from "@/lib/correction-devoir";
 import {origineReplique} from "@/lib/correction-devoir-core";
 import {devoirsALire} from "@/lib/devoirs-apprentissage";
 import {dialoguerAvecDevoirs,contexteMaitrises} from "@/lib/dialogue-devoirs";
+import {reponseSalutation} from '@/lib/reponse-salutation';
 import {sansRelanceAutomatique} from "@/lib/dialogue-devoirs-core";
 import {CONSIGNE_COMPREHENSION,dependDuContexte} from "@/lib/comprehension-conversation";
 import {contexteInstructions} from "@/lib/instructions-apprentissage";
@@ -1385,6 +1386,12 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     }
 
     if(!question)return {corps:{reply:"Bindal walla waxal sa laaj.",source:"validation"}};
+
+    // A greeting always answers with a greeting, even when repeated. Do not
+    // let a previous lesson, filler or duplicate filter replace its meaning.
+    if(maitre.ok&&!estRara&&!body.apprend&&!body.malDit?.encours){
+      const salut=await reponseSalutation(question);if(salut)return {corps:salut};
+    }
 
     // Existing browser sessions still send the obsolete repeated fallback.
     // Do not teach the conversational model to repeat that routing failure.

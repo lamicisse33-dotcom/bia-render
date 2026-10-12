@@ -4,7 +4,7 @@ import {sansSilence} from "@/lib/bords-audio";
 import {useAudioMemoire} from "@/lib/use-audio-memoire";
 import {sonPourTexte,reactionDisponible,type SonCourant} from "@/lib/sons-courants-core";
 import {programmerReactionCourante} from "@/lib/reaction-courante";
-import {salutationAutonome} from "@/lib/salutations-dialogue";
+import {accusePertinent} from "@/lib/salutations-dialogue";
 import {piperLocaleDisponible} from "@/lib/voix-piper-locale";
 
 import { detecterLangue } from "@/lib/langue";
@@ -934,7 +934,6 @@ export default function Home() {
      Le drapeau ne vaut QUE pour le tour suivant : on le baisse dès qu'il a
      servi. « Je vois ça » deux fois de suite ne serait plus une attention,
      ce serait un tic. */
-  const apresSalutationRef = useRef(false);
   const [compteVerdicts, setCompteVerdicts] = useState({ bien: 0, mal: 0, corriges: 0 });
   /* ── LE CHANTIER DE LA LISTE « MAL DIT » ─────────────────────────────────
 
@@ -2394,43 +2393,6 @@ export default function Home() {
      conversation. Ensuite, plus rien : le silence, et une lueur dorée qui
      respire près de son visage. Comme Siri, comme ChatGPT. Quand la réponse
      est prête, la lueur s'éteint et elle parle. */
-  const accusCourts: Parole[] = [
-    {fichier:"accord-v1",fr:"D’accord.",wo:"D’accord."},
-    {fichier:"bien-v1",fr:"Très bien.",wo:"Très bien."},
-    {fichier:"instant-v1",fr:"Un instant.",wo:"Un instant."},
-    {fichier:"regarde-v1",fr:"Je regarde ça.",wo:"Je regarde ça."},
-    {fichier:"voyons-v1",fr:"Voyons ça.",wo:"Voyons ça."},
-  ];
-  const derniersAccusesRef = useRef<string[]>([]);
-  const cleAccuse = (p:Parole) => `${routeVoixBia()}:${voixChatterboxBia()}:${personaRef.current}:${voixLocaleBiaDisponible(personaRef.current) ? debitNatifRef.current : "serveur"}:${p.fr}`;
-  // Prepare one clip at a time while idle; never put synthesis on the response path.
-  useEffect(() => {
-    let alive=true,busy=false;
-    const timer=setInterval(async()=>{
-      if(!alive||busy||!codeRef.current||document.visibilityState!=="visible"||
-        modeRef.current!=="ready"||attenteRef.current||enregistreurRef.current?.state==="recording"||
-        voixLocaleBiaDisponible(personaRef.current))return;
-      const p=accusCourts.find(p=>!attenteCache.current.has(cleAccuse(p)));
-      if(!p)return;
-      busy=true;
-      try{await audioParole(p,"fr");}catch{}finally{busy=false;}
-    },8000);
-    return()=>{alive=false;clearInterval(timer);};
-  },[audioParole]);
-
-  const attendreEnParlant = useCallback(async (jeton: object, _langue: Langue) => {
-    await pause(1400);
-    if(attenteRef.current!==jeton||stopAttenteRef.current||enregistreurRef.current?.state==="recording")return;
-    const disponibles=accusCourts.filter(p=>attenteCache.current.has(cleAccuse(p))&&!derniersAccusesRef.current.includes(p.fichier));
-    if(!disponibles.length)return;
-    const p=disponibles[Math.floor(Math.random()*disponibles.length)];
-    const morceaux=attenteCache.current.get(cleAccuse(p));
-    if(!morceaux)return;
-    derniersAccusesRef.current=[...derniersAccusesRef.current,p.fichier].slice(-3);
-    await direParole(morceaux,jeton);
-    if(attenteRef.current===jeton&&!stopAttenteRef.current){setMode("thinking");setFace("pensive");}
-  }, [direParole]);
-
   /* Le trait tiré à la fin de l'attente : du micro coupé jusqu'au son de la
      réponse. C'est ce total-là qu'il faudra meubler la prochaine fois. */
   const noterAttente = useCallback(() => {
@@ -2606,7 +2568,7 @@ export default function Home() {
     let dernier = "";
     for (const ou of candidats) {
       let r: Response;
-      try { r = await fetch(ou); } catch (e) { dernier = String(e); continue; }
+      try { r = await fetch(ou,{signal:AbortSignal.timeout(5000)}); } catch (e) { dernier = String(e); continue; }
       if (!r.ok) { dernier = `${r.status}`; continue; }
       /* On met de côté AVANT de lire : une fois le corps consommé, il ne se
          relit plus. Et on le range sous l'adresse DEMANDÉE, pas sous celle
@@ -2708,7 +2670,7 @@ export default function Home() {
     // pronunciation; an absent/unwarmed clip never delays ordinary synthesis.
     if(!enLecon&&!lecture&&!suite&&essaiChatterboxActif()&&voixChatterboxBia()==="female"&&personaRef.current!=="rara"){
       const son=sonPourTexte(sonsCourantsRef.current,answer,langueDite);
-      const octets=son&&cacheSons.current.get(son.adresse);
+      const octets=son&&(cacheSons.current.get(son.adresse)||await octetsDuRepertoire(son.adresse).catch(()=>undefined));
       if(octets){
         await prendreLaParole();if(!await peutParler())return;
         const debut=performance.now();poserBorne(bornesRef.current,"enMain");
@@ -3253,9 +3215,7 @@ export default function Home() {
     const evoquee = sorteEvoquee(clean);
     if (evoquee) setPapierPret((deja) => deja || evoquee);
 
-    // Le temps où l'humain écoute est du temps gagné : elle meuble en parlant.
-    // Après le micro, ce sont les transitions qui tiennent déjà la parole —
-    // on ne leur superpose pas une phrase d'attente.
+    // Keep timing separately from speech; no arbitrary waiting sentence.
     toursRef.current += 1;
     if (!parole) {
       // Question tapée : le chronomètre part d'ici, sans transcription.
@@ -3273,10 +3233,10 @@ export default function Home() {
       const jeton = {};
       attenteRef.current = jeton;
       stopAttenteRef.current = false;
-      void attendreEnParlant(jeton, langueRef.current);
+
     }
 
-    const reaction=essaiChatterboxActif()&&voixChatterboxBia()==="female"&&personaRef.current!=="rara"&&!apprend.current&&!chantierMalDit.current&&!correctionDevoirRef.current&&!salutationAutonome(clean)
+    const reaction=essaiChatterboxActif()&&voixChatterboxBia()==="female"&&personaRef.current!=="rara"&&!apprend.current&&!chantierMalDit.current&&!correctionDevoirRef.current&&accusePertinent(clean)
       ? reactionDisponible(sonsCourantsRef.current.filter(s=>cacheSons.current.has(s.adresse)),langueRef.current,derniereReactionRef.current):undefined;
     const annulerReaction=reaction?programmerReactionCourante({
       actuel:()=>estLeTour(monTour)&&busyRef.current&&!carteOuverteRef.current,
@@ -3365,13 +3325,13 @@ export default function Home() {
       let teteDite = "";
       let teteEnCours: Promise<void> | null = null;
       let statut = response.status;
-      let data: { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
+      let data: { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; son_courant?: SonCourant; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
 
       if (response.headers.get("content-type")?.includes("text/event-stream") && response.body) {
         const lecteur = response.body.getReader();
         const decodeur = new TextDecoder();
         let tampon = "", recu = "";
-        let fin: { corps: { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string }; statut: number } | null = null;
+        let fin: { corps: { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; son_courant?: SonCourant; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string }; statut: number } | null = null;
         for (;;) {
           const { done, value } = await lecteur.read();
           if (done) break;
@@ -3384,7 +3344,7 @@ export default function Home() {
             const nom = lignes.find((l) => l.startsWith("event:"))?.slice(6).trim();
             const brut = lignes.find((l) => l.startsWith("data:"));
             if (!brut) continue;
-            let ev: { morceau?: string; corps?: { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string }; statut?: number };
+            let ev: { morceau?: string; corps?: { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; son_courant?: SonCourant; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string }; statut?: number };
             try { ev = JSON.parse(brut.slice(5).trim()); } catch { continue; }
             if (nom === "texte") {
               recu += ev.morceau || "";
@@ -3427,7 +3387,7 @@ export default function Home() {
         data = fin.corps;
         statut = fin.statut;
       } else {
-        data = (await response.json()) as { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
+        data = (await response.json()) as { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; son_courant?: SonCourant; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
       }
 
       annulerReaction();
@@ -3565,6 +3525,9 @@ export default function Home() {
         return;
       }
       if (statut >= 400) throw new Error("BIA unavailable");
+      if(data.son_courant&&data.son_courant.texte===data.reply){
+        sonsCourantsRef.current=[...sonsCourantsRef.current.filter(s=>s.cle!==data.son_courant!.cle||s.langue!==data.son_courant!.langue),data.son_courant];
+      }
       emotionRef.current = data.emotion || "neutre";
       /* Elle estime avoir de quoi écrire : c'est elle qui allume le bouton,
          et son avis vaut mieux qu'un mot-clé — elle a suivi toute la
@@ -3691,10 +3654,6 @@ export default function Home() {
       /* Une réponse du répertoire arrive avec son son déjà fabriqué : on le
          joue tel quel. Si le fichier manque — seau vidé, réseau coupé — on
          retombe sur la synthèse ordinaire plutôt que de rester muette. */
-      /* Si c'était une salutation, le tour SUIVANT commencera par « d'accord,
-         je vois ça » — quoi qu'on lui dise. Posé ici, avant de jouer le son :
-         c'est le serveur qui l'a dit, il n'y a rien à deviner. */
-      if ((data as { salutation?: boolean }).salutation) apresSalutationRef.current = true;
       /* Le geste de la main qui va avec cette phrase, joué quand la bouche
          aura fini (voir stopMouth et lib/gestes-de-la-main.ts). */
       { const g = String((data as { geste?: string }).geste || ""); gesteApresRef.current = g in CYCLES ? (g as keyof typeof CYCLES) : ""; }
@@ -3751,7 +3710,7 @@ export default function Home() {
         questionEnVolRef.current = "";
       }
     }
-  }, [speak, installerAudioMemoire, attendreEnParlant, finirAttente, ouvrirUnTour, estLeTour, lectureContinue, stopMouth, couperSon, jouerEtAnimer]);
+  }, [speak, installerAudioMemoire, finirAttente, ouvrirUnTour, estLeTour, lectureContinue, stopMouth, couperSon, jouerEtAnimer]);
 
   /* LE TEXTE FRANÇAIS QU'ON COLLE, DIT EN WOLOF.
 
@@ -5077,48 +5036,8 @@ export default function Home() {
         tTranscritRef.current = 0;
         tModeleRef.current = 0;
         langueRef.current = "wo";
-        /* ── « AUSSITÔT ELLE DOIT DIRE D'ACCORD, JE VOIS ÇA » ─────────────
-
-           Sa demande du 12 septembre au soir, et l'endroit est ici : on vient
-           de fermer le micro, la transcription n'est même pas partie. Rien
-           n'est plus tôt que ça.
-
-           Le son est déjà dans le téléphone (c'est un enregistrement du
-           répertoire) donc il part en un dixième de seconde. L'attente
-           parlée, elle, prend la suite quand l'accusé a fini — sinon les deux
-           parleraient ensemble.
-
-           Tant que les phrases de service ne sont pas enregistrées,
-           choisirService rend null et rien ne change : une phrase promise
-           sans son serait un silence. */
-        const accuseSuite = !essaiChatterboxActif() && apresSalutationRef.current
-          ? choisirService("suite", dernierService.current) : null;
-        apresSalutationRef.current = false;
-        if (accuseSuite) {
-          dernierService.current = accuseSuite.cle;
-          void (async () => {
-            try {
-              /* L'ADRESSE SE CONSTRUIT ICI, PAS AVEC sonDe(). Cette fonction
-                 lit la configuration Supabase du SERVEUR : dans le
-                 téléphone, elle rendrait une adresse vide. La page a déjà le
-                 dossier des sons — /api/etat le lui donne au chargement — et
-                 c'est ce même chemin qui sert pour la salutation d'accueil. */
-              const ou = adresseDuSon(accuseSuite.cle, langueDuFil.current as "wo" | "fr");
-              if (!ou) throw new Error("dossier des sons inconnu");
-              const octets = await octetsDuRepertoire(ou);
-              if (estLeTour(monTour) && attenteRef.current === jeton) await jouerEtAnimer(octets);
-            } catch { /* pas de son déposé : on enchaîne sur l'attente */ }
-            if (estLeTour(monTour) && attenteRef.current === jeton) {
-              void attendreEnParlant(jeton, langueRef.current);
-            }
-          })();
-        } else {
-          void attendreEnParlant(jeton, langueRef.current);
-        }
-        /* ── ET LE SOUFFLE, À CHAQUE TOUR ─────────────────────────────────
-           `attendreEnParlant` ne parle qu'au PREMIER échange — c'est sa
-           décision du 12 septembre, et elle tient. Le souffle, lui, n'est pas
-           une phrase : il revient à chaque fois, comme chez un être humain. */
+        // Wait for the transcription before selecting any spoken reaction.
+        // A nonverbal breath can accompany transcription; no filler words.
         void soufflerEnAttendant(jeton);
 
         try {
@@ -5368,7 +5287,7 @@ export default function Home() {
     } catch {
       setMode("error");
     }
-  }, [arreterEnregistrement, askBia, attendreEnParlant, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour, nouvelEnregistrement, estCetEnregistrement]);
+  }, [arreterEnregistrement, askBia, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour, nouvelEnregistrement, estCetEnregistrement]);
 
   /* L'attente a besoin de rouvrir le micro pour recevoir le prénom, mais elle
      est définie avant `ecouter`. Ce renvoi évite d'avoir à réordonner tout le
