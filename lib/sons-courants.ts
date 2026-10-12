@@ -56,17 +56,18 @@ export function genererSonsCourants(){
  return enCours;
 }
 
-async function fabriquerSon(p:{texte:string;langue:string},nouvellePrise?:string){
+export async function fabriquerSon(p:{texte:string;langue:string},nouvellePrise?:string,arrierePlan=false){
     const clips:ArrayBuffer[]=[];let total=1,empreinte:string|undefined;
     for(let partie=0;partie<total;partie++){
-     const r=await synthetiser(new NextRequest('https://app.khalam.app/api/chatterbox-test/bia',{method:'POST',headers:{'content-type':'application/json','x-chatterbox-test-key':process.env.CHATTERBOX_TEST_KEY||''},body:JSON.stringify({texte:p.texte,langue:p.langue,voice:'female',lecture_fidele:true,partie,empreinte,...(nouvellePrise?{nouvelle_prise:nouvellePrise}:{})})}));
-     const d=await r.json();if(!r.ok||typeof d.audio!=='string'||d.voice!=='female'||d.partie!==partie||!Number.isInteger(d.parties)||d.parties<1||d.parties>12)throw Error('synthese_incomplete');
+     if(arrierePlan)while((globalThis as typeof globalThis&{biaVoixInteractiveJusqua?:number}).biaVoixInteractiveJusqua!>Date.now())await new Promise(r=>setTimeout(r,1000));
+     const r=await synthetiser(new NextRequest('https://app.khalam.app/api/chatterbox-test/bia',{method:'POST',headers:{'content-type':'application/json','x-chatterbox-test-key':process.env.CHATTERBOX_TEST_KEY||'',...(arrierePlan?{'x-bia-preparation':'memoire'}:{})},body:JSON.stringify({texte:p.texte,langue:p.langue,voice:'female',lecture_fidele:true,partie,empreinte,...(nouvellePrise?{nouvelle_prise:nouvellePrise}:{})})}));
+     const d=await r.json();if(!r.ok||typeof d.audio!=='string'||d.voice!=='female'||d.partie!==partie||!Number.isInteger(d.parties)||d.parties<1||d.parties>(arrierePlan?512:12))throw Error('synthese_incomplete');
      const attendu=d.langue==='fr'?'b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75':'8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f';
      if(d.checkpoint_sha256!==attendu)throw Error('modele_inattendu');
      if(partie&&d.empreinte!==empreinte)throw Error('preparation_modifiee');
      total=d.parties;empreinte=d.empreinte;const b=Buffer.from(d.audio,'base64');clips.push(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength));
     }
-    const audio=assemblerSonsCourants(clips),mp3=versMp3(audio.wav);
+    const audio=assemblerSonsCourants(clips,arrierePlan?1200:45),mp3=versMp3(audio.wav);
  return {audio,mp3};
 }
 

@@ -10,13 +10,15 @@ function load(file, modules={}) {
 }
 const lecture=load('lib/lecture-continue.ts');
 const {morceauxLecture}=load('lib/lecture-morceaux.ts');
-const {preparerPassagesKhalam}=load('lib/passages-khalam.ts',{
+const preparation=load('lib/passages-khalam-core.ts',{
+  './lexique-apprentissage-core':load('lib/lexique-apprentissage-core.ts'),
   './langue':load('lib/langue.ts'),
   './texte-khalam-voix':{texteKhalamVoix:t=>t.trim()},
   './lexique-apprentissage':{lireLecons:async()=>[],prononciationsApprises:async t=>t},
   './decoupage-voix-khalam':load('lib/decoupage-voix-khalam.ts'),
   './lecture-continue':lecture,
 });
+const {preparerPassagesKhalam}=load('lib/passages-khalam.ts',{'./passages-khalam-core':preparation,'./lexique-apprentissage':{lireLecons:async()=>[]},'./prononciation':{reglesPrononciation:async()=>[]}});
 test('reported omission is split as in the successful live comparison',async()=>{
   const text='Dañu bëgg ma def lu ma bëggul.';
   assert.deepEqual(lecture.segmentsLectureWolof(text).map(t=>t.trim()),['Dañu bëgg ma def','lu ma bëggul.']);

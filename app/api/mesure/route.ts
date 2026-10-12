@@ -1,3 +1,4 @@
+import {noterLectureAudioMemoire} from "@/lib/audio-memoire";
 import {noterSonCourant} from "@/lib/sons-courants-etat";
 import {noterLectureDevoirs} from "@/lib/lecture-devoirs-etat";
 import { NextResponse } from "next/server";
@@ -26,6 +27,7 @@ export async function POST(requete: Request) {
         }));
       }
     }
+    else if (corps && corps.type === "audio_memoire") noterLectureAudioMemoire(corps);
     else if (corps && corps.type === "sons_courants") noterSonCourant(corps);
     else if (corps && corps.type === "lecture_devoirs") noterLectureDevoirs(corps);
     else if (corps && corps.type === "lecture") noterLecture(corps);

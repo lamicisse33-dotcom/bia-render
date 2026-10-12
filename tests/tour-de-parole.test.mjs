@@ -56,7 +56,7 @@ const makeSpeak=new Function('env',`with(env){${compile('const speak = '+arrow+'
 function environment(fetchPromise) {
   let played=0, decoded=0, processed=0;
   const env={
-    sonPourTexte:()=>undefined,sonsCourantsRef:{current:[]},cacheSons:{current:new Map()},
+    lireAudioMemoire:async()=>undefined,sonPourTexte:()=>undefined,sonsCourantsRef:{current:[]},cacheSons:{current:new Map()},
     ouvrirRepliques,carteOuverteRef:{current:false},numeroDuTourRef:{current:1},porteRef:{current:null},
     personaRef:{current:'female'},codeRef:{current:'test'},bornesRef:{current:{}},langueRef:{current:'fr'},
     choixVoixBia:()=>"female",estWolof:()=>false,voixLocaleBiaDisponible:()=>true,noterRouteVoixBia:()=>{},essaiChatterboxActif:()=>true,
@@ -134,4 +134,15 @@ test('a cached reply cancelled while waiting for the speaker never plays',async(
  env.sonPourTexte=()=>({adresse:'cached'});env.cacheSons.current.set('cached',new ArrayBuffer(2200));env.porteRef.current={attendre:gate.promise};
  env.jouerEtAnimer=async()=>{played++;return 1000;};const p=makeSpeak(env)('Bonjour.');
  env.numeroDuTourRef.current++;env.porteRef.current=null;gate.resolve();await p;assert.equal(played,0);
+});
+
+test('a learned prerecorded reply bypasses synthesis and keeps the continuous reading gate',async()=>{
+ const {env}=environment(Promise.resolve());let plays=0,stops=0,first=0;
+ env.lireAudioMemoire=async()=>new ArrayBuffer(2500);env.jouerEtAnimer=async(_b,_v,o)=>{if(o.actuel()){plays++;o.commence();}return 1;};env.stopMouth=()=>stops++;env.fetch=async()=>({ok:true});
+ await makeSpeak(env)('Phrase apprise',undefined,'lecture_devoirs',false,{langue:'wo',conserverTour:true,premierSon:()=>first++});
+ assert.equal(plays,1);assert.equal(first,1);assert.equal(stops,0);
+});
+test('interruption during a prerecorded lesson download prevents all playback',async()=>{
+ const {env,played}=environment(Promise.resolve());const gate=deferred();env.lireAudioMemoire=()=>gate.promise;
+ const pending=makeSpeak(env)('Phrase apprise');env.numeroDuTourRef.current++;gate.resolve(new ArrayBuffer(2500));await pending;assert.equal(played(),0);
 });

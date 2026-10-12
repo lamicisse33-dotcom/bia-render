@@ -1,3 +1,4 @@
+import {resumeAudioMemoire} from "@/lib/audio-memoire";
 import {sonsCourantsEtat} from "@/lib/sons-courants-etat";
 import {resumeContinuiteVoix} from "@/lib/continuite-voix-etat";
 import {resumeCorrectionsDevoir} from "@/lib/correction-devoir";
@@ -241,6 +242,7 @@ export async function GET(request: Request) {
        rien ne s'enregistre et rien ne se sert de mémoire. */
     repertoire: etatRepertoire(),
     sons_courants: sonsCourantsEtat,
+    audio_memoire: resumeAudioMemoire(),
     /* ── SON CORPUS DE VOIX, PENDANT QU'IL SE CONSTITUE ───────────────────
        Le 15 septembre 2026, il a dit oui pour qu'on garde sa voix avec ses
        transcriptions : c'est ce qui lui permettra un jour de se passer d'une

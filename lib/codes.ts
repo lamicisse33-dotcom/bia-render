@@ -47,7 +47,7 @@ export type Verdict = { ok: true; maitre: boolean } | { ok: false; raison: "abse
 const compteurs = new Map<string, number>();
 const MAX_QUESTIONS = nombreDeLEnvironnement(process.env.BIA_MAX_QUESTIONS, 15, "BIA_MAX_QUESTIONS");
 
-export function verifierCode(brut: string | null): Verdict {
+export function verifierCode(brut: string | null, compter=true): Verdict {
   const code = (brut || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (!code) return { ok: false, raison: "absent" };
 
@@ -62,8 +62,8 @@ export function verifierCode(brut: string | null): Verdict {
   const expiration = decode(corps.slice(0, 4)) + ORIGINE;
   if (Math.floor(Date.now() / 60000) > expiration) return { ok: false, raison: "expire" };
 
-  const utilise = (compteurs.get(code) || 0) + 1;
+  const utilise = (compteurs.get(code) || 0) + (compter ? 1 : 0);
   if (utilise > MAX_QUESTIONS) return { ok: false, raison: "epuise" };
-  compteurs.set(code, utilise);
+  if(compter)compteurs.set(code, utilise);
   return { ok: true, maitre: false };
 }

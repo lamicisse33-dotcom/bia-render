@@ -29,7 +29,7 @@ export default function Courantes(){
   finally{verrou.current=false;setOccupe('');}
  }
  return <main className="voix" tabIndex={0} aria-label="Écoute des paroles de BIA" style={{background:'#090909',color:'#fff',height:'100dvh',boxSizing:'border-box',padding:'32px 20px calc(60px + env(safe-area-inset-bottom))',maxWidth:850,margin:'auto'}}>
-  <p className="voix-retour"><a href="/">← BIA</a></p><h1>Écouter et corriger BIA</h1>
+  <p className="voix-retour"><a href="/">← BIA</a></p><h1>Écouter et corriger BIA</h1><p><a href="/voix/memoire" style={{color:'#d4af37'}}>Suivre les audios des leçons et du lexique →</a></p>
   <p>{erreur||`${phrases.filter(p=>p.audio).length} audios prêts sur ${phrases.length} phrases. Français et wolof, avec la voix de BIA.`}</p>
   <p>Corrige le texte, enregistre-le, puis régénère l’audio de cette phrase. Tu peux aussi refaire un audio sans changer le texte si des mots ont été sautés.</p>
   <label className="voix-code">Ton code maître<input type="password" value={code} onChange={e=>setCode(e.target.value)} autoComplete="off" placeholder="Code maître" /></label>

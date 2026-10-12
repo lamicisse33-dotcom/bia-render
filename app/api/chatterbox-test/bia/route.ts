@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
   if (!authorized(request)) {
     return NextResponse.json({ erreur: "code", error: "Code d’accès BIA refusé." }, { status: 401 });
   }
+  if(request.headers.get("x-bia-preparation")!=="memoire") (globalThis as typeof globalThis&{biaVoixInteractiveJusqua?:number}).biaVoixInteractiveJusqua=Date.now()+5000;
   const body = await request.json().catch(() => null);
   if (!body || typeof body.texte !== "string" || body.texte.length > 20000) {
     return NextResponse.json({ error: "Texte requis, 20 000 caractères au maximum." }, { status: 400 });

@@ -1,4 +1,5 @@
 "use client";
+import {useAudioMemoire} from "@/lib/use-audio-memoire";
 import {sonPourTexte,reactionDisponible,type SonCourant} from "@/lib/sons-courants-core";
 import {programmerReactionCourante} from "@/lib/reaction-courante";
 import {salutationAutonome} from "@/lib/salutations-dialogue";
@@ -499,6 +500,7 @@ export default function Home() {
     return () => document.removeEventListener("visibilitychange", visible);
   }, []);
   const [code, setCode] = useState<string | null>(null);
+  const lireAudioMemoire=useAudioMemoire(code);
   const [codeSaisi, setCodeSaisi] = useState("");
   const [codeErreur, setCodeErreur] = useState("");
   const [moteurs, setMoteurs] = useState<{ voix: string; ecoute: string } | null>(null);
@@ -2714,6 +2716,19 @@ export default function Home() {
        On décide ici, une fois, sur la réponse ENTIÈRE — un fragment de
        quatre mots ne se juge pas, une réponse complète oui. */
     const langueDite = lecture?.langue ?? (estWolof(answer) ? "wo" : "fr");
+    // An exact validated utterance can use its private prerecorded audio.
+    // Lessons retain their language, turn cancellation, and continuous-reading gates.
+    if(!enLecon&&!suite&&essaiChatterboxActif()&&voixChatterboxBia()==="female"&&personaRef.current!=="rara"){
+      const octets=await lireAudioMemoire(answer,langueDite);
+      if(!actuel())return;
+      if(octets){
+        await prendreLaParole();if(!await peutParler())return;
+        const debut=performance.now();poserBorne(bornesRef.current,"enMain");
+        const duree=await jouerEtAnimer(octets,true,{actuel,commence:()=>{lecture?.premierSon();void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"audio_memoire",ms:performance.now()-debut})}).catch(()=>{});}});
+        if(!actuel())return;
+        if(duree>0){if(!lecture?.conserverTour)stopMouth(answer);return;}
+      }
+    }
     // Current female Khalam recordings only. Lessons keep their fresh source
     // pronunciation; an absent/unwarmed clip never delays ordinary synthesis.
     if(!enLecon&&!lecture&&!suite&&essaiChatterboxActif()&&voixChatterboxBia()==="female"&&personaRef.current!=="rara"){
@@ -3150,7 +3165,7 @@ export default function Home() {
       if (ou === "apprentissage" || locale || essaiChatterboxActif()) { stopMouth(answer); return; }
       await parlerAvecLeTelephone(answer);
     }
-  }, [contexte, reveillerLeSon, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth, jouerEtAnimer]);
+  }, [contexte, reveillerLeSon, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth, jouerEtAnimer, lireAudioMemoire]);
 
 
 
