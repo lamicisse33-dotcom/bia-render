@@ -1,3 +1,4 @@
+import {resumePreparationEcoute} from "@/lib/preparer-ecoute";
 import {resumeIntegriteAudio} from "@/lib/essai-integrite-audio";
 import {resumeLectureBilingue} from "@/lib/essai-lecture-bilingue";
 import {resumePrechauffageDialogue} from "@/lib/prechauffage-dialogue";
@@ -243,6 +244,7 @@ export async function GET(request: Request) {
        d'entre eux pour un texte vide. Voir lib/ecoute.ts. */
     oreille_soynade: resumeOreilleSoynade(),
     oreille_locale: resumeOreilleLocale(),
+    preparation_ecoute: resumePreparationEcoute(),
     emotions: resumeEmotions(),
     /* CE QUE ÇA COÛTE, COMPTÉ ET NON DEVINÉ. Les signes réellement envoyés à
        Soynade, par route, et les jetons que le modèle dit avoir consommés —

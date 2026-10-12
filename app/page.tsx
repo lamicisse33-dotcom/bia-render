@@ -1,4 +1,5 @@
 "use client";
+import {envoyerEcoute} from "@/lib/envoi-ecoute";
 import {verifierAcces} from '@/lib/acces-client';
 import {sansSilence} from "@/lib/bords-audio";
 import {useAudioMemoire} from "@/lib/use-audio-memoire";
@@ -5041,49 +5042,19 @@ export default function Home() {
         void soufflerEnAttendant(jeton);
 
         try {
-          /* ── ON N'ENVOIE PLUS LE SON S'IL EST DÉJÀ LÀ ────────────────────
-
-             Le gain de la soirée tient dans ces quelques lignes. Si tous les
-             morceaux sont montés pendant qu'il parlait, cette requête ne
-             transporte qu'un identifiant : le son est à Francfort depuis
-             longtemps, et la seconde et demie d'attente disparaît.
-
-             SI QUOI QUE CE SOIT MANQUE, ON REVIENT À L'ANCIEN CHEMIN — et
-             c'est ce qui rend tout ceci sans danger. Trois portes de sortie,
-             et chacune ramène au fichier entier :
-
-               — un morceau refusé en route a allumé `perdu` ;
-               — le compte des morceaux déposés ne tombe pas juste ;
-               — le serveur répond 409 « dépôt incomplet ».
-
-             Dans les trois cas Lamine ne voit rien : il attend une seconde et
-             demie de plus, comme avant, au lieu de perdre sa phrase. */
+          // Use a deposit only after every chunk has been acknowledged.
+          // Otherwise send the complete recording now, without a 1.5 s wait.
           const legere = new FormData();
           legere.append("tour", tourDeParole);
           legere.append("total", String(morceaux.length));
+          legere.append("depot_confirme", "1");
           const indice = forme.get("indice_langue");
           if (indice !== null) legere.append("indice_langue", String(indice));
-          /* ── LE DERNIER MORCEAU ET LA DEMANDE VOYAGENT ENSEMBLE ──────────
-
-             Le 19 septembre 2026. On attendait que le dernier morceau soit
-             monté, PUIS on envoyait la demande : deux allers-retours
-             Dakar–Francfort à la file, là où un seul suffit. Maintenant la
-             demande part tout de suite, et c'est le SERVEUR qui attend le
-             morceau retardataire — à quelques millisecondes de lui, pas à
-             trois cents.
-
-             `complet` ne veut plus dire « tout est arrivé » mais « tout est
-             PARTI, et rien n'a été refusé jusqu'ici ». Si un envoi échoue
-             après coup, le serveur ne verra jamais le morceau, répondra 409
-             au bout d'une seconde et demie, et on renverra le fichier entier
-             comme avant. Le filet n'a pas bougé ; seul l'ordre a changé. */
-          const complet = !perdu && morceaux.length > 0;
-
-          const envoyer = (corps: FormData) => fetch("/api/ecouter", {
+          const r = await envoyerEcoute(legere, forme, {
+            total: morceaux.length, deposes, perdu,
+          }, corps => fetch("/api/ecouter", {
             method: "POST", headers: { "x-bia-code": codeRef.current }, body: corps,
-          });
-          let r = await envoyer(complet ? legere : forme);
-          if (complet && r.status === 409) { await Promise.allSettled(envois); r = await envoyer(forme); }
+          }));
           if (!estCetEnregistrement(idEnr)) return;
           const d = await r.json() as { texte?: string; panne?: boolean; motif?: string; suggestions_ecriture?: string[]; au_fil_de_leau?: boolean };
           if (!estCetEnregistrement(idEnr)) return;

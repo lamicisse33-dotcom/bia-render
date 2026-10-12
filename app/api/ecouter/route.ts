@@ -1,10 +1,7 @@
 import { detecterLangue } from "@/lib/langue";
-import {corrigerTranscription,vocabulaireAppris} from "@/lib/correction-transcription";
+import {preparerEcoute} from "@/lib/preparer-ecoute";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
-import { transcrire } from "@/lib/ecoute";
-import { motsCorriges } from "@/lib/lexique";
-import { pourScribe } from "@/lib/mots-a-entendre";
 import { noterPanne } from "@/lib/panne";
 import { annoncerLaFin, attendreLesMorceaux, cleValide, noterAttenteDesMorceaux, oublierLeDepot, recoudre } from "@/lib/morceaux-de-parole";
 import { corpusActif, garderLaVoix } from "@/lib/corpus";
@@ -76,7 +73,7 @@ export async function POST(request: NextRequest) {
          l'attend ici, à quelques millisecondes de lui, au lieu de faire
          attendre le téléphone un aller-retour de plus. Voir
          attendreLesMorceaux() dans lib/morceaux-de-parole.ts. */
-      const attente = await attendreLesMorceaux(tour);
+      const attente = await attendreLesMorceaux(tour, form.get("depot_confirme") === "1" ? 0 : undefined);
       noterAttenteDesMorceaux(attente.attendu_ms, attente.complet);
       const fil = recoudre(tour);
       if (!fil.ok) {
@@ -105,22 +102,7 @@ export async function POST(request: NextRequest) {
        refusait. Le format d'un enregistrement ne se décide pas sur le
        serveur : il se constate. */
     const nom = (fichier instanceof File && fichier.name) ? fichier.name : "parole.webm";
-    /* ── LES MOTS QU'ON LUI DONNE D'AVANCE ─────────────────────────────
-
-       Sa règle du 12 septembre au soir : « les mots corrigés doivent être
-       prioritaires si leur équivalent n'existe pas sur les phrases
-       enregistrées. » Les corrections viennent de Supabase (déjà en cache
-       d'une minute) ; si elles ne répondent pas, on envoie la liste sans
-       elles plutôt que de ne rien envoyer. */
-    let mots: string[] = [];
-    try {
-      mots = pourScribe(await motsCorriges(60));
-    } catch (err) {
-      console.error("BIA — mots corrigés indisponibles :", (err as Error).message);
-      try { mots = pourScribe([]); } catch { mots = []; }
-    }
-    try{mots=[...new Set([...mots,...await vocabulaireAppris()])];}catch{}
-    const reco = await transcrire(fichier, nom, indice, mots);
+    const {reco,ecriture,correction_disponible,chronometrage} = await preparerEcoute(fichier,nom,indice);
     if (transcriptionEnBoucle(String(reco.texte || ""))) {
       noterPanne("transcription répétitive rejetée", "boucle de reconnaissance vocale", "ecoute");
       return NextResponse.json({ texte: "", transcription_rejetee: true,
@@ -172,10 +154,7 @@ export async function POST(request: NextRequest) {
        saurait pas si le chemin rapide sert vraiment, ou s'il se replie en
        silence sur l'ancien depuis des jours — c'est exactement le genre
        d'aveuglement qui nous a coûté deux soirées sur la mémoire. */
-    let ecriture={texte:String(reco.texte||""),texte_brut:String(reco.texte||""),corrections_transcription:[] as Array<{entendu:string;corrige:string}>};
-    let correction_disponible=true;
-    try{ecriture=await corrigerTranscription(String(reco.texte||""));}catch{correction_disponible=false;}
-    return NextResponse.json({ ...reco,...ecriture,correction_disponible,
+    return NextResponse.json({ ...reco,...ecriture,correction_disponible,chronometrage,
       // Older open tabs still expect this field. Mark the unchanged/learned text
       // as usable without pretending a contextual model check took place.
       verification: { statut: "conservee", langue: detecterLangue(ecriture.texte, indice === "fr" ? "fr" : "wo"),

@@ -517,7 +517,7 @@ async function chezSoynade(audio: Blob, nomFichier: string, langue: "wo" | "fr")
 }
 
 export async function transcrire(
-  audio: Blob, nomFichier: string, indice?: string | null, mots?: string[],
+  audio: Blob, nomFichier: string, indice?: string | null, vocabulaire?: string[] | (() => Promise<string[]>),
 ): Promise<Ecoute> {
   const localeDemandee = process.env.STT_PROVIDER === "local_wolof"
     && (indice !== "fr" || process.env.WOLOF_LOCAL_ALL_LANGUAGES === "true");
@@ -629,6 +629,8 @@ export async function transcrire(
     : null;
   if (imposeeDesLePremier) compte.imposees++;
 
+  // Load hints only when the selected recognizer actually consumes them.
+  const mots = typeof vocabulaire === "function" ? await vocabulaire() : vocabulaire;
   let premier: { texte: string; brute: string };
   const estUnRefus = (motif: string) => /\b(400|404|422)\b/.test(motif);
   try {

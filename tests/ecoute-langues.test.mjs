@@ -71,3 +71,14 @@ test('Soynade cannot bypass the same script validation',async()=>{
   ],'soynade');
   const r=await transcrire(audio,'test.wav','wo');assert.equal(r.texte,'Maa ngi bëgg wax.');assert.equal(requests.length,2);
 });
+test('local ASR starts without loading a vocabulary it never consumes',async()=>{
+ const {transcrire}=setup([{model:'omniASR_LLM_1B_v2',text:'Nanga def ?'}]);
+ const r=await transcrire(audio,'test.wav','wo',async()=>{throw Error('unnecessary vocabulary fetch');});
+ assert.equal(r.texte,'Nanga def ?');
+});
+test('the external fallback still receives lazy vocabulary exactly once',async()=>{
+ const {transcrire}=setup([{model:'omniASR_LLM_1B_v2',text:'السلام عليكم'},{text:'Nanga def ?',language_code:'wol'}]);
+ let loads=0;
+ const r=await transcrire(audio,'test.wav','wo',async()=>{loads++;return ['Nanga def'];});
+ assert.equal(r.texte,'Nanga def ?');assert.equal(loads,1);
+});
