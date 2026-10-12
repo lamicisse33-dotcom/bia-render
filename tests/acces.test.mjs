@@ -43,3 +43,17 @@ test('client requires positive server validation before accepting access',async(
  const api=load('lib/acces-client.ts',{}, {fetch:async(url,init)=>{assert.equal(url,'/api/acces');assert.equal(init.headers['x-bia-code'],'test');return Response.json({ok:true,maitre:false});}});
  assert.deepEqual(await api.verifierAcces('test'),{maitre:false});
 });
+
+test('chat rejects absent and invalid codes before cached replies or streaming',async()=>{
+ const source=fs.readFileSync('app/api/chat/route.ts','utf8');
+ const ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);
+ const post=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='POST');
+ const js=ts.transpileModule(post.getText(ast).replace(/^export /,''),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+ const {codes}=fixture();let answers=0;
+ const api=new Function('verifierCode','NextResponse','DIFFUSER_LE_MODELE','repondre','garderCeTour',js+'; return POST;')(codes.verifierCode,Response,true,async()=>{answers++;return {corps:{reply:'Bonjour'}};},()=>{});
+ for(const diffuse of [false,true])for(const code of ['', 'INVALID']){
+  const r=await api(new Request('https://app.khalam.app/api/chat',{method:'POST',headers:{'content-type':'application/json','x-bia-code':code},body:JSON.stringify({message:'Bonjour',diffuse})}));
+  assert.equal(r.status,401);assert.equal((await r.json()).source,'code');
+ }
+ assert.equal(answers,0);
+});

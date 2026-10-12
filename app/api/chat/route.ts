@@ -897,7 +897,7 @@ const LANGUE_ACCORD=langueDeLAccord(SERVICES.find(s=>s.cle===CLE_ACCORD)?.wolof|
    maître est reconnu par son CODE, les autres par leur identifiant de profil.
    Sans identifiant, chaîne vide — et rien ne sera gardé. */
 function quiParleIci(body:Corps,code:string|null):string{
-  const v=verifierCode(code);
+  const v=verifierCode(code,false);
   return v.ok&&v.maitre?"maitre":String(body.personne||"").trim().slice(0,80);
 }
 
@@ -929,6 +929,9 @@ function garderCeTour(body:Corps,code:string|null,corps:Record<string,unknown>,s
 export async function POST(request:NextRequest){
   const body=await request.json().catch(()=>({})) as Corps;
   const code=request.headers.get("x-bia-code");
+  // Even cached greetings require a valid code, before any response or stream.
+  const acces=verifierCode(code,false);
+  if(!acces.ok)return NextResponse.json({reply:'Entre un code d’accès valide pour parler avec BIA.',source:'code',motif:acces.raison},{status:401});
   if(body.apprentissageTest){body.apprend=false;body.aRepeter="";body.malDit=undefined;}
 
   if(!DIFFUSER_LE_MODELE||!body.diffuse){
@@ -1189,7 +1192,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        La reconnaissance est une liste FERMÉE (lib/instructions.ts) : au
        moindre doute la phrase repart au modèle. Ne pas comprendre un ordre
        coûte une répétition ; en inventer un coûte un dégât. */
-    const maitre=verifierCode(code);
+    const maitre=verifierCode(code,false);
     /* ── LA QUESTION QUE MON REGISTRE NE SAVAIT PAS POSER ──────────────────
 
        Le 14 septembre au soir, après ses quatre essais : `lecons_donnees`
