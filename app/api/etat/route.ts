@@ -1,3 +1,4 @@
+import {resumeFinBi} from "@/lib/essai-fin-bi";
 import {resumeMar013} from "@/lib/essai-mar013";
 import {resumeIdentite} from "@/lib/identite-bia";
 import {resumeEssaiPrises} from "@/lib/essai-prises-voix";
@@ -137,6 +138,7 @@ export async function GET(request: Request) {
     ecoute: ecouteConfig.fournisseur,
     corrections_devoirs:resumeCorrectionsDevoir(),
     continuite_voix:resumeContinuiteVoix(),
+    lecture_fin_bi: resumeFinBi(),
     lecture_mar013: resumeMar013(),
     identite: resumeIdentite(),
     prises_voix: resumeEssaiPrises(),
