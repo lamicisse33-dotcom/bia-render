@@ -53,3 +53,34 @@ async function executerEssai(){
   publierDiagnosticDialogue(bilan);
   return {bilan,resultats,non_interpretes:index.filter(d=>!d.repliques.length).map(d=>({titre:d.titre,apercu:originaux.find(o=>o.id===d.id)?.texte.slice(0,1600)}))};
 }
+
+let essaiMaitrises:Promise<unknown>|undefined;
+/** Bounded owner-requested conversation evaluation. Private report only;
+ * no user chats, source lessons or voice recordings are written. */
+export function verifierMaitrisesConversation(){return essaiMaitrises??=(async()=>{
+ const {contexteMaitrises}=await import('./dialogue-devoirs');
+ const {messagesConversation}=await import('./conversation-groq');
+ const {fetchAnthropic,contenuAnthropic,messagesAnthropic,MODELE_SONNET}=await import('./cerveau-anthropic');
+ const key=process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY;
+ if(!key||process.env.BIA_LLM_PROVIDER!=='anthropic')return {ok:false,motif:'configuration_absente'};
+ const index=await indexDialogue(),resultats=[];
+ for(const scenario of [
+  {nom:'initiative',questions:['Choisis un sujet.','Oui.','Changeons de sujet.']},
+  {nom:'commerce',questions:['Je suis un petit commerçant et je ne sais pas combien je gagne vraiment.','Et ensuite ?']},
+ ]){
+  const history:TourDialogue[]=[];
+  for(const question of scenario.questions){
+   const debut=Date.now(),apprise=await dialoguerAvecDevoirs(question,history,{index,diagnostic:true});
+   let reply=apprise?.reply||'',source=apprise?.source||'conversation',statut=200;
+   const maitrises=await contexteMaitrises(question,history);
+   if(!reply){
+    const r=await fetchAnthropic(`${process.env.ANTHROPIC_BASE_URL||'https://api.anthropic.com'}/v1/messages`,{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:process.env.BIA_LLM_MODEL||MODELE_SONNET,max_tokens:256,...messagesAnthropic(messagesConversation({question,history:history.map(t=>({role:t.role==='bia'?'assistant':'user',content:t.text})),maitrises}))})},Date.now()+8000);
+    statut=r.status;reply=r.ok?contenuAnthropic(await r.json()):'';
+   }
+   const p=index.find(d=>d.id===apprise?.lecon_id)?.repliques.find(p=>p.id===apprise?.replique_id);
+   resultats.push({scenario:scenario.nom,question,reply,source,statut,ms:Date.now()-debut,exacte:apprise?Boolean(p&&[p.fr,p.wo].includes(reply)):null,une_question_max:(reply.match(/\?/g)||[]).length<=1,repetition:history.some(t=>t.role==='bia'&&t.text===reply),domaines:JSON.parse(maitrises.split('DOMAINES VALIDÉS DISPONIBLES\n')[1]).domaines.map((d:{titre:string})=>d.titre)});
+   if(!reply)break;history.push({role:'user',text:question},{role:'bia',text:reply});
+  }
+ }
+ return {quand:new Date().toISOString(),lecons_validees:index.length,resultats};
+})();}

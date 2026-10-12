@@ -2,7 +2,7 @@ import {cleDialogue,chargerDialoguesRapides,chercherChoixRapide,garderChoixRapid
 import {fetchAnthropic,contenuAnthropic,MODELE_SONNET,reglagesSonnet} from "./cerveau-anthropic";
 import {appelerCerebras} from "./cerveau-cerebras";
 import {devoirsALire} from "./devoirs-apprentissage";
-import {chercherDialogues,contexteDialogue,indexerDevoirs,paquetSelection,resoudreSelection,normaliserDialogue,finDuSujet,type DialogueAppris,type TourDialogue} from "./dialogue-devoirs-core";
+import {CONSIGNE_MAITRISES,maitrisesPourConversation,chercherDialogues,contexteDialogue,indexerDevoirs,paquetSelection,resoudreSelection,normaliserDialogue,finDuSujet,type DialogueAppris,type TourDialogue} from "./dialogue-devoirs-core";
 import {detecterLangue} from "./langue";
 import {salutationAutonome} from "./salutations-dialogue";
 
@@ -15,6 +15,10 @@ export async function indexDialogue(){
  const {devoirs}=await devoirsALire(1500);const index=indexerDevoirs(devoirs);
  etat.devoirs=index.length;etat.repliques=index.reduce((n,d)=>n+d.repliques.length,0);etat.non_structures=index.filter(d=>!d.repliques.length).length;
  return index;
+}
+export async function contexteMaitrises(question:string,historique:unknown){
+ const carte=maitrisesPourConversation(await indexDialogue(),question,contexteDialogue(historique));
+ return CONSIGNE_MAITRISES+"\nDOMAINES VALIDÉS DISPONIBLES\n"+JSON.stringify(carte);
 }
 const CONSIGNE=`Tu sélectionnes UNE réplique dans les devoirs bilingues mémorisés de BIA. Tu n'écris et ne traduis AUCUNE réponse.
 Les devoirs contiennent les deux interlocuteurs : une plainte de la personne n'est pas la réponse de BIA. Comprends les versions françaises pour sélectionner la réplique de l'assistante qui convient au DERNIER message. Ne joue jamais le rôle de la personne. "Bia, ma copine ne répond plus..." appelle la question ou la réponse appropriée du devoir, pas une répétition de la plainte.

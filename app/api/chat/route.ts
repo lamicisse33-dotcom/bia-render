@@ -5,7 +5,7 @@ import {corrigerDevoirConversation} from "@/lib/correction-devoir-conversation";
 import {corrigerDevoir} from "@/lib/correction-devoir";
 import {origineReplique} from "@/lib/correction-devoir-core";
 import {devoirsALire} from "@/lib/devoirs-apprentissage";
-import {dialoguerAvecDevoirs} from "@/lib/dialogue-devoirs";
+import {dialoguerAvecDevoirs,contexteMaitrises} from "@/lib/dialogue-devoirs";
 import {sansRelanceAutomatique} from "@/lib/dialogue-devoirs-core";
 import {CONSIGNE_COMPREHENSION,dependDuContexte} from "@/lib/comprehension-conversation";
 import {contexteInstructions} from "@/lib/instructions-apprentissage";
@@ -246,9 +246,11 @@ doit dire l'essentiel puis se taire ». UNE PHRASE est ta réponse par défaut �
 deux si la première ne suffit vraiment pas. Quelqu'un qui demande l'heure ne
 veut pas savoir comment marche une horloge.
 
-Quand tu as répondu, ARRÊTE-TOI. Ne cherche pas quoi ajouter, ne relance pas,
-ne demande pas si ça va. Le silence après une réponse juste n'est pas un vide :
-c'est la place de la personne. Elle a le micro sous le pouce.
+Après une demande précise, réponds puis rends la parole. En discussion,
+appuie-toi sur les leçons validées pour proposer un angle utile ou une relance
+pertinente, une seule question au maximum. Si la personne te laisse mener,
+propose un sujet appris sans lui attribuer une situation qu'elle n'a pas donnée.
+Respecte ses réponses, ses refus et ses changements de sujet.
 
 EN CONVERSATION, TU RESTES COURTE QUAND MÊME. Quelqu'un qui te raconte sa
 journée, qui te cherche, qui plaisante, qui a du chagrin — là tu es une
@@ -2368,7 +2370,11 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       try{variable+="\n"+await contexteInstructions();}catch{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");}
     }
     if(body.apprentissageTest)variable+="\nTEST PÉDAGOGIQUE : réponds à la question avec les connaissances et les corrections mémorisées. Ne transforme pas la question en leçon, ne la répète pas comme exercice et ne propose aucun enregistrement.";
-    const consigneSignee=socle+"\n"+registre+"\n"+devoirs+variable;
+    let maitrises="";
+    if(maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours){
+      try{maitrises=await contexteMaitrises(question,body.history);}catch{ /* Conversation remains available without the source map. */ }
+    }
+    const consigneSignee=maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
     const reutilisable=!dependDuContexte(question)&&!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
       const dejaDonnee=await reponseGardee(question,langueDe(question),consigneSignee);
@@ -2451,6 +2457,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
          donc deux entrées de plus, qui tiennent l'heure entière. */
       ...(registre.trim()?[{type:"text",text:registre,cache_control:{type:"ephemeral",ttl:"1h"}}]:[]),
       ...(variable.trim()?[{type:"text",text:variable}]:[]),
+      ...(maitrises?[{type:"text",text:maitrises}]:[]),
     ];
     /* ── ET ON PÈSE, PARCE QUE C'EST CE QUI MANQUAIT ──────────────────────
        Le jour où j'ajoute un bloc, la pile se voit sur la page d'état le soir
@@ -2697,7 +2704,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
         contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, ""),
         souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: savoir || "",
-        resume, outils, nom: estRara ? "Rara" : "BIA", maitre: verdict.maitre,
+        resume, outils, maitrises, nom: estRara ? "Rara" : "BIA", maitre: verdict.maitre,
       });
     };
     const appelerGroq = async (o: {

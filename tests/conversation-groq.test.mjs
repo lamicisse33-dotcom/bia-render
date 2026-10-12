@@ -33,7 +33,14 @@ test('reasoning follows the actual task, including short objections and Wolof',(
 });
 test('prompt keeps debate attribution, language priority and summarization requirements',()=>{
   const m=messagesConversation({question:'En français.',history:[],maitre:true});
-  assert(m[0].content.includes('sans flatterie'));
+  assert(m[0].content.includes("N'invente ni mot wolof, ni traduction, ni souvenir, ni source, ni résultat d'action"));
   assert(m[0].content.includes('changement de langue prime'));
   assert(CONSIGNE_RESUME_CONVERSATION.includes('Attribue chaque position à son auteur'));
+});
+
+test('learned conversational directions reach the provider alongside the current question and history',()=>{
+ const messages=messagesConversation({question:'Oui.',history:[{role:'assistant',content:'Parlons des études ?'}],maitrises:'DOMAINES VALIDÉS DISPONIBLES: études'});
+ assert(messages.filter(m=>m.role==='system').some(m=>m.content.includes('DOMAINES VALIDÉS DISPONIBLES: études')));
+ assert(messages.some(m=>m.role==='assistant'&&m.content==='Parlons des études ?'));
+ assert.equal(messages.at(-1).content,'Oui.');
 });

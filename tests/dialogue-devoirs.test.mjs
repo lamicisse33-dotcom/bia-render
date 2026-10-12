@@ -288,3 +288,33 @@ test('known greeting pairs do not delay a prepared topic; unknown facts are kept
  assert.deepEqual(salutations.sansSalutationsInitiales([...h,{role:'user',text:'Je suis malade.'}]),[{role:'user',text:'Je suis malade.'}]);
  const personal=[{role:'user',text:e.formes[0]},{role:'bia',text:'Tu m’as dit avoir perdu ton travail.'}];assert.deepEqual(salutations.sansSalutationsInitiales(personal),personal);
 });
+
+test('mastered topics exclude drafts and never revive a superseded validated version',async()=>{
+ const draft={...fixture,id:'draft',valide:false,date:'2026-10-12'};
+ assert.deepEqual(core.indexerDevoirs([fixture,draft]),[]);
+ const api=service(undefined,async()=>({devoirs:[draft]}));
+ assert.deepEqual(await api.indexDialogue(),[]);
+ const carte=JSON.parse((await api.contexteMaitrises('Choisis un sujet.',[])).split('DOMAINES VALIDÉS DISPONIBLES\n')[1]);
+ assert.deepEqual(carte.domaines,[]);
+});
+test('open conversation exposes available learned angles, never the other speaker or exhausted replies',()=>{
+ const carte=core.maitrisesPourConversation(index,'Choisis un sujet.',[]);
+ assert.equal(carte.initiative,'proposer_un_sujet');assert.equal(carte.domaines.length,1);
+ assert(carte.domaines[0].formulations.every(p=>p.fr!==index[0].repliques[0].fr));
+ const history=index[0].repliques.map(p=>({role:'bia',text:p.fr}));
+ assert.equal(core.maitrisesPourConversation(index,'Je veux discuter.',history).domaines.length,0);
+ assert.equal(core.maitrisesPourConversation(index,'Quelle est la capitale du Japon ?',[]).domaines.length,0);
+ for(const q of ['Je veux parler de mon commerce.','Ne choisis pas un sujet.','Je ne veux pas discuter.'])assert.equal(core.invitationAConverser(q),false);
+});
+test('accepting a conversational proposal retrieves its lesson, while a new topic is not treated as agreement',async()=>{
+ const history=[{role:'user',text:'Choisis un sujet.'},{role:'bia',text:'On peut parler de la communication dans le couple et des messages, ça te dit ?'}];
+ assert.equal(core.chercherDialogues(index,'Oui.',history)[0].d.id,'fixture');
+ assert.equal(core.chercherDialogues(index,'Quelle est la capitale du Japon ?',history).length,0);
+ const r=await service().dialoguerAvecDevoirs('Oui.',history,{index,choisir:async p=>{assert.equal(p.historique.at(-1).text,history[1].text);return {statut:'selection',id:'0:5'};}});
+ assert.equal(r.reply,'Laisse-lui un peu de temps.');
+});
+test('refusing the current topic excludes it from new proposals and exposes another validated topic',()=>{
+ const autre=core.analyserDevoir({...saved('DEVOIR 22 — Études\nWolof : BIA : Naka ?\nFrançais : BIA : Comment organises-tu tes études ?'),id:'etudes'});
+ const carte=core.maitrisesPourConversation([...index,autre],'Changeons de sujet.',[{role:'user',text:'Ma copine ne répond plus à mes messages.'},{role:'bia',text:'Vous vous êtes disputés ?'}]);
+ assert.equal(carte.initiative,'nouveau_sujet');assert.deepEqual(carte.domaines.map(d=>d.titre),[autre.titre]);
+});

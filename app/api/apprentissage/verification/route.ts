@@ -8,7 +8,7 @@ import {verifierStockageCorrectionsCourantes} from "@/lib/corrections-sons-coura
 import {genererSonsCourants} from "@/lib/sons-courants";
 import {verifierContinuiteVoix} from "@/lib/essai-continuite-voix";
 import {verifierCorrectionDevoir} from "@/lib/correction-devoir";
-import {verifierDialoguesAppris} from "@/lib/essai-dialogue-devoirs";
+import {verifierDialoguesAppris,verifierMaitrisesConversation} from "@/lib/essai-dialogue-devoirs";
 import {timingSafeEqual} from "node:crypto";
 import {NextResponse} from "next/server";
 import {verifierCode} from "@/lib/codes";
@@ -26,6 +26,9 @@ export async function POST(r:Request){
   // runner for this fixed public catalogue only; ordinary master checks do
   // not generate audio. Once this session expires, explicit selection wins.
   const runner=a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
+  // Owner requested initiative grounded in mastered lessons at 19:30 UTC.
+  // One fixed private check, once per process; no user conversation is saved.
+  if(body.maitrises===true||(runner&&Object.keys(body).length===0&&Date.now()<Date.parse('2026-10-12T22:00:00Z')))return NextResponse.json({verifie:true,maitrises:await verifierMaitrisesConversation()});
   // Fixed five-phrase diagnosis authorized by the owner at 18:59 UTC.
   if(body.lecture_bilingue===true||(runner&&Date.now()<Date.parse('2026-10-12T22:00:00Z')))return NextResponse.json({verifie:true,lecture_bilingue:lancerEssaiLectureBilingue()});
   // Owner requested investigation of skipped words at 16:28 UTC. Two fixed
