@@ -21,7 +21,13 @@ export function inventorierMemoire(devoirs:DevoirALire[],lecons:Lecon[],ancienne
   if(dialogue.repliques.length){for(const p of dialogue.repliques){ajouter(p.wo,'wo','devoir:'+d.id+':'+p.id);ajouter(p.fr,'fr','devoir:'+d.id+':'+p.id);}continue;}
   // Preserve explicitly labelled monolingual lines; do not invent translations.
   let n=0;for(const ligne of d.texte.split(/\r?\n/)){const m=ligne.trim().match(/^(?:\d+[.)]\s*)?(Wolof|Fran[cç]ais|WO|FR)\s*[:：]\s*(.+)$/i);if(m){ajouter(m[2],/^wo/i.test(m[1])?'wo':'fr','devoir:'+d.id);n++;}}
-  if(!n)aVerifier.push('devoir:'+d.id+': format à vérifier');
+  if(!n){
+   // A validated monolingual exercise can be plain lines, with its language
+   // stored on the source block (for example the five Wave practice lines).
+   const lignes=d.texte.split(/\r?\n/).map(l=>l.trim()).filter(l=>l&&!/^(?:[#*]\s*)*(?:DEVOIR\b|EXERCICE\b|PARTIE\b|OBJECTIF\b|CONSIGNE\b|DIALOGUE\b)/i.test(l));
+   if(lignes.length)for(const [i,texte] of lignes.entries())ajouter(texte,d.langue,'devoir:'+d.id+':ligne-'+i);
+   else aVerifier.push('devoir:'+d.id+': format à vérifier');
+  }
  }
  for(const l of lecons)if(l.statut==='validé'&&l.date_validation){ajouter(l.texte,l.langue,'lexique:'+l.texte);if(l.exemple)ajouter(l.exemple,l.langue,'exemple:'+l.texte);}
  const vus=new Set<string>();for(const e of anciennes){const cle=(e.langue||'wo')+':'+e.source;if(vus.has(cle))continue;vus.add(cle);

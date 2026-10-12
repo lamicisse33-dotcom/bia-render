@@ -36,3 +36,9 @@ test('anonymous access cannot read private text or audio or start the GPU',async
  let calls=0;const route=load('app/api/audio-memoire/route.ts',{'next/server':{NextResponse:{json:(x,o)=>({body:x,...o})}},'@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/audio-memoire':{lancerAudioMemoire:()=>calls++,listeAudioMemoire:()=>calls++,servirAudioMemoire:()=>calls++}});
  const r={headers:{get:()=>null},url:'https://bia/api/audio-memoire'};assert.equal((await route.GET(r)).status,401);assert.equal((await route.POST(r)).status,401);assert.equal(calls,0);
 });
+
+test('validated plain Wolof exercises retain all five Wave lines without adding a translation',()=>{
+ const texte='Ndax mën naa fay ak Wave ?\nWaaw, mën nga fay ak Wave.\nYónnee ma numéro Wave bi.\nMa ngii def transfert bi ci Wave.\nNdax transfert Wave bi eggsi na ?';
+ const d=core.inventorierMemoire([{...devoir,id:'wave',texte}],[],[]);
+ assert.deepEqual(d.phrases.map(p=>p.texte),texte.split('\n'));assert(d.phrases.every(p=>p.langue==='wo'));assert.equal(d.aVerifier.length,0);
+});
