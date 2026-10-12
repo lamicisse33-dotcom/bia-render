@@ -63,7 +63,15 @@ export function verifierCode(brut: string | null, compter=true): Verdict {
   if (Math.floor(Date.now() / 60000) > expiration) return { ok: false, raison: "expire" };
 
   const utilise = (compteurs.get(code) || 0) + (compter ? 1 : 0);
-  if (compter ? utilise > MAX_QUESTIONS : utilise >= MAX_QUESTIONS) return { ok: false, raison: "epuise" };
+  if (utilise > MAX_QUESTIONS) return { ok: false, raison: "epuise" };
   if(compter)compteurs.set(code, utilise);
   return { ok: true, maitre: false };
+}
+
+/** Refuse a new session at the quota, while allowing audio for the last answer. */
+export function verifierEntree(brut:string|null):Verdict{
+ const verdict=verifierCode(brut,false);
+ if(!verdict.ok||verdict.maitre)return verdict;
+ const code=(brut||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+ return (compteurs.get(code)||0)>=MAX_QUESTIONS?{ok:false,raison:'epuise'}:verdict;
 }

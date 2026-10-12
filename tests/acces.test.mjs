@@ -25,6 +25,7 @@ test('entry rejects missing, invalid, expired and exhausted codes; access checks
   assert.equal((await gestion.GET(req(code))).status,401);
  }
  assert(codes.verifierCode(code).ok);assert(codes.verifierCode(code).ok);
+ assert(codes.verifierCode(code,false).ok,'last allowed answer must still be able to play its audio');
  assert.equal((await acces.GET(req(code))).status,401);
 });
 test('only master can create usable codes; foreign origins are rejected',async()=>{
