@@ -48,6 +48,8 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
     for(const expression of empruntsFrancais){
       const words=(expression.toLocaleLowerCase().normalize("NFC").match(/[\p{L}\p{N}]+/gu)||[]);
       if(!words.length)continue;
+      // A learned isolated French "la"/"ma" cannot reclassify Wolof grammar.
+      if(words.length===1&&(COMMUNS.has(words[0])||MOTS_WOLOF.has(words[0])))continue;
       for(let start=0;start<keys.length;start++){
         let combined="";
         for(let end=start;end<keys.length;end++){
@@ -63,7 +65,7 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
     const labels=tokens.map((token,index)=>{
       if(protectedIndices.has(index))return "fr" as const;
       const mots=token.toLocaleLowerCase().normalize("NFC").match(/[\p{L}\p{N}]+/gu)||[];
-      if(mots.length===1&&emprunts.has(mots[0]))return "fr" as const;
+      if(mots.length===1&&emprunts.has(mots[0])&&!COMMUNS.has(mots[0])&&!MOTS_WOLOF.has(mots[0]))return "fr" as const;
       const {wo,fr}=indicesLangue(token);
       if(wo)return 'wo' as const;
       if(fr||/\d/u.test(token))return 'fr' as const;

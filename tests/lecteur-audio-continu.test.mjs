@@ -17,3 +17,11 @@ test('stop prevents buffered clips and rejects completion without claiming the s
 test('a late clip reports the actual gap and still plays in full',async()=>{
  const {ctx,file,sources}=setup();file.ajouter({duration:1});sources[0].onended();ctx.currentTime=2;file.ajouter({duration:1});assert.equal(sources[1].offset,0);assert.equal(file.bilan.couture_max_ms,1000);const done=file.terminer();sources[1].onended();await done;
 });
+test('only a short opening waits for one neighbour; long openings start immediately',async()=>{
+ for(const duration of [.7,2]){
+  const {ctx,sources}=setup();const file=new LecteurAudioContinu(ctx,()=>{},true);file.ajouter({duration});
+  assert.equal(sources.length,duration<1.6?0:1);ctx.currentTime=.9;file.ajouter({duration:1});assert.equal(sources.length,2);
+  assert(Math.abs(sources[1].t-sources[0].t-duration)<1e-9);assert.equal(file.bilan.couture_max_ms,0);
+  const done=file.terminer();sources[0].onended();sources[1].onended();await done;
+ }
+});

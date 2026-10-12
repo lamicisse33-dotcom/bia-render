@@ -10,7 +10,7 @@ export class LecteurAudioContinu {
  private commence=false;
  private finPrevue:number|null=null;
  readonly bilan={morceaux:0,couture_max_ms:0,couture_totale_ms:0};
- constructor(private ctx:BaseAudioContext,private premierSon:()=>void=()=>{}){}
+ constructor(private ctx:BaseAudioContext,private premierSon:()=>void=()=>{},private amorcerCourts=false){}
  ajouter(buffer:AudioBuffer){
   if(this.erreur)throw this.erreur;
   if(this.finie)throw Error('Lecture déjà clôturée');
@@ -19,6 +19,9 @@ export class LecteurAudioContinu {
   if(!this.pausee)this.programmer();
  }
  private programmer(){
+  // One very short opening cannot cover generation of its neighbour. Prime
+  // just that neighbour; long openings still start immediately.
+  if(!this.commence&&this.amorcerCourts&&!this.finie&&this.entrees.length===1&&this.entrees[0].buffer.duration<1.6)return;
   let prochain=Math.max(this.ctx.currentTime+.025,this.finPrevue??0);
   for(const e of this.entrees){
    if(e.source){prochain=Math.max(prochain,e.debut+e.buffer.duration-e.offset);continue;}
@@ -48,6 +51,7 @@ export class LecteurAudioContinu {
  terminer():Promise<void>{
   this.finie=true;
   if(this.erreur)return Promise.reject(this.erreur);
+  if(!this.pausee)this.programmer();
   if(!this.entrees.length)return Promise.resolve();
   return new Promise((resolve,reject)=>{this.attente={resolve,reject};});
  }

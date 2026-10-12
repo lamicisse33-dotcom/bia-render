@@ -87,7 +87,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    const debutLecture=performance.now();
    const file=new LecteurAudioContinu(ctx,()=>{
     if(!premierSon.current){premierSon.current=true;mesurer("premier_son");if(settings.current.voice==="piper-web")mesurerPiperWeb("lecture",performance.now()-depuis.current);}
-   });
+   },!(value as {first:MorceauVoix}).first.flux&&(value as {first:MorceauVoix}).first.parties>1);
    lecteur=file;
    const abort=()=>file.arreter();signal.addEventListener("abort",abort,{once:true});
    if(enPause.current)file.pause();

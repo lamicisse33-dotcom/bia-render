@@ -128,3 +128,7 @@ test('validated French expression vocabulary is recognized without forcing share
  assert.equal(p.map(x=>x.texte).join(''),text);assert(p.some(x=>x.langue==='fr'&&x.texte.trim()==='assurance'));
  assert.equal(p.at(-1).langue,'wo');
 });
+test('an isolated learned French homograph does not override Wolof grammar',()=>{
+ const p=passagesLanguesVoix('Dama xam prix la.','wo',['la','ma']);
+ assert.deepEqual(p.map(x=>[x.texte.trim(),x.langue]),[['Dama xam','wo'],['prix','fr'],['la.','wo']]);
+});
