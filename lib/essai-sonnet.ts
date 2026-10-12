@@ -15,5 +15,19 @@ export function verifierSonnet(){return essai??=(async()=>{
  const actif=process.env.BIA_LLM_PROVIDER==="anthropic";
  const erreursAvant=resumeDialogueDevoirs().erreurs_diagnostic||0;
  const dialogue=actif&&conversation.ok?await verifierDialoguesAppris():undefined;
- return {conversation,actif,dialogue:dialogue?{...dialogue.bilan,tours:dialogue.resultats.map(s=>({scenario:s.scenario,tours:s.tours.map(t=>({ms:t.ms,fr:t.fr,statut:t.statut}))})),erreurs_selection:(resumeDialogueDevoirs().erreurs_diagnostic||0)-erreursAvant}:undefined};
+ // Exercise the real ordinary-chat path too. The existing pedagogical-test
+ // flag suppresses conversation/lesson writes and skips the learned selector.
+ // Use the existing server credential in place; never expose it in the report.
+ let conversation_web:unknown;
+ if(actif&&conversation.ok&&process.env.BIA_CODE_MAITRE){
+  const debutWeb=Date.now();
+  try{
+   const {POST}=await import("../app/api/chat/route");
+   const {NextRequest}=await import("next/server");
+   const r=await POST(new NextRequest("https://app.khalam.app/api/chat",{method:"POST",headers:{"content-type":"application/json","x-bia-code":process.env.BIA_CODE_MAITRE},body:JSON.stringify({message:"À quoi sert une liste de courses ? Réponds en français en une phrase.",history:[],apprentissageTest:true})}));
+   const d=await r.json();
+   conversation_web={ok:r.ok&&Boolean(d.reply)&&!(/panne|erreur|indisponible|code/i.test(String(d.source||""))),statut:r.status,source:d.source,ms:Date.now()-debutWeb};
+  }catch{conversation_web={ok:false,motif:"verification_chat_impossible",ms:Date.now()-debutWeb};}
+ }
+ return {conversation,conversation_web,actif,dialogue:dialogue?{...dialogue.bilan,details:dialogue.resultats.map(s=>({scenario:s.scenario,tours:s.tours.map(t=>({ms:t.ms,fr:t.fr,statut:t.statut}))})),erreurs_selection:(resumeDialogueDevoirs().erreurs_diagnostic||0)-erreursAvant}:undefined};
 })();}
