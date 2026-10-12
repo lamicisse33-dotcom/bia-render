@@ -72,3 +72,18 @@ test('native parts without fingerprints keep the sequential reading contract',as
   assert.equal((await iterator.next()).value,'native1');assert.equal(calls,1);
   assert((await iterator.next()).done);
 });
+
+test('MAR-013 keeps ak with its preceding clause without altering source spelling',async()=>{
+ const texte='Dañu bëgg ma séy ak ku ñu xam.';
+ assert.deepEqual(lecture.segmentsLectureWolof(texte),[texte]);
+ const plan=await preparerPassagesKhalam(texte,'wo',false,true);
+ assert.deepEqual(plan,[{texte,langue:'wo'}]);
+ const labelled=await preparerPassagesKhalam('Wolof : '+texte,'wo',false,true);
+ assert.deepEqual(labelled.map(p=>p.texte.trim()),['Wolof :',texte]);
+ // Do not merge across sentences, colon separators or language switches.
+ assert.deepEqual(lecture.segmentsLectureWolof('Dañu bëgg ma séy. Ak ku ñu xam.'),['Dañu bëgg ma séy. ','Ak ku ñu xam.']);
+ const mixed='Dañu bëgg ma séy ak décision bi.';
+ const parts=await preparerPassagesKhalam(mixed,'wo',false,true);
+ assert.equal(parts.map(p=>p.texte).join('').replace(/\s/g,''),mixed.replace(/\s/g,''));
+ assert(parts.some(p=>p.langue==='fr'&&p.texte.includes('décision')));
+});

@@ -6,13 +6,23 @@ export const MAX_SEGMENT = 500;
 export function segmentsLectureWolof(texte:string):string[] {
   const out:string[]=[];
   for(const sentence of segmentsLecture(texte,140).flatMap(s=>s.split(/(?<=[:;])(?=\s)/u))){
+    const debutPhrase=out.length;
     const words=sentence.match(/\s*\S+\s*/gu)||[];
     if(!words.length)continue;
     const groups=Math.ceil(words.length/4);
     let at=0;
     for(let group=0;group<groups;group++){
       const count=Math.ceil((words.length-at)/(groups-group));
-      out.push(words.slice(at,at+count).join(""));at+=count;
+      const morceau=words.slice(at,at+count).join("");
+      // MAR-013: starting a new clip with "ak ku ñu xam" drops "ak"
+      // in the live default take. Keep the conjunction with its preceding
+      // phrase when that remains at most eight words, within this sentence.
+      const precedent=out.at(-1);
+      if(out.length>debutPhrase&&/^\s*ak\s/iu.test(morceau)&&precedent
+         &&((precedent+morceau).match(/\S+/gu)||[]).length<=8){
+        out[out.length-1]=precedent+morceau;
+      }else out.push(morceau);
+      at+=count;
     }
   }
   return out;
