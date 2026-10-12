@@ -37,6 +37,14 @@ La mesure de lecture correspond à la programmation Web Audio, pas à une
 validation humaine de la prononciation. L’arrêt du tour annule le worker en
 vol et les demandes en attente ; le modèle en cache permet sa reprise.
 
-Installation initiale : endpoint POST temporaire, clé dédiée serveur,
-expiration 12 octobre 2026 à 18 h UTC, contenu et tailles imposés par le
-manifeste. Retirer cet endpoint et sa clé après transfert vérifié.
+Installation vérifiée en production le 12 octobre 2026 : les dix parties
+ont été écrites puis téléchargées à nouveau avec vérification de chacune
+contre son SHA-256, soit 77 058 148 octets. Les fichiers du modèle ne sont
+pas dans Git. Endpoint d'installation temporaire supprimé après vérification.
+
+Version web initiale servie : 05d8f13a3d1f, CI 38263327612 réussie.
+Page `/voix/secours` ouverte et contrôlée visuellement dans le navigateur.
+Le navigateur de contrôle n'a pas de session BIA authentifiée : aucune
+lecture Web Audio n'y a été prétendue. Les compteurs en production étaient
+encore à zéro avant utilisation par le propriétaire. La mesure WASM ci-dessus
+est une synthèse réelle en Node, pas un essai de lecture dans Safari.

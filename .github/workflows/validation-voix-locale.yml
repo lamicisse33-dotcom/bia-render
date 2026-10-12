@@ -22,6 +22,11 @@ jobs:
       - name: Installer les dépendances web
         run: npm ci
 
+      - name: Vérifier Piper natif et navigateur
+        run: |
+          node tests/piper-locale.test.mjs
+          node tests/piper-web.test.mjs
+
       - name: Compiler Next.js
         run: npm run build
 

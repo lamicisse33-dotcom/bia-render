@@ -28,3 +28,21 @@ native=true;assert.equal(c.choixVoixBia(),'piper-web');
 assert(c.choisirVoixBia('female'));assert(c.essaiChatterboxActif());assert.equal(c.routeVoixBia(),'/api/chatterbox-test/bia');
 assert(c.choisirVoixBia('piper'));assert.equal(c.routeVoixBia(),'/api/voix');
 console.log('Piper web: exact alphabet, no skipped unknown characters, complete segmentation, WAV and independent voice selection passed.');
+
+// Two queued requests share a worker: cancelling the turn must reject both,
+// ignore its late audio, and let the next request use a fresh worker.
+const workers=[];let remote=0;
+class FakeWorker{constructor(){workers.push(this);}postMessage(d){this.last=d;}terminate(){this.dead=true;}}
+const browser={exports:{},window:{dispatchEvent(){}},localStorage:{getItem:()=>null},Worker:FakeWorker,WebAssembly,
+ AbortController,DOMException,CustomEvent:class{},Error,Response,Headers,setTimeout,clearTimeout,
+ fetch:async()=>{remote++;return new Response('{}');}};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/piper-web.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,browser);
+const api=browser.exports,abort=new AbortController();
+const one=api.lirePiperWeb('Bonjour',0,'test',abort.signal),two=api.lirePiperWeb('Bonjour',1,'test',abort.signal);
+const rejected=[assert.rejects(one,{name:'AbortError'}),assert.rejects(two,{name:'AbortError'})];
+abort.abort();await Promise.all(rejected);assert(workers[0].dead);
+workers[0].onmessage({data:{id:1,wav:new ArrayBuffer(5)}});
+const ready=api.preparerPiperWeb('test');assert.equal(workers.length,2);
+workers[1].onmessage({data:{id:workers[1].last.id,ready:true}});await ready;
+const calls=remote;await api.fetchVoixBia('/api/chatterbox-test/bia',{});assert.equal(remote,calls+1);
+console.log('Piper web: queued cancellation, late-result isolation, restart and main engine routing passed.');
