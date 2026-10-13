@@ -28,6 +28,26 @@ Français : BIA : Laisse-lui un peu de temps.
 7. Wolof : BIA : Naka ? Lan ?
 Français : BIA : Comment ? Pourquoi ?`);
 const index=core.indexerDevoirs([fixture]);
+test('single-call choices resolve only permitted exact source IDs, including refusals',()=>{
+ const choix=core.choixConversation(index,'Ma copine ne répond plus à mes appels.',[],'wo');
+ assert.equal(core.repliqueChoisie('[[replique:0:0]]',choix),null);
+ assert.equal(core.repliqueChoisie('[[replique:0:999]]',choix),null);
+ assert.equal(core.repliqueChoisie('[[replique:0:3]] texte inventé',choix),null);
+ const r=core.repliqueChoisie('[[replique:0:3]]',choix);
+ assert.equal(r.reply,'Lan nga ko wax ?');assert.equal(r.lecon_id,'fixture');
+ const parle=core.choixConversation(index,'Non.',[{role:'bia',text:'Lan nga ko wax ?'}],'wo');
+ assert.equal(core.repliqueChoisie('[[replique:0:3]]',parle),null);
+});
+test('cache-only routing never invokes a selector model on a miss',async()=>{
+ const srv=service();
+ assert.equal(await srv.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',[],{index,cacheSeulement:true}),null);
+ assert.equal(srv.resumeDialogueDevoirs().appels_modele,0);
+ const t=await srv.choixDuTour('Ma copine ne répond plus à mes appels.',[]);
+ assert(t.consigne.includes('[[replique:identifiant]]'));
+ const r=srv.resoudreChoixDuTour('[[replique:0:3]]',t);
+ assert.equal(r.reply,'Que lui as-tu dit ?');
+ assert.equal(srv.resumeDialogueDevoirs().dernier_statut,'selection_appel_unique');
+});
 test('explicit debate avoids the selector while ordinary learned dialogue keeps its route',async()=>{
  const srv=service();
  assert.equal(await srv.dialoguerAvecDevoirs('Je ne suis pas d’accord avec ton avis sur les appels.',[],{index}),null);

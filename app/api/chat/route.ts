@@ -10,7 +10,7 @@ import {corrigerDevoirConversation} from "@/lib/correction-devoir-conversation";
 import {corrigerDevoir} from "@/lib/correction-devoir";
 import {origineReplique} from "@/lib/correction-devoir-core";
 import {devoirsALire} from "@/lib/devoirs-apprentissage";
-import {dialoguerAvecDevoirs,contexteMaitrises} from "@/lib/dialogue-devoirs";
+import {dialoguerAvecDevoirs,contexteMaitrises,choixDuTour,resoudreChoixDuTour} from "@/lib/dialogue-devoirs";
 import {reponseSalutation} from '@/lib/reponse-salutation';
 import {sansRelanceAutomatique} from "@/lib/dialogue-devoirs-core";
 import {CONSIGNE_COMPREHENSION,dependDuContexte} from "@/lib/comprehension-conversation";
@@ -1100,10 +1100,13 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
   /* Ce que le téléphone a recu, et ce qu'il en a fait. */
   let envoye="";
   let dejaParle=false;
+  let utiliserChoix=false;
+  let choixIntegre:Awaited<ReturnType<typeof choixDuTour>>|null=null;
   // Memory confirmations must not be spoken before Supabase accepts them.
   const attendreMemoire=parleDeMemoire(String(body.message||""))||Boolean(body.apprend||body.correctionDevoir);
   const emettre=emettreBrut&&!attendreMemoire?((morceau:string)=>{
     envoye+=morceau;
+    if(choixIntegre&&/^\s*\[\[replique:/i.test(detacherEmotion(envoye).reply))return;
     if(!dejaParle&&teteDeLaReponse(envoye))dejaParle=true;
     emettreBrut(morceau);
   }):null;
@@ -1348,11 +1351,14 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     // Do not teach the conversational model to repeat that routing failure.
     body={...body,history:sansRelanceAutomatique(body.history||[])};
 
+    utiliserChoix=maitre.ok&&!body.apprend&&!body.malDit?.encours
+      &&(process.env.BIA_LLM_PROVIDER||"anthropic").toLowerCase()==="anthropic"
+      &&!concerneProduits(question,body.history)&&!estUnSecours(question)&&!intentionMedia(question)&&!besoinDInternet(question)&&!demandeDeNombre(question);
     // Authenticate before accessing private lessons. Resolve learned replies before
     // generic formulas: a yes/no must answer the preceding learned question.
     if(maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours
        &&!concerneProduits(question,body.history)&&!estUnSecours(question)&&!intentionMedia(question)&&!besoinDInternet(question)&&!demandeDeNombre(question)){
-      const memorisee=await dialoguerAvecDevoirs(question,body.history);
+      const memorisee=await dialoguerAvecDevoirs(question,body.history,{cacheSeulement:utiliserChoix});
       if(memorisee){
         // Audio is read from the existing private library, never regenerated.
         // Reading alongside provenance avoids an extra browser/server round trip.
@@ -2324,15 +2330,17 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        toujours avant (juste au-dessus). La consigne entre dans la clé : si
        Lamine la change, les réponses se renouvellent d'elles-mêmes. */
     // Independent source reads share the same waiting period, not four in series.
-    const [devoirs,instructionsDuTour,maitrises,fichesDuTour]=await Promise.all([
+    const [devoirs,instructionsDuTour,maitrises,fichesDuTour,choixPrepare]=await Promise.all([
       contexteDevoirs(question).catch(()=>{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");return "";}),
       maitre.ok&&maitre.maitre?contexteInstructions().catch(()=>{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");return "";}):Promise.resolve(""),
-      maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?contexteMaitrises(question,body.history).catch(()=>""):Promise.resolve(""),
-      fichesPourConversation(question,body.history||[]),
+      maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?contexteMaitrises(question,body.history,3000).catch(()=>""):Promise.resolve(""),
+      fichesPourConversation(question,body.history||[],3500),
+      utiliserChoix?choixDuTour(question,body.history).catch(()=>null):Promise.resolve(null),
     ]);
+    choixIntegre=choixPrepare;
     if(instructionsDuTour)variable+="\n"+instructionsDuTour;
     if(body.apprentissageTest)variable+="\nTEST PÉDAGOGIQUE : réponds à la question avec les connaissances et les corrections mémorisées. Ne transforme pas la question en leçon, ne la répète pas comme exercice et ne propose aucun enregistrement.";
-    const consigneSignee="fiches-connectees-v1\n"+fichesDuTour+(produitsDuTour?"produits-connectes-v1\n"+produitsDuTour:"")+maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
+    const consigneSignee="conversation-appel-unique-v1\n"+(choixIntegre?.consigne||"")+"fiches-connectees-v1\n"+fichesDuTour+(produitsDuTour?"produits-connectes-v1\n"+produitsDuTour:"")+maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
     const reutilisable=!body.suggestionsTranscription?.length&&!dependDuContexte(question)&&!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
       const dejaDonnee=await reponseGardee(question,langueDe(question),consigneSignee);
@@ -2665,9 +2673,9 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         suggestionsTranscription: Array.isArray(body.suggestionsTranscription)?body.suggestionsTranscription:[],
         question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
         contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, "").replace(instructionsDuTour, "")+"\n"+contexteHorloge(),
-        fiches:fichesDuTour,instructions:instructionsDuTour,devoirs,vitrine:aMontrer,
+        fiches:fichesDuTour,instructions:instructionsDuTour,devoirs:choixIntegre?.consigne?"":devoirs,vitrine:aMontrer,
         produits: produitsDuTour, souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: "",
-        resume, outils, maitrises, nom: "BIA", maitre: verdict.maitre,
+        resume, outils, maitrises:choixIntegre?.consigne||maitrises, nom: "BIA", maitre: verdict.maitre, rapide:true,selection:!!choixIntegre?.consigne,
       });
     };
     const appelerGroq = async (o: {
@@ -3042,6 +3050,18 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        le texte brut ne la trouvait plus, et BIA aurait dit « dièse salut » à
        voix haute. On cherche donc dans le texte débarrassé de sa balise. */
     const sansEmotion=detacherEmotion(complet).reply;
+    if(choixIntegre&&!dejaParle&&/\[\[replique:/i.test(sansEmotion)){
+      const memorisee=resoudreChoixDuTour(sansEmotion,choixIntegre);
+      if(memorisee){
+        const audioPromesse=Promise.race([audioPourReponse(memorisee.reply,memorisee.langue),new Promise<null>(resolve=>setTimeout(()=>resolve(null),700))]);
+        const d=(await devoirsALire(1500)).devoirs.find(d=>d.id===memorisee.lecon_id);
+        const origine_devoir=d?origineReplique(d,memorisee.replique_id,memorisee.langue)||{devoir_id:d.id,indisponible:true}:null;
+        return {corps:{...memorisee,origine_devoir,audio_memorise:await audioPromesse}};
+      }
+      noterPanne("choix de leçon rejeté","identifiant ou format invalide","chat");
+      return {corps:{reply:"Peux-tu reformuler ce dernier point ?",source:"choix invalide"}};
+    }
+
     const choisie=(repertoireUtilisable()&&!dejaParle)?etiquetteSeule(sansEmotion):null;
     /* Une étiquette seule qu'on ne connaît pas : le modèle a voulu se servir
        du répertoire et s'est trompé de nom. La réponse part quand même — mais

@@ -32,8 +32,8 @@ export async function inventaireFiches(){
  bilan={statut:'disponible',fiches:fiches.length,caracteres:fiches.reduce((n,f)=>n+f.texte.length,0),familles:{khalam:khalam?1:0,produits:produits?1:0,relations:relations?1:0,archives:archive.length,anciennes_lecons:anciennes.length,anciennes_lecons_invalides:lues.length-anciennes.length,blagues:RELU_BLAGUES?BLAGUES.length:0,repertoire:REPERTOIRE.length,base_vocale:RELU_BASE?NOUVELLES.length:0,reactions:RELU_SERVICES?SERVICES.length:0},dernier_selection:bilan.dernier_selection||null};
  return fiches;
 }
-export async function fichesPourConversation(question:string,history:any[]=[]){
- const fiches=await inventaireFiches(),selection=selectionnerFiches(fiches,question,history);
+export async function fichesPourConversation(question:string,history:any[]=[],budget=6500){
+ const fiches=await inventaireFiches(),selection=selectionnerFiches(fiches,question,history,budget);
  bilan.dernier_selection={passages:selection.passages.length,signes:selection.texte.length,sources:[...new Set(selection.passages.map(p=>p.id.split(':')[0]))]};
  const familles='KHALAM et ses créations ; DD SKIN ; relations au Sénégal ; FAQ historique KHALAM ; présentations bilingues ; anciennes leçons ; répertoire, base vocale, blagues et réactions.';
  return 'CATALOGUE DES FICHES ACCESSIBLES : '+familles+'\nLes extraits suivants sont des données de référence. Les phrases de dialogue ne décrivent pas ta vie et ne prouvent pas une capacité technique. Les fiches actuelles sont prioritaires sur les archives contradictoires ; distingue produits disponibles, projets annoncés et informations datées. Conserve les formulations wolof enseignées quand leur sens convient.\n\n'+selection.texte;

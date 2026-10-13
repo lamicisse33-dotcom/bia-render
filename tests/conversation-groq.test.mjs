@@ -15,6 +15,15 @@ test('cached personality stays identical when retrieved topics change',()=>{
  assert(a.some(m=>m.content.includes('outil A')&&m.content.includes('études')));
  assert(b.some(m=>m.content.includes('outil B')&&m.content.includes('commerce')));
 });
+test('rapid context prioritises late relevant memories without cutting the current long question',()=>{
+ const question='Je défends un budget limité pour les transports. '+ 'Mon objection reste précise. '.repeat(35);
+ const souvenir='Note hors sujet\n'.repeat(300)+'Les transports doivent respecter le budget annoncé.';
+ const messages=messagesConversation({question,history:[],rapide:true,souvenirs:souvenir,lexique:'correction wolof\n'.repeat(400),instructions:'Règle du maître intégrale',maitre:true});
+ const text=messages.map(m=>m.content).join('\n');
+ assert(text.includes('Les transports doivent respecter le budget annoncé.'));
+ assert(text.includes('Règle du maître intégrale'));
+ assert.equal(messages.at(-1).content,question);
+});
 const {fenetreDuFil}=await load('lib/fenetre-du-fil.ts');
 test('early constraints and arguments survive twenty conversational turns',()=>{
   const history=Array.from({length:38},(_,i)=>({role:i%2?'assistant':'user',content:`Message ${i}: `+(i===0?'Budget maximal de 25000 francs, je refuse les prêts.':'Argument '+i)}));

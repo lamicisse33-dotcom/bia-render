@@ -44,13 +44,28 @@ const transmissionMemoire = suiviMemoire.biaTransmissionMemoire ??= { appels: 0,
 export function resumeTransmissionMemoire() {
   return { appels: transmissionMemoire.appels, derniere: transmissionMemoire.derniere && { ...transmissionMemoire.derniere } };
 }
+/** Select complete source lines, prioritising matches instead of a prefix cut. */
+export function extraitsPourTour(texte:string,question:string,budget:number){
+ const norm=(s:string)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ const mots=new Set(norm(question).match(/[\p{L}]{4,}/gu)||[]);
+ const blocs=texte.split(/\n+/).map((t,i)=>({t,i,score:[...mots].filter(m=>norm(t).includes(m)).length}));
+ let n=0;const retenus=blocs.sort((a,b)=>b.score-a.score||a.i-b.i).filter(b=>{if(n+b.t.length+1>budget)return false;n+=b.t.length+1;return true;});
+ return retenus.sort((a,b)=>a.i-b.i).map(b=>b.t).join('\n');
+}
 
 export function messagesConversation(o: {
   question: string; history: Array<{role: string; content: string}>;
   contexte?: string; resume?: string; outils?: string; nom?: string; maitre?: boolean;
   suggestionsTranscription?: string[];
+  rapide?: boolean;
+  selection?: boolean;
   fiches?: string; instructions?: string; devoirs?: string; vitrine?: string; produits?: string; souvenirs?: string; lexique?: string; lecons?: string; connaissances?: string; maitrises?: string;
 }): MessageConversation[] {
+  if(o.rapide){
+    const q=o.question+' '+o.history.slice(-2).map(m=>m.content).join(' ');
+    o={...o,souvenirs:extraitsPourTour(o.souvenirs||'',q,1800),lexique:extraitsPourTour(o.lexique||'',q,2200),
+      lecons:extraitsPourTour(o.lecons||'',q,2000),contexte:o.contexte?.slice(-1800)};
+  }
   // Retrieval must not invalidate the cached personality prefix each turn.
   const systeme = [personnaliteConversation(o.nom, o.maitre), CONSIGNE_COMPREHENSION].filter(Boolean).join("\n\n");
   const messages: MessageConversation[] = [{role: "system", content: systeme}];
@@ -105,7 +120,8 @@ export function messagesConversation(o: {
     o.maitre
       ? "PRIORITÉ POUR PAPA AUTHENTIFIÉ : applique sa dernière instruction de travail ou de langue. Une correction n'est pas une objection à combattre : remplace ta formulation par les mots exacts qu'il fournit, sans débat, traduction ou ajout. Pour répéter, rends uniquement le texte demandé, même s'il dépasse 60 mots, sans ajouter papa. Si la correction manque, demande-la. Ne débats que sur demande explicite de débat ou d'avis. N'annonce pas de mémorisation sans enregistrement effectif."
       : "Pour un débat demandé, traite l'objection précise avec un argument étayé puis laisse la parole. Une correction doit être examinée sans défense automatique de ta réponse précédente.",
-    "Si une ancienne réponse est fausse ou non étayée, rectifie-la ; ne la traite pas comme une preuve."
+    "Si une ancienne réponse est fausse ou non étayée, rectifie-la ; ne la traite pas comme une preuve.",
+    o.selection ? "EXCEPTION AU FORMAT VOCAL : lorsqu'une réplique validée convient exactement, rends seulement [[replique:identifiant]] après la balise d'émotion. Aucun texte ajouté. Si aucune ne convient, réponds normalement ; aucun appel supplémentaire n'est nécessaire." : "",
   ].join("\n")});
   messages.push({role: "user", content: o.question});
   transmissionMemoire.derniere!.messages_signes=messages.reduce((n,m)=>n+m.content.length,0);
