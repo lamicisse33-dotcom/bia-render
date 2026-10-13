@@ -1,3 +1,4 @@
+import {resumeMemoireOrganisee} from '@/lib/memoire-organisee';
 import {resumeConnexionFiches} from "@/lib/essai-fiches";
 import {resumeAccesDevoirs,verifierAccesDevoirs} from "@/lib/essai-acces-devoirs";
 import {resumeEssaiCorrectionVocale} from "@/lib/essai-correction-vocale";
@@ -187,6 +188,7 @@ export async function GET(request: Request) {
     transcription_contextuelle: resumeCorrectionContexte(),
     correction_vocale:resumeEssaiCorrectionVocale(),
     corrections_biba:resumeBibaCorrections(),
+    memoire_organisee:resumeMemoireOrganisee(),
     ecoute_configuration: {
       soynade_selectionnee: (process.env.STT_PROVIDER || "soynade") === "soynade",
       locale_selectionnee: process.env.STT_PROVIDER === "local_wolof",

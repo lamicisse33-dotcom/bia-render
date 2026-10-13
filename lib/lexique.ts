@@ -57,6 +57,8 @@ export async function ajouterCorrection(e: Entree): Promise<number> {
     }]),
   });
   if (!r.ok) throw new Error(`Supabase ${r.status} : ${(await r.text()).slice(0, 300)}`);
+  const revisionCommune=globalThis as typeof globalThis&{biaRevisionMemoire?:number};revisionCommune.biaRevisionMemoire=(revisionCommune.biaRevisionMemoire||0)+1;
+  void import('./memoire-organisee').then(m=>m.planifierOrganisationMemoire()).catch(()=>{});
   return -1; // le total n'est pas renvoyé en mode minimal
 }
 

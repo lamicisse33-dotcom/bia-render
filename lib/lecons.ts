@@ -169,7 +169,7 @@ function entetes(type?: string) {
 }
 
 /** Toutes les leçons, la plus récente d'abord. */
-export async function listerLecons(): Promise<Lecon[]> {
+export async function listerLecons(strict=false): Promise<Lecon[]> {
   if (!lecconsActives()) return [];
   const signal=AbortSignal.timeout(8000),noms:string[]=[];
   for(let offset=0;;offset+=500){
@@ -192,6 +192,7 @@ export async function listerLecons(): Promise<Lecon[]> {
       return await f.json() as Lecon;
     } catch { return null; }
   }));
+  if(strict&&lues.some(l=>!l?.cle))throw Error("Lecture complète des anciennes leçons non confirmée");
   return lues.filter((l): l is Lecon => Boolean(l && l.cle))
     .sort((a, b) => String(b.quand || "").localeCompare(String(a.quand || "")));
 }
@@ -212,6 +213,8 @@ export async function deposerLecon(lecon: Lecon): Promise<void> {
   if (!r.ok) throw new Error(`le dépôt a été refusé (${r.status}) : ${(await r.text()).slice(0, 200)}`);
   /* Il veut l'essayer tout de suite, pas dans une minute. */
   oublierLeCacheDesLecons();
+  const revisionCommune=globalThis as typeof globalThis&{biaRevisionMemoire?:number};revisionCommune.biaRevisionMemoire=(revisionCommune.biaRevisionMemoire||0)+1;
+  void import('./memoire-organisee').then(m=>m.planifierOrganisationMemoire()).catch(()=>{});
 }
 
 export async function retirerLecon(cle: string): Promise<void> {
@@ -223,6 +226,8 @@ export async function retirerLecon(cle: string): Promise<void> {
     throw new Error(`le retrait a été refusé (${r.status}) : ${(await r.text()).slice(0, 200)}`);
   }
   oublierLeCacheDesLecons();
+  const revisionCommune=globalThis as typeof globalThis&{biaRevisionMemoire?:number};revisionCommune.biaRevisionMemoire=(revisionCommune.biaRevisionMemoire||0)+1;
+  void import('./memoire-organisee').then(m=>m.planifierOrganisationMemoire()).catch(()=>{});
 }
 
 /* ── CE QUE LA LEÇON DEVIENDRA DANS LA CONVERSATION ─────────────────────────

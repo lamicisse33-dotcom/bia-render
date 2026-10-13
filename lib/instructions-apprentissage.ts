@@ -16,8 +16,12 @@ async function lire(force=false):Promise<Instruction[]>{
  finally{if(chargement===travail)chargement=undefined;}
 }
 async function charger(){if(!lexiqueConfig.actif)throw Error("Supabase non configuré");
- const r=await fetch(`${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}?select=source,corrigee&application=eq.${APP_LECONS}&auteur=eq.maitre-instruction&order=id.desc&limit=100`,{headers:{apikey:lexiqueConfig.cle,Authorization:`Bearer ${lexiqueConfig.cle}`},cache:"no-store",signal:AbortSignal.timeout(8000)});
- if(!r.ok)throw Error("Instructions Supabase inaccessibles");return await r.json() as Instruction[];
+ const rows:Instruction[]=[];
+ for(let offset=0;;offset+=500){
+  const r=await fetch(`${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}?select=source,corrigee&application=eq.${APP_LECONS}&auteur=eq.maitre-instruction&order=id.desc&limit=500&offset=${offset}`,{headers:{apikey:lexiqueConfig.cle,Authorization:`Bearer ${lexiqueConfig.cle}`},cache:"no-store",signal:AbortSignal.timeout(8000)});
+  if(!r.ok)throw Error("Instructions Supabase inaccessibles");const page=await r.json();if(!Array.isArray(page))throw Error("Instructions invalides");rows.push(...page);if(page.length<500)break;
+ }
+ return rows;
 }
 export async function garderInstruction(texte:string){const source="INSTRUCTION:"+createHash("sha256").update(texte).digest("hex");
  if(!(await lire(true)).some(r=>r.source===source&&r.corrigee===texte))await ajouterCorrection({source,corrigee:texte,application:APP_LECONS,auteur:"maitre-instruction",langue:"fr"});

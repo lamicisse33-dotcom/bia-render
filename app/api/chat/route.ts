@@ -21,7 +21,6 @@ import { intentionMedia, chercherWeb, contexteWeb, webConfigure } from "@/lib/ac
 import { correctionDuMaitre } from "@/lib/correction-maitre";
 import { executerLecon } from "@/lib/mode-apprentissage";
 import {preparerCorrectionVocale} from "@/lib/correction-vocale";
-import {contexteBiba} from "@/lib/biba-corrections";
 import { appelerCerebras } from "@/lib/cerveau-cerebras";
 import { noterConversation } from "@/lib/conversation-etat";
 import { repetitionExacteDuMaitre, CONSIGNE_MAITRE, messagesConversation, effortConversation, reglagesConversation } from "@/lib/conversation-groq";
@@ -2343,7 +2342,8 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?contexteMaitrises(question,body.history,3000).catch(()=>""):Promise.resolve(""),
       fichesPourConversation(question,body.history||[],3500),
       utiliserChoix?choixDuTour(question,body.history).catch(()=>null):Promise.resolve(null),
-      contexteBiba(question,body.history).catch(()=>''),
+      Promise.resolve(''), // BIBA now shares the common memory retrieval.
+
     ]);
     choixIntegre=choixPrepare;
     if(instructionsDuTour)variable+="\n"+instructionsDuTour;

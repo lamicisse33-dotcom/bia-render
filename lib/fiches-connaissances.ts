@@ -33,6 +33,7 @@ export async function inventaireFiches(){
  return fiches;
 }
 export async function fichesPourConversation(question:string,history:any[]=[],budget=6500){
+ try{return await (await import('./memoire-organisee')).contexteMemoireCommune(question,history,budget);}catch{}
  const fiches=await inventaireFiches(),selection=selectionnerFiches(fiches,question,history,budget);
  bilan.dernier_selection={passages:selection.passages.length,signes:selection.texte.length,sources:[...new Set(selection.passages.map(p=>p.id.split(':')[0]))]};
  const familles='KHALAM et ses créations ; DD SKIN ; relations au Sénégal ; FAQ historique KHALAM ; présentations bilingues ; anciennes leçons ; répertoire, base vocale, blagues et réactions.';
