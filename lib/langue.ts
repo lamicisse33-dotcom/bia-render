@@ -8,7 +8,9 @@ const MOTS_FRANCAIS = new Set(["décision","décisions","suspicion","suspicions"
 export type LangueVoix = "wo" | "fr";
 // Borrowings used in the teacher's urban-Wolof lessons. Keep this list
 // conservative: unknown words and homographs must not all become French.
-const EMPRUNTS_FRANCAIS = ["Wave", "bus", "prix", "transfert", "transferts", "cash", "famille", "familles", "pression", "pressions"];
+// BUS-048 live comparison: this mixed expression keeps the French delivery
+// phrase and its /bi/, /la/ particles together, instead of an unstable tail.
+const EMPRUNTS_FRANCAIS = ["Wave", "bus", "prix", "transfert", "transferts", "cash", "famille", "familles", "pression", "pressions", "livraison bi à part la"];
 const COMMUNS = new Set(["ma","la","te","lu","nu","man","fan"]);
 // These Wolof x-words must not inherit French from a preceding borrowing.
 for(const mot of ['soxla','xam','xamuma','xamoo','xamul','xamunu','xamle','xamante','xalaat','xalaatal','xalaatuma','xalaatam','xale','xaley','xarit','xaritam','xaritoo','xool','xoolal','xoolaat','xooluma','xew','xewul','xewxew','xaalis','xaalisu','xaj','xorom','xol','xolu','xolam','xey','xëy','xeex','xëcc','xel','xelam','xéewël','xibaar','xibaaru','xar','xaar','xaaral','xaari','wax','waxal','waxuma','waxul','waxoon','ndax','ndaxam','bëggul','bëgguma','ngii','fay','fayee','may','ték','warra'])MOTS_WOLOF.add(mot);
@@ -46,7 +48,10 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
   const motsDe=(phrases:readonly string[])=>new Set(phrases.flatMap(p=>p.toLowerCase().normalize('NFC').match(/\p{L}+/gu)||[]));
   const apprisFr=motsDe(empruntsFrancais),apprisWo=motsDe(expressionsWolof);
   for (const sentence of Array.from(new Intl.Segmenter("fr",{granularity:"sentence"}).segment(texte),s=>s.segment)) {
-    const tokens=Array.from(sentence.matchAll(/\s*\S+/gu),m=>m[0]);
+    // A missing space after a comma must not hide a language boundary.
+    // Preserve every character; leave decimal numbers, URLs and paths intact.
+    const tokens=Array.from(sentence.matchAll(/\s*\S+/gu),m=>m[0]).flatMap(t=>
+      /[@/\\]|^\s*www\./iu.test(t)?[t]:t.split(/(?<=\p{L},)(?=\p{L})/u));
     if (!tokens.length) {if(out.length)out[out.length-1].texte+=sentence;continue;}
     tokens[tokens.length-1]+=sentence.slice(tokens.join("").length);
     // Match validated French expressions on whole tokens, never substrings.

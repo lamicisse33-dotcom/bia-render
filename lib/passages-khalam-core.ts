@@ -7,7 +7,7 @@ export function preparerAvecRegles(texte:string,defaut:LangueVoix,lecons:Lecon[]
  const out:PassageVoix[]=[];
  const emprunts=[...new Set(['Wave','bus',...lecons.filter(l=>l.langue==='fr'&&l.statut==='validé').map(l=>l.texte)])];
  const wolof=lecons.filter(l=>l.langue==='wo'&&l.statut==='validé').map(l=>l.texte);
- for(const passage of passagesLanguesVoix(espacerPonctuationLecture(texte),defaut,emprunts,wolof)){
+ for(const passage of lierPossessifWolof(passagesLanguesVoix(espacerPonctuationLecture(texte),defaut,emprunts,wolof))){
   const prononce=appliquerRegles(texteKhalamVoix(passage.texte),reglesLeconsMixtes(lecons,passage.langue,anciennes));
   const morceaux=lectureFiable&&passage.langue==='wo'?segmentsLectureWolof(prononce):lecture?segmentsLecture(prononce):decouperVoixKhalam(prononce);
   for(const morceau of morceaux)if(morceau.trim())out.push({texte:morceau,langue:passage.langue});
@@ -17,6 +17,20 @@ export function preparerAvecRegles(texte:string,defaut:LangueVoix,lecons:Lecon[]
   // at lool. Keep this calibration specific to its exact text and female
   // Wolof voice. Human listening remains separate from the ASR measurement.
   p.langue==='wo'&&p.texte==='Dama stressé lool.'?{...p,prise:{female:914}}:p);
+}
+
+/** In mixed speech, the homograph "sa" supplies Wolof possessive context to
+ * a preceding isolated Wolof word. BUS-077: "Dëfal sa" avoids the measured
+ * hallucination from generating "Dëfal" alone. No crossing sentence boundaries. */
+export function lierPossessifWolof(passages:PassageVoix[]):PassageVoix[]{
+ const out:PassageVoix[]=[];
+ for(const p of passages){
+  const precedent=out.at(-1),m=p.langue==='fr'?p.texte.match(/^(\s*sa)(?=\s+\S)/iu):null;
+  if(m&&precedent?.langue==='wo'&&/^\s*\p{L}+\s*$/u.test(precedent.texte)){
+   precedent.texte+=m[1];out.push({...p,texte:p.texte.slice(m[1].length)});
+  }else out.push({...p});
+ }
+ return out;
 }
 
 /** Only the spoken preparation gains spaces. Stored lesson text is untouched.

@@ -16,6 +16,13 @@ function load(file, modules = {}, env = {}) {
   return module.exports;
 }
 const {passagesLanguesVoix} = load('lib/langue.ts');
+test('compact commas preserve source text while exposing the following language',()=>{
+ const text='Déedéet,livraison bi à part la.';
+ const plan=passagesLanguesVoix(text,'wo');
+ assert.equal(plan.map(p=>p.texte).join(''),text);
+ assert.deepEqual(plan,[{texte:'Déedéet,',langue:'wo'},{texte:'livraison bi à part la.',langue:'fr'}]);
+ for(const text of ['12,5 euros','https://exemple.fr/a,b','nom,prenom@example.fr','Déédéét,dama ragal ñu mer.'])assert.equal(passagesLanguesVoix(text).map(p=>p.texte).join(''),text);
+});
 
 test('soxla and known compact Wolof forms retain their profile beside a French payment phrase',()=>{
  for(const prefix of ['Damasoxla','Dama soxla','Dafasoxla','Damaxam','Dama xam']){

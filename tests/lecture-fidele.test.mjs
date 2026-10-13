@@ -19,6 +19,27 @@ const preparation=load('lib/passages-khalam-core.ts',{
   './lecture-continue':lecture,
 });
 const {preparerPassagesKhalam}=load('lib/passages-khalam.ts',{'./passages-khalam-core':preparation,'./lexique-apprentissage':{lireLecons:async()=>[]},'./prononciation':{reglesPrononciation:async()=>[]}});
+test('BUS-048 and BUS-077 use the groups compared on the live voice without losing any words',async()=>{
+ for(const faithful of [false,true]){
+  const text='Déedéet,livraison bi à part la.';
+  const plan=await preparerPassagesKhalam(text,'wo',false,faithful);
+  assert.deepEqual(plan,[{texte:'Déedéet,',langue:'wo'},{texte:'livraison bi à part la.',langue:'fr'}]);
+  const text2='Bul tontu ak insultes.Dëfal sa réponse calme te professionnel.';
+  const plan2=await preparerPassagesKhalam(text2,'wo',false,faithful);
+  assert.deepEqual(plan2,[{texte:'Bul tontu ak insultes.',langue:'wo'},{texte:'Dëfal sa',langue:'wo'},{texte:'réponse calme te professionnel.',langue:'fr'}]);
+  assert.equal(plan2.map(p=>p.texte).join('').replace(/\s/g,''),text2.replace(/\s/g,''));
+ }
+ const original=[{texte:'Dëfal',langue:'wo'},{texte:' sa réponse',langue:'fr'}];
+ assert.equal(preparation.lierPossessifWolof(original).map(p=>p.texte).join(''),'Dëfal sa réponse');
+ assert.equal(original[0].texte,'Dëfal');
+ for(const previous of ['Dëfal.','Dëfal :','Dëfal!']){
+  const p=[{texte:previous,langue:'wo'},{texte:' sa réponse',langue:'fr'}];
+  assert.deepEqual(preparation.lierPossessifWolof(p),p);
+ }
+ for(const following of [' salaire',' savoir',' sa.']){
+  const p=[{texte:'Dëfal',langue:'wo'},{texte:following,langue:'fr'}];assert.deepEqual(preparation.lierPossessifWolof(p),p);
+ }
+});
 test('the actual reading plan sends compact soxla to Wolof without rewriting it',async()=>{
  for(const faithful of [false,true]){
   const plan=await preparerPassagesKhalam('Damasoxla preuve de paiement.','wo',false,faithful);
