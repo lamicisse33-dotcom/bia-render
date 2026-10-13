@@ -7,9 +7,9 @@ import {lexiqueConfig} from './lexique';
 import {preparerAvecRegles} from './passages-khalam-core';
 import {inventorierMemoire,idAudioMemoire,type AudioMemoire} from './audio-memoire-core';
 import {assurerMemoire,lireObjetMemoire,ecrireObjetMemoire,objetsMemoire,supprimerObjetMemoire} from './audio-memoire-stockage';
-type Bilan={actif:boolean;statut:string;total:number;prets:number;restants:number;echecs:number;a_verifier:number;devoirs_valides:number;octets:number;mis_a_jour:string;dernier_ms:number;lectures:number;lectures_navigateur?:number;dernier_demarrage_ms?:number;derniere_erreur?:string;reponses_jointes?:number;cache_serveur?:number;dernier_acces_ms?:number};
+type Bilan={actif:boolean;statut:string;total:number;prets:number;restants:number;echecs:number;a_verifier:number;devoirs_valides:number;octets:number;mis_a_jour:string;dernier_ms:number;lectures:number;lectures_navigateur?:number;dernier_demarrage_ms?:number;derniere_erreur?:string;reponses_jointes?:number;cache_serveur?:number;dernier_acces_ms?:number;catalogue_ms?:number;calcul_identifiants_ms?:number;preparatifs_reutilises?:number;preparatifs_recalcules?:number};
 type Echec={essais:number;motif:string};
-type Etat={bilan:Bilan;catalogue?:{phrases:AudioMemoire[];aVerifier:string[];expire:number;generation:number};prets:Map<string,number>;worker?:Promise<void>;timer?:ReturnType<typeof setTimeout>;lecture?:Promise<AudioMemoire[]>;reprise?:Promise<void>;echecs:Record<string,Echec>;indexCharge:boolean;attentes:Map<string,number>};
+type Etat={bilan:Bilan;catalogue?:{phrases:AudioMemoire[];aVerifier:string[];expire:number;generation:number;prononciation:number};prets:Map<string,number>;worker?:Promise<void>;timer?:ReturnType<typeof setTimeout>;lecture?:Promise<AudioMemoire[]>;reprise?:Promise<void>;echecs:Record<string,Echec>;indexCharge:boolean;attentes:Map<string,number>};
 const global=globalThis as typeof globalThis&{biaAudioMemoire?:Etat};
 const etat:Etat=global.biaAudioMemoire??={bilan:{actif:false,statut:'non_lance',total:0,prets:0,restants:0,echecs:0,a_verifier:0,devoirs_valides:0,octets:0,mis_a_jour:'',dernier_ms:0,lectures:0},prets:new Map(),echecs:{},indexCharge:false,attentes:new Map()};
 const gAudio=globalThis as typeof globalThis&{biaAudiosPrecharges?:Map<string,Uint8Array>;biaAudiosChargements?:Map<string,Promise<Uint8Array|null>>};
@@ -22,15 +22,31 @@ async function anciennesValidees(){
   if(!r.ok)throw Error('Lecture des anciennes validations impossible.');const page=await r.json();if(!Array.isArray(page))throw Error('Lexique invalide.');rows.push(...page);if(page.length<500)break;
  }return rows;
 }
-export async function catalogueAudioMemoire(force=false):Promise<AudioMemoire[]>{
+const identifiants=new Map<string,string>();
+let revisionPrononciations="";
+export async function catalogueAudioMemoire(force=false,recalculer=false):Promise<AudioMemoire[]>{
+ const debut=Date.now();
+ const prononciation=(globalThis as typeof globalThis&{biaGenerationPrononciation?:number}).biaGenerationPrononciation||0;
  const generation=(globalThis as typeof globalThis&{biaGenerationDevoirs?:number}).biaGenerationDevoirs||0;
- if(!force&&etat.catalogue&&etat.catalogue.expire>Date.now()&&etat.catalogue.generation===generation)return etat.catalogue.phrases;
+ if(!force&&etat.catalogue&&etat.catalogue.expire>Date.now()&&etat.catalogue.generation===generation&&etat.catalogue.prononciation===prononciation)return etat.catalogue.phrases;
  if(etat.lecture)return etat.lecture;
  etat.lecture=(async()=>{
   const [{devoirs},lecons,anciennes,regles,partage]=await Promise.all([devoirsALire(),lireLecons(true),anciennesValidees(),reglesPrononciation(),indexLexiquePartage()]);
   const inventaire=inventorierMemoire(devoirs,lecons,anciennes,partage.map(d=>({...d.repliques[0],id:d.id})));
-  const phrases=inventaire.phrases.map(p=>({...p,id:idAudioMemoire(p,preparerAvecRegles(p.texte,p.langue,lecons,regles,false,true))}));
-  etat.catalogue={phrases,aVerifier:inventaire.aVerifier,expire:Date.now()+15000,generation};etat.bilan.devoirs_valides=inventaire.devoirsValides;etat.bilan.a_verifier=inventaire.aVerifier.length;
+  // The exact text and complete pronunciation rules determine the ID. Reuse
+  // only that calculation; always rebuild membership from freshly read sources.
+  const revision=JSON.stringify([lecons,regles]);
+  if(revision!==revisionPrononciations){identifiants.clear();revisionPrononciations=revision;}
+  const calcul=Date.now(),actuels=new Set<string>();let reutilises=0,recalcules=0;
+  const phrases=inventaire.phrases.map(p=>{
+   const cle=p.langue+":"+p.texte;actuels.add(cle);
+   let id=recalculer?undefined:identifiants.get(cle);
+   if(id)reutilises++;else{id=idAudioMemoire(p,preparerAvecRegles(p.texte,p.langue,lecons,regles,false,true));identifiants.set(cle,id);recalcules++;}
+   return {...p,id};
+  });
+  for(const cle of identifiants.keys())if(!actuels.has(cle))identifiants.delete(cle);
+  Object.assign(etat.bilan,{catalogue_ms:Date.now()-debut,calcul_identifiants_ms:Date.now()-calcul,preparatifs_reutilises:reutilises,preparatifs_recalcules:recalcules});
+  etat.catalogue={phrases,aVerifier:inventaire.aVerifier,expire:Date.now()+15000,generation,prononciation};etat.bilan.devoirs_valides=inventaire.devoirsValides;etat.bilan.a_verifier=inventaire.aVerifier.length;
   actualiser(phrases);return phrases;
  })().finally(()=>{etat.lecture=undefined;});return etat.lecture;
 }

@@ -1,3 +1,4 @@
+import {resumeLatenceConversation} from "@/lib/essai-latence-conversation";
 import {resumeEssaiMemoire} from "@/lib/essai-memoire-maitre";
 import {resumeRecherche} from "@/lib/recherche";
 import {resumeFonctionsBase} from "@/lib/essai-fonctions-base";
@@ -163,6 +164,7 @@ export async function GET(request: Request) {
     recherche_web:resumeRecherche(),
     fonctions_base:resumeFonctionsBase(),
     memorisation_maitre:resumeEssaiMemoire(),
+    latence_conversation:resumeLatenceConversation(),
     comprehension_conversation:resumeEssaiComprehension(),
     transcription_contextuelle: resumeCorrectionContexte(),
     ecoute_configuration: {

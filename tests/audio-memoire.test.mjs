@@ -16,12 +16,12 @@ test('the durable audio identity changes with source text, language or pronuncia
  assert.notEqual(core.idAudioMemoire(lool,[{texte:lool.texte,langue:'wo'}]),core.idAudioMemoire(lool,[{texte:lool.texte,langue:'wo',prise:{female:914}}]));
 });
 function fixture(){
- const objects=new Map();let generations=0,lessons=[devoir],fail=false;
+ const objects=new Map();let generations=0,lessons=[devoir],fail=false,preparations=0,regles=[];
  const storage={assurerMemoire:async()=>{},lireObjetMemoire:async path=>objects.has(path)?new Response(objects.get(path)):null,ecrireObjetMemoire:async(path,body,_t,mutable)=>{if(objects.has(path)&&!mutable)throw Error('already exists');objects.set(path,typeof body==='string'?body:new Uint8Array(body));},supprimerObjetMemoire:async path=>objects.delete(path),objetsMemoire:async()=>new Map([...objects].filter(([p])=>p.startsWith('sons/')&&objects.has('details/'+p.slice(5,-4)+'.json')).map(([p,b])=>[p.slice(5,-4),b.length]))};
  function server(){const g={},timers=[];
-  const api=load('lib/audio-memoire.ts',{'node:crypto':crypto,'./lexique-partage':{indexLexiquePartage:async()=>[]},'./devoirs-apprentissage':{devoirsALire:async()=>({devoirs:lessons})},'./lexique-apprentissage':{lireLecons:async()=>[]},'./prononciation':{reglesPrononciation:async()=>[]},'./lexique':{lexiqueConfig:{actif:true,url:'https://private',cle:'server-only',table:'lexique'}},'./passages-khalam-core':{preparerAvecRegles:t=>[{texte:t}]},'./audio-memoire-core':core,'./audio-memoire-stockage':storage,'./sons-courants':{fabriquerSon:async()=>{generations++;if(fail)throw Error('GPU failed');return {audio:{secondes:1},mp3:new Uint8Array(2500).fill(25)};}}},{globalThis:g,fetch:async()=>({ok:true,json:async()=>[]}),setTimeout:f=>{timers.push(f);return {unref(){}};},clearTimeout(){}});
+  const api=load('lib/audio-memoire.ts',{'node:crypto':crypto,'./lexique-partage':{indexLexiquePartage:async()=>[]},'./devoirs-apprentissage':{devoirsALire:async()=>({devoirs:lessons})},'./lexique-apprentissage':{lireLecons:async()=>[]},'./prononciation':{reglesPrononciation:async()=>regles},'./lexique':{lexiqueConfig:{actif:true,url:'https://private',cle:'server-only',table:'lexique'}},'./passages-khalam-core':{preparerAvecRegles:t=>{preparations++;return [{texte:t,regles}];}},'./audio-memoire-core':core,'./audio-memoire-stockage':storage,'./sons-courants':{fabriquerSon:async()=>{generations++;if(fail)throw Error('GPU failed');return {audio:{secondes:1},mp3:new Uint8Array(2500).fill(25)};}}},{globalThis:g,fetch:async()=>({ok:true,json:async()=>[]}),setTimeout:f=>{timers.push(f);return {unref(){}};},clearTimeout(){}});
   return {api,pump:async()=>{const f=timers.shift();assert(f);f();await g.biaAudioMemoire.worker;},g};
- }return {server,objects,generations:()=>generations,change:()=>{lessons=[{...devoir,texte:devoir.texte.replace('Nanga def ?','Maa ngi fi.')}];},fail:()=>{fail=true;}};
+ }return {server,objects,generations:()=>generations,preparations:()=>preparations,pronunciation:()=>{regles=[{de:"x",vers:"y"}];},change:()=>{lessons=[{...devoir,texte:devoir.texte.replace('Nanga def ?','Maa ngi fi.')}];},fail:()=>{fail=true;}};
 }
 test('generation persists verified audio, survives restart and never regenerates completed entries',async()=>{
  const f=fixture(),s=f.server();await s.api.lancerAudioMemoire();assert.equal(s.api.resumeAudioMemoire().total,2);await s.pump();assert.equal(f.generations(),1);assert.equal(s.api.resumeAudioMemoire().prets,1);
@@ -57,4 +57,11 @@ test('a current stored recording is attached to chat, reused without synthesis, 
  const son=await s.api.audioPourReponse('Nanga def ?','wo');assert(son);assert.equal(Buffer.from(son.base64,'base64').length,2500);
  const again=await s.api.audioPourReponse('Nanga def ?','wo');assert.equal(again.id,son.id);assert.equal(f.generations(),1);assert(s.api.resumeAudioMemoire().cache_serveur>0);
  f.change();await s.api.catalogueAudioMemoire(true);assert.equal(await s.api.audioPourReponse('Nanga def ?','wo'),null);
+});
+test('inventory refresh reuses identical preparation but immediately invalidates changed pronunciation',async()=>{
+ const f=fixture(),s=f.server();const first=await s.api.catalogueAudioMemoire(true);const calls=f.preparations();
+ const second=await s.api.catalogueAudioMemoire(true);assert.deepEqual(second,first);assert.equal(f.preparations(),calls);assert.equal(s.api.resumeAudioMemoire().preparatifs_reutilises,2);
+ f.pronunciation();s.g.biaGenerationPrononciation=1;
+ const changed=await s.api.catalogueAudioMemoire();assert.notEqual(changed[0].id,first[0].id);assert.equal(f.preparations(),calls+2);
+ const baseline=await s.api.catalogueAudioMemoire(true,true);assert.deepEqual(baseline,changed);assert.equal(f.preparations(),calls+4);
 });

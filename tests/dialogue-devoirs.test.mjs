@@ -228,7 +228,7 @@ test('authenticated chat with the stuck history reaches the actual greeting repe
 });
 
 
-test('Anthropic verifies its compact selection before returning the exact source reply',async()=>{
+test('Anthropic combines coherence and selection in one call and returns only the exact source reply',async()=>{
  const bodies=[];
  const api=service(async(url,init)=>{
   assert.equal(url,'https://api.anthropic.com/v1/messages');assert.equal(init.headers['x-api-key'],'test-anthropic');
@@ -236,7 +236,7 @@ test('Anthropic verifies its compact selection before returning the exact source
   return Response.json({content:[{type:'text',text:'{"statut":"selection","id":"0:1","reply":"inventé"}'}],stop_reason:'end_turn',usage:{input_tokens:100,output_tokens:20}});
  },undefined,{BIA_LLM_PROVIDER:'anthropic',ANTHROPIC_API_KEY:'test-anthropic'});
  const r=await api.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',[]);
- assert.equal(bodies.length,2);assert.equal(JSON.parse(bodies[0].messages[0].content).devoirs[0].repliques[0].wo,undefined);assert.equal(r.reply,'Vous vous êtes disputés ?');assert.equal(r.dialogue_memorise,true);assert.equal(api.resumeDialogueDevoirs().jetons_entree,200);
+ assert.equal(bodies.length,1);assert.match(bodies[0].system[0].text,/CONTRÔLE AVANT DE RÉPONDRE/);assert.match(bodies[0].system[0].text,/une question dont la réponse est DÉJÀ donnée/);assert.equal(JSON.parse(bodies[0].messages[0].content).devoirs[0].repliques[0].wo,undefined);assert.equal(r.reply,'Vous vous êtes disputés ?');assert.equal(r.dialogue_memorise,true);assert.equal(api.resumeDialogueDevoirs().jetons_entree,100);
 });
 
 
@@ -259,7 +259,7 @@ test('Anthropic still rejects invalid, person, repeated and multi-question sourc
 });
 
 
-test('a valid Sonnet reply arriving after the old 2.5 s deadline still receives its coherence check',async()=>{
+test('a valid Sonnet reply arriving after the old 2.5 s deadline is not cut off while performing the combined coherence check',async()=>{
  let calls=0;
  const api=service(async(url,init)=>{
   calls++;
@@ -267,7 +267,7 @@ test('a valid Sonnet reply arriving after the old 2.5 s deadline still receives 
   return Response.json({content:[{type:'text',text:'{"statut":"selection","id":"0:1"}'}]});
  },undefined,{BIA_LLM_PROVIDER:'anthropic',ANTHROPIC_API_KEY:'test-only'});
  const r=await api.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',[]);
- assert.equal(r?.reply,'Vous vous êtes disputés ?');assert.equal(calls,2);assert.equal(api.resumeDialogueDevoirs().erreurs,0);
+ assert.equal(r?.reply,'Vous vous êtes disputés ?');assert.equal(calls,1);assert.equal(api.resumeDialogueDevoirs().erreurs,0);
 });
 
 
@@ -275,12 +275,12 @@ test('a verified choice is reused without another model call, but a changed fact
  let calls=0;
  const api=service(async()=>{calls++;return Response.json({content:[{type:'text',text:'{"statut":"selection","id":"0:1"}'}]});},undefined,{BIA_LLM_PROVIDER:'anthropic',ANTHROPIC_API_KEY:'test'});
  const q='Ma copine ne répond plus à mes appels.';
- const a=await api.dialoguerAvecDevoirs(q,[],{index});assert.equal(calls,2);
+ const a=await api.dialoguerAvecDevoirs(q,[],{index});assert.equal(calls,1);
  const b=await api.dialoguerAvecDevoirs('Bia, '+q+' Réponds en wolof.',[],{index});
- assert.equal(calls,2);assert.equal(b.acces_direct,true);assert.equal(b.reply,index[0].repliques[1].wo);
- await api.dialoguerAvecDevoirs(q,[{role:'user',text:'Nous ne nous sommes pas disputés.'}],{index});assert.equal(calls,4);
+ assert.equal(calls,1);assert.equal(b.acces_direct,true);assert.equal(b.reply,index[0].repliques[1].wo);
+ await api.dialoguerAvecDevoirs(q,[{role:'user',text:'Nous ne nous sommes pas disputés.'}],{index});assert.equal(calls,2);
  const changed=structuredClone(index);changed[0].repliques[1].wo='Source corrigée.';
- const c=await api.dialoguerAvecDevoirs(q,[],{index:changed});assert.equal(calls,6);assert.notEqual(c.acces_direct,true);
+ const c=await api.dialoguerAvecDevoirs(q,[],{index:changed});assert.equal(calls,3);assert.notEqual(c.acces_direct,true);
 });
 
 test('known greeting pairs do not delay a prepared topic; unknown facts are kept',()=>{
