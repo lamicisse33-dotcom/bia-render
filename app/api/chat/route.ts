@@ -2658,9 +2658,9 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return messagesConversation({
         suggestionsTranscription: Array.isArray(body.suggestionsTranscription)?body.suggestionsTranscription:[],
         question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
-        contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, ""),
+        contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, "")+"\n"+contexteHorloge(),
         souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: savoir || "",
-        resume, outils:outils+"\n"+contexteHorloge(), maitrises, nom: "BIA", maitre: verdict.maitre,
+        resume, outils, maitrises, nom: "BIA", maitre: verdict.maitre,
       });
     };
     const appelerGroq = async (o: {
