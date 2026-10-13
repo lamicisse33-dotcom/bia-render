@@ -26,16 +26,17 @@ export async function verifierAccesDevoirs(){
    premiere_paire_preservee:structure?.repliques.some(p=>p.wo==='Xale bi fan la nekk ?'&&p.fr==='Où est l’enfant ?')||false},cas};
  return etat.lecture;
 }
-/** Two bounded owner-authorised real brain calls during this publication.
+/** Three bounded owner-authorised real brain calls during this publication.
  * No lesson mutation, audio generation, transcript or reply exposed. */
 export function verifierConversationDevoirs(){return etat.travail??=(async()=>{
  const {POST}=await import('../app/api/chat/route'),index=await indexDialogue(),cas=[];
  const enfants=index.filter(d=>/\bdevoir 33\b/.test(normaliserDialogue(d.titre)));
- for(const message of ['Mon enfant pleure. Que me conseilles-tu ? Réponds en français.','Parlons des enfants. Réponds en wolof.']){
+ for(const message of ['Mon enfant pleure. Que me conseilles-tu ? Réponds en français.','Xale bi dafay jooy. Réponds en wolof.','Tu as accès à la leçon sur les enfants ? Réponds en français.']){
   const debut=Date.now();
-  const r=await POST(new NextRequest('https://app.khalam.app/api/chat',{method:'POST',headers:{'content-type':'application/json','x-bia-code':process.env.BIA_CODE_MAITRE||''},body:JSON.stringify({message,history:[],apprentissageTest:true})}));
+  const history=message.startsWith('Tu as accès')?[{role:'user',text:'Parlons des enfants.'},{role:'bia',text:'Je n’ai pas accès à cette leçon.'}]:[];
+  const r=await POST(new NextRequest('https://app.khalam.app/api/chat',{method:'POST',headers:{'content-type':'application/json','x-bia-code':process.env.BIA_CODE_MAITRE||''},body:JSON.stringify({message,history,apprentissageTest:true})}));
   const d=await r.json(),reply=String(d.reply||'');
-  cas.push({langue_demandee:message.endsWith('wolof.')?'wo':'fr',statut:r.status,ms:Date.now()-debut,reponse_presente:!!reply,
+  cas.push({langue_demandee:message.endsWith('wolof.')?'wo':'fr',verifie_ancienne_negation:history.length>0,statut:r.status,ms:Date.now()-debut,reponse_presente:!!reply,
    source:typeof d.source==='string'?d.source:null,lecon_enfants_selectionnee:enfants.some(e=>e.id===d.lecon_id),
    formulation_exacte:enfants.some(e=>e.repliques.some(p=>p.fr===reply||p.wo===reply)),
    nie_acces:/pas (?:d.accès|acces)|n.ai pas accès|ne peux pas (?:consulter|accéder)|n.arrive pas à consulter/i.test(reply)});
