@@ -12,6 +12,7 @@ export type LangueVoix = "wo" | "fr";
 // phrase and its /bi/, /la/ particles together, instead of an unstable tail.
 const EMPRUNTS_FRANCAIS = ["Wave", "bus", "prix", "transfert", "transferts", "cash", "famille", "familles", "pression", "pressions", "livraison bi à part la"];
 const COMMUNS = new Set(["ma","la","te","lu","nu","man","fan"]);
+MOTS_WOLOF.add('laaj');
 // These Wolof x-words must not inherit French from a preceding borrowing.
 for(const mot of ['soxla','xam','xamuma','xamoo','xamul','xamunu','xamle','xamante','xalaat','xalaatal','xalaatuma','xalaatam','xale','xaley','xarit','xaritam','xaritoo','xool','xoolal','xoolaat','xooluma','xew','xewul','xewxew','xaalis','xaalisu','xaj','xorom','xol','xolu','xolam','xey','xëy','xeex','xëcc','xel','xelam','xéewël','xibaar','xibaaru','xar','xaar','xaaral','xaari','wax','waxal','waxuma','waxul','waxoon','ndax','ndaxam','bëggul','bëgguma','ngii','fay','fayee','may','ték','warra'])MOTS_WOLOF.add(mot);
 for(const mot of ['message','messages','appel','appels','appeler','appelée','appeler','répondre','répond','réponse','réponses','problème','problèmes','explication','explications','expliquer','exemple','exemples','exercice','exercices','examen','examens','excuse','excuses','expression','expressions','expérience','expériences','exactement','ex','copain','copine','relation','relations','situation','solutions','solution','conseil','conseils','discussion','discuter','téléphone','numéro','numéros','crédit','crédits','réseau','internet','connexion','contact','contacts','rendez-vous','rendez','carte','bancaire','banque','boutique','client','clients','cliente','clientes','commerce','commerçant','commerçante','étudiant','étudiante','études','école','université','cours','devoir','devoirs','leçon','leçons','mariage','marier','amour','couple','confiance','preuve','preuves','risque','risques','raison','raisons','immédiatement','doute','doutes','important','importante','normal','normale','naturel','naturelle','budget','dépense','dépenses','paiement','payer','argent','montant','reste','refus','refuser','accepter','décider','signifier','signifie','clarifier','comprendre'])MOTS_FRANCAIS.add(mot);
@@ -42,6 +43,11 @@ export type PassageVoix = {texte:string; langue:LangueVoix; prise?:Partial<Recor
 /** Preserve the source exactly. Unknown words inherit their neighbouring context.
  * This is a lexical detector, not a guarantee for every homograph or unknown word. */
 export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", empruntsFrancais:readonly string[]=[], expressionsWolof:readonly string[]=[]):PassageVoix[] {
+  // ADM-025: the whole Wolof take omitted moo; the measured mixed take
+  // keeps its three-word context and gives the final borrowing to French.
+  // Exact source only; never rewrite the lesson's unusual spelling.
+  const question=texte.match(/^(\s*Ban document moo)(\s+manqueé\?\s*)$/u);
+  if(question)return [{texte:question[1],langue:'wo'},{texte:question[2],langue:'fr'}];
   const out:PassageVoix[]=[];
   empruntsFrancais=[...EMPRUNTS_FRANCAIS,...empruntsFrancais];
   const emprunts=new Set([...empruntsFrancais,"franc","francs","CFA","FCFA","XOF"].map(m=>m.toLocaleLowerCase().normalize("NFC")));
@@ -74,7 +80,15 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
         }
       }
     }
+    // ADM-024/036: "Dañu ma ne" alone produced extra speech in both
+    // measured takes. Keep its following noun in the Wolof reporting clause.
+    // This does not reclassify French negation "ne" in other contexts.
+    const contexteWolof=new Set<number>();
+    for(let i=0;i+3<keys.length;i++)if(keys.slice(i,i+4).join(' ')==='dañu ma ne dossierbi'){
+      for(let j=i;j<i+4;j++)contexteWolof.add(j);
+    }
     const labels=tokens.map((token,index)=>{
+      if(contexteWolof.has(index))return 'wo' as const;
       if(protectedIndices.has(index))return "fr" as const;
       const mots=token.toLocaleLowerCase().normalize("NFC").match(/[\p{L}\p{N}]+/gu)||[];
       if(mots.length===1&&emprunts.has(mots[0])&&!COMMUNS.has(mots[0])&&!estMotWolof(mots[0]))return "fr" as const;
@@ -99,7 +113,10 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
     let buf="";
     for(let i=0;i<tokens.length;i++){
       const label=resolues[i];
-      if(label!==current&&buf){out.push({texte:buf,langue:current});buf="";}
+      // Preserve the measured reporting-clause boundary in both lesson and
+      // conversational playback, even when its continuation is also Wolof.
+      const finContexte=contexteWolof.has(i-1)&&!contexteWolof.has(i);
+      if((label!==current||finContexte)&&buf){out.push({texte:buf,langue:current});buf="";}
       current=label;buf+=tokens[i];
     }
     if(buf)out.push({texte:buf,langue:current});

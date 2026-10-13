@@ -150,3 +150,37 @@ test('default faithful and conversational preparation eliminate the isolated fin
  const plan=await preparerPassagesKhalam('Dama xam prix la.','wo',false,true);
  assert.equal(plan.at(-1).langue,'wo');assert.equal(plan.at(-1).texte.trim(),'la.');
 });
+
+test('administration clauses retain Wolof grammar and medial bi stays with its French context',async()=>{
+ const samples=[
+  ['Ban document moo manqueé?',[['Ban document moo','wo'],['manqueé?','fr']]],
+  ['Dañu ma ne dossierbi dafa manqueé bénn document.',[['Dañu ma ne dossierbi','wo'],['dafa manqueé bénn document.','wo']]],
+  ['Jëfandikool numéro de suivi bi pour vérifier statutbi.',[['Jëfandikool','wo'],['numéro de suivi bi pour vérifier statutbi.','fr']]],
+  ['Dañu ma ne dossierbi en cours la.',[['Dañu ma ne dossierbi','wo'],['en cours la.','fr']]],
+  ['Dañu ma laaj preuve de paiement.',[['Dañu ma laaj','wo'],['preuve de paiement.','fr']]],
+ ];
+ for(const faithful of [false,true])for(const [source,expected] of samples){
+  const plan=await preparerPassagesKhalam(source,'wo',false,faithful);
+  assert.deepEqual(plan.map(p=>[p.texte.trim(),p.langue]),expected);
+  assert.equal(plan.map(p=>p.texte).join('').replace(/\s/g,''),source.replace(/\s/g,''));
+ }
+ const p=[{texte:'numéro de suivi ',langue:'fr'},{texte:'bi ',langue:'wo'},{texte:'pour vérifier.',langue:'fr'}],original=structuredClone(p);
+ const joined=preparation.lierBiFinal(p);
+ assert.equal(joined.map(p=>p.texte).join(''),p.map(p=>p.texte).join(''));assert.deepEqual(p,original);
+ assert.deepEqual(preparation.lierBiFinal(joined),joined);
+ for(const prefix of ['suivi.','suivi:','suivi,']){
+  const p=[{texte:prefix,langue:'fr'},{texte:'bi',langue:'wo'},{texte:'pour vérifier',langue:'fr'}];assert.deepEqual(preparation.lierBiFinal(p),p);
+ }
+ const wo=[{texte:'numéro',langue:'fr'},{texte:'bi',langue:'wo'},{texte:'ñu xam',langue:'wo'}];assert.deepEqual(preparation.lierBiFinal(wo),wo);
+ assert.deepEqual(await preparerPassagesKhalam('Je ne comprends pas.','fr',false,true),[{texte:'Je ne comprends pas.',langue:'fr'}]);
+});
+
+
+test('measured administration seeds are attached only to unchanged Wolof groups',async()=>{
+ for(const [text,seed] of [['Dañu ma ne dossierbi en cours la.',915],['Dañu ma laaj preuve de paiement.',914]]){
+  const plan=await preparerPassagesKhalam(text,'wo',false,true);
+  assert.equal(plan[0].prise.female,seed);assert.equal(plan[0].prise.male,undefined);assert.equal(plan[1].prise,undefined);
+ }
+ const plan=preparation.preparerAvecRegles('Dañu ma laaj preuve de paiement.','wo',[],[{mot:'laaj',dire:'wax'}],false,true);
+ assert(!plan.some(p=>p.prise));
+});
