@@ -127,6 +127,7 @@ export function paroleDeLaPersonne(fr:string,wo=""){
 export function faitsExplicites(question:string,history:TourDialogue[]){
  const textes=[...history.filter(t=>t.role==="user").map(t=>t.text),question].map(normaliserDialogue);
  return {
+  projet:!projetCommercialAPreciser("Est-ce que ce business peut marcher à Dakar ?",[...history,{role:"user",text:question}]),
   appel:textes.some(t=>/\b(?:mes|nos) appels\b/.test(t)||/\b(?:j ai|je l ai|je lui ai) (?:deja )?(?:telephone|appelee?)\b/.test(t)),
   commerce:textes.some(t=>/\bje vends\b|\bje suis (?:un |une )?(?:petit |petite )?(?:commercant|commercante|vendeur|vendeuse|boutiquier|boutiquiere)\b|\bje (?:tiens|gere) (?:un|une|mon|ma) (?:commerce|boutique|business)\b/.test(t))
     && !/\b(?:commencer|ouvrir|lancer|demarrer) (?:un |une |mon |ma |nouveau |nouvelle )/.test(normaliserDialogue(question)),
@@ -137,7 +138,8 @@ export function faitsExplicites(question:string,history:TourDialogue[]){
 }
 export function questionDejaResolue(fr:string,faits:ReturnType<typeof faitsExplicites>){
  const t=normaliserDialogue(fr);
- return faits.appel&&/\b(?:tu l as|vous l avez|as tu|avez vous) (?:deja )?(?:appelee?|telephone)\b/.test(t)
+ return faits.projet&&questionSurProjet(fr)
+  || faits.appel&&/\b(?:tu l as|vous l avez|as tu|avez vous) (?:deja )?(?:appelee?|telephone)\b/.test(t)
   || faits.commerce&&/\b(?:pour commencer|veux tu commencer|veux commencer|voulez commencer|pour demarrer|(?:genre|type) de business veux tu faire)\b/.test(t)
   || faits.pression&&/\b(?:sur quoi|pour quoi|quel sujet)\b.*\bpression\b/.test(t)
   || faits.matieres&&/\b(?:quelles|quelle|quels) matieres\b.*\bprefer/.test(t)
@@ -173,7 +175,14 @@ export function projetCommercialAPreciser(question:string,history:TourDialogue[]
   return !!ouvert&&!['business','commerce','projet','boutique','activite','entreprise'].includes(ouvert[1]);
  });
 }
-export function questionSurProjet(fr:string){return /\b(?:quel|quelle|quoi|type|genre|nature|idee|produit|activite|precis)\b/.test(normaliserDialogue(fr))&&/\b(?:business|commerce|vendre|vente|projet|produit|activite|faire|lancer)\b/.test(normaliserDialogue(fr));}
+export function questionSurProjet(fr:string){
+ const t=normaliserDialogue(fr);
+ return /\b(?:quel|quelle) (?:genre|type|nature) (?:de )?(?:business|commerce|projet|activite)\b/.test(t)
+  || /\b(?:quel|quelle) (?:est (?:ton|votre) )?(?:business|commerce|projet|activite|produit)\b/.test(t)
+  || /\bquels produits\b/.test(t)
+  || /\b(?:quoi|que|qu est ce que)\b.*\b(?:veux tu|voulez vous|comptes tu|comptez vous) (?:faire|vendre|lancer)\b/.test(t)
+  || /\b(?:vendre|faire|lancer) quoi\b|\b(?:decris|precise)\b.*\b(?:business|commerce|projet|activite)\b/.test(t);
+}
 /** Bound the selector's context without cutting or rewriting a source utterance.
  * Keep neighbours of both the latest reply and the new topic's matching lines. */
 export function paquetSelection(candidats:ReturnType<typeof chercherDialogues>,history:TourDialogue[],langue:"fr"|"wo",question=""){
@@ -191,6 +200,7 @@ export function paquetSelection(candidats:ReturnType<typeof chercherDialogues>,h
   });
   let taille=0;const limites=i===0?8000:4500;
   const retenues=lignes.map((p,j)=>({p,j})).sort((a,b)=>(priorites.get(b.j)||0)-(priorites.get(a.j)||0)||a.j-b.j).filter(({p})=>{
+   if(projetInconnu&&!questionSurProjet(p.fr)||montantDeLeconNonConfirme(p.fr,p.wo,question,history))return false;
    const n=p.wo.length+p.fr.length+180;if(taille+n>limites)return false;taille+=n;return true;
   }).sort((a,b)=>a.j-b.j);
   return {id:String(i),titre:c.d.titre,actif:c.actif,repliques:retenues.map(({p})=>({

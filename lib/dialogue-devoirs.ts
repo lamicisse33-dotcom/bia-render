@@ -89,6 +89,7 @@ export async function dialoguerAvecDevoirs(question:string,historique:unknown,op
   const index=options.index||await indexDialogue(),candidats=chercherDialogues(index,question,history);
   if(!candidats.length){if(!diagnostic){etat.hors_sujet++;etat.dernier_statut="non_couvert";}return null;}
   const langue=langueDuDialogue(question,history),devoirs=paquetSelection(candidats,history,langue,question);
+  if(!devoirs.some(d=>d.repliques.some(p=>p.selectionnable&&!p.deja_dite))){if(!diagnostic)etat.dernier_statut="aucune_replique_adaptee";return null;}
   const cle=cleDialogue(candidats.map(c=>c.d),question,history);
   const connu=options.choisir||options.strategie?undefined:(chercherChoixRapide(cle)||(cle!==cleDialogue(index,question,history)?chercherChoixRapide(cleDialogue(index,question,history)):undefined));
   if(connu){
