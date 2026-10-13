@@ -1362,9 +1362,9 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       &&!concerneProduits(question,body.history)&&!estUnSecours(question)&&!intentionMedia(question)&&!besoinDInternet(question)&&!demandeDeNombre(question);
     // Authenticate before accessing private lessons. Resolve learned replies before
     // generic formulas: a yes/no must answer the preceding learned question.
-    if(maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours
+    if(maitre.ok&&!body.apprend&&!body.malDit?.encours
        &&!concerneProduits(question,body.history)&&!estUnSecours(question)&&!intentionMedia(question)&&!besoinDInternet(question)&&!demandeDeNombre(question)){
-      const memorisee=await dialoguerAvecDevoirs(question,body.history,{cacheSeulement:utiliserChoix});
+      const memorisee=await dialoguerAvecDevoirs(question,body.history,{cacheSeulement:false});
       if(memorisee){
         // Audio is read from the existing private library, never regenerated.
         // Reading alongside provenance avoids an extra browser/server round trip.
