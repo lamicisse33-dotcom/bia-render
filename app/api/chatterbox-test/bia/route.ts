@@ -77,9 +77,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ...common, audio: null, error: "Le moteur Chatterbox de test n’est pas configuré." }, { status: 503, headers });
   }
   const started = Date.now();
+  const seed=grainePriseVoix(body.nouvelle_prise,voice,partie,parts[partie].prise?.[voice]);
   const revisions=globalThis as typeof globalThis&{biaGenerationDevoirs?:number;biaGenerationPrononciation?:number};
   const id = createHash("sha256")
-    .update(JSON.stringify([process.env.CHATTERBOX_TEST_URL, serverKey, voice, common.langue, "mixed-language-profiles-v3",revisions.biaGenerationDevoirs||0,revisions.biaGenerationPrononciation||0, parts[partie].texte,typeof body.nouvelle_prise==="string"?body.nouvelle_prise.slice(0,80):""]))
+    .update(JSON.stringify([process.env.CHATTERBOX_TEST_URL, serverKey, voice, common.langue, "mixed-language-profiles-v3",revisions.biaGenerationDevoirs||0,revisions.biaGenerationPrononciation||0, parts[partie].texte,seed,typeof body.nouvelle_prise==="string"?body.nouvelle_prise.slice(0,80):""]))
     .digest("hex");
   const cached = (body.lecture_fidele===true?repliquesEnCache.get(id):undefined)||accuses.get(id, parts[partie].texte);
   let pending = cached ? Promise.resolve(cached) : inFlight.get(id);
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
         const response = await testSynthesis(new NextRequest(request.url, {
           method: "POST",
           headers: { "content-type": "application/json", "x-chatterbox-test-key": serverKey },
-          body: JSON.stringify({ input: { text: parts[partie].texte, voice, language: common.langue, seed:grainePriseVoix(body.nouvelle_prise,voice,partie), preserve_segment: true } }),
+          body: JSON.stringify({ input: { text: parts[partie].texte, voice, language: common.langue, seed, preserve_segment: true } }),
         }));
         const data = await response.json();
         // Count one real generation, even when multiple requests share it.

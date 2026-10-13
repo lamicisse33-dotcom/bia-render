@@ -29,7 +29,7 @@ export function detecterLangue(texte:string, defaut:LangueVoix="wo"):LangueVoix 
   // French borrowings must not erase the Wolof grammar surrounding them.
   return wo >= fr ? "wo" : "fr";
 }
-export type PassageVoix = {texte:string; langue:LangueVoix};
+export type PassageVoix = {texte:string; langue:LangueVoix; prise?:Partial<Record<'female'|'male',number>>};
 /** Preserve the source exactly. Unknown words inherit their neighbouring context.
  * This is a lexical detector, not a guarantee for every homograph or unknown word. */
 export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", empruntsFrancais:readonly string[]=[], expressionsWolof:readonly string[]=[]):PassageVoix[] {

@@ -12,6 +12,8 @@ test('inventory includes exact bilingual lessons and confirmed legacy pairs, exc
 test('the durable audio identity changes with source text, language or pronunciation, not with an unrelated lesson',()=>{
  const p={texte:'Bonjour.',langue:'fr',sources:['source']},plan=[{texte:'Bonjour.',langue:'fr'}],id=core.idAudioMemoire(p,plan);
  assert.equal(id,core.idAudioMemoire({...p,sources:['another']},plan));assert.notEqual(id,core.idAudioMemoire({...p,texte:'Bonsoir.'},plan));assert.notEqual(id,core.idAudioMemoire({...p,langue:'wo'},plan));assert.notEqual(id,core.idAudioMemoire(p,[{texte:'Bon jour.',langue:'fr'}]));
+ const lool={texte:'Dama stressé lool.',langue:'wo',sources:['BIA-EMP-023']};
+ assert.notEqual(core.idAudioMemoire(lool,[{texte:lool.texte,langue:'wo'}]),core.idAudioMemoire(lool,[{texte:lool.texte,langue:'wo',prise:{female:914}}]));
 });
 function fixture(){
  const objects=new Map();let generations=0,lessons=[devoir],fail=false;

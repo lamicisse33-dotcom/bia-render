@@ -146,3 +146,16 @@ test('a new take reaches the GPU with a different seed while normal reading and 
  assert.notEqual(r.inputs[1].seed,r.inputs[2].seed);
  assert(r.inputs.every(i=>i.text==='Bul jël'&&i.language==='wo'&&Number.isSafeInteger(i.seed)));
 });
+
+test('a measured take changes synthesis and fingerprint; another voice and explicit retakes stay independent',async()=>{
+ const r=route();r.change([{texte:'Dama stressé lool.',langue:'wo'}]);
+ const before=await (await r.request({lecture_fidele:true})).json();
+ r.change([{texte:'Dama stressé lool.',langue:'wo',prise:{female:914}}]);
+ assert.equal((await r.request({empreinte:before.empreinte})).status,409);
+ await r.request({lecture_fidele:true});await r.request({lecture_fidele:true});
+ await r.request({lecture_fidele:true,voice:'male'});
+ await r.request({lecture_fidele:true,nouvelle_prise:'new-owner-take'});
+ assert.deepEqual(r.inputs.slice(0,3).map(p=>p.seed),[913,914,913]);
+ assert.notEqual(r.inputs[3].seed,914);
+ assert.equal(r.calls(),4);
+});

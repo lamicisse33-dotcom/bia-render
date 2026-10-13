@@ -19,6 +19,20 @@ const preparation=load('lib/passages-khalam-core.ts',{
   './lecture-continue':lecture,
 });
 const {preparerPassagesKhalam}=load('lib/passages-khalam.ts',{'./passages-khalam-core':preparation,'./lexique-apprentissage':{lireLecons:async()=>[]},'./prononciation':{reglesPrononciation:async()=>[]}});
+test('compact EMP-042 punctuation separates French problème from Wolof Lan before speech',async()=>{
+ const texte='Waaw,amul problème.Lan nga bëgg nu wax léegi?';
+ const plan=await preparerPassagesKhalam(texte,'wo',false,true);
+ assert.deepEqual(plan.map(p=>[p.texte.trim(),p.langue]),[['Waaw,amul','wo'],['problème.','fr'],['Lan nga bëgg','wo'],['nu wax léegi?','wo']]);
+ assert.equal(plan.map(p=>p.texte).join('').replace(/\s/gu,''),texte.replace(/\s/gu,''));
+ for(const text of ['12,5 3.14 09:05','https://Exemple.fr/Test.Lan','nom@Exemple.fr','/chemin/Note.Lan','M.Dupont','Déédéét,dama ragal ñu mer.']){
+  assert.equal(preparation.espacerPonctuationLecture(text),text);
+ }
+});
+test('the measured lool take is limited to the exact spoken excerpt and voice',async()=>{
+ const plan=await preparerPassagesKhalam('Dama stressé lool.','wo',false,true);
+ assert.deepEqual(plan,[{texte:'Dama stressé lool.',langue:'wo',prise:{female:914}}]);
+ for(const text of ['Dama stressé lool?','Dama stressé lool, léegi.','Lool.'])assert((await preparerPassagesKhalam(text,'wo',false,true)).every(p=>!p.prise));
+});
 test('reported omission is split as in the successful live comparison',async()=>{
   const text='Dañu bëgg ma def lu ma bëggul.';
   assert.deepEqual(lecture.segmentsLectureWolof(text).map(t=>t.trim()),['Dañu bëgg ma def','lu ma bëggul.']);

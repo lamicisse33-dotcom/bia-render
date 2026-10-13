@@ -36,7 +36,7 @@ export async function POST(request:NextRequest){
  let upstream:Response;
  try{upstream=await fetch(`${url}/tts/stream`,{method:"POST",cache:"no-store",signal:abort.signal,
   headers:{"content-type":"application/json","x-khalam-key":secret},
-  body:JSON.stringify({input:{text:spoken,voice:body.voice,language,language_id:"fr",temperature:language==="fr"?.3:.4,
+  body:JSON.stringify({input:{text:spoken,voice:body.voice,language,seed:parts[partie].prise?.[body.voice as 'female'|'male']??913,language_id:"fr",temperature:language==="fr"?.3:.4,
    ...(language==="fr"?{exaggeration:.25,cfg_weight:.7}:{})}})});}
  catch{clearTimeout(deadline);request.signal.removeEventListener("abort",cancel);return NextResponse.json({error:"Connexion au streaming interrompue"},{status:502});}
  if(!upstream.ok||!upstream.body){clearTimeout(deadline);request.signal.removeEventListener("abort",cancel);abort.abort();return NextResponse.json({error:"Streaming indisponible"},{status:[404,501,429].includes(upstream.status)?upstream.status:502});}
