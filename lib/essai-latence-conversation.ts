@@ -26,7 +26,7 @@ export function verifierLatenceConversation(){return etat.travail??=(async()=>{
   const r=await dialoguerAvecDevoirs(scenario.question+' Réponds en wolof.',scenario.history,{index,diagnostic:true,strategie});
   const texteMs=Date.now()-debut,p=index.find(d=>d.id===r?.lecon_id)?.repliques.find(p=>p.id===r?.replique_id);
   const audio=r?await audioPourReponse(r.reply,r.langue):null;
-  cas.push({scenario:scenario.nom,strategie,texte_ms:texteMs,texte_et_audio_ms:Date.now()-debut,appels:resumeDialogueDevoirs().appels_modele-avant,selection:Boolean(r),exacte:Boolean(p&&r&&[p.fr,p.wo].includes(r.reply)),une_question_max:Boolean(r&&(r.reply.match(/\?/g)||[]).length<=1),audio_disponible:Boolean(audio),fr:p?.fr,wo:p?.wo});
+  cas.push({scenario:scenario.nom,strategie,texte_ms:texteMs,texte_et_audio_ms:Date.now()-debut,appels_observes_pendant_essai:resumeDialogueDevoirs().appels_modele-avant,selection:Boolean(r),exacte:Boolean(p&&r&&[p.fr,p.wo].includes(r.reply)),une_question_max:Boolean(r&&(r.reply.match(/\?/g)||[]).length<=1),audio_disponible:Boolean(audio),fr:p?.fr,wo:p?.wo});
  }
  // Measure the real web stream and voice transport; no microphone or browser
  // playback. Use pedagogical test mode to suppress chat/memory writes.
@@ -50,7 +50,7 @@ export function verifierLatenceConversation(){return etat.travail??=(async()=>{
    if(event==='fin'){texteComplet=Date.now()-debut;reply=String(d.corps?.reply||'');}
   }
  }
- const flux={statut:r.status,premier_texte_ms:premierTexte,premiere_phrase_ms:premierePhrase,texte_complet_ms:texteComplet,tete_conforme:!!tete&&reply.startsWith(tete),...(voix?await voix:{audio_recu:false})};
+ const flux={statut:r.status,premier_texte_ms:premierTexte,premiere_phrase_ms:premierePhrase,premiere_phrase_mots:tete.split(/\s+/).filter(Boolean).length,texte_complet_ms:texteComplet,tete_conforme:!!tete&&reply.startsWith(tete),...(voix?await voix:{audio_recu:false})};
  const rapport={date:new Date().toISOString(),version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),mesure:'Supabase, Claude et premier audio HTTP réels. Hors microphone, réseau utilisateur et lecture navigateur.',catalogues,cas,flux};
  etat.rapport={...rapport,cas:cas.map(({fr,wo,...c})=>c)};
  return rapport;
