@@ -8,7 +8,7 @@ export async function register(){
   void rechaufferAudiosPrepares();
   // One bounded production check per process during this publication only.
   if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&process.env.CHATTERBOX_TEST_KEY&&Date.now()<Date.parse('2026-10-13T20:00:00Z')){
-   setTimeout(()=>{void import('./lib/essai-transport-voix').then(m=>m.verifierTransportVoix()).catch(()=>{});},20000).unref();
+   setTimeout(()=>{void import('./lib/essai-transport-voix').then(async m=>{await m.verifierTransportVoix();const p=await import('./lib/essai-parcours-rapide');await p.verifierParcoursRapide();}).catch(()=>{});},20000).unref();
   }
  }
 }

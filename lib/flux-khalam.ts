@@ -6,10 +6,10 @@ export type MorceauVoix = {
 
 /** NDJSON is parsed incrementally: return the first audio packet immediately,
  * without waiting for EOS, and retain the reader for the following packets. */
-export async function ouvrirFluxVoix(response:Response, annuler:()=>void):Promise<MorceauVoix> {
+export async function ouvrirFluxVoix(response:Response, annuler:()=>void,recu:()=>void=()=>{}):Promise<MorceauVoix> {
   if(!response.ok||!response.body)throw new Error(`Voix en streaming indisponible (HTTP ${response.status})`);
   const reader=response.body.getReader();const decoder=new TextDecoder();
-  let buffer="",ended=false,metadata:any=null,sequence=0,offset=0;
+  let buffer="",ended=false,metadata:any=null,sequence=0,offset=0,premierAudioServeur:number|undefined;
   async function next():Promise<any|null>{
     for(;;){
       const newline=buffer.indexOf("\n");
@@ -32,6 +32,8 @@ export async function ouvrirFluxVoix(response:Response, annuler:()=>void):Promis
       }
       if(frame.type==="audio"){
         if(!metadata||frame.sequence!==sequence||frame.offset_samples!==offset||!Number.isSafeInteger(frame.samples)||frame.samples<=0||typeof frame.audio_base64!=="string")throw new Error("Morceau vocal manquant ou désordonné");
+        premierAudioServeur??=Number(frame.premier_audio_ms)||0;
+        recu();
         sequence++;offset+=frame.samples;return frame.audio_base64;
       }
       if(frame.type==="end"){
@@ -48,7 +50,7 @@ export async function ouvrirFluxVoix(response:Response, annuler:()=>void):Promis
       try{for(;;){const audio=await packet();if(audio===null)return;yield audio;}}
       finally{void reader.cancel().catch(()=>{});annuler();}
     }
-    return {parties:metadata.parties,audio,type_mime:"audio/wav",fabrication_ms:metadata.preparation_ms,
+    return {parties:metadata.parties,audio,type_mime:"audio/wav",fabrication_ms:premierAudioServeur||metadata.preparation_ms,
       flux:remaining(),annuler:()=>{void reader.cancel().catch(()=>{});annuler();}};
   } catch(error){void reader.cancel().catch(()=>{});annuler();throw error;}
 }

@@ -54,7 +54,8 @@ test('conversation uses the same continuous transport and bounded audio cache wi
  const replay=ouvrirRepliques(await r.request({lecture_fidele:false}),()=>{});
  assert.equal((await replay.morceau(0)).audio_en_cache,true);await replay.morceau(1);assert.equal(r.calls(),2);
  const page=fs.readFileSync('app/page.tsx','utf8');
- const start=page.indexOf('const continu=essaiChatterboxActif();');
+ const start=page.indexOf('const transport=transportConversation(');
+ assert(start>=0);
  const branch=page.slice(start,page.indexOf('const demander = async (partie: number)',start));
  assert.match(branch,/lecture_fidele:Boolean\(lecture\),continu:true/);
 });
@@ -67,4 +68,26 @@ test('transport comparison joins complete PCM frames without deleting even tiny 
  assert.deepEqual(wav.subarray(44),Buffer.concat([a.subarray(44),b.subarray(44)]));
  assert.equal(wav.readUInt32LE(40),14);assert.equal(wav.readUInt32LE(4),wav.length-8);
  assert.throws(()=>reunirWav([a.subarray(0,45)]));
+});
+test('only free French conversation uses token streaming; Wolof and faithful reading retain clips',()=>{
+ const {transportConversation}=load('lib/transport-conversation.ts');
+ assert.equal(transportConversation(true,'fr',false),'stream-fr');
+ for(const [langue,lecture] of [['wo',false],['wo',true],['fr',true]])assert.equal(transportConversation(true,langue,lecture),'clips');
+ assert.equal(transportConversation(false,'fr',false),'ordinaire');
+});
+test('French stream replays only validated completion and an embedded Wolof segment releases clips before GPU',async()=>{
+ let calls=0,langue='fr',upstreamSuccess=0,texte='Le budget est limité.',fail=false;
+ const sha='b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75';
+ const frames=[{type:'meta',sample_rate:24000,voice:'female',checkpoint_sha256:sha},{type:'audio',sequence:0,offset_samples:0,samples:2,audio_base64:'audio'},{type:'end',packets:1,samples:2,generation_ms:1}];
+ const route=load('app/api/chatterbox-test/bia/stream/route.ts',{
+ '@/lib/langue':{detecterLangue:()=>langue},'@/lib/passages-khalam':{preparerPassagesKhalam:async()=>[{texte,langue}]},'next/server':{NextRequest:Request,NextResponse:{json:Response.json}},'node:crypto':crypto,'@/lib/cache-voix-dialogue':cache,'@/lib/codes':{verifierCode:()=>({ok:true})},'@/lib/chatterbox-test-etat':{noterChatterboxTest:()=>upstreamSuccess++},
+ },{process:{env:{CHATTERBOX_TEST_URL:'https://gpu.invalid',CHATTERBOX_TEST_KEY:'test-only'}},fetch:async()=>{calls++;return new Response((fail?frames.slice(0,2):frames).map(f=>JSON.stringify(f)).join('\n')+'\n');}});
+ const request=()=>route.POST(new Request('https://bia.invalid',{method:'POST',body:JSON.stringify({texte:'Le budget est limité.',voice:'female',langue:'fr',fr_seulement:true})}));
+ const a=await request();const first=(await a.text()).trim().split('\n').map(JSON.parse);assert.equal(first[1].audio_base64,'audio');assert.equal(calls,1);
+ const b=await request();const replay=(await b.text()).trim().split('\n').map(JSON.parse);assert(replay[0].audio_en_cache);assert.equal(calls,1);assert.equal(upstreamSuccess,1);
+ globalThis.biaGenerationPrononciation=(globalThis.biaGenerationPrononciation||0)+1;
+ await (await request()).text();assert.equal(calls,2);
+ langue='wo';const skip=await request();assert.equal(skip.status,409);assert.equal(skip.headers.get('x-bia-stream-skipped'),'language');assert.equal(calls,2);
+ langue='fr';texte='Le budget est différent.';fail=true;assert.match(await (await request()).text(),/\"type\":\"error\"/);assert.equal(calls,3);
+ fail=false;await (await request()).text();assert.equal(calls,4);await (await request()).text();assert.equal(calls,4);
 });

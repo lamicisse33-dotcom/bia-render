@@ -1,6 +1,7 @@
 import {NextRequest} from 'next/server';
 import {teteDeLaReponse} from './diffusion';
 import {ouvrirRepliques} from './flux-repliques';
+import {ouvrirFluxVoix} from './flux-khalam';
 import {resumeTransmissionMemoire} from './conversation-groq';
 import {indexDialogue} from './dialogue-devoirs';
 import {langueConversation} from './comprehension-conversation';
@@ -19,10 +20,14 @@ export function verifierParcoursRapide(){return etat.travail??=(async()=>{
  ]){
   const debut=Date.now();let premierTexte:number|null=null,phraseMs:number|null=null,recu='',tampon='',fin:any=null,voix:Promise<Record<string,unknown>>|undefined;
   const genererVoix=(texte:string,langue:string)=>(async()=>{try{
-   const r=await fetch('https://app.khalam.app/api/chatterbox-test/bia',{method:'POST',headers:{'content-type':'application/json','x-chatterbox-test-key':process.env.CHATTERBOX_TEST_KEY||''},body:JSON.stringify({texte,langue,voice:'female',continu:true,lecture_fidele:false}),signal:AbortSignal.timeout(25000)});
+   const stream=langue==='fr';
+   const options={method:'POST',headers:{'content-type':'application/json','x-chatterbox-test-key':process.env.CHATTERBOX_TEST_KEY||''},body:JSON.stringify({texte,langue,voice:'female',partie:0,...(stream?{fr_seulement:true}:{continu:true,lecture_fidele:false})}),signal:AbortSignal.timeout(25000)};
+   let r=await fetch('https://app.khalam.app/api/chatterbox-test/bia'+(stream?'/stream':''),options);
+   if(stream&&r.ok){const premier=await ouvrirFluxVoix(r,()=>{}),ms=Date.now()-debut;for await(const reste of premier.flux!){};return {audio_recu:!!premier.audio,premier_audio_http_ms:ms,transport:'stream-fr'};}
+   if(stream){if(![404,501].includes(r.status)&&!(r.status===409&&r.headers.get('x-bia-stream-skipped')==='language'))throw Error('voix_indisponible');r=await fetch('https://app.khalam.app/api/chatterbox-test/bia',{...options,body:JSON.stringify({texte,langue,voice:'female',continu:true,lecture_fidele:false})});}
    const clips=ouvrirRepliques(r,()=>{}),premier=await clips.morceau(0),ms=Date.now()-debut;
    for(let i=1;i<premier.parties;i++)await clips.morceau(i);
-   return {audio_recu:!!premier.audio,premier_audio_http_ms:ms};
+   return {audio_recu:!!premier.audio,premier_audio_http_ms:ms,transport:'clips'};
   }catch{return {audio_recu:false};}})();
   try{
    const r=await POST(new NextRequest('https://app.khalam.app/api/chat',{method:'POST',headers:{'content-type':'application/json','x-bia-code':process.env.BIA_CODE_MAITRE||''},body:JSON.stringify({message,history:[],apprentissageTest:true,diffuse:true})}));

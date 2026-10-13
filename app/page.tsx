@@ -1,4 +1,5 @@
 "use client";
+import {transportConversation} from '@/lib/transport-conversation';
 import {envoyerEcoute} from "@/lib/envoi-ecoute";
 import {verifierAcces} from '@/lib/acces-client';
 import {sansSilence} from "@/lib/bords-audio";
@@ -2729,7 +2730,8 @@ export default function Home() {
     const routeVoix = routeVoixBia();
     const voixChoisie = voixChatterboxBia();
     let empreinteLecture: string | undefined;
-    const continu=essaiChatterboxActif();
+    const transport=transportConversation(essaiChatterboxActif(),langueDite,Boolean(lecture));
+    const continu=transport==='clips';
     let connexion:Promise<ReturnType<typeof ouvrirRepliques>>|null=null;
     const ouvrirConnexion=()=>{
       const abort=new AbortController();fluxVoixRef.current.add(abort);
@@ -2753,27 +2755,29 @@ export default function Home() {
         if (!actuel()) throw new Error("tour interrompu");
         let attente = 500 * (essai + 1);
         try {
-          if (false) {
+          if (transport==='stream-fr') {
             const abort = new AbortController();
             fluxVoixRef.current.add(abort);
-            const annuler = () => { abort.abort(); fluxVoixRef.current.delete(abort); };
+            let timer=setTimeout(()=>abort.abort(),12000);
+            const recu=()=>{clearTimeout(timer);timer=setTimeout(()=>abort.abort(),12000);};
+            const annuler = () => { clearTimeout(timer);abort.abort(); fluxVoixRef.current.delete(abort); };
             let response: Response;
             try {
               response = await fetch(routeVoix + "/stream", {
                 method: "POST", signal: abort.signal,
                 headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
-                body: JSON.stringify({ texte: answer, partie, voice: voixChoisie, langue: langueDite }),
+                body: JSON.stringify({ texte: answer, partie, voice: voixChoisie, langue: langueDite,fr_seulement:true }),
               });
             } catch (error) { annuler(); throw error; }
             if (response.ok) {
-              if (response.headers.get("content-type")?.includes("application/x-ndjson")) return await ouvrirFluxVoix(response, annuler);
+              if (response.headers.get("content-type")?.includes("application/x-ndjson")) return await ouvrirFluxVoix(response, annuler,recu);
               annuler();
               return await response.json() as MorceauVoix;
             }
             annuler();
             // Compatibility only before any audio has played: never repeat a
             // partially heard stream through a second synthesis request.
-            if (![404, 501].includes(response.status)) throw new Error(`Streaming HTTP ${response.status}`);
+            if (![404, 501].includes(response.status)&&!(response.status===409&&response.headers.get('x-bia-stream-skipped')==='language')) throw new Error(`Streaming HTTP ${response.status}`);
           }
           const abort = new AbortController();
           fluxVoixRef.current.add(abort);

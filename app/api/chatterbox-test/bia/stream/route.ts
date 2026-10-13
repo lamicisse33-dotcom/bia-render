@@ -1,7 +1,8 @@
 import {detecterLangue,type PassageVoix} from "@/lib/langue";
 import {preparerPassagesKhalam} from "@/lib/passages-khalam";
 import {NextRequest,NextResponse} from "next/server";
-import {timingSafeEqual} from "node:crypto";
+import {timingSafeEqual,createHash} from "node:crypto";
+import {CacheVoixDialogue} from '@/lib/cache-voix-dialogue';
 import {verifierCode} from "@/lib/codes";
 import {decouperVoixKhalam} from "@/lib/decoupage-voix-khalam";
 import {texteKhalamVoix} from "@/lib/texte-khalam-voix";
@@ -13,6 +14,7 @@ export const runtime="nodejs";
 export const maxDuration=100;
 const FRENCH_SHA="b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75";
 const SHA="8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f";
+const cacheFlux=new CacheVoixDialogue<any[]>(8*1024*1024);
 export async function POST(request:NextRequest){
  const secret=process.env.CHATTERBOX_TEST_KEY||"";
  const supplied=request.headers.get("x-chatterbox-test-key")||"";
@@ -31,6 +33,11 @@ export async function POST(request:NextRequest){
  catch{return NextResponse.json({error:"Le lexique n’a pas répondu"},{status:503});}
  if(partie>=parts.length)return NextResponse.json({parties:parts.length,partie,audio:null});
  const {texte:spoken,langue:language}=parts[partie];
+ if(body.fr_seulement===true&&language!=='fr')return NextResponse.json({code:'STREAM_LANGUAGE_SKIP'},{status:409,headers:{'x-bia-stream-skipped':'language'}});
+ const revisions=globalThis as typeof globalThis&{biaGenerationDevoirs?:number;biaGenerationPrononciation?:number};
+ const cle=createHash('sha256').update(JSON.stringify([url,secret,language,body.voice,spoken,parts[partie].prise,partie,parts.length,revisions.biaGenerationDevoirs||0,revisions.biaGenerationPrononciation||0])).digest('hex');
+ const deja=cacheFlux.get(cle);
+ if(deja){const encoder=new TextEncoder();return new Response(new ReadableStream({start(c){for(const frame of deja)c.enqueue(encoder.encode(JSON.stringify({...frame,...(frame.type==='meta'?{preparation_ms:Date.now()-start,audio_en_cache:true}:{}),...(frame.type==='audio'?{premier_audio_ms:Date.now()-start}:{} )})+'\n'));c.close();}}),{headers:{'content-type':'application/x-ndjson; charset=utf-8','cache-control':'no-store, no-transform','x-accel-buffering':'no'}});}
  const abort=new AbortController();const deadline=setTimeout(()=>abort.abort(),90000);
  const cancel=()=>abort.abort();request.signal.addEventListener("abort",cancel,{once:true});
  let upstream:Response;
@@ -44,19 +51,20 @@ export async function POST(request:NextRequest){
  const cleanup=()=>{clearTimeout(deadline);request.signal.removeEventListener("abort",cancel);};
  const stream=new ReadableStream<Uint8Array>({
   async start(controller){
-   const emit=(d:any)=>controller.enqueue(encoder.encode(JSON.stringify(d)+"\n"));
+   const frames:any[]=[];
+   const emit=(d:any)=>{frames.push(d);controller.enqueue(encoder.encode(JSON.stringify(d)+"\n"));};
    try{
     for(;;){
      const r=await reader.read();if(r.done)break;buffer+=decoder.decode(r.value,{stream:true});
      if(buffer.length>2_000_000)throw Error("Paquet vocal trop grand");
      let cut;while((cut=buffer.indexOf("\n"))>=0){const line=buffer.slice(0,cut);buffer=buffer.slice(cut+1);if(!line.trim())continue;const d=JSON.parse(line);
       if(d.type==="meta"){if(hasMeta||d.checkpoint_sha256!==(language==="fr"?FRENCH_SHA:SHA)||d.voice!==body.voice||d.sample_rate!==24000)throw Error("Moteur vocal incorrect");hasMeta=true;emit({...d,parties:parts.length,partie,preparation_ms:Date.now()-start});}
-      else if(d.type==="audio"){if(!hasMeta||d.sequence!==sequence||d.offset_samples!==samples||!Number.isSafeInteger(d.samples)||d.samples<=0||typeof d.audio_base64!=="string")throw Error("Morceau vocal incomplet");sequence++;samples+=d.samples;emit(d);}
+      else if(d.type==="audio"){if(!hasMeta||d.sequence!==sequence||d.offset_samples!==samples||!Number.isSafeInteger(d.samples)||d.samples<=0||typeof d.audio_base64!=="string")throw Error("Morceau vocal incomplet");sequence++;samples+=d.samples;emit({...d,premier_audio_ms:Date.now()-start});}
       else if(d.type==="end"){if(!hasMeta||d.packets!==sequence||d.samples!==samples||!sequence)throw Error("Lecture vocale incomplète");finished=true;noterChatterboxTest(body.voice,{ok:true,generationMs:d.generation_ms});emit(d);}
       else throw Error(d.error||"Streaming vocal interrompu");
      }
     }
-    if(!finished)throw Error("Streaming interrompu avant la fin");controller.close();
+    if(!finished)throw Error("Streaming interrompu avant la fin");cacheFlux.set(cle,frames,frames.reduce((n,d)=>n+JSON.stringify(d).length*2,0));controller.close();
    }catch(error){noterChatterboxTest(body.voice,{ok:false,code:"STREAM_INTERRUPTED"});
     try{if(abort.signal.aborted)controller.error(error);else{emit({type:"error",error:(error as Error).message});controller.close();}}catch{}
    }
