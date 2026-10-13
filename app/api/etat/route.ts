@@ -1,3 +1,4 @@
+import {resumeBusiness} from '@/lib/essai-business';
 import {resumeSoxla} from '@/lib/essai-soxla';
 import {resumeLanLool} from '@/lib/essai-lan-lool';
 import {resumeFinBi} from "@/lib/essai-fin-bi";
@@ -140,6 +141,7 @@ export async function GET(request: Request) {
     ecoute: ecouteConfig.fournisseur,
     corrections_devoirs:resumeCorrectionsDevoir(),
     continuite_voix:resumeContinuiteVoix(),
+    lecture_business: resumeBusiness(),
     lecture_soxla: resumeSoxla(),
     lecture_lan_lool: resumeLanLool(),
     lecture_fin_bi: resumeFinBi(),
