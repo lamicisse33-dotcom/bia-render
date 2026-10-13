@@ -1,3 +1,4 @@
+import {resumeEssaiMemoire} from "@/lib/essai-memoire-maitre";
 import {resumeRecherche} from "@/lib/recherche";
 import {resumeFonctionsBase} from "@/lib/essai-fonctions-base";
 import {resumeEssaiComprehension} from "@/lib/essai-comprehension";
@@ -161,6 +162,7 @@ export async function GET(request: Request) {
     lecture_devoirs: resumeLectureDevoirs(),
     recherche_web:resumeRecherche(),
     fonctions_base:resumeFonctionsBase(),
+    memorisation_maitre:resumeEssaiMemoire(),
     comprehension_conversation:resumeEssaiComprehension(),
     transcription_contextuelle: resumeCorrectionContexte(),
     ecoute_configuration: {

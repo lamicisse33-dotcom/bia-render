@@ -23,11 +23,28 @@ const sorties = new Set([
   "desactive le mode apprentissage", "reviens en mode normal", "repasse en mode normal",
   "mode normal", "arrete d apprendre", "on arrete", "fini fini", "termine termine",
 ]);
+type Tour = {role: string; text?: string; content?: string};
+/** Only the owner's last contribution is eligible, never a model's invention.
+ * The web client includes the current command in history: ignore it once. */
+function phraseDuContexte(history: Tour[], question: string): string {
+  const users = history.filter(t => t.role === "user");
+  const contenu = (t: Tour) => String(t.text ?? t.content ?? "").trim();
+  if (users.length && normaliser(contenu(users[users.length-1])) === normaliser(question)) users.pop();
+  const dernier = users.at(-1);
+  if (!dernier) return "";
+  let phrase = contenu(dernier);
+  // A request to begin teaching or an acknowledgement is not the taught content.
+  if (!phrase || /^(?:bonjour|salut|merci|ok|d accord|oui|non|tres bien|c est bon|parfait)$/.test(normaliser(phrase))
+    || /^(?:memorise|retiens|garde|enregistre|repete|corrige|on apprend|je vais|je veux|peux tu|est ce que|qu est ce|comment|pourquoi|dis moi)\b/.test(normaliser(phrase))) return "";
+  phrase = phrase.replace(/^(?:non[,!.]?\s*)?(?:il faut dire|tu dois dire|dis plutôt|la bonne phrase (?:est|c'est)|la correction (?:est|c'est))\s*:\s*/i, "");
+  return phrase;
+}
+
 type Reponse = { reply: string; emotion: string; apprend: boolean; aRepeter: string;
   source: string; retenu?: string; ordre?: string };
 
 export async function executerLecon(input: {
-  texte: string; maitre: boolean; actif: boolean; phrase: string;
+  texte: string; maitre: boolean; actif: boolean; phrase: string; history?: Tour[];
 }, memoriser: (phrase: string) => Promise<void>): Promise<Reponse | null> {
   if (!input.maitre) return null;
   const texte = input.texte.trim();
@@ -41,18 +58,23 @@ export async function executerLecon(input: {
 
   // A colon or an explicit 'avec/après moi' delimits the payload exactly.
   const repetition = texte.match(/^(?:r[ée]p[èée]te(?:\s+(?:avec|apr[èe]s)\s+moi)?\s*:\s*|r[ée]p[èée]te\s+(?:avec|apr[èe]s)\s+moi\s+)([\s\S]+)$/i);
-  const memoire = texte.match(/^(?:m[ée]morise|retiens)(?:\s+(?:ceci|cette phrase))?\s*:\s*([\s\S]+)$/i)
-    ?? texte.match(/^(?:m[ée]morise|retiens)\s+(?:ceci|cette phrase|que)\s+([\s\S]+)$/i);
+  const sansAdresse = texte.replace(/^(?:(?:bia|s[’\']il te plaît|s[’\']il te plait|ok|bon|voilà|très bien)[,!.]?\s+)+/i, "");
+  const memoire = sansAdresse.match(/^(?:m[ée]morise|retiens|garde(?: en mémoire)?|enregistre)(?:\s+(?:ça|cela|ceci|cette phrase|cette correction))?\s*:\s*([\s\S]+)$/i)
+    ?? sansAdresse.match(/^(?:m[ée]morise|retiens|garde(?: en mémoire)?|enregistre)\s+(?:ceci|cette phrase|que)\s+([\s\S]+)$/i);
   if (repetition) return reponse(repetition[1].trim(), true, repetition[1].trim(), "repete");
-  const garder = Boolean(memoire) || (input.actif && /^(?:memorise|retiens|garde)(?: ca)?$/.test(commande));
+  const ordreMemoire = commande.replace(/^(?:(?:voila|tres bien|c est bon|oui) )+/, "");
+  const garder = Boolean(memoire)
+    || /^(?:memorise|memorisez|memoriser|retiens|retenez|garde|gardez|enregistre) (?:ca|cela|ceci|cette phrase|cette correction|ce que je viens de dire)(?: en memoire)?$/.test(ordreMemoire)
+    || /^(?:memorise memorise|retiens retiens|garde garde)$/.test(ordreMemoire)
+    || (input.actif && /^(?:memorise|retiens|garde)$/.test(ordreMemoire));
   if (garder) {
-    const phrase = memoire ? memoire[1].trim() : input.phrase.trim();
-    if (!phrase) return reponse("Dis-moi d'abord la phrase à mémoriser, papa.", true, "");
+    const phrase = memoire ? memoire[1].trim() : input.actif ? input.phrase.trim() : phraseDuContexte(input.history || [], texte);
+    if (!phrase) return reponse("Quelle phrase exacte veux-tu que je mémorise, papa ? Dis-moi « mémorise : » suivi de cette phrase.", input.actif, "");
     try {
       await memoriser(phrase);
-      return {...reponse(ACCUSES_LECON.memoire, true, phrase, "retiens"), retenu: phrase};
+      return {...reponse(ACCUSES_LECON.memoire, input.actif, input.actif ? phrase : "", "retiens"), retenu: phrase};
     } catch {
-      return {...reponse("Je n'ai pas pu mémoriser, papa. Tu peux réessayer.", true, phrase), emotion: "concernee"};
+      return {...reponse("Je n'ai pas pu mémoriser, papa. Tu peux réessayer.", input.actif, phrase), emotion: "concernee"};
     }
   }
   if (input.actif && /^(?:repete|repete ca|redis le)$/.test(commande)) {

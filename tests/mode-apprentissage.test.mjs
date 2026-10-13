@@ -62,3 +62,24 @@ test('audio cache isolates keys, excludes private phrases and expires',()=>{
   assert.equal(cache.get('private','my private lesson'),undefined);
   now=300001; assert.equal(cache.get('female-model-a',phrase),undefined);
 });
+test('normal conversation saves the owner exact wording, not assistant refusal or stale lesson',async()=>{
+ const phrase='Dama soxla preuve de paiement.';
+ for(const texte of ['Mémorise ça.','Garde ça.','Bia, retiens cette correction.','Voilà, c’est bon, mémorise ça !','Mémorise mémorise']){
+  const saved=[];
+  const r=await executerLecon({texte,maitre:true,actif:false,phrase:'old lesson',history:[{role:'user',text:phrase},{role:'bia',text:'Je ne peux pas mémoriser.'},{role:'user',text:texte}]},async p=>{saved.push(p)});
+  assert.deepEqual(saved,[phrase],texte);assert.equal(r.retenu,phrase);assert.equal(r.apprend,false);assert.equal(r.aRepeter,'');
+ }
+});
+test('outside lessons missing content asks for exact phrase and never saves assistant content',async()=>{
+ let writes=0;
+ for(const history of [[],[{role:'bia',text:'Invented answer'}],[{role:'user',text:'Je vais te traduire les phrases une à une.'}],[{role:'user',text:'Mémorise ça'}]]){
+  const r=await executerLecon({texte:'Garde ça',maitre:true,actif:false,phrase:'stale',history},async()=>{writes++});
+  assert.equal(r.retenu,undefined);assert.equal(r.apprend,false);assert.match(r.reply,/phrase exacte/);
+ }
+ assert.equal(writes,0);
+});
+test('inline command keeps accented wording and normal conversation state',async()=>{
+ const phrase='Ñu ngi fi. Nanga def ?';let saved;
+ const r=await executerLecon({texte:'Bia, garde en mémoire : '+phrase,maitre:true,actif:false,phrase:''},async p=>{saved=p});
+ assert.equal(saved,phrase);assert.equal(r.apprend,false);
+});

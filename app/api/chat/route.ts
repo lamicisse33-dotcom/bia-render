@@ -1,3 +1,4 @@
+import {enregistrerPhraseMaitre} from "@/lib/memoire-maitre";
 import {reponseHorloge,contexteHorloge} from "@/lib/horloge";
 import {reponseIdentite} from "@/lib/identite-bia";
 import {audioPourReponse} from "@/lib/audio-memoire";
@@ -52,7 +53,7 @@ import { lecconQuiRepond, lecconsActives, leconsSousLaMain } from "@/lib/lecons"
 import { demandeDeNombre, repondreAuNombre } from "@/lib/nombre-demande";
 import { consigneDesSouvenirs, garder, retrouver, souvenirsActifs, type Souvenir } from "@/lib/souvenirs";
 import { SERVICES } from "@/lib/services-textes";
-import { ajouterCorrection, cequElleAAppris, retirerCorrection, lexiqueConfig } from "@/lib/lexique";
+import { cequElleAAppris, retirerCorrection, lexiqueConfig } from "@/lib/lexique";
 import { REGLES_REPERTOIRE, REPERTOIRE_PRET, consigneRepertoireCandidates, dejaDiteJusteAvant, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
 import { BLAGUES, DEMANDES_DE_BLAGUE, RELU_BLAGUES } from "@/lib/blagues-textes";
 import { SALUTATIONS, choisirService, familleDuGeste, panneDite } from "@/lib/services-textes";
@@ -1096,7 +1097,9 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
   /* Ce que le téléphone a recu, et ce qu'il en a fait. */
   let envoye="";
   let dejaParle=false;
-  const emettre=emettreBrut?((morceau:string)=>{
+  // Memory confirmations must not be spoken before Supabase accepts them.
+  const attendreMemoire=parleDeMemoire(String(body.message||""))||Boolean(body.apprend||body.correctionDevoir);
+  const emettre=emettreBrut&&!attendreMemoire?((morceau:string)=>{
     envoye+=morceau;
     if(!dejaParle&&teteDeLaReponse(envoye))dejaParle=true;
     emettreBrut(morceau);
@@ -1184,15 +1187,15 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       const correctionRacine=await corrigerDevoirConversation({question,maitre:true,origine:body.origineDevoir,active:body.correctionDevoir,phrase:body.aRepeter},corrigerDevoir);
       if(correctionRacine)return {corps:correctionRacine};
       const lecon = await executerLecon({texte:question, maitre:true,
-        actif:Boolean(body.apprend), phrase:String(body.aRepeter||"")}, async (phrase) => {
+        actif:Boolean(body.apprend), phrase:String(body.aRepeter||""), history:body.history}, async (phrase) => {
         try {
           if (!lexiqueConfig.actif) throw new Error("Mémoire persistante non configurée");
-          await ajouterCorrection({source:phrase,corrigee:phrase,langue:langueDe(phrase),
-            auteur:"maitre-vocal",application:"bia"});
+          await enregistrerPhraseMaitre(phrase,langueDe(phrase));
           noterTentative({dit:question,maitre:true,ordre:"retiens",en_main:true,
             signes_en_main:phrase.length,ecrit:true,motif:"rangée"});
         } catch (err) {
           noterPanne("mémorisation apprentissage",(err as Error).message,"chat");
+          noterTentative({dit:question,maitre:true,ordre:"retiens",en_main:true,signes_en_main:phrase.length,ecrit:false,motif:"écriture ou relecture non confirmée"});
           throw err;
         }
       });
@@ -1213,10 +1216,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
              lib/instructions.ts : s'il dit « c'est bon », le texte qui a
              produit ce son EST le bon texte. */
           try{
-            await ajouterCorrection({
-              source:repete,corrigee:repete,langue:langueDe(repete),
-              auteur:"maitre-vocal",application:"bia",
-            });
+            await enregistrerPhraseMaitre(repete,langueDe(repete));
             noterTentative({dit:question,maitre:true,ordre:ordre.quoi,en_main:true,
               signes_en_main:repete.length,ecrit:true,motif:"rangée"});
           }catch(err){
@@ -2650,7 +2650,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         imagesActives() ? "IMAGES : [[cherche-image:recherche précise en français]]." : "",
         "APPEL : [[appel:+221XXXXXXXXX|Nom]] uniquement si demandé et si le numéro est connu, jamais inventé.",
         "MICRO : [[micro:coupe]] seulement si la personne demande de fermer le micro ; [[micro:silence]] si elle veut seulement interrompre la voix.",
-        verdict.maitre ? "MÉMOIRE : pour une demande explicite de mémoriser une phrase, [[retiens:phrase exacte]] ; pour oublier, [[oublie:phrase exacte]]. Ne dis pas avoir mémorisé sans cette commande." : "",
+        verdict.maitre ? "MÉMOIRE PERSISTANTE DISPONIBLE : le maître peut enseigner des corrections pendant la conversation, sans ouvrir une fenêtre. Ne dis pas que tu ne peux pas mémoriser ou que seule la session les conserve. Pour une demande explicite de mémoriser, extrais ses mots exacts (jamais ta propre reformulation) de son message ou de l’historique et émets [[retiens:phrase exacte]] ; pour oublier, [[oublie:phrase exacte]]. Si la phrase manque ou si plusieurs corrections sont possibles, demande laquelle. Annonce sobrement la prise en compte avec la commande : le serveur l’enregistre dans Supabase avant de confirmer, et signale tout échec. Une intention future (« je vais te traduire les phrases une à une ») prépare l’échange, sans rien enregistrer tant que le contenu n’a pas été fourni et validé." : "",
         (webDuTour || (o.avecOutil && !local && (!cerebras || rechercheViaGroq)))
           ? "La recherche web est disponible pour cette réponse : vérifie les faits actuels avec elle."
           : "Pas de recherche web pour cette réponse : ne prétends pas avoir vérifié des faits actuels.",
@@ -3217,10 +3217,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       }
       if(aGarder){
         try{
-          await ajouterCorrection({
-            source:aGarder,corrigee:aGarder,langue:langueDe(aGarder),
-            auteur:"maitre-vocal",application:"bia",
-          });
+          await enregistrerPhraseMaitre(aGarder,langueDe(aGarder));
           noterTentative({dit:question,maitre:true,ordre:"retiens",en_main:true,
             signes_en_main:aGarder.length,ecrit:true,motif:"rangée par la balise"});
         }catch(err){

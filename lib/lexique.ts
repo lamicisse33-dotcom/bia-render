@@ -45,6 +45,7 @@ export async function ajouterCorrection(e: Entree): Promise<number> {
 
   const r = await fetch(`${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}`, {
     method: "POST",
+    signal: AbortSignal.timeout(8000),
     headers: { ...entetes(), Prefer: "return=minimal" },
     body: JSON.stringify([{
       source: e.source, corrigee: e.corrigee,
