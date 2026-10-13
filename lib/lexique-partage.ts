@@ -5,6 +5,7 @@ type Snapshot={version:1;provenance:string;revision:string;importe:string;entree
 let cache:Snapshot|null=null,jusqua=0,lecture:Promise<EntreePartagee[]>|undefined;
 let bilan={statut:'non_lu',entrees:0,paires:0,provenance:'',revision:'',importe:'',dernier_ms:0};
 export const resumeLexiquePartage=()=>({...bilan});
+export function invaliderLexiquePartage(){cache=null;jusqua=0;}
 export function lireLexiquePartage():Promise<EntreePartagee[]>{
  if(Date.now()<jusqua)return Promise.resolve(cache?.entrees||[]);
  const charger=()=>lecture??=(async()=>{const debut=Date.now();try{

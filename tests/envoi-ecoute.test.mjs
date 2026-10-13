@@ -27,7 +27,7 @@ const salut=load('lib/salutations-dialogue.ts',{'./normaliser':normaliser,'./rep
 test('corrected greetings skip a lesson search, but a greeting plus a request keeps it',async()=>{
  let lecons=0;
  const corr=load('lib/correction-transcription.ts',{
-  './salutations-dialogue':salut,'./devoirs-apprentissage':{phrasesApprisesDevoirs:async()=>{lecons++;return []; }},
+  './biba-corrections':{lireCorrectionsBiba:async()=>[]},'./lexique-partage':{lireLexiquePartage:async()=>[]},'./salutations-dialogue':salut,'./devoirs-apprentissage':{phrasesApprisesDevoirs:async()=>{lecons++;return []; }},
   './comparaison-lexique-core':{propositionsLexique:()=>['suggestion']},'./lexique':{},'./lexique-apprentissage-core':{},
   './lexique-apprentissage':{lireLecons:async()=>{lecons++;return [];}}
  });

@@ -21,6 +21,7 @@ import { intentionMedia, chercherWeb, contexteWeb, webConfigure } from "@/lib/ac
 import { correctionDuMaitre } from "@/lib/correction-maitre";
 import { executerLecon } from "@/lib/mode-apprentissage";
 import {preparerCorrectionVocale} from "@/lib/correction-vocale";
+import {contexteBiba} from "@/lib/biba-corrections";
 import { appelerCerebras } from "@/lib/cerveau-cerebras";
 import { noterConversation } from "@/lib/conversation-etat";
 import { repetitionExacteDuMaitre, CONSIGNE_MAITRE, messagesConversation, effortConversation, reglagesConversation } from "@/lib/conversation-groq";
@@ -2336,17 +2337,18 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        toujours avant (juste au-dessus). La consigne entre dans la clé : si
        Lamine la change, les réponses se renouvellent d'elles-mêmes. */
     // Independent source reads share the same waiting period, not four in series.
-    const [devoirs,instructionsDuTour,maitrises,fichesDuTour,choixPrepare]=await Promise.all([
+    const [devoirs,instructionsDuTour,maitrises,fichesDuTour,choixPrepare,bibaDuTour]=await Promise.all([
       contexteDevoirs(question).catch(()=>{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");return "";}),
       maitre.ok&&maitre.maitre?contexteInstructions().catch(()=>{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");return "";}):Promise.resolve(""),
       maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?contexteMaitrises(question,body.history,3000).catch(()=>""):Promise.resolve(""),
       fichesPourConversation(question,body.history||[],3500),
       utiliserChoix?choixDuTour(question,body.history).catch(()=>null):Promise.resolve(null),
+      contexteBiba(question,body.history).catch(()=>''),
     ]);
     choixIntegre=choixPrepare;
     if(instructionsDuTour)variable+="\n"+instructionsDuTour;
     if(body.apprentissageTest)variable+="\nTEST PÉDAGOGIQUE : réponds à la question avec les connaissances et les corrections mémorisées. Ne transforme pas la question en leçon, ne la répète pas comme exercice et ne propose aucun enregistrement.";
-    const consigneSignee="conversation-appel-unique-v1\n"+(choixIntegre?.consigne||"")+"fiches-connectees-v1\n"+fichesDuTour+(produitsDuTour?"produits-connectes-v1\n"+produitsDuTour:"")+maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
+    const consigneSignee="conversation-appel-unique-v1\n"+(choixIntegre?.consigne||"")+"fiches-connectees-v1\n"+fichesDuTour+bibaDuTour+(produitsDuTour?"produits-connectes-v1\n"+produitsDuTour:"")+maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
     const reutilisable=!body.suggestionsTranscription?.length&&!dependDuContexte(question)&&!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
       const dejaDonnee=await reponseGardee(question,langueDe(question),consigneSignee);
@@ -2679,7 +2681,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         suggestionsTranscription: Array.isArray(body.suggestionsTranscription)?body.suggestionsTranscription:[],
         question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
         contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, "").replace(instructionsDuTour, "")+"\n"+contexteHorloge(),
-        fiches:fichesDuTour,instructions:instructionsDuTour,devoirs:choixIntegre?.consigne?"":devoirs,vitrine:aMontrer,
+        fiches:[fichesDuTour,bibaDuTour].filter(Boolean).join('\n'),instructions:instructionsDuTour,devoirs:choixIntegre?.consigne?"":devoirs,vitrine:aMontrer,
         produits: produitsDuTour, souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: "",
         resume, outils, maitrises:choixIntegre?.consigne||maitrises, nom: "BIA", maitre: verdict.maitre, rapide:true,selection:!!choixIntegre?.consigne,
       });

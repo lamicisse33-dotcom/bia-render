@@ -1,6 +1,7 @@
 import {resumeConnexionFiches} from "@/lib/essai-fiches";
 import {resumeAccesDevoirs,verifierAccesDevoirs} from "@/lib/essai-acces-devoirs";
 import {resumeEssaiCorrectionVocale} from "@/lib/essai-correction-vocale";
+import {resumeBibaCorrections,lireCorrectionsBiba} from "@/lib/biba-corrections";
 import {resumeParcoursRapide} from "@/lib/essai-parcours-rapide";
 import {resumeTransportVoix} from "@/lib/essai-transport-voix";
 import {resumeFichesConnaissances,inventaireFiches} from "@/lib/fiches-connaissances";
@@ -95,6 +96,7 @@ export async function GET(request: Request) {
   if(new URL(request.url).searchParams.get("verifier_devoirs")==="1"){try{await devoirsALire();}catch{ /* The failure is counted, no lesson text leaves here. */ }}
   const verdict = verifierCode(request.headers.get("x-bia-code"));
   const maitre = verdict.ok && verdict.maitre;
+  if(new URL(request.url).searchParams.get('verifier_biba')==='1')try{await lireCorrectionsBiba();}catch{}
   if(new URL(request.url).searchParams.get("verifier_acces_devoirs")==="1"){
     try{await verifierAccesDevoirs();}catch{return NextResponse.json({erreur:"Vérification de la lecture Supabase impossible",version:VERSION},{status:503});}
   }
@@ -184,6 +186,7 @@ export async function GET(request: Request) {
     comprehension_conversation:resumeEssaiComprehension(),
     transcription_contextuelle: resumeCorrectionContexte(),
     correction_vocale:resumeEssaiCorrectionVocale(),
+    corrections_biba:resumeBibaCorrections(),
     ecoute_configuration: {
       soynade_selectionnee: (process.env.STT_PROVIDER || "soynade") === "soynade",
       locale_selectionnee: process.env.STT_PROVIDER === "local_wolof",

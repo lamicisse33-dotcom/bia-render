@@ -4,6 +4,8 @@ import {propositionsLexique} from "./comparaison-lexique-core";
 import {ajouterCorrection,lexiqueConfig} from "./lexique";
 import {APP_LECONS} from "./lexique-apprentissage-core";
 import {lireLecons} from "./lexique-apprentissage";
+import {lireCorrectionsBiba} from './biba-corrections';
+import {lireLexiquePartage} from './lexique-partage';
 type Regle={entendu:string;corrige:string;date:string};
 let cache:{regles:Regle[];expires:number}|null=null;
 const normaliser=(s:string)=>s.normalize("NFC").toLocaleLowerCase().replace(/\s+/gu," ").trim();
@@ -43,11 +45,13 @@ export async function corrigerTranscription(texte:string,regles?:Regle[]){
  return {...resultat,suggestions_ecriture:suggestionsEcriture(resultat.texte,[...regles.map(r=>r.corrige),...lecons])};
 }
 export async function phrasesLexiqueComplet(){
- const resultats=await Promise.allSettled([lireLecons(),phrasesApprisesDevoirs()]);
+ const resultats=await Promise.allSettled([lireLecons(),phrasesApprisesDevoirs(),lireCorrectionsBiba(),lireLexiquePartage()]);
  const individuelles=resultats[0].status==="fulfilled"?resultats[0].value.filter(l=>l.statut==="validé").map(l=>l.texte):[];
  const devoirs=resultats[1].status==="fulfilled"?resultats[1].value:[];
  if(resultats.every(r=>r.status==="rejected"))throw Error("Lexique indisponible");
- return [...new Set([...individuelles,...devoirs])];
+ const biba=resultats[2].status==='fulfilled'?resultats[2].value.map(r=>r.reponse_wo):[];
+ const partage=resultats[3].status==='fulfilled'?resultats[3].value.flatMap(r=>[r.source,r.corrigee]):[];
+ return [...new Set([...individuelles,...devoirs,...biba,...partage])];
 }
 export async function vocabulaireAppris(){
  const phrases=await phrasesLexiqueComplet();
