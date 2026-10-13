@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
     if(source.length>600)return NextResponse.json({error:"Écris une phrase de 600 caractères au maximum."},{status:400});
     const text = sansGuillemetsFrancais(source);
     if (!text || text.length > 600) return NextResponse.json({ error: "Écris une phrase de 600 caractères au maximum." }, { status: 400 });
+    if(!/[\p{L}\p{N}]/u.test(text))return NextResponse.json({error:"La ponctuation seule ne se prononce pas."},{status:400});
     const voice = body?.input?.voice === "male" ? "male" : "female";
     const language = body.input.language === "fr" || body.input.language === "wo" ? body.input.language : detecterLangue(text);
     const francais = language === "fr";

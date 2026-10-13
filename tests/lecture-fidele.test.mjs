@@ -184,3 +184,11 @@ test('measured administration seeds are attached only to unchanged Wolof groups'
  const plan=preparation.preparerAvecRegles('Dañu ma laaj preuve de paiement.','wo',[],[{mot:'laaj',dire:'wax'}],false,true);
  assert(!plan.some(p=>p.prise));
 });
+
+
+test('punctuation-only input never reaches synthesis and the family greeting keeps its measured complete group',async()=>{
+ for(const faithful of [false,true]){
+  for(const t of ['?',' ! ','…','« »'])assert.deepEqual(await preparerPassagesKhalam(t,'wo',false,faithful),[]);
+  assert.deepEqual(await preparerPassagesKhalam('Naka sa famille ?','wo',false,faithful),[{texte:'Naka sa famille ?',langue:'wo'}]);
+ }
+});

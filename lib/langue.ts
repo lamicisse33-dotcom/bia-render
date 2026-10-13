@@ -43,6 +43,9 @@ export type PassageVoix = {texte:string; langue:LangueVoix; prise?:Partial<Recor
 /** Preserve the source exactly. Unknown words inherit their neighbouring context.
  * This is a lexical detector, not a guarantee for every homograph or unknown word. */
 export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", empruntsFrancais:readonly string[]=[], expressionsWolof:readonly string[]=[]):PassageVoix[] {
+  // Measured family greeting: one natural group retains every word and avoids
+  // fragment prosody. Other uses of the French borrowing keep their profile.
+  if(/^\s*Naka sa famille\s*\?\s*$/u.test(texte))return [{texte,langue:'wo'}];
   // ADM-025: the whole Wolof take omitted moo; the measured mixed take
   // keeps its three-word context and gives the final borrowing to French.
   // Exact source only; never rewrite the lesson's unusual spelling.
@@ -107,6 +110,9 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
     const resolues=labels.map((label,i)=>{
       if(label)return label;
       const gauche=labels.slice(0,i).reverse().find(Boolean),droite=labels.slice(i+1).find(Boolean);
+      // Punctuation has no language of its own. A spaced question mark after
+      // French famille was sent alone to Wolof and generated 'yeel a hay'.
+      if(/^[\s\p{P}]+$/u.test(tokens[i]))return gauche||droite||base;
       return gauche&&droite&&gauche===droite?gauche:base;
     });
     let current:LangueVoix=resolues[0]||base;

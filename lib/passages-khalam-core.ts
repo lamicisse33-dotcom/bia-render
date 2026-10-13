@@ -10,7 +10,7 @@ export function preparerAvecRegles(texte:string,defaut:LangueVoix,lecons:Lecon[]
  for(const passage of lierPossessifWolof(passagesLanguesVoix(espacerPonctuationLecture(texte),defaut,emprunts,wolof))){
   const prononce=appliquerRegles(texteKhalamVoix(passage.texte),reglesLeconsMixtes(lecons,passage.langue,anciennes));
   const morceaux=lectureFiable&&passage.langue==='wo'?segmentsLectureWolof(prononce):lecture?segmentsLecture(prononce):decouperVoixKhalam(prononce);
-  for(const morceau of morceaux)if(morceau.trim())out.push({texte:morceau,langue:passage.langue});
+  for(const morceau of morceaux)if(/[\p{L}\p{N}]/u.test(morceau))out.push({texte:morceau,langue:passage.langue});
  }
  return lierBiFinal(out).map(p=>{
   // Measured female takes for exact spoken groups. The other voice and any

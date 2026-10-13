@@ -1,5 +1,4 @@
 import {POST} from '../app/api/chatterbox-test/bia/route';
-import {POST as synthese} from '../app/api/chatterbox-test/route';
 import {ouvrirRepliques} from './flux-repliques';
 import {grainePriseVoix} from './prise-voix';
 import {NextRequest} from 'next/server';
@@ -20,20 +19,6 @@ export function verifierRythme(){return etat.travail??=(async()=>{
   const audio=assemblerSonsCourants(sons,60),mp3=versMp3(audio.wav);
   const entendu=await chezOreilleLocale(new Blob([audio.wav],{type:'audio/wav'}));
   cas.push({variante,texte,plan,secondes:audio.secondes,sha256:createHash('sha256').update(mp3).digest('hex'),transcription_indicative:entendu?.texte||null,audio_mp3:Buffer.from(mp3).toString('base64')});
- }
- for(const [variante,plan,seed] of [
-  ['naka-actuelle',[{texte:'Naka sa',langue:'wo'},{texte:'famille ?',langue:'fr'}],913],
-  ['naka-914',[{texte:'Naka sa',langue:'wo'},{texte:'famille ?',langue:'fr'}],914],
-  ['naka-915',[{texte:'Naka sa',langue:'wo'},{texte:'famille ?',langue:'fr'}],915],
-  ['naka-liee',[{texte:'Naka sa famille ?',langue:'wo'}],913],
-  ['naka-liee-914',[{texte:'Naka sa famille ?',langue:'wo'}],914],
- ] as const){
-  const clips:ArrayBuffer[]=[];
-  for(const p of plan){
-   const r=await synthese(new NextRequest(url,{method:'POST',headers,body:JSON.stringify({input:{text:p.texte,voice:'female',language:p.langue,seed,preserve_segment:true}})}));
-   const d=await r.json();if(!r.ok||!d.output?.audio_base64)throw Error('comparaison_incomplete');clips.push(decode(d.output.audio_base64));
-  }
-  await garder(variante,plan.map(p=>p.texte).join(' '),clips,plan.map(p=>({...p,seed})));
  }
  const flux=[];
  for(const texte of ['Naka sa famille ?','Dañu ma ne dossierbi en cours la.'])for(let essai=0;essai<2;essai++){

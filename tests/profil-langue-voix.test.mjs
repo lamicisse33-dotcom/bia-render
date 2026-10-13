@@ -10,3 +10,10 @@ test('GPU receives the requested take seed and rejects invalid seeds before synt
  const a=setup(sha);assert.equal((await a.call('wo',{seed:1234})).status,200);assert.equal(a.input().seed,1234);
  const b=setup(sha);assert.equal((await b.call('wo',{seed:-1})).status,400);assert.equal(b.input(),undefined);
 });
+
+
+test('GPU is never called to pronounce a punctuation-only input',async()=>{
+ for(const text of ['?', ' ! ', '…']){
+  const s=setup(wo);assert.equal((await s.call('wo',{text})).status,400);assert.equal(s.input(),undefined);
+ }
+});

@@ -182,3 +182,14 @@ test('a measured take changes synthesis and fingerprint; another voice and expli
  assert.notEqual(r.inputs[3].seed,914);
  assert.equal(r.calls(),4);
 });
+
+
+test('spaced punctuation follows its spoken neighbour without creating a new voice fragment',()=>{
+ for(const texte of ['Dama xam problème ?','Dama xam problème !','Dama xam problème :','Dama xam problème …','« problème »']){
+  const p=passagesLanguesVoix(texte,'wo');assert.equal(p.map(p=>p.texte).join(''),texte);
+  assert(!p.some(p=>/^[\s\p{P}]+$/u.test(p.texte)));
+  assert.equal(p.at(-1).langue,'fr');
+ }
+ const texte='Naka sa famille ?';assert.deepEqual(passagesLanguesVoix(texte,'wo'),[{texte,langue:'wo'}]);
+ assert(passagesLanguesVoix('Dama bëgg famille bi.','wo').some(p=>p.langue==='fr'&&p.texte.includes('famille')));
+});
