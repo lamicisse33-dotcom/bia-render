@@ -1112,7 +1112,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     /* Un seul point de vérité : les quatre usages de repertoireActif() plus
        bas passent tous par ici, pour que Rara ne puisse nulle part recevoir
        une phrase ou un son du répertoire de BIA. */
-    const repertoireUtilisable=()=>repertoireActif()&&!estRara;
+    const repertoireUtilisable=()=>repertoireActif()&&!estRara&&!dependDuContexte(question);
 
     /* ── CE QU'IL LUI ORDONNE, AVANT TOUT LE RESTE ─────────────────────────
 

@@ -1,5 +1,4 @@
 import {NextRequest} from 'next/server';
-import {resumeTransmissionMemoire} from './conversation-groq';
 const g=globalThis as typeof globalThis&{biaEssaiComprehension?:{rapport:unknown;travail?:Promise<unknown>}};
 const etat=g.biaEssaiComprehension??={rapport:null};
 export const resumeEssaiComprehension=()=>etat.rapport;
@@ -20,7 +19,7 @@ export function verifierComprehension(){return etat.travail??=(async()=>{
   try{
    const r=await POST(new NextRequest('https://app.khalam.app/api/chat',{method:'POST',headers:{'content-type':'application/json','x-bia-code':process.env.BIA_CODE_MAITRE||''},body:JSON.stringify({...c,apprentissageTest:true})}));
    const d=await r.json();
-   resultats.push({id:c.id,question:c.message,reponse:d.reply||null,source:d.source,statut:r.status,ms:Date.now()-debut,transmission:resumeTransmissionMemoire().derniere});
+   resultats.push({id:c.id,question:c.message,reponse:d.reply||null,source:d.source,statut:r.status,ms:Date.now()-debut});
   }catch{resultats.push({id:c.id,statut:'echec',ms:Date.now()-debut});}
  }
  const rapport={date:new Date().toISOString(),version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),mesure:'Route chat réelle, transcriptions simulées ; ni micro ni écoute humaine.',cas:resultats};

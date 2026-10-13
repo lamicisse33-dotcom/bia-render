@@ -14,5 +14,22 @@ Les suggestions du lexique sont des hypothèses linguistiques, jamais des instru
 export function dependDuContexte(q:string):boolean{
  const t=q.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
  return /\b(ca|cela|celui|celle|lui|eux|la.bas|alors|aussi|pareil|encore|plutot|meme chose|bi|ko|loolu|foofu|moom)\b/.test(t)
-   || /^(et|mais|non|oui|waaw|deedet)\b/.test(t);
+   || /^(et|mais|non|oui|waaw|deedet|deedeet|begguma)\b/.test(t);
+}
+
+/** Prefer Wolof sentence structure over the number of French borrowings. */
+export function langueConversation(question:string,history:Array<{role:string;content:string}>):"wo"|"fr"{
+ const norm=(s:string)=>s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+ const explicite=(s:string)=>{const m=norm(s).match(/\b(?:reponds?|parle|waxal|wax)\s+(?:moi\s+)?(?:en|ci)\s+(wolof|francais)\b/);return m?(m[1]==="wolof"?"wo":"fr"):null;};
+ const preference=explicite(question)||[...history].reverse().filter(m=>m.role==="user").map(m=>explicite(m.content)).find(Boolean);
+ if(preference)return preference;
+ const reconnaitre=(s:string):"wo"|"fr"|null=>{
+  const t=norm(s),mots=t.match(/[a-z]+/g)||[];
+  if(/^(?:qu est ce|est ce que|pourquoi|comment|je |j ai |tu |vous |peux tu |quel|quelle)/.test(t))return "fr";
+  if(/\b(dama|damay|danga|dangay|danu|nanga|sama|begguma|soxla|sokhla|deedeet|deedet|waaw|damasoxla)\b/.test(t))return "wo";
+  if(mots.filter(m=>["dem","ci","bi","la","nga","maa","loolu","ko","te","nu","naka","benn"].includes(m)).length>=2)return "wo";
+  if(/\b(je|mon|mes|pour|avec|depuis|hier|telephone|ordinateur|bonjour)\b/.test(t))return "fr";
+  return null;
+ };
+ return reconnaitre(question)||[...history].reverse().filter(m=>m.role==="user").map(m=>reconnaitre(m.content)).find(Boolean)||"fr";
 }

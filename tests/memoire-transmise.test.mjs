@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
-const js=ts.transpileModule(fs.readFileSync('lib/conversation-groq.ts','utf8').replace(/^import \{CONSIGNE_COMPREHENSION\} from .*;$/m,fs.readFileSync('lib/comprehension-conversation.ts','utf8')),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+const js=ts.transpileModule(fs.readFileSync('lib/conversation-groq.ts','utf8').replace(/^import \{CONSIGNE_COMPREHENSION,langueConversation\} from .*;$/m,fs.readFileSync('lib/comprehension-conversation.ts','utf8')),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
 const {messagesConversation,resumeTransmissionMemoire}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
 test('memories, Wolof corrections and KHALAM knowledge survive an oversized unrelated context',()=>{
  const messages=messagesConversation({question:'Que sais-tu de notre projet ?',history:[],maitre:true,

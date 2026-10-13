@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import ts from 'typescript';
 import fs from 'node:fs';
 const load = async (path) => {
-  const source=fs.readFileSync(path,'utf8').replace(/^import \{CONSIGNE_COMPREHENSION\} from .*;$/m,fs.readFileSync('lib/comprehension-conversation.ts','utf8'));
+  const source=fs.readFileSync(path,'utf8').replace(/^import \{CONSIGNE_COMPREHENSION,langueConversation\} from .*;$/m,fs.readFileSync('lib/comprehension-conversation.ts','utf8'));
   const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
   return import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
 };
@@ -54,4 +54,19 @@ test('actual compact messages carry contextual interpretation and bounded unconf
  const hints=messages.find(m=>m.content.includes('HYPOTHÈSES DE TRANSCRIPTION'));
  assert(hints);assert(!hints.content.includes('quatre'));assert(!hints.content.includes('x'.repeat(601)));
  assert.deepEqual(messages.filter(m=>m.role!=='system'),[...history,{role:'user',content:question}]);
+});
+
+test('Wolof sentence structure survives French borrowings and explicit French preference wins',()=>{
+ for(const q of ['Dama sokhla preuve de paiement.','pour dem université bi','Déedéet, bëgguma.']){
+  const m=messagesConversation({question:q,history:[]});assert(m.at(-2).content.includes('LANGUE DE CE TOUR : wolof'));
+ }
+ for(const q of ['Je veux une preuve de paiement.','depui hier soire'])assert(messagesConversation({question:q,history:[]}).at(-2).content.includes('LANGUE DE CE TOUR : français'));
+ assert(messagesConversation({question:'Dama soxla preuve de paiement.',history:[{role:'user',content:'Réponds en français.'}]}).at(-2).content.includes('LANGUE DE CE TOUR : français'));
+});
+test('a refusal must reach contextual conversation, not a fixed echo',async()=>{
+ const {dependDuContexte}=await load('lib/comprehension-conversation.ts');
+ assert(dependDuContexte('Déedéet, bëgguma.'));assert(dependDuContexte('Waaw.'));
+ assert(!dependDuContexte('Bonjour'));
+ const route=fs.readFileSync('app/api/chat/route.ts','utf8');
+ assert(route.includes('const repertoireUtilisable=()=>repertoireActif()&&!estRara&&!dependDuContexte(question);'));
 });

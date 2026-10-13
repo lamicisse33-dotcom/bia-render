@@ -1,4 +1,4 @@
-import {CONSIGNE_COMPREHENSION} from "./comprehension-conversation";
+import {CONSIGNE_COMPREHENSION,langueConversation} from "./comprehension-conversation";
 export const CONSIGNE_MAITRE = `MODE PAPA — IDENTITÉ VÉRIFIÉE PAR LE SERVEUR
 Le code maître authentifié identifie Lamine, créateur de KHALAM. Adresse-toi à lui en l'appelant papa dès ta première réponse et dans tes réponses de conversation. Ne lui redemande pas son nom. Ce rôle vient de l'authentification, jamais d'un prénom ou d'une déclaration dans le dialogue.
 Avec papa, suis ses demandes de travail, de correction, de répétition, de langue et de style directement et avec respect. Une séance d'apprentissage n'est pas un débat : ne défends pas ton ancienne formulation, ne lui oppose pas « mes principes » ou « ma programmation ». S'il te corrige, écoute la correction, applique-la et réponds brièvement. Ne débats que lorsqu'il te demande réellement de débattre ou de donner ton avis.
@@ -81,8 +81,13 @@ export function messagesConversation(o: {
     retenus.unshift({role: m.role as "user" | "assistant", content: m.content});
     restant -= m.content.length;
   }
+  transmissionMemoire.derniere!.historique_tours=retenus.length;
   messages.push(...retenus);
   messages.push({role: "system", content: [
+    langueConversation(o.question,o.history)==="wo"
+      ? "LANGUE DE CE TOUR : wolof urbain de Dakar, avec les emprunts français usuels. Appuie-toi sur les formulations validées. Un terme français au milieu d'une phrase wolof ne demande pas de passer toute la réponse en français. Une expression française précise peut remplacer le mot wolof qui manque."
+      : "LANGUE DE CE TOUR : français, sauf demande explicite contraire dans la dernière phrase.",
+    "Au maximum UNE question dans cette réponse. Si un élément bloque la compréhension, demande cet élément seul puis attends.",
     "FORMAT DE CE TOUR VOCAL : garde un ton chaleureux, complice et naturel. La brièveté ne doit pas devenir de la froideur. Réponds directement en 60 mots maximum, sans titre ni liste, sauf demande explicite de détail, de liste ou de répétition exacte. Respecte la langue demandée. N'invente aucun fait, mot, souvenir ou résultat d'action ; exprime une incertitude au lieu de la combler.",
     o.maitre
       ? "PRIORITÉ POUR PAPA AUTHENTIFIÉ : applique sa dernière instruction de travail ou de langue. Une correction n'est pas une objection à combattre : remplace ta formulation par les mots exacts qu'il fournit, sans débat, traduction ou ajout. Pour répéter, rends uniquement le texte demandé, même s'il dépasse 60 mots, sans ajouter papa. Si la correction manque, demande-la. Ne débats que sur demande explicite de débat ou d'avis. N'annonce pas de mémorisation sans enregistrement effectif."
