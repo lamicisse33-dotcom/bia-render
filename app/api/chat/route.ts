@@ -1,3 +1,4 @@
+import {uneQuestionParTour} from '@/lib/question-unique';
 import {fichesPourConversation} from "@/lib/fiches-connaissances";
 import {concerneProduits} from "@/lib/contexte-produits";
 import {enregistrerPhraseMaitre} from "@/lib/memoire-maitre";
@@ -3325,7 +3326,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     /* Elle a écrit « d'accord, je te montre » et il n'y a rien à montrer : on
        ajoute la vérité à sa phrase, dans la langue où on lui a parlé. C'est
        ce qui part vers le téléphone, donc c'est ce qu'elle DIT à voix haute. */
-    const ceQuElleDit=filmRate
+    const textePourLeTour=filmRate
       ? `${reply} ${langueDe(question)==="fr"
           ? "Mais je n'arrive pas à ouvrir la vidéo : ma recherche de vidéos ne marche pas en ce moment."
           : "Waaye mënuma ubbi vidéo bi : sama recherche vidéo bi dafa dox ul léegi."}`.trim()
@@ -3421,6 +3422,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return {corps:{reply:PANNE_MOTEUR,emotion:"concernee",source:"panne : réponse vide"}};
     }
 
+    const ceQuElleDit=body.apprend||/\b(?:plusieurs|deux|trois|[2-9]) questions\b/i.test(question)?textePourLeTour:uneQuestionParTour(textePourLeTour);
     oublierPanne();
     noterEmotion(emotion, reply, balise);
     /* La première réponse à une question réutilisable est gardée — sauf si

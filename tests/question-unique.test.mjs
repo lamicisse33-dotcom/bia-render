@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import ts from 'typescript';
+const {uneQuestionParTour}=await import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(fs.readFileSync('lib/question-unique.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText).toString('base64'));
+test('keeps the useful answer and one whole question before waiting',()=>assert.equal(uneQuestionParTour('Tu veux vendre des chaussures à Dakar. Quel public vises-tu ? Quel est ton budget ?'),'Tu veux vendre des chaussures à Dakar. Quel public vises-tu ?'));
+test('single questions and plain answers remain intact, including query strings in URLs',()=>{for(const t of ['Note tes dépenses.','Quel projet envisages-tu ?','Consulte https://exemple.test/?q=1&n=2. Quel projet envisages-tu ?'])assert.equal(uneQuestionParTour(t),t)});
