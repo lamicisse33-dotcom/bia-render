@@ -1,7 +1,7 @@
 const norm=(s:string)=>s.normalize("NFC").toLowerCase().replace(/[.,!?;:]/g,"").replace(/\s+/g," ").trim();
 const tokens=(s:string)=>norm(s).match(/[\p{L}\p{M}\p{N}'’-]+/gu)||[];
 const distance=(a:string,b:string)=>{let p=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){const r=[i];for(let j=1;j<=b.length;j++)r[j]=Math.min(r[j-1]+1,p[j]+1,p[j-1]+Number(a[i-1]!==b[j-1]));p=r;}return p[b.length];};
-export function phrasesDevoirsValides(blocs:Array<{id:string;index:number;total:number;texte:string;statut?:string;date_validation?:string}>):string[]{
+export function phrasesDevoirsValides(blocs:Array<{id:string;index:number;total:number;texte:string;statut?:string;date_validation?:string}>,wolofSeulement=false):string[]{
  const groups=new Map<string,typeof blocs>();for(const b of blocs){const g=groups.get(b.id)||[];if(!g.some(x=>x.index===b.index))g.push(b);groups.set(b.id,g);}
  const out=new Set<string>();
  for(const g of groups.values()){
@@ -12,7 +12,7 @@ export function phrasesDevoirsValides(blocs:Array<{id:string;index:number;total:
   for(let line of lines){
    line=line.trim();if(!line||/^(devoir|exercice|instruction|test|regle|règle|consigne|objectif|partie|correction)\b/i.test(line))continue;
    const labelled=line.match(/^(?:wolof|français|francais)\s*:\s*(.+)$/i);
-   if(labelled)line=labelled[1];else if(/^[A-ZÀ-Ÿ\s—-]{8,}$/.test(line)||line.endsWith(":"))continue;
+   if(labelled){if(wolofSeulement&&!/^wolof\s*:/i.test(line))continue;line=labelled[1];}else if(/^[A-ZÀ-Ÿ\s—-]{8,}$/.test(line)||line.endsWith(":"))continue;
    line=line.replace(/^(?:[A-Z]?\d+[.)—:-]?\s+)/,"").trim();
    if(line.length>=3)out.add(line);
   }

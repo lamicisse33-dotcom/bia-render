@@ -11,6 +11,7 @@ import {lirePiperLocale,piperLocaleDisponible} from "@/lib/voix-piper-locale";
 import {ouvrirFluxVoix,type MorceauVoix} from "@/lib/flux-khalam";
 import {reveiller} from "@/lib/reveil-du-son";
 import type {DevoirALire} from "@/lib/lecture-devoirs-core";
+import type {PassageCorrige} from '@/lib/correction-apprentissage-core';
 import {morceauxLecture} from "@/lib/lecture-morceaux";
 
 export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false,obtenirAudio}:{obtenirAudio:()=>AudioContext;edition?:boolean;code:string;voice:"piper"|"piper-web"|"female"|"male";
@@ -26,6 +27,20 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
  const exercice=useRef({texte:"",valide:false,langue:"wo" as "fr"|"wo"});
  const messageGeneration=useRef(0);
  const [texte,setTexte]=useState(demande.texte);const [langue,setLangue]=useState<"fr"|"wo">("wo");
+ const correctionGeneration=useRef(0);
+ const [correctionLexique,setCorrectionLexique]=useState<{original:string;texte:string;passages:PassageCorrige[]}|null>(null);
+ const [etatCorrection,setEtatCorrection]=useState("");const [correctionEnCours,setCorrectionEnCours]=useState(false);
+ async function corrigerCollage(original:string){
+  const generation=++correctionGeneration.current;setCorrectionLexique(null);
+  if(!edition||langue!=="wo"||routerApprentissage(original).type!=="exercice"){setTexte(original);return;}
+  setTexte(original);setToutCorrect(false);setCorrectionEnCours(true);setEtatCorrection("Vérification des formes validées dans Supabase…");player.current?.stop();
+  try{const r=await fetch('/api/apprentissage/corriger',{method:'POST',headers:headers(),signal:AbortSignal.timeout(12000),body:JSON.stringify({texte:original})});const d=await r.json();
+   if(!r.ok)throw Error(d.error||"Correction indisponible");if(generation!==correctionGeneration.current)return;
+   setTexte(d.texte);setCorrectionLexique({original,texte:d.texte,passages:d.passages});
+   setEtatCorrection(d.passages.length?"Corrections appliquées : vérifie les passages surlignés avant de lire et valider.":"Aucune correction certaine trouvée dans le lexique validé.");
+  }catch(e){if(generation===correctionGeneration.current)setEtatCorrection((e as Error).message);}
+  finally{if(generation===correctionGeneration.current)setCorrectionEnCours(false);}
+ }
  const [p,setP]=useState<Progression>({etat:"prêt",index:0,total:0});
  const [lecons,setLecons]=useState<Lecon[]>([]);const [info,setInfo]=useState("");
  const [mot,setMot]=useState("");const [dire,setDire]=useState("");const [exemple,setExemple]=useState("");
@@ -168,8 +183,8 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   void traiter(t);
  }
  useEffect(()=>{
-  player.current?.stop();setTexte(demande.texte);depuis.current=performance.now();premierSon.current=false;
-  if(demande.source!=="memoire"){if(demande.texte.trim())lancer(demande.texte);return;}
+  ++correctionGeneration.current;setCorrectionEnCours(false);setCorrectionLexique(null);setEtatCorrection("");player.current?.stop();setTexte(demande.texte);depuis.current=performance.now();premierSon.current=false;
+  if(demande.source!=="memoire"){if(demande.texte.trim()){if(edition&&routerApprentissage(demande.texte).type==="exercice")void corrigerCollage(demande.texte);else lancer(demande.texte);}return;}
   const controller=new AbortController();chargement.current=controller;setCharge(true);setResultatMessage("Chargement des devoirs enregistrés…");
   void (async()=>{try{
    const r=await fetch("/api/apprentissage/devoir",{headers:headers(),cache:"no-store",signal:AbortSignal.any([controller.signal,AbortSignal.timeout(10000)])});
@@ -193,7 +208,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   // A marked message is a new command, not text appended to the old lesson.
   const route=routerApprentissage(ajout),a=e.currentTarget;
   const complet=route.explicite?ajout:a.value.slice(0,a.selectionStart)+ajout+a.value.slice(a.selectionEnd);
-  setTexte(complet);lancer(complet);
+  if(route.type==="exercice")void corrigerCollage(complet);else {++correctionGeneration.current;setCorrectionEnCours(false);setCorrectionLexique(null);setTexte(complet);lancer(complet);}
  }
  async function garderEcriture(){setSaving(true);try{
   const r=await fetch("/api/apprentissage/transcription",{method:"POST",headers:headers(),body:JSON.stringify({entendu,corrige:ecrit,confirme:accordEcriture})});
@@ -211,9 +226,23 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    <p role="status">mode_{typeMessage}</p>
    <p role="status" aria-live="polite">{resultatMessage}</p>
    <label>Langue <select value={langue} disabled={demande.source==="memoire"||validationEnCours||p.etat==="lecture"||p.etat==="pause"} onChange={e=>setLangue(e.target.value as "fr"|"wo")}><option value="wo">Wolof</option><option value="fr">Français</option></select></label>
-   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} readOnly={demande.source==="memoire"} disabled={validationEnCours} rows={10} onPaste={coller} onChange={e=>{setTexte(e.target.value);setToutCorrect(false);}} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
+   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} readOnly={demande.source==="memoire"} disabled={validationEnCours} rows={10} onPaste={coller} onChange={e=>{++correctionGeneration.current;setCorrectionEnCours(false);setCorrectionLexique(null);setEtatCorrection("");setTexte(e.target.value);setToutCorrect(false);}} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
+   {edition&&demande.source!=="memoire"&&<>
+    <p role="status">{etatCorrection}</p>
+    <button type="button" disabled={correctionEnCours||validationEnCours||!texte.trim()} onClick={()=>void corrigerCollage(texte)}>Corriger avec le lexique validé</button>
+    {correctionLexique?.passages.length? <>
+     <p>Texte corrigé — passages modifiés surlignés :</p>
+     <div aria-label="Aperçu des corrections du lexique" style={{whiteSpace:"pre-wrap",maxHeight:300,overflowY:"auto",padding:12,background:"#222"}}>
+      {correctionLexique.passages.map((c,i)=><span key={i}>{correctionLexique.texte.slice(i?correctionLexique.passages[i-1].fin:0,c.debut)}<mark title={`Avant : ${c.avant}`} style={{background:"#ffe083",color:"#201800"}}>{c.apres}</mark></span>)}
+      {correctionLexique.texte.slice(correctionLexique.passages.at(-1)!.fin)}
+     </div>
+     <ul>{correctionLexique.passages.map((c,i)=><li key={i}>{c.avant} → <mark>{c.apres}</mark></li>)}</ul>
+     <button type="button" onClick={()=>{++correctionGeneration.current;setTexte(correctionLexique.original);setCorrectionLexique(null);setEtatCorrection("Texte initial rétabli.");setToutCorrect(false);}}>Revenir au texte initial</button>
+    </>:null}
+   </>}
+
    <div style={{display:"flex",flexWrap:"wrap",gap:12}}>
-    <button type="button" disabled={charge||!texte.trim()||p.etat==="lecture"||p.etat==="pause"} onClick={()=>lancer()}>{demande.source==="memoire"?"RELIRE LES DEVOIRS":"TRAITER LE MESSAGE"}</button>
+    <button type="button" disabled={correctionEnCours||charge||!texte.trim()||p.etat==="lecture"||p.etat==="pause"} onClick={()=>lancer()}>{demande.source==="memoire"?"RELIRE LES DEVOIRS":"TRAITER LE MESSAGE"}</button>
     <button type="button" disabled={p.etat!=="lecture"} onClick={()=>player.current?.pause()}>PAUSE</button>
     <button type="button" disabled={p.etat!=="pause"&&p.etat!=="erreur"} onClick={reprendre}>REPRENDRE</button>
     <button type="button" onClick={arreter}>STOP</button>
@@ -224,7 +253,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    
    <h3>Valider le devoir entier</h3>
    <label><input type="checkbox" checked={toutCorrect} disabled={validationEnCours||typeMessage!=="exercice"} onChange={e=>{setToutCorrect(e.target.checked);exercice.current={texte,valide:e.target.checked,langue};}}/> J’ai tout écouté : la lecture correspond au texte et toutes les prononciations sont correctes.</label>
-   <button type="button" disabled={typeMessage!=="exercice"||!toutCorrect||!texte.trim()||validationEnCours||p.etat==="lecture"||p.etat==="pause"} onClick={()=>void validerTout()}>{validationEnCours?"Enregistrement…":"VALIDER ET ENREGISTRER TOUT LE DEVOIR"}</button>
+   <button type="button" disabled={correctionEnCours||typeMessage!=="exercice"||!toutCorrect||!texte.trim()||validationEnCours||p.etat==="lecture"||p.etat==="pause"} onClick={()=>void validerTout()}>{validationEnCours?"Enregistrement…":"VALIDER ET ENREGISTRER TOUT LE DEVOIR"}</button>
    <p role="status" aria-live="polite">{validationInfo}</p>
    <p>Cette validation conserve le texte complet et ton accord d’écoute, sans remplacer les corrections de prononciation déjà apprises.</p>
    <h3>Passages wolof à vérifier ({points.length})</h3>

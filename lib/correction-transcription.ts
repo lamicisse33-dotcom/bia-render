@@ -44,13 +44,13 @@ export async function corrigerTranscription(texte:string,regles?:Regle[]){
  const lecons=await phrasesLexiqueComplet();
  return {...resultat,suggestions_ecriture:suggestionsEcriture(resultat.texte,[...regles.map(r=>r.corrige),...lecons])};
 }
-export async function phrasesLexiqueComplet(){
- const resultats=await Promise.allSettled([lireLecons(),phrasesApprisesDevoirs(),lireCorrectionsBiba(),lireLexiquePartage()]);
- const individuelles=resultats[0].status==="fulfilled"?resultats[0].value.filter(l=>l.statut==="validé").map(l=>l.texte):[];
+export async function phrasesLexiqueComplet(wolofSeulement=false){
+ const resultats=await Promise.allSettled([lireLecons(),phrasesApprisesDevoirs(wolofSeulement),lireCorrectionsBiba(),lireLexiquePartage()]);
+ const individuelles=resultats[0].status==="fulfilled"?resultats[0].value.filter(l=>l.statut==="validé"&&(!wolofSeulement||l.langue==="wo")).map(l=>l.texte):[];
  const devoirs=resultats[1].status==="fulfilled"?resultats[1].value:[];
  if(resultats.every(r=>r.status==="rejected"))throw Error("Lexique indisponible");
  const biba=resultats[2].status==='fulfilled'?resultats[2].value.map(r=>r.reponse_wo):[];
- const partage=resultats[3].status==='fulfilled'?resultats[3].value.flatMap(r=>[r.source,r.corrigee]):[];
+ const partage=resultats[3].status==='fulfilled'?resultats[3].value.flatMap(r=>wolofSeulement?[r.langue_source==='wo'?r.source:r.corrigee]:[r.source,r.corrigee]):[];
  return [...new Set([...individuelles,...devoirs,...biba,...partage])];
 }
 export async function vocabulaireAppris(){
