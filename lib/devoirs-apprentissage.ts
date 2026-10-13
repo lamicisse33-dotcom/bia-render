@@ -59,8 +59,10 @@ export async function contexteDevoirs(question:string){
 export async function phrasesApprisesDevoirs(){
  const blocs=await lireBlocs(),index=indexerDevoirs(assemblerDevoirs(blocs).devoirs);
  const {phrasesDevoirsValides}=await import("./comparaison-lexique-core");
- const libres=new Set(index.filter(d=>!d.repliques.length).map(d=>d.id));
- return [...new Set([...index.flatMap(d=>d.repliques.flatMap(p=>[p.wo,p.fr])),...phrasesDevoirsValides(blocs.filter(b=>libres.has(b.id)))])];
+ // Keep validated standalone vocabulary exercises as well as bilingual
+ // dialogue cells, but only from the current eligible lesson revisions.
+ const actuels=new Set(index.map(d=>d.id));
+ return [...new Set([...index.flatMap(d=>d.repliques.flatMap(p=>[p.wo,p.fr])),...phrasesDevoirsValides(blocs.filter(b=>actuels.has(b.id)))])];
 }
 
 export const revisionDevoir=(texte:string)=>createHash("sha256").update(texte).digest("hex");
