@@ -20,6 +20,7 @@ import { lireFluxConversation } from "@/lib/flux-conversation";
 import { intentionMedia, chercherWeb, contexteWeb, webConfigure } from "@/lib/actions-internet";
 import { correctionDuMaitre } from "@/lib/correction-maitre";
 import { executerLecon } from "@/lib/mode-apprentissage";
+import {preparerCorrectionVocale} from "@/lib/correction-vocale";
 import { appelerCerebras } from "@/lib/cerveau-cerebras";
 import { noterConversation } from "@/lib/conversation-etat";
 import { repetitionExacteDuMaitre, CONSIGNE_MAITRE, messagesConversation, effortConversation, reglagesConversation } from "@/lib/conversation-groq";
@@ -776,7 +777,7 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
-type Corps={suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
+type Corps={parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
   /* Ancien choix visuel conservé pour les clients existants ; le nom reste BIA. */
   persona?:string;
   /* ── L'APPRENTISSAGE À LA VOIX ──────────────────────────────────────────
@@ -871,17 +872,22 @@ function garderCeTour(body:Corps,code:string|null,corps:Record<string,unknown>,s
 }
 
 export async function POST(request:NextRequest){
-  const body=await request.json().catch(()=>({})) as Corps;
+  let body=await request.json().catch(()=>({})) as Corps;
   const code=request.headers.get("x-bia-code");
   // Even cached greetings require a valid code, before any response or stream.
   const acces=verifierCode(code,false);
   if(!acces.ok)return NextResponse.json({reply:'Entre un code d’accès valide pour parler avec BIA.',source:'code',motif:acces.raison},{status:401});
+  if(Array.isArray(body.history))body={...body,history:body.history.filter(t=>t&&t.transcriptionIncertaine!==true)};
   if(body.apprentissageTest){body.apprend=false;body.aRepeter="";body.malDit=undefined;}
+  const vocale=!body.apprentissageTest&&body.parole&&acces.maitre?await preparerCorrectionVocale(body,true,!!lireLOrdre(String(body.message||'')),request.signal):null;
+  if(vocale?.reponse)return NextResponse.json(vocale.reponse);
+  if(vocale)body={...body,message:vocale.message};
+  const avecTranscription=(corps:Record<string,unknown>)=>vocale?{...corps,transcription:vocale.transcription}:corps;
 
   if(!DIFFUSER_LE_MODELE||!body.diffuse){
     const r=await repondre(body,code,null);
-    garderCeTour(body,code,r.corps,r.statut);
-    return NextResponse.json(r.corps,r.statut?{status:r.statut}:undefined);
+    if(!vocale)garderCeTour(body,code,r.corps,r.statut);
+    return NextResponse.json(avecTranscription(r.corps),r.statut?{status:r.statut}:undefined);
   }
 
   const encodeur=new TextEncoder();
@@ -892,8 +898,8 @@ export async function POST(request:NextRequest){
       };
       try{
         const r=await repondre(body,code,(morceau)=>envoyer("texte",{morceau}));
-        envoyer("fin",{corps:r.corps,statut:r.statut||200});
-        garderCeTour(body,code,r.corps,r.statut);
+        envoyer("fin",{corps:avecTranscription(r.corps),statut:r.statut||200});
+        if(!vocale)garderCeTour(body,code,r.corps,r.statut);
       }catch(err){
         console.error("BIA — erreur pendant la diffusion :",(err as Error).message);
         noterPanne("exception (diffusion)",(err as Error).message,"chat");

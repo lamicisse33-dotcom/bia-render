@@ -23,6 +23,15 @@ const sorties = new Set([
   "desactive le mode apprentissage", "reviens en mode normal", "repasse en mode normal",
   "mode normal", "arrete d apprendre", "on arrete", "fini fini", "termine termine",
 ]);
+/** Extract only the dictated phrase, preserving its command prefix. Ordinary
+ * conversation and confirmed control commands must not pay a verifier call. */
+export function cibleLeconVocale(texte:string,actif:boolean){
+ const q=texte.trim(),commande=normaliser(q).replace(/^(?:bia |s il te plait |bon |ok )+/,"").replace(/ s il te plait$/,"");
+ if(entrees.has(commande)||sorties.has(commande)||/^(?:(?:voila|tres bien|c est bon|oui) )*(?:memorise|retiens|garde|enregistre|repete|annule|oublie|supprime|stop|silence|non|oui)(?: (?:ca|cela|ceci|cette phrase|cette correction|en memoire|la correction|le micro|stop|memorise|repete|non|oui))?$/.test(commande))return null;
+ const m=q.match(/^(?:r[ée]p[èée]te(?:\s+(?:exactement|mot pour mot|avec moi|apr[èe]s moi))?\s*(?::\s*|\s+)|redis exactement\s+|(?:non[,!.]?\s*)?(?:il faut dire|tu dois dire|dis plutôt|la bonne phrase (?:est|c'est)|la correction (?:est|c'est))\s*:\s*|(?:m[ée]morise|retiens|garde(?: en mémoire)?|enregistre)(?:\s+(?:ça|cela|ceci|cette phrase|cette correction))?\s*:\s*)([\s\S]+)$/i);
+ if(m){const phrase=m[1].trim();if(!phrase)return null;return {phrase,prefixe:q.slice(0,q.lastIndexOf(m[1])),memorisation:/^(?:m[ée]morise|retiens|garde|enregistre)\b/i.test(q)};}
+ return actif?{phrase:q,prefixe:'',memorisation:false}:null;
+}
 type Tour = {role: string; text?: string; content?: string};
 /** Only the owner's last contribution is eligible, never a model's invention.
  * The web client includes the current command in history: ignore it once. */

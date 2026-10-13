@@ -7,8 +7,8 @@ export async function register(){
   const {rechaufferAudiosPrepares}=await import('./lib/prechauffage-dialogue');
   void rechaufferAudiosPrepares();
   // One bounded production check per process during this publication only.
-  if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-13T20:00:00Z')){
-   setTimeout(()=>{void import('./lib/essai-acces-devoirs').then(async m=>{await m.verifierAccesDevoirs();await m.verifierConversationDevoirs();}).catch(()=>{});},20000).unref();
+  if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-13T20:15:00Z')){
+   setTimeout(()=>{void import('./lib/essai-correction-vocale').then(m=>m.verifierCorrectionVocale()).catch(()=>{});},20000).unref();
   }
  }
 }

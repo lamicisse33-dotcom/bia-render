@@ -1,5 +1,6 @@
 import {resumeConnexionFiches} from "@/lib/essai-fiches";
 import {resumeAccesDevoirs,verifierAccesDevoirs} from "@/lib/essai-acces-devoirs";
+import {resumeEssaiCorrectionVocale} from "@/lib/essai-correction-vocale";
 import {resumeParcoursRapide} from "@/lib/essai-parcours-rapide";
 import {resumeTransportVoix} from "@/lib/essai-transport-voix";
 import {resumeFichesConnaissances,inventaireFiches} from "@/lib/fiches-connaissances";
@@ -182,6 +183,7 @@ export async function GET(request: Request) {
     latence_conversation:resumeLatenceConversation(),
     comprehension_conversation:resumeEssaiComprehension(),
     transcription_contextuelle: resumeCorrectionContexte(),
+    correction_vocale:resumeEssaiCorrectionVocale(),
     ecoute_configuration: {
       soynade_selectionnee: (process.env.STT_PROVIDER || "soynade") === "soynade",
       locale_selectionnee: process.env.STT_PROVIDER === "local_wolof",

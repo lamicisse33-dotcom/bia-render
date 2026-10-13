@@ -3264,6 +3264,7 @@ export default function Home() {
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
         body: JSON.stringify({
           message: clean,
+          parole,
           suggestionsTranscription,
           persona,
           /* Une fenêtre qui saute par paliers, pas qui glisse : c'est ce
@@ -3334,7 +3335,7 @@ export default function Home() {
       let teteDite = "";
       let teteEnCours: Promise<void> | null = null;
       let statut = response.status;
-      let data: { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; son_courant?: SonCourant; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
+      let data: { transcription?: {brut:string;texte:string;statut:string}; reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; son_courant?: SonCourant; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
 
       if (response.headers.get("content-type")?.includes("text/event-stream") && response.body) {
         const lecteur = response.body.getReader();
@@ -3432,6 +3433,14 @@ export default function Home() {
       if (typeof data.apprend === "boolean") {
         apprend.current = data.apprend;
         setEnApprentissage(data.apprend);
+      }
+      if(data.transcription){
+        const correction=data.transcription;
+        setHistory(items=>{
+          const pos=items.findLastIndex(t=>t.role==="user"&&t.text===clean);
+          return items.map((t,i)=>i===pos?{...t,text:correction.statut==='corrigee'?correction.texte:clean,
+            transcriptionIncertaine:['a_confirmer','indisponible'].includes(correction.statut)}:t);
+        });
       }
       if (typeof data.aRepeter === "string") {
         aRepeter.current = data.aRepeter;
@@ -5292,7 +5301,7 @@ export default function Home() {
     recognition.onresult = (event: any) => {
       const transcript = Array.from(event.results as ArrayLike<any>)
         .map((r: any) => r[0].transcript).join("");
-      if (event.results[event.results.length - 1].isFinal) void askBia(transcript);
+      if (event.results[event.results.length - 1].isFinal) void askBia(transcript, true);
     };
     recognitionRef.current = recognition;
     return () => { recognition.stop(); recognitionRef.current = null; };
