@@ -12,7 +12,7 @@ const fichier='dialogue/choix-verifies-v1.json';
 // similarity shortcut: only punctuation, address and explicit language request.
 export function texteCle(s:string){return s.normalize('NFC').toLowerCase().replace(/[’‘]/g,"'").replace(/^\s*bia\s*[,!:]?\s+/u,'').replace(/\b(?:réponds|reponds)\s+en\s+(?:wolof|français|francais)\s*[.!?]?\s*$/u,'').replace(/[.,!?;:«»“”…]/g,' ').replace(/\s+/g,' ').trim();}
 export function cleDialogue(index:DialogueAppris[],question:string,history:TourDialogue[]){
- return createHash('sha256').update(JSON.stringify(['choix-verifie-v3-maitrises',index,texteCle(question),sansSalutationsInitiales(history).map(t=>({role:t.role,text:texteCle(t.text)})).filter(t=>t.text)])).digest('hex');
+ return createHash('sha256').update(JSON.stringify(['choix-verifie-v4-faits-confirmes',index,texteCle(question),sansSalutationsInitiales(history).map(t=>({role:t.role,text:texteCle(t.text)})).filter(t=>t.text)])).digest('hex');
 }
 export function resumeDialoguesRapides(){return {...bilan,choix:choix.size,charge:etat.charge};}
 export function choixPrepares(){return [...new Map([...choix.values()].map(v=>[v.devoir+':'+v.replique,v])).values()];}

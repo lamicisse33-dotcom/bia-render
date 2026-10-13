@@ -143,11 +143,42 @@ export function questionDejaResolue(fr:string,faits:ReturnType<typeof faitsExpli
   || faits.matieres&&/\b(?:quelles|quelle|quels) matieres\b.*\bprefer/.test(t)
   || faits.niveau&&/\b(?:quel|ton|votre) niveau d etudes\b/.test(t);
 }
+/** Lesson examples are not facts about the current speaker. Only user turns
+ * can establish an amount; BIA's earlier guesses never validate themselves. */
+export function montantDeLeconNonConfirme(fr:string,wo:string,question:string,history:TourDialogue[]){
+ const texte=fr+' '+wo;
+ if(!/\b(?:francs?|cfa|euros?|benefices?|profits?|capital|depenses?|recettes?|prix|couts?|marge)\b/i.test(normaliserDialogue(texte)))return false;
+ const montants=(s:string)=>[...s.matchAll(/\d+(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)?/g)].map(m=>m[0].replace(/[ \u00a0\u202f]/g,''));
+ const chiffres=montants(texte);if(!chiffres.length)return false;
+ const donnees=[...history.filter(t=>t.role==='user').map(t=>t.text),question].join(' ');
+ const exemple=/\b(?:exemple|supposons|imaginons|hypothese)\b/.test(normaliserDialogue(question));
+ if(exemple&&/\b(?:par exemple|supposons|imaginons|si tu|si vous|si on)\b/.test(normaliserDialogue(fr)))return false;
+ const connus=new Set(montants(donnees));
+ if(/bénéfice|benefice|profit|tu gagnes|vous gagnez/i.test(fr)&&!fr.includes('?')){
+  const confirme=[...history.filter(t=>t.role==='user').map(t=>t.text),question].some(t=>/bénéfice|benefice|profit|je gagne|j’ai gagné|j ai gagne/i.test(t)&&chiffres.every(n=>montants(t).includes(n)));
+  if(!confirme)return true;
+ }
+ return chiffres.some(n=>!connus.has(n));
+}
+export function projetCommercialAPreciser(question:string,history:TourDialogue[]){
+ const q=normaliserDialogue(question);
+ const faisabilite=/\b(?:marcher|fonctionner|rentable|viable|reussir|reussite)\b/.test(q)||/\bndax\b/.test(q)&&/\bdakar\b/.test(q);
+ const commerce=/\b(?:business|commerce|boutique|vendre|vente|projet|daakar|dakar)\b/.test(q);
+ if(!faisabilite||!commerce)return false;
+ const textes=[...history.filter(t=>t.role==='user').map(t=>t.text),question].map(normaliserDialogue);
+ return !textes.some(t=>{
+  const m=t.match(/\b(?:je vends|je veux vendre|vendre|boutique de|commerce de|business de|projet de|dama(?:y)? (?:begg )?jaay)\s+(?:(?:des|du|de la|les|ay|de) )?(\p{L}+)/u);
+  if(m&&!['mais','quoi','quelque','produits','choses','trucs','deja','bien','a','au','ici','partout','dakar','ca','ce','tout'].includes(m[1]))return true;
+  const ouvert=t.match(/\b(?:ouvrir|lancer|creer|monter) (?:un |une )?(\p{L}+)/u);
+  return !!ouvert&&!['business','commerce','projet','boutique','activite','entreprise'].includes(ouvert[1]);
+ });
+}
+export function questionSurProjet(fr:string){return /\b(?:quel|quelle|quoi|type|genre|nature|idee|produit|activite|precis)\b/.test(normaliserDialogue(fr))&&/\b(?:business|commerce|vendre|vente|projet|produit|activite|faire|lancer)\b/.test(normaliserDialogue(fr));}
 /** Bound the selector's context without cutting or rewriting a source utterance.
  * Keep neighbours of both the latest reply and the new topic's matching lines. */
 export function paquetSelection(candidats:ReturnType<typeof chercherDialogues>,history:TourDialogue[],langue:"fr"|"wo",question=""){
  const deja=new Set(history.filter(t=>t.role==="bia").map(t=>normaliserDialogue(t.text)));
- const faits=faitsExplicites(question,history);
+ const faits=faitsExplicites(question,history),projetInconnu=projetCommercialAPreciser(question,history);
  const ditsPersonne=new Set([...history.filter(t=>t.role==="user").map(t=>normaliserDialogue(t.text)),normaliserDialogue(question)]);
  const derniere=[...history].reverse().find(t=>t.role==="bia")?.text||"",mots=termes(question);
  return candidats.map((c,i)=>{
@@ -164,7 +195,7 @@ export function paquetSelection(candidats:ReturnType<typeof chercherDialogues>,h
   }).sort((a,b)=>a.j-b.j);
   return {id:String(i),titre:c.d.titre,actif:c.actif,repliques:retenues.map(({p})=>({
    id:i+":"+p.id,wo:p.wo,fr:p.fr,role:p.role,deja_dite:deja.has(normaliserDialogue(p.wo))||deja.has(normaliserDialogue(p.fr)),
-   selectionnable:p.role!=="personne"&&!(p.role==="inconnu"&&paroleDeLaPersonne(p.fr,p.wo))&&!questionDejaResolue(p.fr,faits)&&!ditsPersonne.has(normaliserDialogue(p.wo))&&!ditsPersonne.has(normaliserDialogue(p.fr))&&(p[langue].match(/\?/g)||[]).length<=1,
+   selectionnable:!montantDeLeconNonConfirme(p.fr,p.wo,question,history)&&(!projetInconnu||questionSurProjet(p.fr))&&p.role!=="personne"&&!(p.role==="inconnu"&&paroleDeLaPersonne(p.fr,p.wo))&&!questionDejaResolue(p.fr,faits)&&!ditsPersonne.has(normaliserDialogue(p.wo))&&!ditsPersonne.has(normaliserDialogue(p.fr))&&(p[langue].match(/\?/g)||[]).length<=1,
   }))};
  });
 }

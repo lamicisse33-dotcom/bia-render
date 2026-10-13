@@ -12,8 +12,8 @@ export async function register(){
    setTimeout(()=>{void import('./lib/biba-corrections').then(m=>m.integrerCorrectionsBiba()).catch(()=>{});},15000).unref();
   }
   setTimeout(()=>{void import('./lib/memoire-organisee').then(m=>m.organiserMemoire()).catch(()=>{});},45000).unref();
-  if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-13T21:45:00Z')){
-   setTimeout(()=>{void import('./lib/essai-dialogue-domaines').then(m=>m.verifierDialogueDomaines()).catch(()=>{});},60000).unref();
+  if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-13T22:10:00Z')){
+   setTimeout(()=>{void import('./lib/essai-commerce-contextuel').then(m=>m.verifierCommerceContextuel()).catch(()=>{});},60000).unref();
   }
   // One bounded production check per process during this publication only.
   if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-13T20:15:00Z')){

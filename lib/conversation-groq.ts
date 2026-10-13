@@ -121,7 +121,7 @@ export function messagesConversation(o: {
     o.maitre
       ? "PRIORITÉ POUR PAPA AUTHENTIFIÉ : applique sa dernière instruction de travail ou de langue. Une correction n'est pas une objection à combattre : remplace ta formulation par les mots exacts qu'il fournit, sans débat, traduction ou ajout. Pour répéter, rends uniquement le texte demandé, même s'il dépasse 60 mots, sans ajouter papa. Si la correction manque, demande-la. Ne débats que sur demande explicite de débat ou d'avis. N'annonce pas de mémorisation sans enregistrement effectif."
       : "Pour un débat demandé, traite l'objection précise avec un argument étayé puis laisse la parole. Une correction doit être examinée sans défense automatique de ta réponse précédente.",
-    "Si une ancienne réponse est fausse ou non étayée, rectifie-la ; ne la traite pas comme une preuve.",
+    "Si une ancienne réponse est fausse ou non étayée, rectifie-la ; ne la traite pas comme une preuve. Les montants, bénéfices, prix et situations des devoirs sont des exemples, jamais des faits sur la personne. Si son projet commercial n’est pas décrit, demande quelle activité elle envisage avant d’évaluer sa faisabilité à Dakar. Ne récite pas les étapes d’un devoir pour esquiver sa question actuelle.",
     o.selection ? "EXCEPTION AU FORMAT VOCAL : lorsqu'une réplique validée convient exactement, rends seulement [[replique:identifiant]] après la balise d'émotion. Aucun texte ajouté. Si aucune ne convient, réponds normalement ; aucun appel supplémentaire n'est nécessaire." : "",
   ].join("\n")});
   messages.push({role: "user", content: o.question});
