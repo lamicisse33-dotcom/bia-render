@@ -22,7 +22,7 @@ export function verifierTransportVoix(){return etat.travail??=(async()=>{
  for(const [langue,texte] of [['fr','Le budget doit rester accessible à tous.'],['wo','Dañu bëgg ma def lu ma bëggul.']]){
   const passes=[];
   for(const mode of ['complet','stream']){
-   const debut=Date.now(),frames:Buffer[]=[];let premier=0,generation:number|undefined,tempsGPU:unknown,preparation:number|undefined,cache=false,paquets=0,samples=0;
+   const debut=Date.now(),frames:Buffer[]=[],arrivees:number[]=[],durees:number[]=[];let premier=0,generation:number|undefined,tempsGPU:unknown,preparation:number|undefined,cache=false,paquets=0,samples=0;
    try{
     const r=await fetch('https://app.khalam.app/api/chatterbox-test/bia'+(mode==='stream'?'/stream':''),{method:'POST',headers:{'content-type':'application/json','x-chatterbox-test-key':process.env.CHATTERBOX_TEST_KEY||''},body:JSON.stringify({texte,langue,voice:'female',partie:0,...(mode==='complet'?{continu:true}:{})}),signal:AbortSignal.timeout(35000)});
     if(mode==='complet'){
@@ -33,7 +33,7 @@ export function verifierTransportVoix(){return etat.travail??=(async()=>{
      for(;;){const v=await reader.read();if(v.done)break;buffer+=decoder.decode(v.value,{stream:true});let n;
       while((n=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,n);buffer=buffer.slice(n+1);if(!line.trim())continue;const d=JSON.parse(line);
        if(d.type==='meta')preparation=d.preparation_ms;
-       else if(d.type==='audio'){if(d.sequence!==paquets||d.offset_samples!==samples)throw Error('sequence_invalide');premier||=Date.now()-debut;const frame=Buffer.from(d.audio_base64,'base64');if(pcmWav(frame).length!==d.samples*2)throw Error('echantillons_incomplets');frames.push(frame);paquets++;samples+=d.samples;}
+       else if(d.type==='audio'){if(d.sequence!==paquets||d.offset_samples!==samples)throw Error('sequence_invalide');premier||=Date.now()-debut;const frame=Buffer.from(d.audio_base64,'base64');if(pcmWav(frame).length!==d.samples*2)throw Error('echantillons_incomplets');frames.push(frame);arrivees.push(Date.now()-debut);durees.push(d.samples/24000*1000);paquets++;samples+=d.samples;}
        else if(d.type==='end'){if(d.packets!==paquets||d.samples!==samples)throw Error('fin_invalide');generation=d.generation_ms;fin=true;}
        else throw Error('stream_interrompu');
       }
@@ -42,7 +42,8 @@ export function verifierTransportVoix(){return etat.travail??=(async()=>{
     }
     const reception=Date.now()-debut,wav=reunirWav(frames);let verification:unknown={statut:'non_verifiee'};
     if(langue==='fr'){const {ecriture}=await preparerEcoute(new Blob([wav]),'verification.wav','fr');verification={statut:'reconnaissance_FR',texte_exact:normal(ecriture.texte)===normal(texte)};}
-    passes.push({mode,premier_audio_ms:premier,reception_complete_ms:reception,generation_ms:generation,preparation_ms:preparation,temps_gpu:tempsGPU,audio_en_cache:cache,paquets:mode==='stream'?paquets:1,echantillons:(wav.length-44)/2,integrite:true,verification});
+    let finAudio=0,trou=0;for(let i=0;i<arrivees.length;i++){if(i)trou=Math.max(trou,Math.max(0,arrivees[i]+60-finAudio));finAudio=Math.max(finAudio,arrivees[i]+60)+durees[i];}
+    passes.push({mode,premier_audio_ms:premier,couture_estimee_max_ms:Math.round(trou),arrivees_ms:arrivees,reception_complete_ms:reception,generation_ms:generation,preparation_ms:preparation,temps_gpu:tempsGPU,audio_en_cache:cache,paquets:mode==='stream'?paquets:1,echantillons:(wav.length-44)/2,integrite:true,verification});
    }catch{passes.push({mode,erreur:true,ms:Date.now()-debut});}
   }
   cas.push({langue,passes});
