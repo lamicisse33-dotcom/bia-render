@@ -421,3 +421,5 @@ test('real chat route uses context memorisation before model and preserves maste
  const r=await run(body,'valid-test-code',null);assert.deepEqual(writes,['Ñu ngi fi.']);assert.equal(r.corps.retenu,'Ñu ngi fi.');assert.equal(r.corps.apprend,false);
  master=false;await run(body,'non-master-test-code',null);assert.equal(writes.length,1);
 });
+
+test('a late learned passage about profit survives the combined selection budget',()=>{const d={id:'business',titre:'Business du petit commerçant',date:'2026-10-13',repliques:Array.from({length:80},(_,i)=>({id:String(i),fr:i===75?'Note tes bénéfices chaque soir.':'Conseil commercial numéro '+i+' : '+('Range tes produits. '.repeat(5)),wo:i===75?'Bénéfices yi bind leen.':'Formulation '+i,role:'bia'}))};const choix=core.choixConversation([d],'Je veux connaître les bénéfices de mon business.',[],'wo',1200);assert(choix.paquet.flatMap(x=>x.repliques).some(p=>p.id==='0:75'));assert(core.repliqueChoisie('[[replique:0:75]]',choix)?.reply==='Bénéfices yi bind leen.');});
