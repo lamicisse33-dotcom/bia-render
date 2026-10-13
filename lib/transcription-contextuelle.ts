@@ -1,5 +1,5 @@
-import { corrigerTranscription } from "./correction-transcription";
-import { contexteTranscription, langueTranscription, lireVerdictTranscription, CONSIGNE_TRANSCRIPTION } from "./transcription-contexte-core";
+import { corrigerTranscription,phrasesLexiqueComplet } from "./correction-transcription";
+import { contexteTranscription, langueTranscription, lireVerdictTranscription, formesProchesTranscription,CONSIGNE_TRANSCRIPTION } from "./transcription-contexte-core";
 import {fetchAnthropic,contenuAnthropic,MODELE_SONNET} from "./cerveau-anthropic";
 
 const g = globalThis as typeof globalThis & { biaCorrectionContexte?: {
@@ -69,14 +69,17 @@ export async function verifierTranscriptionContextuelle(texte: string, historiqu
     if (brut.length > 1800) throw Error("texte_trop_long");
     // Database failure must not prevent the contextual check. Never persist an
     // automatic correction as a human-validated learning or training example.
-    let attente:ReturnType<typeof setTimeout>|undefined;
-    try { base = await Promise.race([corrigerTranscription(brut),new Promise<never>((_,rej)=>{attente=setTimeout(()=>rej(Error('lexique_lent')),200);})]); }
+    let attente:ReturnType<typeof setTimeout>|undefined,formes:ReturnType<typeof formesProchesTranscription>=[];
+    try {
+      const corpus=await Promise.race([Promise.all([corrigerTranscription(brut),phrasesLexiqueComplet()]),new Promise<never>((_,rej)=>{attente=setTimeout(()=>rej(Error('lexique_lent')),800);})]);
+      base=corpus[0];formes=formesProchesTranscription(base.texte,corpus[1]);
+    }
     catch { lexique_disponible = false; }
     finally{if(attente)clearTimeout(attente);}
     const bornes=(v:string[]|undefined)=>v?.filter(s=>typeof s==='string').slice(0,3).map(s=>s.slice(0,600))||[];
     const verdict = lireVerdictTranscription(await demanderVerdict({ transcription: base.texte,
       langue_indice: indiceDetecte, historique: history, contexte:'Le maître enseigne ou corrige une phrase à répéter. Sa nouvelle formulation prime sur la précédente.',
-      references_corrigees:bornes(options.references),suggestions_lexique: [...base.suggestions_ecriture,...bornes(options.suggestions)].slice(0,3) },fin,options.signal), base.texte);
+      references_corrigees:bornes(options.references),mots_valides_proches:formes,suggestions_lexique: [...base.suggestions_ecriture,...bornes(options.suggestions)].slice(0,3) },fin,options.signal), base.texte);
     compte.langues[verdict.langue] = (compte.langues[verdict.langue] || 0) + 1;
     if (verdict.statut === "a_confirmer") compte.a_confirmer++;
     else if (verdict.statut === "corrigee" || base.texte !== brut) compte.corrigees++;

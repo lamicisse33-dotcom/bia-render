@@ -3,7 +3,7 @@ import {assemblerDevoirs} from "./lecture-devoirs-core";
 import {noterChargementDevoirs} from "./lecture-devoirs-etat";
 import {ajouterCorrection,lexiqueConfig} from "./lexique";
 import {APP_LECONS} from "./lexique-apprentissage-core";
-import {termesDialogue} from "./dialogue-devoirs-core";
+import {termesDialogue,indexerDevoirs} from "./dialogue-devoirs-core";
 type Bloc={version:2;type:"devoir";id:string;index:number;total:number;texte:string;date:string;statut?:"validé";date_validation?:string;langue?:"fr"|"wo"};
 const headers=()=>({apikey:lexiqueConfig.cle,Authorization:`Bearer ${lexiqueConfig.cle}`});
 const revisions=globalThis as typeof globalThis&{biaGenerationDevoirs?:number};
@@ -57,8 +57,10 @@ export async function contexteDevoirs(question:string){
 }
 
 export async function phrasesApprisesDevoirs(){
+ const blocs=await lireBlocs(),index=indexerDevoirs(assemblerDevoirs(blocs).devoirs);
  const {phrasesDevoirsValides}=await import("./comparaison-lexique-core");
- return phrasesDevoirsValides(await lireBlocs());
+ const libres=new Set(index.filter(d=>!d.repliques.length).map(d=>d.id));
+ return [...new Set([...index.flatMap(d=>d.repliques.flatMap(p=>[p.wo,p.fr])),...phrasesDevoirsValides(blocs.filter(b=>libres.has(b.id)))])];
 }
 
 export const revisionDevoir=(texte:string)=>createHash("sha256").update(texte).digest("hex");

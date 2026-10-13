@@ -37,10 +37,17 @@ test('Wolof spacing repair preserves every letter, with protected negations and 
  assert.equal(correctionProche('Duma dem.','Du ma dem.'),false);
  assert.equal(correctionProche('Envoie 15000 francs.','Envoie 15 000 francs.'),false);
 });
+test('phonetic hints come only from validated forms, without replacing existing vocabulary or a sentence',()=>{
+ const formes=core.formesProchesTranscription('Dama sokhla preuve de paiement.', ['Dama soxla preuve de paiement.','Appelle Fatou.']);
+ assert.deepEqual(formes,[{entendu:'sokhla',formes:['soxla']}]);
+ assert.deepEqual(core.formesProchesTranscription('Dama soxla preuve de paiement.', ['Dama soxla preuve de paiement.']),[]);
+ const fr=core.formesProchesTranscription('Je fais un transfer demain.', ['Je fais un transfert demain.']);
+ assert(fr.some(p=>p.entendu==='transfer'&&p.formes.includes('transfert')));
+});
 test('the selected Anthropic brain receives a transcription-only request with validated reference data',async()=>{
  const oldFetch=globalThis.fetch,provider=process.env.BIA_LLM_PROVIDER,key=process.env.BIA_LLM_API_KEY;
  process.env.BIA_LLM_PROVIDER='anthropic';process.env.BIA_LLM_API_KEY='test-only';let payload;
- const server=load('lib/transcription-contextuelle.ts',{'./cerveau-anthropic':load('lib/cerveau-anthropic.ts'),'./transcription-contexte-core':core,'./correction-transcription':{corrigerTranscription:async texte=>({texte,texte_brut:texte,corrections_transcription:[],suggestions_ecriture:[]})}});
+ const server=load('lib/transcription-contextuelle.ts',{'./cerveau-anthropic':load('lib/cerveau-anthropic.ts'),'./transcription-contexte-core':core,'./correction-transcription':{phrasesLexiqueComplet:async()=>['Dama soxla preuve de paiement.','Je fais un transfert demain.'],corrigerTranscription:async texte=>({texte,texte_brut:texte,corrections_transcription:[],suggestions_ecriture:[]})}});
  globalThis.fetch=async(url,init)=>{assert(url.endsWith('/v1/messages'));payload=JSON.parse(init.body);return Response.json({content:[{type:'text',text:JSON.stringify({action:'corriger',langue:'mixte',texte:'Dama soxla preuve de paiement.',confiance:.99})}]});};
  try{
   const r=await server.verifierTranscriptionContextuelle('Dama sokhla preuve de paiement.',[{role:'user',text:'Nous corrigeons les preuves de paiement.'}], 'wo',{references:['Dama soxla preuve de paiement.']});
@@ -52,7 +59,7 @@ test('the selected Anthropic brain receives a transcription-only request with va
 test('credit rejection is reported distinctly; an unavailable brain never approves a transcript',async()=>{
  const oldFetch=globalThis.fetch,provider=process.env.BIA_LLM_PROVIDER,key=process.env.BIA_LLM_API_KEY;
  process.env.BIA_LLM_PROVIDER='anthropic';process.env.BIA_LLM_API_KEY='test-only';
- const server=load('lib/transcription-contextuelle.ts',{'./cerveau-anthropic':load('lib/cerveau-anthropic.ts'),'./transcription-contexte-core':core,'./correction-transcription':{corrigerTranscription:async texte=>({texte,texte_brut:texte,corrections_transcription:[],suggestions_ecriture:[]})}});
+ const server=load('lib/transcription-contextuelle.ts',{'./cerveau-anthropic':load('lib/cerveau-anthropic.ts'),'./transcription-contexte-core':core,'./correction-transcription':{phrasesLexiqueComplet:async()=>['Dama soxla preuve de paiement.','Je fais un transfert demain.'],corrigerTranscription:async texte=>({texte,texte_brut:texte,corrections_transcription:[],suggestions_ecriture:[]})}});
  globalThis.fetch=async()=>Response.json({error:{message:'Your credit balance is too low to access the Anthropic API.'}},{status:400});
  try{
   const r=await server.verifierTranscriptionContextuelle('Dama sokhla preuve de paiement.',[]);
@@ -75,7 +82,7 @@ test('live pipeline waits for verifier, passes context as data and preserves raw
  process.env.BIA_LLM_PROVIDER='cerebras';process.env.CEREBRAS_API_KEY='test-only';
  let release,called,fetchCalled;
  const started=new Promise(r=>fetchCalled=r);
- const server=load('lib/transcription-contextuelle.ts',{'./cerveau-anthropic':load('lib/cerveau-anthropic.ts'),'./transcription-contexte-core':core,'./correction-transcription':{corrigerTranscription:async texte=>({texte,texte_brut:texte,corrections_transcription:[],suggestions_ecriture:[]})}});
+ const server=load('lib/transcription-contextuelle.ts',{'./cerveau-anthropic':load('lib/cerveau-anthropic.ts'),'./transcription-contexte-core':core,'./correction-transcription':{phrasesLexiqueComplet:async()=>['Dama soxla preuve de paiement.','Je fais un transfert demain.'],corrigerTranscription:async texte=>({texte,texte_brut:texte,corrections_transcription:[],suggestions_ecriture:[]})}});
  globalThis.fetch=async(url,init)=>{called=JSON.parse(init.body);fetchCalled();return await new Promise(r=>release=r)};
  try {
   let finished=false;
