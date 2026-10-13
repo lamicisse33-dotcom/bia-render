@@ -19,6 +19,12 @@ const preparation=load('lib/passages-khalam-core.ts',{
   './lecture-continue':lecture,
 });
 const {preparerPassagesKhalam}=load('lib/passages-khalam.ts',{'./passages-khalam-core':preparation,'./lexique-apprentissage':{lireLecons:async()=>[]},'./prononciation':{reglesPrononciation:async()=>[]}});
+test('the actual reading plan sends compact soxla to Wolof without rewriting it',async()=>{
+ for(const faithful of [false,true]){
+  const plan=await preparerPassagesKhalam('Damasoxla preuve de paiement.','wo',false,faithful);
+  assert.deepEqual(plan,[{texte:'Damasoxla',langue:'wo'},{texte:'preuve de paiement.',langue:'fr'}]);
+ }
+});
 test('compact EMP-042 punctuation separates French problème from Wolof Lan before speech',async()=>{
  const texte='Waaw,amul problème.Lan nga bëgg nu wax léegi?';
  const plan=await preparerPassagesKhalam(texte,'wo',false,true);

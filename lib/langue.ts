@@ -11,13 +11,20 @@ export type LangueVoix = "wo" | "fr";
 const EMPRUNTS_FRANCAIS = ["Wave", "bus", "prix", "transfert", "transferts", "cash", "famille", "familles", "pression", "pressions"];
 const COMMUNS = new Set(["ma","la","te","lu","nu","man","fan"]);
 // These Wolof x-words must not inherit French from a preceding borrowing.
-for(const mot of ['xam','xamuma','xamoo','xamul','xamunu','xamle','xamante','xalaat','xalaatal','xalaatuma','xalaatam','xale','xaley','xarit','xaritam','xaritoo','xool','xoolal','xoolaat','xooluma','xew','xewul','xewxew','xaalis','xaalisu','xaj','xorom','xol','xolu','xolam','xey','xëy','xeex','xëcc','xel','xelam','xéewël','xibaar','xibaaru','xar','xaar','xaaral','xaari','wax','waxal','waxuma','waxul','waxoon','ndax','ndaxam','bëggul','bëgguma','ngii','fay','fayee','may','ték','warra'])MOTS_WOLOF.add(mot);
+for(const mot of ['soxla','xam','xamuma','xamoo','xamul','xamunu','xamle','xamante','xalaat','xalaatal','xalaatuma','xalaatam','xale','xaley','xarit','xaritam','xaritoo','xool','xoolal','xoolaat','xooluma','xew','xewul','xewxew','xaalis','xaalisu','xaj','xorom','xol','xolu','xolam','xey','xëy','xeex','xëcc','xel','xelam','xéewël','xibaar','xibaaru','xar','xaar','xaaral','xaari','wax','waxal','waxuma','waxul','waxoon','ndax','ndaxam','bëggul','bëgguma','ngii','fay','fayee','may','ték','warra'])MOTS_WOLOF.add(mot);
 for(const mot of ['message','messages','appel','appels','appeler','appelée','appeler','répondre','répond','réponse','réponses','problème','problèmes','explication','explications','expliquer','exemple','exemples','exercice','exercices','examen','examens','excuse','excuses','expression','expressions','expérience','expériences','exactement','ex','copain','copine','relation','relations','situation','solutions','solution','conseil','conseils','discussion','discuter','téléphone','numéro','numéros','crédit','crédits','réseau','internet','connexion','contact','contacts','rendez-vous','rendez','carte','bancaire','banque','boutique','client','clients','cliente','clientes','commerce','commerçant','commerçante','étudiant','étudiante','études','école','université','cours','devoir','devoirs','leçon','leçons','mariage','marier','amour','couple','confiance','preuve','preuves','risque','risques','raison','raisons','immédiatement','doute','doutes','important','importante','normal','normale','naturel','naturelle','budget','dépense','dépenses','paiement','payer','argent','montant','reste','refus','refuser','accepter','décider','signifier','signifie','clarifier','comprendre'])MOTS_FRANCAIS.add(mot);
+/** Recognize compact Wolof clitics only when their entire remainder is an
+ * already known Wolof word. An x alone never makes a French word Wolof. */
+function estMotWolof(mot:string):boolean {
+ if(MOTS_WOLOF.has(mot))return true;
+ const compact=mot.match(/^(?:damay|dafay|dinaa|dama|dafa|dina)(.+)$/u);
+ return Boolean(compact&&MOTS_WOLOF.has(compact[1]));
+}
 export function indicesLangue(texte: string) {
   let wo=0, fr=0;
   for (const mot of texte.toLowerCase().normalize("NFC").match(/\p{L}+/gu) || []) {
     if (COMMUNS.has(mot)) continue;
-    if (MOTS_WOLOF.has(mot)) wo++;
+    if (estMotWolof(mot)) wo++;
     else if (MOTS_FRANCAIS.has(mot)) fr++;
     else if (/[ñŋë]/u.test(mot)) wo++;
   }
@@ -49,7 +56,7 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
       const words=(expression.toLocaleLowerCase().normalize("NFC").match(/[\p{L}\p{N}]+/gu)||[]);
       if(!words.length)continue;
       // A learned isolated French "la"/"ma" cannot reclassify Wolof grammar.
-      if(words.length===1&&(COMMUNS.has(words[0])||MOTS_WOLOF.has(words[0])))continue;
+      if(words.length===1&&(COMMUNS.has(words[0])||estMotWolof(words[0])))continue;
       for(let start=0;start<keys.length;start++){
         let combined="";
         for(let end=start;end<keys.length;end++){
@@ -65,7 +72,7 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
     const labels=tokens.map((token,index)=>{
       if(protectedIndices.has(index))return "fr" as const;
       const mots=token.toLocaleLowerCase().normalize("NFC").match(/[\p{L}\p{N}]+/gu)||[];
-      if(mots.length===1&&emprunts.has(mots[0])&&!COMMUNS.has(mots[0])&&!MOTS_WOLOF.has(mots[0]))return "fr" as const;
+      if(mots.length===1&&emprunts.has(mots[0])&&!COMMUNS.has(mots[0])&&!estMotWolof(mots[0]))return "fr" as const;
       const {wo,fr}=indicesLangue(token);
       if(wo)return 'wo' as const;
       if(fr||/\d/u.test(token))return 'fr' as const;
@@ -103,7 +110,7 @@ export function ambiguitiesWolof(texte:string,defaut:LangueVoix="wo"):string[] {
   if(passage.langue!=="wo")continue;
   for(const mot of passage.texte.match(/\p{L}[\p{L}\p{M}'’-]*/gu)||[]){
    const key=mot.toLowerCase().normalize("NFC");
-   if(COMMUNS.has(key)||(!MOTS_WOLOF.has(key)&&!MOTS_FRANCAIS.has(key)))out.add(mot);
+   if(COMMUNS.has(key)||(!estMotWolof(key)&&!MOTS_FRANCAIS.has(key)))out.add(mot);
   }
  }
  return [...out];

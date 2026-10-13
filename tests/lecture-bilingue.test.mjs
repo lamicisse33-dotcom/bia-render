@@ -17,6 +17,22 @@ function load(file, modules = {}, env = {}) {
 }
 const {passagesLanguesVoix} = load('lib/langue.ts');
 
+test('soxla and known compact Wolof forms retain their profile beside a French payment phrase',()=>{
+ for(const prefix of ['Damasoxla','Dama soxla','Dafasoxla','Damaxam','Dama xam']){
+  const texte=prefix+' preuve de paiement.';
+  const plan=passagesLanguesVoix(texte,'wo');
+  assert.equal(plan.map(p=>p.texte).join(''),texte);
+  assert.deepEqual(plan.map(p=>[p.texte.trim(),p.langue]),[[prefix,'wo'],['preuve de paiement.','fr']]);
+ }
+ const texte='Damasoxla preuve de paiement.';
+ assert.equal(passagesLanguesVoix(texte,'wo',['Damasoxla'])[0].langue,'wo');
+ for(const mot of ['prix','examen','explication','exemple','taxi','exactement']){
+  assert(passagesLanguesVoix('Damasoxla '+mot+'.','wo').some(p=>p.langue==='fr'&&p.texte.trim()===mot+'.'));
+ }
+ const fr='J’ai besoin d’une preuve de paiement.';
+ assert.deepEqual(passagesLanguesVoix(fr,'fr'),[{texte:fr,langue:'fr'}]);
+});
+
 test('reported suspicion sentence preserves every character and routes both French words', () => {
   const text = 'Bul jël décision ci suspicion rekk.';
   const parts = passagesLanguesVoix(text);
