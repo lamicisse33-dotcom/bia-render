@@ -1,3 +1,4 @@
+import {concerneProduits} from "@/lib/contexte-produits";
 import {enregistrerPhraseMaitre} from "@/lib/memoire-maitre";
 import {reponseHorloge,contexteHorloge} from "@/lib/horloge";
 import {reponseIdentite} from "@/lib/identite-bia";
@@ -1348,7 +1349,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     // Authenticate before accessing private lessons. Resolve learned replies before
     // generic formulas: a yes/no must answer the preceding learned question.
     if(maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours
-       &&!estUnSecours(question)&&!intentionMedia(question)&&!besoinDInternet(question)&&!demandeDeNombre(question)){
+       &&!concerneProduits(question,body.history)&&!estUnSecours(question)&&!intentionMedia(question)&&!besoinDInternet(question)&&!demandeDeNombre(question)){
       const memorisee=await dialoguerAvecDevoirs(question,body.history);
       if(memorisee){
         // Audio is read from the existing private library, never regenerated.
@@ -2104,6 +2105,7 @@ aussi l'éteindre lui-même en gardant le doigt appuyé dessus.`;
        placer — dans une conversation sur la fatigue, sur la pluie — et une
        assistante qui vend quelque chose n'est plus une assistante. */
     const cosmetiques=await savoirProduits();
+    const produitsDuTour=concerneProduits(question,body.history)?cosmetiques:"";
     // Le sujet précédent ne change jamais l’identité de BIA.
     if(cosmetiques)socle+=`\n\n═══ LES PRODUITS DE BEAUTÉ ═══
 CECI N'EST PAS TON SUJET ET NE CHANGE RIEN À QUI TU ES. Tu es BIA, et tu
@@ -2329,7 +2331,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     if(maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours){
       try{maitrises=await contexteMaitrises(question,body.history);}catch{ /* Conversation remains available without the source map. */ }
     }
-    const consigneSignee=maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
+    const consigneSignee=(produitsDuTour?"produits-connectes-v1\n"+produitsDuTour:"")+maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
     const reutilisable=!body.suggestionsTranscription?.length&&!dependDuContexte(question)&&!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
       const dejaDonnee=await reponseGardee(question,langueDe(question),consigneSignee);
@@ -2659,7 +2661,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         suggestionsTranscription: Array.isArray(body.suggestionsTranscription)?body.suggestionsTranscription:[],
         question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
         contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, "")+"\n"+contexteHorloge(),
-        souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: savoir || "",
+        produits: produitsDuTour, souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: savoir || "",
         resume, outils, maitrises, nom: "BIA", maitre: verdict.maitre,
       });
     };

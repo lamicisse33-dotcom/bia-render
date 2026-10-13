@@ -1,3 +1,4 @@
+import {resumeEssaiProduits} from "@/lib/essai-produits";
 import {resumeLatenceConversation} from "@/lib/essai-latence-conversation";
 import {resumeEssaiMemoire} from "@/lib/essai-memoire-maitre";
 import {resumeRecherche} from "@/lib/recherche";
@@ -163,6 +164,7 @@ export async function GET(request: Request) {
     lecture_devoirs: resumeLectureDevoirs(),
     recherche_web:resumeRecherche(),
     fonctions_base:resumeFonctionsBase(),
+    produits_ddskin:resumeEssaiProduits(),
     memorisation_maitre:resumeEssaiMemoire(),
     latence_conversation:resumeLatenceConversation(),
     comprehension_conversation:resumeEssaiComprehension(),

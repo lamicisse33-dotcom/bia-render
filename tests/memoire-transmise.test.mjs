@@ -28,3 +28,13 @@ test('each source has an independent bound; one oversized source cannot evict th
  for(const value of ['MOT_VALIDÉ','CONNAISSANCE_VALIDÉE','RÉSUMÉ_VALIDÉ','Contrainte du tour précédent'])assert(all.includes(value));
  assert.equal(resumeTransmissionMemoire().derniere.souvenirs_signes,5000);
 });
+test('product knowledge survives unrelated context, reaches all accounts and is measured without exposing content',()=>{
+ for(const maitre of [false,true]){
+  const products=fs.readFileSync('data/produits.md','utf8').split(/^---$/m).slice(1).join('---');
+  const messages=messagesConversation({question:'Tu connais DDsking ?',history:[],maitre,produits:products,contexte:'autre contexte '.repeat(5000),connaissances:'k'.repeat(10000)});
+  const all=messages.map(m=>m.content).join('\n');
+  for(const value of ['DD SKIN','Didi et Awa','DD BLACK SOAP','DD FACE SOAP','DD CLEANSING LOTION','78 117 02 87'])assert(all.includes(value));
+  assert(resumeTransmissionMemoire().derniere.produits_signes>0);assert(!JSON.stringify(resumeTransmissionMemoire()).includes('DD BLACK SOAP'));
+ }
+ const absent=messagesConversation({question:'Je suis étudiant.',history:[]});assert(!absent.some(m=>m.content.includes('DD SKIN')));assert.equal(resumeTransmissionMemoire().derniere.produits_signes,0);
+});
