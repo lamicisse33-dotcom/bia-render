@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import ts from 'typescript';
 import fs from 'node:fs';
 const load = async (path) => {
-  const source=fs.readFileSync(path,'utf8');
+  const source=fs.readFileSync(path,'utf8').replace(/^import \{CONSIGNE_COMPREHENSION\} from .*;$/m,fs.readFileSync('lib/comprehension-conversation.ts','utf8'));
   const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
   return import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
 };
@@ -43,4 +43,15 @@ test('learned conversational directions reach the provider alongside the current
  assert(messages.filter(m=>m.role==='system').some(m=>m.content.includes('DOMAINES VALIDÉS DISPONIBLES: études')));
  assert(messages.some(m=>m.role==='assistant'&&m.content==='Parlons des études ?'));
  assert.equal(messages.at(-1).content,'Oui.');
+});
+
+test('actual compact messages carry contextual interpretation and bounded unconfirmed hints without rewriting user speech',()=>{
+ const question='Dama sokhla preuve de paiement.';
+ const history=[{role:'assistant',content:'Depuis quand ?'},{role:'user',content:'depui hier soire'}];
+ const messages=messagesConversation({question,history,suggestionsTranscription:['Dama soxla preuve de paiement.','x'.repeat(900),'trois','quatre']});
+ assert(messages[0].content.includes('COMPRÉHENSION ACTIVE'));
+ assert(messages[0].content.includes('rectifie mentalement'));
+ const hints=messages.find(m=>m.content.includes('HYPOTHÈSES DE TRANSCRIPTION'));
+ assert(hints);assert(!hints.content.includes('quatre'));assert(!hints.content.includes('x'.repeat(601)));
+ assert.deepEqual(messages.filter(m=>m.role!=='system'),[...history,{role:'user',content:question}]);
 });

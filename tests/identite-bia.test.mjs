@@ -22,7 +22,7 @@ test('real chat handles both saved portraits and an old Rara answer before any l
 });
 
 test('compact model prompt keeps Bia and the requested warm personality despite a legacy persona',()=>{
- const api=load('lib/conversation-groq.ts');
+ const api=load('lib/conversation-groq.ts',{'./comprehension-conversation':load('lib/comprehension-conversation.ts')});
  const messages=api.messagesConversation({question:'Qui es-tu ?',history:[{role:'assistant',content:"Je m’appelle Rara."}],nom:'Rara'});
  assert(messages[0].content.startsWith('Tu es BIA,'));
  for(const mot of ['joviale','complice','amicale','joyeuse','séduisante'])assert(messages[0].content.includes(mot));

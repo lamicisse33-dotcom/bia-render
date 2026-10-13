@@ -3115,7 +3115,7 @@ export default function Home() {
 
 
 
-  const askBia = useCallback(async (question: string, parole = false, tourDonne?: number) => {
+  const askBia = useCallback(async (question: string, parole = false, tourDonne?: number, suggestionsTranscription?: string[]) => {
     /* Le sens de sa phrase, demandé pendant qu'on prépare la réponse et
        attendu juste avant qu'elle ouvre la bouche. Voir plus bas. */
     const clean = question.trim();
@@ -3251,6 +3251,7 @@ export default function Home() {
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
         body: JSON.stringify({
           message: clean,
+          suggestionsTranscription,
           persona,
           /* Une fenêtre qui saute par paliers, pas qui glisse : c'est ce
              qui permet au cache du fil de retrouver son préfixe quatre tours
@@ -5089,19 +5090,8 @@ export default function Home() {
           const rattrape = motsRattrapesRef.current;
           motsRattrapesRef.current = null;
           const dit = recoller(rattrape, d.texte || "");
-          if(Array.isArray(d.suggestions_ecriture)&&d.suggestions_ecriture.length){
-            setSaisie(dit);setConversation(true);
-            const clarification=d.suggestions_ecriture.length===1
-              ? "Est-ce que tu veux dire : "+d.suggestions_ecriture[0]
-              : "Je n’ai pas bien compris. Peux-tu répéter doucement ?";
-            setHistory(items=>[...items,{role:"user",text:dit},{role:"bia",text:clarification}]);
-            await finirAttente("fr",false);
-            if(!estLeTour(monTour))return;
-            langueRef.current="fr";
-            await speak(clarification);
-            if(estLeTour(monTour))setMode("ready");
-            return;
-          }
+          // Lexical proximity alone cannot decide whether a sentence is unclear.
+          // Let the conversation model interpret it with the actual history.
           dernierDitRef.current = dit;
           if (dit) {
             langueRef.current = estWolof(dit) ? "wo" : "fr";
@@ -5150,7 +5140,7 @@ export default function Home() {
               setMode("thinking");
               return;
             }
-            void askBia(dit, true, monTour);
+            void askBia(dit, true, monTour, d.suggestions_ecriture);
           } else {
             /* ── ELLE N'A RIEN ENTENDU, ET ELLE RESTAIT FIGÉE ────────────
 

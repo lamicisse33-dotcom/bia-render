@@ -772,7 +772,7 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
-type Corps={apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
+type Corps={suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
   /* Ancien choix visuel conservé pour les clients existants ; le nom reste BIA. */
   persona?:string;
   /* ── L'APPRENTISSAGE À LA VOIX ──────────────────────────────────────────
@@ -1716,7 +1716,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        vraiment écrite. Voir avecSaBalise() dans lib/emotions-vues.ts : c'est
        ce qui remplace l'amorce, que le modèle refuse. */
     const history=(body.history||[]).slice(-FIL_AU_PLUS).map(item=>{
-      const role=item.role==="bia"?"assistant":"user";
+      const role=item.role==="bia"||item.role==="assistant"?"assistant":"user";
       return {role,content:avecSaBalise(role,String(item.text||"").slice(0,6000),item.emotion)};
     });
 
@@ -2325,7 +2325,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       try{maitrises=await contexteMaitrises(question,body.history);}catch{ /* Conversation remains available without the source map. */ }
     }
     const consigneSignee=maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
-    const reutilisable=!dependDuContexte(question)&&!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
+    const reutilisable=!body.suggestionsTranscription?.length&&!dependDuContexte(question)&&!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
       const dejaDonnee=await reponseGardee(question,langueDe(question),consigneSignee);
       if(dejaDonnee){
@@ -2651,6 +2651,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           : "Pas de recherche web pour cette réponse : ne prétends pas avoir vérifié des faits actuels.",
       ].filter(Boolean).join("\n");
       return messagesConversation({
+        suggestionsTranscription: Array.isArray(body.suggestionsTranscription)?body.suggestionsTranscription:[],
         question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
         contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, ""),
         souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: savoir || "",

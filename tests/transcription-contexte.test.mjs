@@ -67,7 +67,11 @@ test('emergency restoration keeps contextual verification out of the live voice 
  assert(!page.includes('/api/ecouter/corriger'));
  assert(!page.includes('arreterSurTranscriptionIncertaine'));
  assert(!route.includes('verifierTranscriptionContextuelle'));
- assert(route.includes('corrigerTranscription'));
+ assert(route.includes('preparerEcoute'));
+ assert(fs.readFileSync('lib/preparer-ecoute.ts','utf8').includes('corrigerTranscription'));
+ const transmission=page.slice(page.indexOf('const dit = recoller(rattrape'),page.indexOf('void askBia(dit, true, monTour, d.suggestions_ecriture);')+75);
+ assert(transmission.includes('d.suggestions_ecriture'));
+ assert(!transmission.includes('await speak(clarification)'));
 });
 test('already-open tabs keep a usable transcript even when optional correction storage fails',async()=>{
  const route=load('app/api/ecouter/corriger/route.ts',{

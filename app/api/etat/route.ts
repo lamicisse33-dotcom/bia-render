@@ -1,3 +1,4 @@
+import {resumeEssaiComprehension} from "@/lib/essai-comprehension";
 import {resumeRythme} from '@/lib/essai-rythme';
 import {resumeAdministration} from '@/lib/essai-administration';
 import {resumeBusiness} from '@/lib/essai-business';
@@ -156,6 +157,7 @@ export async function GET(request: Request) {
     lecture_bilingue:resumeLectureBilingue(),
     dialogue_devoirs: resumeDialogueDevoirs(),
     lecture_devoirs: resumeLectureDevoirs(),
+    comprehension_conversation:resumeEssaiComprehension(),
     transcription_contextuelle: resumeCorrectionContexte(),
     ecoute_configuration: {
       soynade_selectionnee: (process.env.STT_PROVIDER || "soynade") === "soynade",
