@@ -3,7 +3,7 @@ import {cleDialogue,chargerDialoguesRapides,chercherChoixRapide,garderChoixRapid
 import {fetchAnthropic,contenuAnthropic,MODELE_SONNET,reglagesSonnet} from "./cerveau-anthropic";
 import {appelerCerebras} from "./cerveau-cerebras";
 import {devoirsALire} from "./devoirs-apprentissage";
-import {CONSIGNE_MAITRISES,maitrisesPourConversation,invitationAConverser,chercherDialogues,contexteDialogue,indexerDevoirs,paquetSelection,resoudreSelection,normaliserDialogue,finDuSujet,type DialogueAppris,type TourDialogue} from "./dialogue-devoirs-core";
+import {CONSIGNE_MAITRISES,maitrisesPourConversation,invitationAConverser,chercherDialogues,contexteDialogue,indexerDevoirs,paquetSelection,resoudreSelection,normaliserDialogue,finDuSujet,demandeArgumentation,type DialogueAppris,type TourDialogue} from "./dialogue-devoirs-core";
 import {detecterLangue} from "./langue";
 import {salutationAutonome} from "./salutations-dialogue";
 
@@ -78,6 +78,10 @@ export async function dialoguerAvecDevoirs(question:string,historique:unknown,op
  try{
   if(salutationAutonome(question)){if(!diagnostic)etat.dernier_statut="salutation";return null;}
   if(finDuSujet(question))return null;
+  if(demandeArgumentation(question)){
+   if(!diagnostic)etat.dernier_statut="argumentation_directe";
+   return null;
+  }
   // An invitation to lead is not a request to ask the user to pick a topic.
   // The conversational brain receives the validated map and proposes an angle.
   if(invitationAConverser(question)){if(!diagnostic)etat.dernier_statut="initiative_conversation";return null;}

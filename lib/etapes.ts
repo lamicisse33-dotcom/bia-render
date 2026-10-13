@@ -120,6 +120,7 @@ export function resumeEtapes() {
     };
   };
   return {
+    preparation: par("preparation"),
     ecoute: par("ecoute"),
     modele: par("modele"),
     /* LA PREMIÈRE PHRASE — la seule qu'on attend vraiment. */

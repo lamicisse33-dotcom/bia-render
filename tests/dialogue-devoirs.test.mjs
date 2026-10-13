@@ -28,6 +28,14 @@ Français : BIA : Laisse-lui un peu de temps.
 7. Wolof : BIA : Naka ? Lan ?
 Français : BIA : Comment ? Pourquoi ?`);
 const index=core.indexerDevoirs([fixture]);
+test('explicit debate avoids the selector while ordinary learned dialogue keeps its route',async()=>{
+ const srv=service();
+ assert.equal(await srv.dialoguerAvecDevoirs('Je ne suis pas d’accord avec ton avis sur les appels.',[],{index}),null);
+ assert.equal(srv.resumeDialogueDevoirs().appels_modele,0);
+ assert.equal(srv.resumeDialogueDevoirs().dernier_statut,'argumentation_directe');
+ assert.equal(core.demandeArgumentation('Répète mot pour mot tes arguments.'),false);
+ assert.equal(core.demandeArgumentation('Ma copine ne répond plus à mes appels.'),false);
+});
 function service(fetch=async()=>{throw Error('Unexpected network');},devoirs=async()=>({devoirs:[fixture]}),config={}){
  const rapide=load('lib/dialogue-rapide.ts',{'./salutations-dialogue':salutations,'node:crypto':crypto,'./audio-memoire-stockage':{lireObjetMemoire:async()=>null,ecrireObjetMemoire:async()=>{}}},{globalThis:{},setTimeout:()=>({unref(){}})});
  return load('lib/dialogue-devoirs.ts',{'./lexique-partage':{indexLexiquePartage:async()=>[],resumeLexiquePartage:()=>({})},'./dialogue-rapide':rapide,...{'./cerveau-anthropic':load('lib/cerveau-anthropic.ts',{}, {fetch,globalThis:{},process:{env:{}}}),'./cerveau-cerebras':{appelerCerebras:(url,init)=>fetch(url,init)},'./salutations-dialogue':salutations,'./dialogue-devoirs-core':core,'./langue':langue,'./devoirs-apprentissage':{devoirsALire:devoirs}}}, {fetch,globalThis:{},process:{env:{BIA_LLM_PROVIDER:'cerebras',CEREBRAS_API_KEY:'test-only',...config}}});

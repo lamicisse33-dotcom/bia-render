@@ -2,6 +2,13 @@ import type {DevoirALire} from "./lecture-devoirs-core";
 export type RepliqueApprise={id:string;wo:string;fr:string;role:"bia"|"personne"|"inconnu"};
 export type DialogueAppris={id:string;titre:string;date:string;repliques:RepliqueApprise[]};
 export type TourDialogue={role:string;text:string};
+/** An explicit request for reasoning uses the conversational brain directly.
+ * Its context still contains the retrieved, validated lesson formulations. */
+export function demandeArgumentation(question:string):boolean {
+ const q=normaliserDialogue(question);
+ if(/\b(?:recite|repete|lis|lecture|mot pour mot)\b/.test(q))return false;
+ return /\b(?:debattons|debat|debattre|ton avis|ton opinion|tes arguments|contre argument|pas d accord|defends ton|defendre ta)\b/.test(q);
+}
 export const normaliserDialogue=(s:string)=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim();
 const anciennesRelances=new Set([
  "Peux-tu préciser ce qui te préoccupe le plus dans cette situation ?",

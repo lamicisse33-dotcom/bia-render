@@ -8,6 +8,13 @@ const load = async (path) => {
   return import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
 };
 const {messagesConversation,effortConversation,reglagesConversation,CONSIGNE_RESUME_CONVERSATION}=await load('lib/conversation-groq.ts');
+test('cached personality stays identical when retrieved topics change',()=>{
+ const a=messagesConversation({question:'Parlons des études',history:[],maitrises:'études',outils:'outil A',fiches:'fiche études'});
+ const b=messagesConversation({question:'Parlons du commerce',history:[],maitrises:'commerce',outils:'outil B',fiches:'fiche commerce'});
+ assert.equal(a[0].content,b[0].content);
+ assert(a.some(m=>m.content.includes('outil A')&&m.content.includes('études')));
+ assert(b.some(m=>m.content.includes('outil B')&&m.content.includes('commerce')));
+});
 const {fenetreDuFil}=await load('lib/fenetre-du-fil.ts');
 test('early constraints and arguments survive twenty conversational turns',()=>{
   const history=Array.from({length:38},(_,i)=>({role:i%2?'assistant':'user',content:`Message ${i}: `+(i===0?'Budget maximal de 25000 francs, je refuse les prêts.':'Argument '+i)}));

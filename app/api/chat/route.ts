@@ -1096,6 +1096,7 @@ function lieuDemandeDans(question: string): string {
    l'enregistrement gratuit. Ca coûte une fabrication de voix. Une phrase
    contredite coûte la confiance. */
 async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string)=>void)|null):Promise<Rendu>{
+  const departPreparation=Date.now();
   /* Ce que le téléphone a recu, et ce qu'il en a fait. */
   let envoye="";
   let dejaParle=false;
@@ -2322,18 +2323,15 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        Les garde-fous sont dans lib/reponses-gardees.ts. Une correction passe
        toujours avant (juste au-dessus). La consigne entre dans la clé : si
        Lamine la change, les réponses se renouvellent d'elles-mêmes. */
-    let devoirs="";
-    try{devoirs=await contexteDevoirs(question);}catch{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");}
-    let instructionsDuTour="";
-    if(maitre.ok&&maitre.maitre){
-      try{instructionsDuTour=await contexteInstructions();variable+="\n"+instructionsDuTour;}catch{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");}
-    }
+    // Independent source reads share the same waiting period, not four in series.
+    const [devoirs,instructionsDuTour,maitrises,fichesDuTour]=await Promise.all([
+      contexteDevoirs(question).catch(()=>{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");return "";}),
+      maitre.ok&&maitre.maitre?contexteInstructions().catch(()=>{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");return "";}):Promise.resolve(""),
+      maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?contexteMaitrises(question,body.history).catch(()=>""):Promise.resolve(""),
+      fichesPourConversation(question,body.history||[]),
+    ]);
+    if(instructionsDuTour)variable+="\n"+instructionsDuTour;
     if(body.apprentissageTest)variable+="\nTEST PÉDAGOGIQUE : réponds à la question avec les connaissances et les corrections mémorisées. Ne transforme pas la question en leçon, ne la répète pas comme exercice et ne propose aucun enregistrement.";
-    let maitrises="";
-    if(maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours){
-      try{maitrises=await contexteMaitrises(question,body.history);}catch{ /* Conversation remains available without the source map. */ }
-    }
-    const fichesDuTour=await fichesPourConversation(question,body.history||[]);
     const consigneSignee="fiches-connectees-v1\n"+fichesDuTour+(produitsDuTour?"produits-connectes-v1\n"+produitsDuTour:"")+maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
     const reutilisable=!body.suggestionsTranscription?.length&&!dependDuContexte(question)&&!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
@@ -2666,7 +2664,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       return messagesConversation({
         suggestionsTranscription: Array.isArray(body.suggestionsTranscription)?body.suggestionsTranscription:[],
         question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
-        contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, "")+"\n"+contexteHorloge(),
+        contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, "").replace(instructionsDuTour, "")+"\n"+contexteHorloge(),
         fiches:fichesDuTour,instructions:instructionsDuTour,devoirs,vitrine:aMontrer,
         produits: produitsDuTour, souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: "",
         resume, outils, maitrises, nom: "BIA", maitre: verdict.maitre,
@@ -2801,6 +2799,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     /* L'HORLOGE PART ICI, avant la connexion : voir lireLeFlux() et
        lib/etapes.ts. Le premier token se mesure depuis ce point. */
     const partiModele=Date.now();
+    noterEtape("preparation",departPreparation,partiModele,partiModele,question.length);
     const premiersReglages={plafond:PLAFOND,avecOutil:cherche,reflexion:(reflechit?"allumee":"eteinte") as Reflexion};
     const response=await appelerLeModele(premiersReglages);
     /* L'amorce qui accompagne la réponse en main : elle change avec les

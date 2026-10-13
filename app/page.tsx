@@ -3245,9 +3245,18 @@ export default function Home() {
       },
     }):()=>{};
 
+    const requeteChat = new AbortController();
+    fluxVoixRef.current.add(requeteChat);
+    // Cancel obsolete turns and bound a silent connection without timing speech.
+    let attenteChat = setTimeout(() => requeteChat.abort(), 20000);
+    const chatRecu = () => {
+      clearTimeout(attenteChat);
+      attenteChat = setTimeout(() => requeteChat.abort(), 12000);
+    };
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
+        signal: requeteChat.signal,
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
         body: JSON.stringify({
           message: clean,
@@ -3328,8 +3337,9 @@ export default function Home() {
         const decodeur = new TextDecoder();
         let tampon = "", recu = "";
         let fin: { corps: { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; son_courant?: SonCourant; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string }; statut: number } | null = null;
-        for (;;) {
+        lectureChat: for (;;) {
           const { done, value } = await lecteur.read();
+          chatRecu();
           if (done) break;
           tampon += decodeur.decode(value, { stream: true });
           let coupe: number;
@@ -3376,7 +3386,11 @@ export default function Home() {
                 }
               }
             }
-            if (nom === "fin" && ev.corps) fin = { corps: ev.corps, statut: Number(ev.statut) || 200 };
+            if (nom === "fin" && ev.corps) {
+              fin = { corps: ev.corps, statut: Number(ev.statut) || 200 };
+              void lecteur.cancel().catch(() => {});
+              break lectureChat;
+            }
           }
         }
         if (!fin) throw new Error("BIA unavailable");
@@ -3386,6 +3400,8 @@ export default function Home() {
         data = (await response.json()) as { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; son_courant?: SonCourant; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string };
       }
 
+      clearTimeout(attenteChat);
+      fluxVoixRef.current.delete(requeteChat);
       annulerReaction();
       tModeleRef.current = Date.now();   // le modèle a fini d'écrire
       poserBorne(bornesRef.current, "modele");
@@ -3700,6 +3716,8 @@ export default function Home() {
       setMode("error");
       await speak(fallback);
     } finally {
+      clearTimeout(attenteChat);
+      fluxVoixRef.current.delete(requeteChat);
       annulerReaction();
       if (estLeTour(monTour)) {
         busyRef.current = false;
