@@ -1,3 +1,4 @@
+import {fichesPourConversation} from "@/lib/fiches-connaissances";
 import {concerneProduits} from "@/lib/contexte-produits";
 import {enregistrerPhraseMaitre} from "@/lib/memoire-maitre";
 import {reponseHorloge,contexteHorloge} from "@/lib/horloge";
@@ -2323,15 +2324,17 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        Lamine la change, les réponses se renouvellent d'elles-mêmes. */
     let devoirs="";
     try{devoirs=await contexteDevoirs(question);}catch{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");}
+    let instructionsDuTour="";
     if(maitre.ok&&maitre.maitre){
-      try{variable+="\n"+await contexteInstructions();}catch{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");}
+      try{instructionsDuTour=await contexteInstructions();variable+="\n"+instructionsDuTour;}catch{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");}
     }
     if(body.apprentissageTest)variable+="\nTEST PÉDAGOGIQUE : réponds à la question avec les connaissances et les corrections mémorisées. Ne transforme pas la question en leçon, ne la répète pas comme exercice et ne propose aucun enregistrement.";
     let maitrises="";
     if(maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours){
       try{maitrises=await contexteMaitrises(question,body.history);}catch{ /* Conversation remains available without the source map. */ }
     }
-    const consigneSignee=(produitsDuTour?"produits-connectes-v1\n"+produitsDuTour:"")+maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
+    const fichesDuTour=await fichesPourConversation(question,body.history||[]);
+    const consigneSignee="fiches-connectees-v1\n"+fichesDuTour+(produitsDuTour?"produits-connectes-v1\n"+produitsDuTour:"")+maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
     const reutilisable=!body.suggestionsTranscription?.length&&!dependDuContexte(question)&&!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
       const dejaDonnee=await reponseGardee(question,langueDe(question),consigneSignee);
@@ -2647,6 +2650,9 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const messagesDuTour = (o:{avecOutil:boolean}) => {
       const outils=[
         "Les commandes d'écran se placent en fin de réponse, sans être prononcées.",
+        SOCLE_RELATIONS,
+        "VITRINE : [[voir:clé]] seulement pour un sujet présent dans la vitrine fournie et demandé par la personne. N’invente aucune clé ni aucun média.",
+        /urgence|pompiers|police|gendarmerie|ne respire|inconscient|empoisonn|danger/i.test(question)?consigneUrgences():"",
         "CARTE : [[carte:lieu ou recherche]] pour afficher un lieu ou un itinéraire.",
         videosActives() ? "VIDÉO : [[regarde:recherche précise]] pour ouvrir une vidéo, [[cherche-video:recherche précise]] pour proposer des vidéos." : "",
         imagesActives() ? "IMAGES : [[cherche-image:recherche précise en français]]." : "",
@@ -2661,7 +2667,8 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         suggestionsTranscription: Array.isArray(body.suggestionsTranscription)?body.suggestionsTranscription:[],
         question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
         contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, "")+"\n"+contexteHorloge(),
-        produits: produitsDuTour, souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: savoir || "",
+        fiches:fichesDuTour,instructions:instructionsDuTour,devoirs,vitrine:aMontrer,
+        produits: produitsDuTour, souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: "",
         resume, outils, maitrises, nom: "BIA", maitre: verdict.maitre,
       });
     };

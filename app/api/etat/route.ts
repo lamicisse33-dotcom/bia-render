@@ -1,3 +1,5 @@
+import {resumeConnexionFiches} from "@/lib/essai-fiches";
+import {resumeFichesConnaissances,inventaireFiches} from "@/lib/fiches-connaissances";
 import {resumeEssaiProduits} from "@/lib/essai-produits";
 import {resumeLatenceConversation} from "@/lib/essai-latence-conversation";
 import {resumeEssaiMemoire} from "@/lib/essai-memoire-maitre";
@@ -94,6 +96,8 @@ export async function GET(request: Request) {
     if(!maitre)return NextResponse.json({erreur:"Diagnostic réservé au maître"},{status:401});
     await essayerDialogueDevoirs();
   }
+  await inventaireFiches();
+  if(new URL(request.url).searchParams.get("verifier_fiches")==="1"){const {verifierConnexionFiches}=await import("@/lib/essai-fiches");await verifierConnexionFiches();}
   let entrees: number | null = null;
   try { entrees = await combien(); } catch { entrees = null; }
   let motsCorrigesCompte: number | null = null;
@@ -165,6 +169,8 @@ export async function GET(request: Request) {
     recherche_web:resumeRecherche(),
     fonctions_base:resumeFonctionsBase(),
     produits_ddskin:resumeEssaiProduits(),
+    fiches_connaissances:resumeFichesConnaissances(),
+    connexion_fiches:resumeConnexionFiches(),
     memorisation_maitre:resumeEssaiMemoire(),
     latence_conversation:resumeLatenceConversation(),
     comprehension_conversation:resumeEssaiComprehension(),

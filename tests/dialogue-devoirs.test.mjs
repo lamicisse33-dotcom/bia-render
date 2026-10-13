@@ -346,6 +346,7 @@ test('real chat route uses context memorisation before model and preserves maste
  const lesson=load('lib/mode-apprentissage.ts');let master=true;const writes=[];
  const env={...produits,...horloge,...recherche,...lesson,reponseIdentite:()=>null,reponseSalutation:async()=>null,audioPourReponse:async()=>null,corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected source edit')},verifierCode:()=>({ok:true,maitre:master}),noterPassage(){},parleDeMemoire:()=>true,noterTentative(){},lexiqueConfig:{actif:true},langueDe:()=> 'wo',enregistrerPhraseMaitre:async p=>{writes.push(p)},dialoguerAvecDevoirs:async()=>({reply:'No master write'}),noterPanne(){},estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null};
  const run=new Function('env',`with(env){${compile(fn)}return repondre;}`)(env);
+ env.sansRelanceAutomatique=core.sansRelanceAutomatique;
  const body={message:'Mémorise ça',history:[{role:'user',text:'Ñu ngi fi.'},{role:'bia',text:'Je ne peux pas mémoriser.'}]};
  const r=await run(body,'valid-test-code',null);assert.deepEqual(writes,['Ñu ngi fi.']);assert.equal(r.corps.retenu,'Ñu ngi fi.');assert.equal(r.corps.apprend,false);
  master=false;await run(body,'non-master-test-code',null);assert.equal(writes.length,1);

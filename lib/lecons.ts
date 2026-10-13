@@ -171,22 +171,22 @@ function entetes(type?: string) {
 /** Toutes les leçons, la plus récente d'abord. */
 export async function listerLecons(): Promise<Lecon[]> {
   if (!lecconsActives()) return [];
-  const r = await fetch(`${lexiqueConfig.url}/storage/v1/object/list/${SEAU}`, {
-    method: "POST",
-    headers: entetes("application/json"),
-    body: JSON.stringify({ prefix: "", limit: 500, offset: 0, sortBy: { column: "name", order: "asc" } }),
-    cache: "no-store",
-  });
-  if (!r.ok) throw new Error(`le seau « ${SEAU} » a refusé (${r.status}) : ${(await r.text()).slice(0, 200)}`);
-  const fichiers = await r.json() as Array<{ name?: string }>;
-  const noms = fichiers.map((f) => String(f.name || "")).filter((n) => n.endsWith(".json"));
+  const signal=AbortSignal.timeout(8000),noms:string[]=[];
+  for(let offset=0;;offset+=500){
+    const r=await fetch(`${lexiqueConfig.url}/storage/v1/object/list/${SEAU}`,{method:"POST",headers:entetes("application/json"),body:JSON.stringify({prefix:"",limit:500,offset,sortBy:{column:"name",order:"asc"}}),cache:"no-store",signal});
+    if(!r.ok)throw new Error(`Le stockage des anciennes leçons a refusé (${r.status})`);
+    const fichiers=await r.json() as Array<{name?:string}>;
+    if(!Array.isArray(fichiers))throw Error("Liste des anciennes leçons invalide");
+    noms.push(...fichiers.map(f=>String(f.name||"")).filter(n=>n.endsWith(".json")));
+    if(fichiers.length<500)break;
+  }
 
   /* On les lit toutes de front : cinquante leçons, c'est cinquante petits
      fichiers, et les demander l'une après l'autre ferait attendre pour rien. */
   const lues = await Promise.all(noms.map(async (nom) => {
     try {
       const f = await fetch(`${lexiqueConfig.url}/storage/v1/object/${SEAU}/${encodeURIComponent(nom)}`, {
-        headers: entetes(), cache: "no-store",
+        headers: entetes(), cache: "no-store",signal,
       });
       if (!f.ok) return null;
       return await f.json() as Lecon;

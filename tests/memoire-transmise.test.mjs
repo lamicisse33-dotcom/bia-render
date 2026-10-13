@@ -38,3 +38,10 @@ test('product knowledge survives unrelated context, reaches all accounts and is 
  }
  const absent=messagesConversation({question:'Je suis étudiant.',history:[]});assert(!absent.some(m=>m.content.includes('DD SKIN')));assert.equal(resumeTransmissionMemoire().derniere.produits_signes,0);
 });
+test('connected cards, validated assignments, pedagogy and media cannot fall out of a long generic context',()=>{
+ const sources={fiches:'FICHE_TARDIVE',instructions:'INSTRUCTION_MAITRE',devoirs:'DEVOIR_VALIDÉ',vitrine:'MEDIA_DISPONIBLE'};
+ for(const maitre of [true,false]){
+  const ms=messagesConversation({question:'Continue',history:[],maitre,...sources,contexte:'bruit '.repeat(10000)});const text=ms.map(m=>m.content).join('\n');
+  for(const key of ['fiches','devoirs','vitrine'])assert(text.includes(sources[key]));assert.equal(text.includes(sources.instructions),maitre);
+ }
+});
