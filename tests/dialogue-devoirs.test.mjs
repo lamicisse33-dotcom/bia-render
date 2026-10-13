@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 const compile=s=>ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 function load(path,deps={},env={}){const module={exports:{}};new Function('require','module','exports',...Object.keys(env),compile(fs.readFileSync(path,'utf8')))(n=>{assert(n in deps,`Unexpected import ${n}`);return deps[n];},module,module.exports,...Object.values(env));return module.exports;}
 const core=load('lib/dialogue-devoirs-core.ts'),langue=load('lib/langue.ts');
+const horloge=load('lib/horloge.ts'),recherche=load('lib/recherche.ts',{'./nombre-env':load('lib/nombre-env.ts')});
 const normalisation=load('lib/normaliser.ts'),textes=load('lib/repertoire-textes.ts'),services=load('lib/services-textes.ts');
 const salutations=load('lib/salutations-dialogue.ts',{'./normaliser':normalisation,'./repertoire-textes':textes,'./services-textes':services});
 const saved=texte=>({id:'fixture',texte,langue:'wo',valide:true,date:'2026-10-11'});
@@ -87,7 +88,7 @@ test('real chat route gives the authenticated learned dialogue priority over gen
  const source=fs.readFileSync('app/api/chat/route.ts','utf8'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);let fn;
  ast.forEachChild(n=>{if(ts.isFunctionDeclaration(n)&&n.name?.text==='repondre')fn=n.getText(ast);});assert(fn);
  let calls=0;const expected={reply:'Question apprise ?',dialogue_memorise:true};
- const env={reponseIdentite:()=>null,reponseSalutation:async()=>null,audioPourReponse:async()=>null,corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected write')},devoirsALire:async()=>({devoirs:[]}),verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,dialoguerAvecDevoirs:async(q,h)=>{calls++;assert.equal(q,'Non.');assert.equal(h[0].text,'Question précédente ?');return expected;}};
+ const env={...horloge,...recherche,reponseIdentite:()=>null,reponseSalutation:async()=>null,audioPourReponse:async()=>null,corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected write')},devoirsALire:async()=>({devoirs:[]}),verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,dialoguerAvecDevoirs:async(q,h)=>{calls++;assert.equal(q,'Non.');assert.equal(h[0].text,'Question précédente ?');return expected;}};
  env.sansRelanceAutomatique=core.sansRelanceAutomatique;
  const run=new Function('env',`with(env){${compile(fn)}return repondre;}`)(env);
  const r=await run({message:'Non.',history:[{role:'bia',text:'Question précédente ?'}]},'valid-test-code',null);assert.deepEqual(r,{corps:{...expected,origine_devoir:null,audio_memorise:null}});assert.equal(calls,1);
@@ -210,7 +211,7 @@ test('authenticated chat with the stuck history reaches the actual greeting repe
  const source=fs.readFileSync('app/api/chat/route.ts','utf8'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);let fn;
  ast.forEachChild(n=>{if(ts.isFunctionDeclaration(n)&&n.name?.text==='repondre')fn=n.getText(ast);});
  const api=service(async()=>{throw Error('No selector call');},async()=>{throw Error('No lesson read');});
- const env={reponseIdentite:()=>null,...repertoire,...services,correctionCourantePour:async()=>undefined,sansRelanceAutomatique:core.sansRelanceAutomatique,dialoguerAvecDevoirs:api.dialoguerAvecDevoirs,
+ const env={...horloge,...recherche,reponseIdentite:()=>null,...repertoire,...services,correctionCourantePour:async()=>undefined,sansRelanceAutomatique:core.sansRelanceAutomatique,dialoguerAvecDevoirs:api.dialoguerAvecDevoirs,
   corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected write')},verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,
   repertoireActif:()=>true,RELU_BLAGUES:false,noterRate(){},SONS_QUI_DISENT_AUTRE_CHOSE:new Set(),gesteDe:()=>null};
  env.reponseSalutation=q=>load('lib/reponse-salutation.ts',{'./salutations-dialogue':salutations,'./repertoire':repertoire,'./sons-courants':{lireCatalogueCourant:async()=>{const e=salutations.salutationReconnue(q),langue=repertoire.langueDe(q),p=await env.correctionCourantePour();return p?[{...p,cle:e.cle,langue,audio:{...p.audio,texte:p.texte}}]:[];}}}).reponseSalutation(q);
