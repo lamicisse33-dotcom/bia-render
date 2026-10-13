@@ -1,3 +1,4 @@
+import {verifierAdministration} from '@/lib/essai-administration';
 import {verifierBusiness} from '@/lib/essai-business';
 import {verifierSoxla} from '@/lib/essai-soxla';
 import {verifierLanLool} from '@/lib/essai-lan-lool';
@@ -36,6 +37,7 @@ export async function POST(r:Request){
   // runner for this fixed public catalogue only; ordinary master checks do
   // not generate audio. Once this session expires, explicit selection wins.
   const runner=a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
+  if(body.administration===true||(runner&&Object.keys(body).length===0&&Date.now()<Date.parse("2026-10-13T06:00:00Z")))return NextResponse.json({verifie:true,administration:await verifierAdministration()});
   if(body.business===true||(runner&&Object.keys(body).length===0&&Date.now()<Date.parse("2026-10-13T04:00:00Z")))return NextResponse.json({verifie:true,business:await verifierBusiness()});
   if(body.soxla===true||(runner&&Object.keys(body).length===0&&Date.now()<Date.parse("2026-10-13T03:00:00Z")))return NextResponse.json({verifie:true,soxla:await verifierSoxla()});
   if(body.lan_lool===true||(runner&&Object.keys(body).length===0&&Date.now()<Date.parse("2026-10-13T03:00:00Z")))return NextResponse.json({verifie:true,lan_lool:await verifierLanLool()});
