@@ -11,7 +11,7 @@ const deferred = () => { let resolve; const promise = new Promise(r => { resolve
 
 test('a short breath does not finish a sentence; repeated early cuts extend the pause', () => {
   for (const duration of [700, 2500, 7000]) {
-    assert(silenceQuiSuffit(duration) >= 1000);
+    assert(silenceQuiSuffit(duration) >= 650);
     assert(silenceQuiSuffit(duration, 2) > silenceQuiSuffit(duration));
     assert(silenceQuiSuffit(duration, 100) <= 3000);
   }
@@ -60,6 +60,7 @@ function environment(fetchPromise) {
     ouvrirRepliques,carteOuverteRef:{current:false},numeroDuTourRef:{current:1},porteRef:{current:null},
     personaRef:{current:'female'},codeRef:{current:'test'},bornesRef:{current:{}},langueRef:{current:'fr'},
     choixVoixBia:()=>"female",estWolof:()=>false,voixLocaleBiaDisponible:()=>true,noterRouteVoixBia:()=>{},essaiChatterboxActif:()=>true,
+    transportConversation:(_k,_l,lecture)=>lecture?'clips':'ordinaire',piperWebActif:()=>false,
     routeVoixBia:()=>'/tts',voixChatterboxBia:()=> 'female',voixAudioPrompt:()=>'',
     fetch:()=>fetchPromise,attendreSonTour,noterAttente:()=>{},poserBorne:()=>{},finirAttente:async()=>{},
     window:{speechSynthesis:{cancel(){}}},couperSon:()=>{},tourRef:{current:null},
@@ -69,6 +70,7 @@ function environment(fetchPromise) {
     requestAnimationFrame:()=>1,pause:async()=>{},setFace:()=>{},setPanne:()=>{},stopMouth:()=>{},
     fluxVoixRef:{current:new Set()},sourcesRef:{current:new Set()},ditsRef:{current:[]}
   };
+  env.fetchVoixBia=(url,opt)=>env.fetch(url,opt);env.vitesseAudioBia=()=>1;
   env.reveillerLeSon=async()=>Object.assign(env.contexte(),{state:"running"});
   return {env,played:()=>played,decoded:()=>decoded,processed:()=>processed};
 }

@@ -171,7 +171,7 @@ export function sansBalises(texte: string): string {
    ajoute par-dessus. En dessous, la marge devient négative et on échange une
    seconde gagnée contre un silence au milieu d'une phrase — un mauvais
    marché, et l'un des deux s'entend. */
-const MORCEAU_MINIMAL = 30;
+const MORCEAU_MINIMAL = 12;
 
 /** Une balise de GESTE, c'est-à-dire tout sauf l'émotion. C'est elle qui
     annonce que le serveur va remplacer la réponse — voir teteDeLaReponse. */

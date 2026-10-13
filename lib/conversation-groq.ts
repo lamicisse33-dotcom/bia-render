@@ -101,9 +101,9 @@ export function messagesConversation(o: {
     connaissances_khalam_signes: Math.min(o.connaissances?.length || 0, 4000),
   };
   if (contexte) messages.push({role: "system", content: contexte});
-  const recent = o.history.slice(-40).filter(m => m.role === "user" || m.role === "assistant");
+  const recent = o.history.slice(o.rapide?-12:-40).filter(m => m.role === "user" || m.role === "assistant");
   const retenus: MessageConversation[] = [];
-  let restant = Math.max(6000, 24000 - systeme.length - outils.length - contexte.length - o.question.length);
+  let restant = o.rapide?6000:Math.max(6000, 24000 - systeme.length - outils.length - contexte.length - o.question.length);
   for (let i = recent.length - 1; i >= 0; i--) {
     const m = recent[i];
     if (m.content.length > restant) break;

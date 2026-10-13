@@ -347,6 +347,8 @@ test('a verified choice is reused without another model call, but a changed fact
  const a=await api.dialoguerAvecDevoirs(q,[],{index});assert.equal(calls,1);
  const b=await api.dialoguerAvecDevoirs('Bia, '+q+' Réponds en wolof.',[],{index});
  assert.equal(calls,1);assert.equal(b.acces_direct,true);assert.equal(b.reply,index[0].repliques[1].wo);
+ const enriched=[...index,{id:'astronomie',titre:'Astronomie',date:'2026-10-13',repliques:[{id:'0',fr:'Les étoiles brillent.',wo:'Astronomie.',role:'bia'}]}];
+ const same=await api.dialoguerAvecDevoirs(q,[],{index:enriched});assert.equal(same.acces_direct,true);assert.equal(calls,1);
  await api.dialoguerAvecDevoirs(q,[{role:'user',text:'Nous ne nous sommes pas disputés.'}],{index});assert.equal(calls,2);
  const changed=structuredClone(index);changed[0].repliques[1].wo='Source corrigée.';
  const c=await api.dialoguerAvecDevoirs(q,[],{index:changed});assert.equal(calls,3);assert.notEqual(c.acces_direct,true);

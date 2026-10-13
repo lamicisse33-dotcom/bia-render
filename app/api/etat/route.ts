@@ -1,3 +1,4 @@
+import {silenceQuiSuffit} from '@/lib/micro';
 import {resumeMemoireOrganisee} from '@/lib/memoire-organisee';
 import {resumeConnexionFiches} from "@/lib/essai-fiches";
 import {resumeAccesDevoirs,verifierAccesDevoirs} from "@/lib/essai-acces-devoirs";
@@ -150,6 +151,7 @@ export async function GET(request: Request) {
        n'existe pas : on prend l'heure de démarrage du serveur, qui change à
        chaque redémarrage — même effet, sans rien à configurer. */
     version: VERSION,
+    reglages_rapidite:{silence_court_ms:silenceQuiSuffit(700),silence_phrase_ms:silenceQuiSuffit(2500),silence_recit_ms:silenceQuiSuffit(7000),historique_vocal_max_tours:12,premiere_phrase_courte:true,cache_dialogue_par_sources_pertinentes:true},
     piper_web: resumePiperWeb(),
     // La tenue de BIA — réglable depuis /reglage, lue par tout le monde ici.
     tenue: tenueActuelle(),
