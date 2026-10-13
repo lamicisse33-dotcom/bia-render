@@ -1,5 +1,5 @@
 import { corrigerTranscription,phrasesLexiqueComplet } from "./correction-transcription";
-import { contexteTranscription, langueTranscription, lireVerdictTranscription, formesProchesTranscription,CONSIGNE_TRANSCRIPTION } from "./transcription-contexte-core";
+import { contexteTranscription, langueTranscription, lireVerdictTranscription, formesProchesTranscription,reparerEspacesConnus,CONSIGNE_TRANSCRIPTION } from "./transcription-contexte-core";
 import {fetchAnthropic,contenuAnthropic,MODELE_SONNET} from "./cerveau-anthropic";
 
 const g = globalThis as typeof globalThis & { biaCorrectionContexte?: {
@@ -72,7 +72,10 @@ export async function verifierTranscriptionContextuelle(texte: string, historiqu
     let attente:ReturnType<typeof setTimeout>|undefined,formes:ReturnType<typeof formesProchesTranscription>=[];
     try {
       const corpus=await Promise.race([Promise.all([corrigerTranscription(brut),phrasesLexiqueComplet()]),new Promise<never>((_,rej)=>{attente=setTimeout(()=>rej(Error('lexique_lent')),800);})]);
-      base=corpus[0];formes=formesProchesTranscription(base.texte,corpus[1]);
+      base=corpus[0];
+      const espaces=reparerEspacesConnus(base.texte,corpus[1]);
+      if(espaces!==base.texte)base={...base,texte:espaces,corrections_transcription:[...base.corrections_transcription,{entendu:base.texte,corrige:espaces}]};
+      formes=formesProchesTranscription(base.texte,corpus[1]);
     }
     catch { lexique_disponible = false; }
     finally{if(attente)clearTimeout(attente);}

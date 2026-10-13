@@ -55,6 +55,23 @@ export function formesProchesTranscription(texte:string,phrases:string[]){
   return {entendu,formes:[...new Set(proches.slice(0,3).map(([,w])=>w))]};
  }).filter(p=>p.formes.length).slice(0,8);
 }
+/** Repair a glued, unknown word only when ONE validated word pair and its
+ * actual neighbour match. Never split an already validated compound. */
+export function reparerEspacesConnus(texte:string,phrases:string[]){
+ const connus=new Set(phrases.flatMap(p=>mots(p).map(norm))),entendus=mots(texte),paires=new Map<string,Map<string,{texte:string;voisins:Set<string>}>>();
+ for(const phrase of phrases){const ws=mots(phrase);for(let i=0;i+1<ws.length;i++){
+  const cle=norm(ws[i]+ws[i+1]);if(/\d/u.test(cle)||cle.length<5||cle.length>30)continue;
+  const canon=norm(ws[i]+' '+ws[i+1]),options=paires.get(cle)||new Map(),p=options.get(canon)||{texte:ws[i]+' '+ws[i+1],voisins:new Set<string>()};
+  if(i>0)p.voisins.add('g:'+norm(ws[i-1]));if(i+2<ws.length)p.voisins.add('d:'+norm(ws[i+2]));options.set(canon,p);paires.set(cle,options);
+ }}
+ let position=-1;
+ const proposition=texte.replace(/[\p{L}\p{M}\p{N}'’-]+/gu,w=>{
+  position++;if(connus.has(norm(w)))return w;
+  const proches=[...(paires.get(norm(w))?.values()||[])].filter(p=>position>0&&p.voisins.has('g:'+norm(entendus[position-1]))||position+1<entendus.length&&p.voisins.has('d:'+norm(entendus[position+1])));
+  return proches.length===1?proches[0].texte:w;
+ });
+ return proposition!==texte&&correctionProche(texte,proposition)?proposition:texte;
+}
 /** The model's confidence is not enough: no semantic rewrite, changed number,
  * negation, entity, inserted word or lost word can be accepted automatically. */
 export function correctionProche(brut: string, corrige: string) {

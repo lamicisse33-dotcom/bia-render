@@ -11,7 +11,7 @@ export function verifierCorrectionVocale(){return etat.travail??=(async()=>{
  const cas=[];
  for(const c of [
   {nom:'wolof_emprunt_francais',texte:'Dama sokhla preuve de paiement.',attendu:'Dama soxla preuve de paiement.',history:[{role:'user',text:'Nous corrigeons les preuves de paiement. Garde les mots français dans la phrase wolof.'}]},
-  {nom:'espaces_wolof',texte:'Xalebi dafay jooy.',attendu:'Xale bi dafay jooy.',history:[]},
+  {nom:'espaces_wolof',texte:'Xale bidafay jooy.',attendu:'Xale bi dafay jooy.',history:[]},
   {nom:'francais',texte:'Je fais un transfer demain.',attendu:'Je fais un transfert demain.',history:[]},
   {nom:'negation_preservee',texte:'Dama bëggul dem.',attendu:'Dama bëggul dem.',history:[]},
  ]){

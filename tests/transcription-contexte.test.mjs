@@ -44,6 +44,13 @@ test('phonetic hints come only from validated forms, without replacing existing 
  const fr=core.formesProchesTranscription('Je fais un transfer demain.', ['Je fais un transfert demain.']);
  assert(fr.some(p=>p.entendu==='transfer'&&p.formes.includes('transfert')));
 });
+test('glued words require a unique validated pair and matching neighbour; known compounds stay intact',()=>{
+ assert.equal(core.reparerEspacesConnus('Xale bidafay jooy.',['Xale bi dafay jooy.']),'Xale bi dafay jooy.');
+ assert.equal(core.reparerEspacesConnus('Damasoxla preuve.',['Dama soxla preuve.','Damasoxla preuve.']),'Damasoxla preuve.');
+ assert.equal(core.reparerEspacesConnus('Bidafay.',['Xale bi dafay jooy.']),'Bidafay.');
+ assert.equal(core.reparerEspacesConnus('Bi duma.',['Bi du ma.']),'Bi duma.');
+ assert.equal(core.reparerEspacesConnus('Donne 15000 francs.',['Donne 15 000 francs.']),'Donne 15000 francs.');
+});
 test('the selected Anthropic brain receives a transcription-only request with validated reference data',async()=>{
  const oldFetch=globalThis.fetch,provider=process.env.BIA_LLM_PROVIDER,key=process.env.BIA_LLM_API_KEY;
  process.env.BIA_LLM_PROVIDER='anthropic';process.env.BIA_LLM_API_KEY='test-only';let payload;
