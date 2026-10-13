@@ -58,3 +58,13 @@ test('conversation uses the same continuous transport and bounded audio cache wi
  const branch=page.slice(start,page.indexOf('const demander = async (partie: number)',start));
  assert.match(branch,/lecture_fidele:Boolean\(lecture\),continu:true/);
 });
+test('transport comparison joins complete PCM frames without deleting even tiny samples',async()=>{
+ const source=fs.readFileSync('lib/essai-transport-voix.ts','utf8').replace(/^import .*;\n/gm,'');
+ const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+ const {reunirWav}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
+ const make=values=>{const b=Buffer.alloc(44+values.length*2);b.write('RIFF');b.writeUInt32LE(b.length-8,4);b.write('WAVE',8);b.write('fmt ',12);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(24000,24);b.writeUInt32LE(48000,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(values.length*2,40);values.forEach((v,i)=>b.writeInt16LE(v,44+i*2));return b;};
+ const a=make([0,1,-1,32767]),b=make([-32768,2,0]);const wav=reunirWav([a,b]);
+ assert.deepEqual(wav.subarray(44),Buffer.concat([a.subarray(44),b.subarray(44)]));
+ assert.equal(wav.readUInt32LE(40),14);assert.equal(wav.readUInt32LE(4),wav.length-8);
+ assert.throws(()=>reunirWav([a.subarray(0,45)]));
+});

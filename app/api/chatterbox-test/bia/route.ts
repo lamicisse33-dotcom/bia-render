@@ -33,6 +33,7 @@ function authorized(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const departPreparation=Date.now();
   if (!authorized(request)) {
     return NextResponse.json({ erreur: "code", error: "Code d’accès BIA refusé." }, { status: 401 });
   }
@@ -53,6 +54,7 @@ export async function POST(request: NextRequest) {
   let parts: Awaited<ReturnType<typeof preparerPassagesKhalam>>;
   try { parts = await preparerPassagesKhalam(body.texte, defaut, false, body.lecture_fidele === true); }
   catch { return NextResponse.json({error:"Le lexique n'a pas répondu. Réessaie."},{status:503}); }
+  const preparationMs=Date.now()-departPreparation;
   // A count alone cannot detect a replacement/reordering of equal-sized plans.
   // Bind subsequent chunks to the exact text, languages and voice of part zero.
   const empreinte = createHash("sha256").update(JSON.stringify([voice, parts])).digest("hex");
@@ -129,6 +131,8 @@ export async function POST(request: NextRequest) {
       ...common, audio: output.audio_base64, type_mime: "audio/wav",
       fabrication_ms: Date.now() - started, encodage_ms: 0,
       generation_ms: output.generation_ms, duration_seconds: output.duration_seconds,
+      preparation_ms:preparationMs,
+      temps_gpu:cached?null:data.bia_temps||null,
       sample_rate: output.sample_rate,
       checkpoint_step: output.checkpoint_step,
       checkpoint_sha256: output.checkpoint_sha256,

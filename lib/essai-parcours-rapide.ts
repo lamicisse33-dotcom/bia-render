@@ -3,6 +3,7 @@ import {teteDeLaReponse} from './diffusion';
 import {ouvrirRepliques} from './flux-repliques';
 import {resumeTransmissionMemoire} from './conversation-groq';
 import {indexDialogue} from './dialogue-devoirs';
+import {langueConversation} from './comprehension-conversation';
 const g=globalThis as typeof globalThis&{biaParcoursRapide?:{rapport:unknown;travail?:Promise<void>}};
 const etat=g.biaParcoursRapide??={rapport:null};
 export const resumeParcoursRapide=()=>etat.rapport;
@@ -28,7 +29,7 @@ export function verifierParcoursRapide(){return etat.travail??=(async()=>{
    const lecteur=r.body!.getReader(),decoder=new TextDecoder();
    for(;;){const v=await lecteur.read();if(v.done)break;tampon+=decoder.decode(v.value,{stream:true});let k;
     while((k=tampon.indexOf('\n\n'))>=0){const p=tampon.slice(0,k);tampon=tampon.slice(k+2);const ev=p.match(/^event:\s*(.+)$/m)?.[1],j=p.match(/^data:\s*(.+)$/m)?.[1];if(!j)continue;const d=JSON.parse(j);
-     if(ev==='texte'){premierTexte??=Date.now()-debut;recu+=d.morceau||'';const tete=teteDeLaReponse(recu);if(!voix&&tete){phraseMs=Date.now()-debut;voix=genererVoix(tete,'fr');}}
+     if(ev==='texte'){premierTexte??=Date.now()-debut;recu+=d.morceau||'';const tete=teteDeLaReponse(recu);if(!voix&&tete){phraseMs=Date.now()-debut;voix=genererVoix(tete,langueConversation(message,[]));}}
      if(ev==='fin')fin=d;
     }
    }

@@ -1,5 +1,6 @@
 import {resumeConnexionFiches} from "@/lib/essai-fiches";
 import {resumeParcoursRapide} from "@/lib/essai-parcours-rapide";
+import {resumeTransportVoix} from "@/lib/essai-transport-voix";
 import {resumeFichesConnaissances,inventaireFiches} from "@/lib/fiches-connaissances";
 import {resumeEssaiProduits} from "@/lib/essai-produits";
 import {resumeLatenceConversation} from "@/lib/essai-latence-conversation";
@@ -346,6 +347,7 @@ export async function GET(request: Request) {
     souvenirs: resumeSouvenirs(),
     memoire_transmise: resumeTransmissionMemoire(),
     parcours_rapide: resumeParcoursRapide(),
+    transport_voix:resumeTransportVoix(),
     /* ── ET LE VRAI NOMBRE, CELUI DE LA TABLE ─────────────────────────────
        Le 18 septembre à 23 h, la page disait « Souvenirs gardés : 0 » une
        heure après avoir dit 74. Rien n'était perdu : `gardes` compte ce qui

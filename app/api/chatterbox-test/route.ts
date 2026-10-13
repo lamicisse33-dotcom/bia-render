@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
     const francais = language === "fr";
     const seed = body.input.seed === undefined ? 913 : body.input.seed;
     if (!Number.isSafeInteger(seed) || seed < 0 || seed > 2147483647) return NextResponse.json({error:"Prise vocale invalide."},{status:400});
+    const departGPU=Date.now();
     const response = await fetch(`${c.url}/tts`, {
       method: "POST", cache: "no-store",
       headers: { "content-type": "application/json", "X-Khalam-Key": c.key },
@@ -81,7 +82,9 @@ export async function POST(request: NextRequest) {
         code,
       }, { status: response.status === 429 ? 429 : 502, headers: response.status === 429 ? { "retry-after": "2" } : {} });
     }
+    const entetesGPU=Date.now();
     const data = await response.json();
+    const retourGPU=Date.now();
     const modeleAttendu=francais?'b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75':'8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f';
     if(data.status==='COMPLETED'&&data.output?.checkpoint_sha256!==modeleAttendu){
       console.error('BIA_VOICE_FAILURE',JSON.stringify({code:'LANGUE_VOIX_INCORRECTE',langue:language}));
@@ -95,7 +98,7 @@ export async function POST(request: NextRequest) {
       console.error("BIA_VOICE_FAILURE", JSON.stringify({ code: "AUDIO_INVALIDE" }));
       return NextResponse.json({ error: "Le moteur vocal n’a pas produit d’audio.", code: "AUDIO_INVALIDE" }, { status: 502 });
     }
-    return NextResponse.json(data, { headers: { "cache-control": "no-store" } });
+    return NextResponse.json({...data,bia_temps:{gpu_http_ms:retourGPU-departGPU,gpu_entetes_ms:entetesGPU-departGPU,gpu_corps_ms:retourGPU-entetesGPU,generation_ms:data.output.generation_ms,hors_generation_ms:Math.max(0,retourGPU-departGPU-data.output.generation_ms)}}, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     const code = (error as Error)?.name === "TimeoutError" ? "DELAI_DEPASSE" : "CONNEXION_GPU";
     console.error("BIA_VOICE_FAILURE", JSON.stringify({ code }));
