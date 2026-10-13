@@ -1,4 +1,5 @@
 import {POST} from '../app/api/chatterbox-test/bia/route';
+import {POST as synthese} from '../app/api/chatterbox-test/route';
 import {grainePriseVoix} from './prise-voix';
 import {NextRequest} from 'next/server';
 import {createHash} from 'node:crypto';
@@ -21,7 +22,7 @@ export function verifierBusiness(){return etat.travail??=(async()=>{
  }
  for(const [id,texte] of [
   ['BIA-BUS-048','Déedéet,livraison bi à part la.'],
-  ['BIA-BUS-077','Bul tontu ak insultes.Défal sa réponse calme te professionnel.'],
+  ['BIA-BUS-077','Bul tontu ak insultes.Dëfal sa réponse calme te professionnel.'],
  ])for(const nouvelle_prise of [undefined,'business-prise-1','business-prise-2']){
   const variante=id+'-'+(nouvelle_prise||'actuelle');
   const plan=await preparerPassagesKhalam(texte,'wo',false,true),clips:ArrayBuffer[]=[];
@@ -32,6 +33,19 @@ export function verifierBusiness(){return etat.travail??=(async()=>{
    total=d.parties;empreinte=d.empreinte;clips.push(decode(d.audio));
   }
   await garder(variante,texte,clips,plan.map((p,i)=>({...p,seed:grainePriseVoix(nouvelle_prise,'female',i,p.prise?.female)})));
+ }
+ for(const [variante,plan] of [
+  ['048-liee-wo',[{texte:'Déedéet,livraison bi à part la.',langue:'wo'}]],
+  ['048-liee-fr',[{texte:'Déedéet,',langue:'wo'},{texte:'livraison bi à part la.',langue:'fr'}]],
+  ['077-defal-sa',[{texte:'Bul tontu ak insultes.',langue:'wo'},{texte:'Dëfal sa',langue:'wo'},{texte:'réponse calme te professionnel.',langue:'fr'}]],
+ ] as const){
+  const clips:ArrayBuffer[]=[];
+  for(const p of plan){
+   const r=await synthese(new NextRequest(url,{method:'POST',headers,body:JSON.stringify({input:{text:p.texte,voice:'female',language:p.langue,seed:913,preserve_segment:true}})}));
+   const d=await r.json();if(!r.ok||!d.output?.audio_base64)throw Error('comparaison_incomplete');
+   clips.push(decode(d.output.audio_base64));
+  }
+  await garder(variante,plan.map(p=>p.texte).join(' '),clips,plan);
  }
  etat.rapport={date:new Date().toISOString(),statut:'termine',total_ms:Date.now()-depuis,ecoute_humaine_verifiee:false,cas:cas.map(({audio_mp3,...c})=>c)};
  return {...etat.rapport as object,cas};
