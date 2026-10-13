@@ -157,7 +157,7 @@ export function montantDeLeconNonConfirme(fr:string,wo:string,question:string,hi
  if(exemple&&/\b(?:par exemple|supposons|imaginons|si tu|si vous|si on)\b/.test(normaliserDialogue(fr)))return false;
  const connus=new Set(montants(donnees));
  if(/bénéfice|benefice|profit|tu gagnes|vous gagnez/i.test(fr)&&!fr.includes('?')){
-  const confirme=[...history.filter(t=>t.role==='user').map(t=>t.text),question].some(t=>/bénéfice|benefice|profit|je gagne|j’ai gagné|j ai gagne/i.test(t)&&chiffres.every(n=>montants(t).includes(n)));
+  const confirme=[...history.filter(t=>t.role==='user').map(t=>t.text),question].some(t=>/^(?:(?:oui|non|mais|donc) )?(?:(?:mon|notre) (?:benefice|profit) (?:est|fait|vaut) (?:de )?\d|(?:mes|nos) (?:benefices|profits) (?:sont|font) (?:de )?\d|je gagne \d|j ai gagne \d|sama (?:benefice|profit)(?: bi)? (?:mooy |moy |dafa am )?\d)/.test(normaliserDialogue(t))&&chiffres.every(n=>montants(t).includes(n)));
   if(!confirme)return true;
  }
  return chiffres.some(n=>!connus.has(n));
