@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
   const id = createHash("sha256")
     .update(JSON.stringify([process.env.CHATTERBOX_TEST_URL, serverKey, voice, common.langue, "mixed-language-profiles-v3",revisions.biaGenerationDevoirs||0,revisions.biaGenerationPrononciation||0, parts[partie].texte,seed,typeof body.nouvelle_prise==="string"?body.nouvelle_prise.slice(0,80):""]))
     .digest("hex");
-  const cached = (body.lecture_fidele===true?repliquesEnCache.get(id):undefined)||accuses.get(id, parts[partie].texte);
+  const cached = repliquesEnCache.get(id)||accuses.get(id, parts[partie].texte);
   let pending = cached ? Promise.resolve(cached) : inFlight.get(id);
   const shared = Boolean(pending);
   if (!pending) {
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       }, { status: status === 200 ? 502 : status, headers: { ...headers, ...(status === 429 ? { "retry-after": "2" } : {}) } });
     }
     const output = data.output;
-    if(!cached&&body.lecture_fidele===true&&typeof output.audio_base64==="string")repliquesEnCache.set(id,{status,data},output.audio_base64.length*2+2048);
+    if(!cached&&typeof output.audio_base64==="string")repliquesEnCache.set(id,{status,data},output.audio_base64.length*2+2048);
     // Cache only successfully validated audio from the active trained model.
     if (!cached && output.checkpoint_sha256 === "8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f") {
       accuses.set(id, parts[partie].texte, {status, data});
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
   }
   }
   if(body.continu===true){
-    if(partie!==0||body.lecture_fidele!==true||parts.length>120)return NextResponse.json({error:"Lecture continue invalide."},{status:400});
+    if(partie!==0||parts.length>120)return NextResponse.json({error:"Lecture continue invalide."},{status:400});
     const encoder=new TextEncoder();let annule=false;const debutFlux=Date.now();continuiteVoix.flux++;
     const stream=new ReadableStream<Uint8Array>({
       async start(controller){

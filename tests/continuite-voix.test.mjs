@@ -46,3 +46,15 @@ test('explicit regeneration makes a new take even when identical text is already
  const r=route();r.gate.resolve();let f=ouvrirRepliques(await r.request(),()=>{});await f.morceau(0);await f.morceau(1);assert.equal(r.calls(),2);
  f=ouvrirRepliques(await r.request({nouvelle_prise:'new-take'}),()=>{});assert.equal((await f.morceau(0)).audio_en_cache,false);await f.morceau(1);assert.equal(r.calls(),4);
 });
+
+
+test('conversation uses the same continuous transport and bounded audio cache without forcing lesson chunking',async()=>{
+ const r=route();r.gate.resolve();const f=ouvrirRepliques(await r.request({lecture_fidele:false}),()=>{});
+ assert.equal((await f.morceau(0)).audio,'Dañu bëgg ma def');await f.morceau(1);
+ const replay=ouvrirRepliques(await r.request({lecture_fidele:false}),()=>{});
+ assert.equal((await replay.morceau(0)).audio_en_cache,true);await replay.morceau(1);assert.equal(r.calls(),2);
+ const page=fs.readFileSync('app/page.tsx','utf8');
+ const start=page.indexOf('const continu=essaiChatterboxActif();');
+ const branch=page.slice(start,page.indexOf('const demander = async (partie: number)',start));
+ assert.match(branch,/lecture_fidele:Boolean\(lecture\),continu:true/);
+});

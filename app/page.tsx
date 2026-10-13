@@ -2729,7 +2729,7 @@ export default function Home() {
     const routeVoix = routeVoixBia();
     const voixChoisie = voixChatterboxBia();
     let empreinteLecture: string | undefined;
-    const continu=Boolean(lecture&&essaiChatterboxActif());
+    const continu=essaiChatterboxActif();
     let connexion:Promise<ReturnType<typeof ouvrirRepliques>>|null=null;
     const ouvrirConnexion=()=>{
       const abort=new AbortController();fluxVoixRef.current.add(abort);
@@ -2738,7 +2738,7 @@ export default function Home() {
       const finir=()=>{clearTimeout(timer);fluxVoixRef.current.delete(abort);};
       return fetch(routeVoix,{method:"POST",signal:abort.signal,
         headers:{"content-type":"application/json","x-bia-code":codeRef.current},
-        body:JSON.stringify({texte:answer,voice:voixChoisie,langue:langueDite,lecture_fidele:true,continu:true})
+        body:JSON.stringify({texte:answer,voice:voixChoisie,langue:langueDite,lecture_fidele:Boolean(lecture),continu:true})
       }).then(r=>{if(!r.ok){finir();throw Error("La voix est indisponible. Réessaie.");}return ouvrirRepliques(r,finir,recu);}).catch(e=>{finir();throw e;});
     };
     const demander = async (partie: number) => {
