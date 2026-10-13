@@ -6,13 +6,14 @@ import {indexDialogue} from './dialogue-devoirs';
 const g=globalThis as typeof globalThis&{biaParcoursRapide?:{rapport:unknown;travail?:Promise<void>}};
 const etat=g.biaParcoursRapide??={rapport:null};
 export const resumeParcoursRapide=()=>etat.rapport;
-/** Two fixed owner-authorised startup probes, no learning or chat writes.
+/** Three fixed owner-authorised startup probes, no learning or chat writes.
  * Never accepts public question input or exposes credentials/reply contents. */
 export function verifierParcoursRapide(){return etat.travail??=(async()=>{
  etat.rapport={statut:'en_cours',date:new Date().toISOString()};
  const {POST}=await import('../app/api/chat/route'),index=await indexDialogue(),cas=[];
  for(const [nom,message] of [
   ['lecon','Ma copine ne répond plus à mes appels. Réponds en wolof.'],
+  ['commerce','Je suis un petit commerçant et je ne sais pas combien je gagne vraiment. Réponds en wolof.'],
   ['phrase_longue','Je pense que pour améliorer les transports dans une ville, il faut investir dans les bus plutôt que dans de nouvelles routes. Mais si les bus sont coûteux, les habitants risquent de continuer à utiliser leur voiture. Comment réponds-tu à cette objection, en tenant compte du budget limité de la ville ? Réponds en français.'],
  ]){
   const debut=Date.now();let premierTexte:number|null=null,phraseMs:number|null=null,recu='',tampon='',fin:any=null,voix:Promise<Record<string,unknown>>|undefined;

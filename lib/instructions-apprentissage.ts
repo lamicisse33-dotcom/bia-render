@@ -1,13 +1,30 @@
 import {createHash} from "node:crypto";
 import {ajouterCorrection,lexiqueConfig} from "./lexique";
 import {APP_LECONS} from "./lexique-apprentissage-core";
-async function lire(){if(!lexiqueConfig.actif)throw Error("Supabase non configuré");
+type Instruction={source:string;corrigee:string};
+let cache:{rows:Instruction[];expires:number}|null=null;
+let chargement:Promise<Instruction[]>|undefined;
+let generation=0;
+async function lire(force=false):Promise<Instruction[]>{
+ if(!force&&cache&&cache.expires>Date.now())return cache.rows;
+ if(!force&&chargement)return chargement;
+ const travail=charger();
+ const revision=generation;
+ if(force)return travail;
+ chargement=travail;
+ try{const rows=await travail;if(revision===generation)cache={rows,expires:Date.now()+30000};return rows;}
+ finally{if(chargement===travail)chargement=undefined;}
+}
+async function charger(){if(!lexiqueConfig.actif)throw Error("Supabase non configuré");
  const r=await fetch(`${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}?select=source,corrigee&application=eq.${APP_LECONS}&auteur=eq.maitre-instruction&order=id.desc&limit=100`,{headers:{apikey:lexiqueConfig.cle,Authorization:`Bearer ${lexiqueConfig.cle}`},cache:"no-store",signal:AbortSignal.timeout(8000)});
- if(!r.ok)throw Error("Instructions Supabase inaccessibles");return await r.json() as Array<{source:string;corrigee:string}>;
+ if(!r.ok)throw Error("Instructions Supabase inaccessibles");return await r.json() as Instruction[];
 }
 export async function garderInstruction(texte:string){const source="INSTRUCTION:"+createHash("sha256").update(texte).digest("hex");
- if(!(await lire()).some(r=>r.source===source&&r.corrigee===texte))await ajouterCorrection({source,corrigee:texte,application:APP_LECONS,auteur:"maitre-instruction",langue:"fr"});
- if(!(await lire()).some(r=>r.source===source&&r.corrigee===texte))throw Error("Instruction non confirmée");
+ if(!(await lire(true)).some(r=>r.source===source&&r.corrigee===texte))await ajouterCorrection({source,corrigee:texte,application:APP_LECONS,auteur:"maitre-instruction",langue:"fr"});
+ generation++;cache=null;chargement=undefined;
+ const rows=await lire(true);
+ if(!rows.some(r=>r.source===source&&r.corrigee===texte))throw Error("Instruction non confirmée");
+ cache={rows,expires:Date.now()+30000};
  return {verifie:true};
 }
 export async function contexteInstructions(){const rows=await lire();const uniques=[...new Map(rows.map(r=>[r.source,r.corrigee])).values()];

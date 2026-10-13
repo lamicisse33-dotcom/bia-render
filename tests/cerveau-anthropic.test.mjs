@@ -42,3 +42,25 @@ test('the caller cancellation signal is preserved',async()=>{
  const r=await api.fetchAnthropic('https://test',{signal:controller.signal,body:'{}'});
  assert.equal(r.headers.get('x-bia-erreur'),'annule');
 });
+test('stable pedagogical instructions get a second cache breakpoint before changing retrieved data',()=>{
+ const api=load(async()=>Response.json({}));
+ const native=api.messagesAnthropic([
+  {role:'system',content:'personnalité '.repeat(300)},
+  {role:'system',content:'INSTRUCTIONS PÉDAGOGIQUES DU MAÎTRE AUTHENTIFIÉ\n'+'règles '.repeat(500)},
+  {role:'system',content:'options variables '.repeat(300)},
+  {role:'user',content:'Ma question'},
+ ]);
+ assert(native.system[0].cache_control);assert(native.system[1].cache_control);
+ assert.equal(native.system[2].cache_control,undefined);
+});
+test('pedagogical reads share a cache but a saved instruction requires fresh durable read-back',async()=>{
+ const crypto=await import('node:crypto');let calls=0,writes=0,rows=[];
+ const js=ts.transpileModule(fs.readFileSync('lib/instructions-apprentissage.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+ const module={exports:{}};
+ const deps={'node:crypto':crypto,'./lexique':{lexiqueConfig:{actif:true,url:'https://test.invalid',table:'lexique',cle:'test-only'},ajouterCorrection:async r=>{writes++;rows=[{source:r.source,corrigee:r.corrigee},...rows];}},'./lexique-apprentissage-core':{APP_LECONS:'test'}};
+ new Function('require','module','exports','fetch',js)(n=>deps[n],module,module.exports,async()=>{calls++;return Response.json(rows);});
+ const api=module.exports;
+ await Promise.all([api.contexteInstructions(),api.contexteInstructions()]);assert.equal(calls,1);
+ await api.garderInstruction('Conserve mes corrections exactes.');assert.equal(writes,1);assert.equal(calls,3);
+ assert((await api.contexteInstructions()).includes('Conserve mes corrections exactes.'));assert.equal(calls,3);
+});

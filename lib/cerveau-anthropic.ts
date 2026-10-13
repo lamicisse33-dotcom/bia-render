@@ -12,7 +12,7 @@ export function corpsAnthropic(body:Record<string,any>){
 }
 export function contenuAnthropic(data:any):string{return (data.content||[]).filter((b:any)=>b.type==="text").map((b:any)=>String(b.text||"")).join("").trim();}
 export function messagesAnthropic(messages:Array<{role:string;content:string}>){
- return {system:messages.filter(m=>m.role==="system").map((m,i)=>({type:"text",text:m.content,...(i===0&&m.content.length>=2500?{cache_control:{type:"ephemeral"}}:{})})),messages:messages.filter(m=>m.role==="user"||m.role==="assistant")};
+  return {system:messages.filter(m=>m.role==="system").map((m,i)=>({type:"text",text:m.content,...((i===0||i===1&&m.content.startsWith('INSTRUCTIONS PÉDAGOGIQUES DU MAÎTRE AUTHENTIFIÉ'))&&m.content.length>=2500?{cache_control:{type:"ephemeral"}}:{})})),messages:messages.filter(m=>m.role==="user"||m.role==="assistant")};
 }
 export async function fetchAnthropic(url:string,init:RequestInit,fin=Date.now()+12_000){
  const body=corpsAnthropic(JSON.parse(String(init.body||"{}"))),debut=Date.now();etat.appels++;etat.modele=body.model;

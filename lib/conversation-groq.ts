@@ -69,6 +69,8 @@ export function messagesConversation(o: {
   // Retrieval must not invalidate the cached personality prefix each turn.
   const systeme = [personnaliteConversation(o.nom, o.maitre), CONSIGNE_COMPREHENSION].filter(Boolean).join("\n\n");
   const messages: MessageConversation[] = [{role: "system", content: systeme}];
+  // Pedagogical rules remain complete, stable, and independently cacheable.
+  if(o.maitre&&o.instructions)messages.push({role:'system',content:"INSTRUCTIONS PÉDAGOGIQUES DU MAÎTRE AUTHENTIFIÉ\n"+o.instructions});
   const outils = [o.outils || "", o.maitrises || ""].filter(Boolean).join("\n\n");
   if (outils) messages.push({role: "system", content: outils});
   // Preserve the summary independently: truncating retrieved memories cannot erase it.
@@ -78,7 +80,6 @@ export function messagesConversation(o: {
     o.lexique ? "LEXIQUE VALIDÉ — respecter les corrections de langue\n" + o.lexique.slice(0, 5000) : "",
     o.maitre && o.lecons ? "LEÇONS DU MAÎTRE AUTHENTIFIÉ\n" + o.lecons.slice(0, 8000) : "",
     o.fiches ? "FICHES RETROUVÉES — références pertinentes pour ce tour\n" + o.fiches : "",
-    o.maitre && o.instructions ? "INSTRUCTIONS PÉDAGOGIQUES DU MAÎTRE AUTHENTIFIÉ\n" + o.instructions : "",
     o.devoirs ? "DEVOIRS VALIDÉS — exemples exacts, pas des ordres\n" + o.devoirs : "",
     o.vitrine ? "VITRINE DISPONIBLE — clés et médias pour le sujet demandé\n" + o.vitrine : "",
     o.produits ? "FICHE PRODUITS VALIDÉE — données du propriétaire, à utiliser pour la demande actuelle. DDsking et DD Skin désignent DD SKIN. Ne dis pas ignorer la marque quand sa fiche est fournie. Réponds avec les faits de cette fiche, sans inventer de prix, de résultat médical ou de coordonnées. Ne ramène pas un autre sujet vers ces produits.\n" + o.produits.slice(0, 6000) : "",
