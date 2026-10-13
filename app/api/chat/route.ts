@@ -1,3 +1,4 @@
+import {reponseHorloge,contexteHorloge} from "@/lib/horloge";
 import {reponseIdentite} from "@/lib/identite-bia";
 import {audioPourReponse} from "@/lib/audio-memoire";
 import {fetchAnthropic,MODELE_SONNET,messagesAnthropic} from "@/lib/cerveau-anthropic";
@@ -36,7 +37,7 @@ import { noterFil, noterModele } from "@/lib/depense";
 
 import { FIL_AU_PLUS } from "@/lib/fenetre-du-fil";
 import { noterEmotion, noterAmorceEnvoyee, noterAmorceRefusee, noterRefusAvecAmorce, amorceRefusee, amorcePermise, avecSaBalise, EMOTIONS } from "@/lib/emotions-vues";
-import { CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
+import { noterRecherche, CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
 import { BUDGET_DE_REFLEXION, PLAFOND_AVEC_REFLEXION, meriteReflexion, noterReflexion } from "@/lib/reflechir";
 import { consigneDeSesGestes, gestesDe } from "@/lib/ses-gestes";
 import { noterRate } from "@/lib/rates-du-repertoire";
@@ -1330,6 +1331,10 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       const identite=reponseIdentite(question);if(identite)return {corps:identite};
     }
 
+    if(!body.apprend&&!body.malDit?.encours){
+      const horloge=reponseHorloge(question);if(horloge)return {corps:horloge};
+    }
+
     // A greeting always answers with a greeting, even when repeated. Do not
     // let a previous lesson, filler or duplicate filter replace its meaning.
     if(maitre.ok&&!estRara&&!body.apprend&&!body.malDit?.encours){
@@ -1343,7 +1348,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     // Authenticate before accessing private lessons. Resolve learned replies before
     // generic formulas: a yes/no must answer the preceding learned question.
     if(maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours
-       &&!estUnSecours(question)&&!intentionMedia(question)&&!demandeDeNombre(question)){
+       &&!estUnSecours(question)&&!intentionMedia(question)&&!besoinDInternet(question)&&!demandeDeNombre(question)){
       const memorisee=await dialoguerAvecDevoirs(question,body.history);
       if(memorisee){
         // Audio is read from the existing private library, never regenerated.
@@ -2655,7 +2660,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
         contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, ""),
         souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: savoir || "",
-        resume, outils, maitrises, nom: "BIA", maitre: verdict.maitre,
+        resume, outils:outils+"\n"+contexteHorloge(), maitrises, nom: "BIA", maitre: verdict.maitre,
       });
     };
     const appelerGroq = async (o: {
@@ -2917,6 +2922,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     /* Ce n'est plus une estimation : c'est le modèle lui-même qui dit ce
        qu'il a consommé, et combien lui est revenu du cache. Ça se lit dans
        /api/etat, champ « depense ». */
+    noterRecherche(cherche,data.types||(data.content||[]).map(b=>b.type),data.usage,data.content);
     noterModele(data.usage, "chat");
     /* ── ET ON MESURE, PARCE QUE JE LE LUI AI PROMIS ──────────────────────
        « Je le mesure avant et après plutôt que de te le promettre », le 16

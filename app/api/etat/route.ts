@@ -1,3 +1,5 @@
+import {resumeRecherche} from "@/lib/recherche";
+import {resumeFonctionsBase} from "@/lib/essai-fonctions-base";
 import {resumeEssaiComprehension} from "@/lib/essai-comprehension";
 import {resumeRythme} from '@/lib/essai-rythme';
 import {resumeAdministration} from '@/lib/essai-administration';
@@ -157,6 +159,8 @@ export async function GET(request: Request) {
     lecture_bilingue:resumeLectureBilingue(),
     dialogue_devoirs: resumeDialogueDevoirs(),
     lecture_devoirs: resumeLectureDevoirs(),
+    recherche_web:resumeRecherche(),
+    fonctions_base:resumeFonctionsBase(),
     comprehension_conversation:resumeEssaiComprehension(),
     transcription_contextuelle: resumeCorrectionContexte(),
     ecoute_configuration: {

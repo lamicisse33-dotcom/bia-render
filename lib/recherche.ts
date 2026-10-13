@@ -140,3 +140,15 @@ personne veut le lien, elle le demandera, et alors seulement tu l'écriras.
 
 Si tu ne trouves rien de sûr, dis-le franchement plutôt que de rapporter
 n'importe quoi : sur l'actualité, une bêtise dite avec assurance se répète.`;
+
+const suivi=globalThis as typeof globalThis&{biaRechercheWeb?:{appels:number;avec_resultats:number;derniere:unknown}};
+const mesure=suivi.biaRechercheWeb??={appels:0,avec_resultats:0,derniere:null};
+export function noterRecherche(jointe:boolean,types:string[],usage:unknown,blocs:unknown=[]){
+ if(!jointe)return;
+ const u=usage as {server_tool_use?:{web_search_requests?:number}}|undefined;
+ const resultats=types.includes('web_search_tool_result');
+ const sources=Array.isArray(blocs)?blocs.filter(b=>b?.type==='web_search_tool_result'&&Array.isArray(b.content)).flatMap(b=>b.content).filter(b=>b?.type==='web_search_result'&&/^https?:\/\//.test(String(b.url||''))).length:0;
+ mesure.appels++;if(resultats)mesure.avec_resultats++;
+ mesure.derniere={date:new Date().toISOString(),resultats_recus:resultats,sources_lues_hors_flux:sources,recherches:u?.server_tool_use?.web_search_requests??null,types};
+}
+export function resumeRecherche(){return {active:rechercheActive(),...mesure};}
