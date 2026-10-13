@@ -27,7 +27,7 @@ export function langueConversation(question:string,history:Array<{role:string;co
   const t=norm(s),mots=t.match(/[a-z]+/g)||[];
   if(/^(?:qu est ce|est ce que|pourquoi|comment|je |j ai |tu |vous |peux tu |quel|quelle)/.test(t))return "fr";
   if(/\b(dama|damay|danga|dangay|danu|nanga|sama|begguma|soxla|sokhla|deedeet|deedet|waaw|damasoxla)\b/.test(t))return "wo";
-  if(mots.filter(m=>["dem","ci","bi","la","nga","maa","loolu","ko","te","nu","naka","benn"].includes(m)).length>=2)return "wo";
+  if(mots.some(m=>["dem","ci","bi","nga","maa","loolu","ko","nu","naka","benn"].includes(m))&&mots.filter(m=>["dem","ci","bi","la","nga","maa","loolu","ko","te","nu","naka","benn"].includes(m)).length>=2)return "wo";
   if(/\b(je|mon|mes|pour|avec|depuis|hier|telephone|ordinateur|bonjour)\b/.test(t))return "fr";
   return null;
  };

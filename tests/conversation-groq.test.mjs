@@ -60,7 +60,7 @@ test('Wolof sentence structure survives French borrowings and explicit French pr
  for(const q of ['Dama sokhla preuve de paiement.','pour dem université bi','Déedéet, bëgguma.']){
   const m=messagesConversation({question:q,history:[]});assert(m.at(-2).content.includes('LANGUE DE CE TOUR : wolof'));
  }
- for(const q of ['Je veux une preuve de paiement.','depui hier soire'])assert(messagesConversation({question:q,history:[]}).at(-2).content.includes('LANGUE DE CE TOUR : français'));
+ for(const q of ['Je veux une preuve de paiement.','depui hier soire','pour te la rendre'])assert(messagesConversation({question:q,history:[]}).at(-2).content.includes('LANGUE DE CE TOUR : français'));
  assert(messagesConversation({question:'Dama soxla preuve de paiement.',history:[{role:'user',content:'Réponds en français.'}]}).at(-2).content.includes('LANGUE DE CE TOUR : français'));
 });
 test('a refusal must reach contextual conversation, not a fixed echo',async()=>{
