@@ -327,3 +327,14 @@ test('explicit invitation to lead bypasses irrelevant learned clarifications wit
   assert.equal(api.resumeDialogueDevoirs().dernier_statut,'initiative_conversation');
  }
 });
+
+
+test('the services diagnostic alias rejects unauthenticated requests before reading or evaluating a test',async()=>{
+ let read=0;
+ const route=load('app/api/services-verification/route.ts',{
+  'node:crypto':{timingSafeEqual:()=>false},'next/server':{NextResponse:{json:(body,opt)=>({body,...opt})}},
+  '@/lib/codes':{verifierCode:()=>({ok:false})},'@/lib/lexique':{lexiqueConfig:{}},'@/lib/lexique-apprentissage-core':{APP_LECONS:'test'},
+ },{process:{env:{CHATTERBOX_TEST_KEY:'test'}},Buffer});
+ const r=await route.POST({headers:{get:()=>null},json:async()=>{read++;return {administration:true};}});
+ assert.equal(r.status,401);assert.equal(read,0);
+});
