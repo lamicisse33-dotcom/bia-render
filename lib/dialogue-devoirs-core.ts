@@ -190,7 +190,7 @@ export function choixConversation(index:DialogueAppris[],question:string,history
    const voisins=termes(candidats[i].d.repliques[k].fr+' '+candidats[i].d.repliques[k].wo);
    score+=([...mots].filter(m=>voisins.has(m)).length*8)/Math.max(1,Math.abs(k-j));
   }
-  if(d.actif&&precedent>=0&&j>precedent&&j<=precedent+8)score+=40-(j-precedent);
+  if(d.actif&&(candidats[i].accords>0||repriseDuFil(question)||mots.size===0)&&precedent>=0&&j>precedent&&j<=precedent+8)score+=40-(j-precedent);
   return {p,i,score:score-i*2};
  })).sort((a,b)=>b.score-a.score||a.i-b.i);
  let taille=0;const retenus=new Set<string>();
