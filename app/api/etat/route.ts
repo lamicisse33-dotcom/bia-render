@@ -1,4 +1,5 @@
 import {resumeConnexionFiches} from "@/lib/essai-fiches";
+import {resumeAccesDevoirs,verifierAccesDevoirs} from "@/lib/essai-acces-devoirs";
 import {resumeParcoursRapide} from "@/lib/essai-parcours-rapide";
 import {resumeTransportVoix} from "@/lib/essai-transport-voix";
 import {resumeFichesConnaissances,inventaireFiches} from "@/lib/fiches-connaissances";
@@ -93,6 +94,9 @@ export async function GET(request: Request) {
   if(new URL(request.url).searchParams.get("verifier_devoirs")==="1"){try{await devoirsALire();}catch{ /* The failure is counted, no lesson text leaves here. */ }}
   const verdict = verifierCode(request.headers.get("x-bia-code"));
   const maitre = verdict.ok && verdict.maitre;
+  if(new URL(request.url).searchParams.get("verifier_acces_devoirs")==="1"){
+    try{await verifierAccesDevoirs();}catch{return NextResponse.json({erreur:"Vérification de la lecture Supabase impossible",version:VERSION},{status:503});}
+  }
   if(new URL(request.url).searchParams.get("indexer_dialogue")==="1"){try{await indexDialogue();}catch{ /* Read-only structure counts; no model call or lesson text. */ }}
   if(new URL(request.url).searchParams.get("essai_dialogue")==="1"){
     if(!maitre)return NextResponse.json({erreur:"Diagnostic réservé au maître"},{status:401});
@@ -167,6 +171,7 @@ export async function GET(request: Request) {
     integrite_audio:resumeIntegriteAudio(),
     lecture_bilingue:resumeLectureBilingue(),
     dialogue_devoirs: resumeDialogueDevoirs(),
+    acces_devoirs:resumeAccesDevoirs(),
     lecture_devoirs: resumeLectureDevoirs(),
     recherche_web:resumeRecherche(),
     fonctions_base:resumeFonctionsBase(),

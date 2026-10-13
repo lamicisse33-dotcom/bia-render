@@ -28,6 +28,46 @@ Français : BIA : Laisse-lui un peu de temps.
 7. Wolof : BIA : Naka ? Lan ?
 Français : BIA : Comment ? Pourquoi ?`);
 const index=core.indexerDevoirs([fixture]);
+const enfants={...saved(`DEVOIR 33 — L’ENFANT AU QUOTIDIEN
+BIA-ENF-001
+Wolof : Xale bi fan la nekk ?
+Français : Où est l’enfant ?
+BIA-ENF-002 Wolof : Xale bi dafay nelaw.
+Français : L’enfant dort.
+BIA-ENF-003
+Wolof : Bul yee xale bi.
+Français : Ne réveille pas l’enfant.
+BIA-ENF-004 : Wolof : Xale bi dafay jooy.
+Français : L’enfant pleure.
+BIA-ENF-005
+Wolof : Lan moo tax xale bi di jooy ?
+Français : Pourquoi l’enfant pleure-t-il ?
+BIA-ENF-006
+Wolof : Xoolal xale bi bu baax.
+Français : Surveille bien l’enfant.`),id:'enfants'};
+test('lesson source identifiers are metadata; all complete bilingual pairs stay exact',()=>{
+ const d=core.analyserDevoir(enfants);
+ assert.equal(d.repliques.length,6);
+ assert.equal(d.repliques[0].fr,'Où est l’enfant ?');
+ assert.equal(d.repliques[1].wo,'Xale bi dafay nelaw.');
+ assert.equal(d.repliques[4].fr,'Pourquoi l’enfant pleure-t-il ?');
+ assert.equal(d.repliques[5].fr,'Surveille bien l’enfant.');
+ assert(d.repliques.every(p=>!p.fr.includes('BIA-ENF')&&!p.wo.includes('BIA-ENF')));
+});
+test('singular, plural, Wolof accents and dictated kh select the same lesson',()=>{
+ const idx=core.indexerDevoirs([fixture,enfants]);
+ for(const q of ['Parlons des enfants.','Parlons de mon enfant.','Xale bi.','Xalé bi.','Khalé bi.']){
+  const choix=core.choixConversation(idx,q,[],'wo');
+  assert.equal(choix.candidats[0]?.d.id,'enfants',q);
+  assert(choix.paquet[0].repliques.some(p=>p.wo==='Xoolal xale bi bu baax.'),q);
+ }
+});
+test('corrected newest lesson is selected immediately; withdrawn revision is never resurrected',()=>{
+ const nouvelle={...enfants,id:'corrige',date:'2026-10-13',texte:enfants.texte.replace('Xale bi dafay nelaw.','Xale bi dafay jooy.')};
+ const idx=core.indexerDevoirs([enfants,nouvelle]);
+ assert.equal(core.chercherDialogues(idx,'Parlons des enfants.',[])[0]?.d.id,'corrige');
+ assert.equal(core.chercherDialogues(core.indexerDevoirs([enfants,{...nouvelle,valide:false}]),'Parlons des enfants.',[]).length,0);
+});
 test('single-call choices resolve only permitted exact source IDs, including refusals',()=>{
  const choix=core.choixConversation(index,'Ma copine ne répond plus à mes appels.',[],'wo');
  assert.equal(core.repliqueChoisie('[[replique:0:0]]',choix),null);

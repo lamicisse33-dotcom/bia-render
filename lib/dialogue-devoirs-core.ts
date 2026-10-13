@@ -21,7 +21,7 @@ export function sansRelanceAutomatique<T extends {role:string;text:string}>(hist
  return history.filter(t=>!(["bia","assistant"].includes(t.role)&&anciennesRelances.has(normaliserDialogue(t.text))));
 }
 const propre=(s:string)=>s.trim().replace(/^[#>*\s]+/,"").replace(/^[-–—]\s+/,"").replace(/\*\*/g,"").replace(/\s*\|\s*$/," ").trim();
-const contenu=(s:string)=>s.replace(/^\s*(?:[A-Z]?\d{1,4}[.)\]:—-]\s+|[A-Z]?\d{1,4}\s+(?=(?:Wolof|Fran[cç]ais|WO|FR)\b))/,"").trim();
+const contenu=(s:string)=>s.replace(/^\s*BIA-[A-Z]+-\d{3,}(?:\s*[:：—–-]\s*|\s+|$)/i,"").replace(/^\s*(?:[A-Z]?\d{1,4}[.)\]:—-]\s+|[A-Z]?\d{1,4}\s+(?=(?:Wolof|Fran[cç]ais|WO|FR)\b))/,"").trim();
 function roleEtTexte(s:string):{texte:string;role:RepliqueApprise["role"]}{
  const m=s.match(/^(BIA|assistante?|assistant|personne|utilisateur|client|toi|moi|A|B)\s*[:—-]\s*(.+)$/i);
  if(!m)return {texte:s,role:/^Bia[,! ]/i.test(s)?"personne":"inconnu"};
@@ -46,7 +46,8 @@ export function analyserDevoir(d:DevoirALire):DialogueAppris{
     const n=cells.length;if(n===2||n===3&&/^\d+[.)]?$/.test(cells[0])){ajouter(cells[n-2],cells[n-1]);continue;}
    }
   }
-  ligne=contenu(ligne);if(!ligne)continue;
+  const identifiantSeul=/^BIA-[A-Z]+-\d{3,}\s*[:：—–-]?$/i.test(ligne);
+  ligne=contenu(ligne);if(!ligne){if(identifiantSeul)groupe=null;continue;}
   const label=ligne.match(/^(?:(?:🇸🇳|🇫🇷)\s*)?(Wolof|Fran[cç]ais|WO|FR)(?=\s|[:：—-]|$)\s*(?:[:：—-]\s*)?(.*)$/i);
   if(label){groupe={langue:/^(wo|wolof)$/i.test(label[1])?"wo":"fr",lignes:[]};groupes.push(groupe);if(label[2].trim())groupe.lignes.push(contenu(label[2]));continue;}
   if(/^(?:DEVOIR\b|EXERCICE\b|PARTIE\b|OBJECTIF\b|CONSIGNE\b|CORRECTION\b|DIALOGUE\b|\d+\s*$)/i.test(ligne)){groupe=null;continue;}
@@ -73,13 +74,15 @@ export function indexerDevoirs(devoirs:DevoirALire[]){
  return [...derniers.values()].filter(d=>d.valide).map(analyserDevoir);
 }
 const outils=new Set("le la les de des du un une et est sont je tu il elle on que qui quoi pour avec dans sur pas mais donc alors aussi plus moins pourquoi comment quand quel quelle bonjour merci oui non ai as suis peux peut veux faire fait ce cette ces mon ma mes ton ta tes au aux en se me te lui nos notre etre avoir cela tout tous comme son sa ses par si bien depuis maintenant vraiment deja encore wolof francais reponds moi toi toi meme bia sama sa bi yi la ci ak te rekk nga naa dama ma ngi ko am na ndax".split(" "));
-function termes(s:string){
+export function termesDialogue(s:string){
  const t=normaliserDialogue(s).replace(/\b(?:appels?|appeler|telephone|telephoner|messages?|sms|whatsapp)\b/g," message ").replace(/\b(?:cherie|copines?|copains?|petite amie|petit ami|partenaire|fiancee?)\b/g," copine ")
   .replace(/\b(?:etudiant(?:e)?s?|eleves?|lyceen(?:ne)?s?)\b/g," etudiant ")
   .replace(/\b(?:commercant(?:e)?s?|vendeu(?:r|se)s?|boutiquier(?:e)?s?|business|commerce|ventes?)\b/g," commerce ")
-  .replace(/\b(?:marier|mariee?s?|mariages?|epouser)\b/g," mariage ");;
+  .replace(/\b(?:marier|mariee?s?|mariages?|epouser)\b/g," mariage ")
+  .replace(/\b(?:enfants?|xale(?:y)?|khale(?:y)?)\b/g," enfant ");
  return new Set(t.split(" ").filter(w=>w.length>=3&&!outils.has(w)));
 }
+const termes=termesDialogue;
 export function contexteDialogue(historique:unknown):TourDialogue[]{
  if(!Array.isArray(historique))return [];
  return sansRelanceAutomatique(historique.filter(t=>t&&["user","bia","assistant"].includes(t.role)&&typeof t.text==="string").slice(-40).map(t=>({role:t.role==="user"?"user":"bia",text:t.text.slice(0,1800)})));

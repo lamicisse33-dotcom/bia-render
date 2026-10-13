@@ -3,6 +3,7 @@ import {assemblerDevoirs} from "./lecture-devoirs-core";
 import {noterChargementDevoirs} from "./lecture-devoirs-etat";
 import {ajouterCorrection,lexiqueConfig} from "./lexique";
 import {APP_LECONS} from "./lexique-apprentissage-core";
+import {termesDialogue} from "./dialogue-devoirs-core";
 type Bloc={version:2;type:"devoir";id:string;index:number;total:number;texte:string;date:string;statut?:"validé";date_validation?:string;langue?:"fr"|"wo"};
 const headers=()=>({apikey:lexiqueConfig.cle,Authorization:`Bearer ${lexiqueConfig.cle}`});
 const revisions=globalThis as typeof globalThis&{biaGenerationDevoirs?:number};
@@ -10,6 +11,7 @@ let cache:{blocs:Bloc[];expires:number;generation:number}|null=null;
 async function lireBlocs(delaiMs=8000):Promise<Bloc[]>{
  if(!lexiqueConfig.actif)throw Error("Supabase non configuré");
  if(cache&&cache.expires>Date.now()&&cache.generation===(revisions.biaGenerationDevoirs||0))return cache.blocs;
+ const generation=revisions.biaGenerationDevoirs||0,debut=Date.now();
  const blocs:Bloc[]=[];const seen=new Set<string>();
  const signal=AbortSignal.timeout(delaiMs);
  for(let offset=0;;offset+=500){
@@ -21,7 +23,10 @@ async function lireBlocs(delaiMs=8000):Promise<Bloc[]>{
   }catch{}
   if(page.length<500)break;
  }
- cache={blocs,expires:Date.now()+15000,generation:revisions.biaGenerationDevoirs||0};return blocs;
+ // A correction completed while this read was in flight must not make the
+ // earlier snapshot appear to belong to the new revision.
+ if(generation!==(revisions.biaGenerationDevoirs||0))return lireBlocs(Math.max(1,delaiMs-(Date.now()-debut)));
+ cache={blocs,expires:Date.now()+15000,generation};return blocs;
 }
 export async function garderBlocDevoir(texte:string,index:number,total:number,id:string,valide=false,langue:"fr"|"wo"="wo"){
  if(!lexiqueConfig.actif)throw Error("Supabase non configuré");
@@ -42,8 +47,8 @@ export async function garderBlocDevoir(texte:string,index:number,total:number,id
 export function selectionnerDevoirs(blocs:Bloc[],question:string){
  const groups=new Map<string,Bloc[]>();for(const b of blocs){const g=groups.get(b.id)||[];g.push(b);groups.set(b.id,g);}
  const complets=[...groups.values()].filter(g=>g.length===g[0].total&&g.every(b=>b.total===g[0].total&&b.statut==="validé"&&b.date_validation)).flat();
- const mots=new Set((question.toLowerCase().match(/\p{L}{3,}/gu)||[]).filter(m=>!["les","des","une","que","pour","dans","avec","est","sur","comment","dama","bëgg","nga"].includes(m)));
- return complets.map(b=>({b,score:(b.texte.toLowerCase().match(/\p{L}{3,}/gu)||[]).reduce((n,m)=>n+Number(mots.has(m)),0)}))
+ const mots=termesDialogue(question);
+ return complets.map(b=>({b,score:[...termesDialogue(b.texte)].reduce((n,m)=>n+Number(mots.has(m)),0)}))
   .filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,4).map(x=>x.b.texte).join("\n\n").slice(0,8000);
 }
 export async function contexteDevoirs(question:string){
