@@ -10,6 +10,7 @@ async function lire(){
  const charger=()=>enCours??=(async()=>{try{catalogue=await lireCatalogueCourant();jusqua=Date.now()+20000;return catalogue;}finally{enCours=undefined;}})();
  if(catalogue){void charger().catch(()=>{});return catalogue;}return charger();
 }
+export function prechaufferSalutations(){return lire().catch(()=>[]);}
 export async function reponseSalutation(question:string){
  const e=salutationReconnue(question);if(!e)return null;
  const debut=Date.now(),langue=langueDe(question);

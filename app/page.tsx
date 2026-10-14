@@ -6,6 +6,7 @@ import {sansSilence} from "@/lib/bords-audio";
 import {useAudioMemoire} from "@/lib/use-audio-memoire";
 import {sonPourTexte,reactionDisponible,type SonCourant} from "@/lib/sons-courants-core";
 import {programmerReactionCourante} from "@/lib/reaction-courante";
+import {salutationLocale} from '@/lib/salutation-locale';
 import {accusePertinent} from "@/lib/salutations-dialogue";
 import {piperLocaleDisponible} from "@/lib/voix-piper-locale";
 
@@ -2527,6 +2528,7 @@ export default function Home() {
      épuisée), on fait ce qu'on faisait avant : on va le chercher. Une mémoire
      qui tombe ne doit jamais rendre BIA muette. */
   const sonsCourantsRef = useRef<SonCourant[]>([]);
+  const accesSalutationsRef=useRef("");
   const derniereReactionRef = useRef("");
   const octetsDuRepertoire = useCallback(async (adresse: string): Promise<ArrayBuffer> => {
     const vif = cacheSons.current.get(adresse);
@@ -2601,7 +2603,7 @@ export default function Home() {
     setFace("yeux_ouverts");
   }, [finirAttente, couperSon, jouerSouffle, jouerEtAnimer, octetsDuRepertoire]);
 
-  const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse", suite = false, lecture?: {langue:"fr"|"wo";premierSon:()=>void;conserverTour?:boolean}) => {
+  const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse", suite = false, lecture?: {langue:"fr"|"wo";premierSon:()=>void;conserverTour?:boolean;sonCourant?:SonCourant;debutSalutation?:number}) => {
     /* La carte est ouverte : seul le guidage a le droit de parler. Voir la
        règle écrite près de `carteOuverteRef`. Ce qui arrive ici en retard —
        la fin d'une réponse, une phrase d'attente — meurt sans bruit. */
@@ -2624,7 +2626,7 @@ export default function Home() {
          couperait le son qu'on vient de lancer — donc on ne fait rien, on
          continue simplement de parler. */
       if (suite) return;
-      await finirAttente(langueRef.current);
+      await finirAttente(langueRef.current,!lecture?.sonCourant);
       if (!actuel()) return;
       window.speechSynthesis?.cancel();
       couperSon();
@@ -2664,13 +2666,13 @@ export default function Home() {
     const langueDite = lecture?.langue ?? (estWolof(answer) ? "wo" : "fr");
     // Current female Khalam recordings only. Lessons keep their fresh source
     // pronunciation; an absent/unwarmed clip never delays ordinary synthesis.
-    if(!enLecon&&!lecture&&!suite&&essaiChatterboxActif()&&voixChatterboxBia()==="female"&&personaRef.current!=="rara"){
-      const son=sonPourTexte(sonsCourantsRef.current,answer,langueDite);
+    if(!enLecon&&!suite&&personaRef.current!=="rara"&&(lecture?.sonCourant||(!lecture&&essaiChatterboxActif()&&voixChatterboxBia()==="female"))){
+      const son=lecture?.sonCourant||sonPourTexte(sonsCourantsRef.current,answer,langueDite);
       const octets=son&&(cacheSons.current.get(son.adresse)||await octetsDuRepertoire(son.adresse).catch(()=>undefined));
       if(octets){
         await prendreLaParole();if(!await peutParler())return;
         const debut=performance.now();poserBorne(bornesRef.current,"enMain");
-        const duree=await jouerEtAnimer(octets,true,{actuel,commence:()=>{void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"sons_courants",usage:"reponse",ms:performance.now()-debut})}).catch(()=>{});}});
+        const duree=await jouerEtAnimer(octets,true,{actuel,commence:()=>{void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"sons_courants",usage:"reponse",ms:performance.now()-debut,...(lecture?.debutSalutation!==undefined?{salutation_ms:performance.now()-lecture.debutSalutation,precharge:true}:{})})}).catch(()=>{});}});
         if(!actuel())return;
         if(duree>0){stopMouth(answer);return;}
       }
@@ -3123,6 +3125,7 @@ export default function Home() {
     /* Le sens de sa phrase, demandé pendant qu'on prépare la réponse et
        attendu juste avant qu'elle ouvre la bouche. Voir plus bas. */
     const clean = question.trim();
+    const debutSalutation=performance.now();
     if (demandeLectureMemoire(clean)) {
       // This is ordinary conversation: keep BIA's face and the interruption microphone.
       taire(); setLectureContinue(null); setSaisie(""); setClavier(false); setPanne("");
@@ -3258,7 +3261,8 @@ export default function Home() {
       attenteChat = setTimeout(() => requeteChat.abort(), 12000);
     };
     try {
-      const response = await fetch("/api/chat", {
+      const salutLocal=codeRef.current&&accesSalutationsRef.current===codeRef.current?salutationLocale(clean,sonsCourantsRef.current.filter(s=>cacheSons.current.has(s.adresse)),{apprend:apprend.current,correction:!!(chantierMalDit.current||correctionDevoirRef.current),persona:personaRef.current}):null;
+      const response = salutLocal?new Response(JSON.stringify(salutLocal),{headers:{"content-type":"application/json"}}):await fetch("/api/chat", {
         method: "POST",
         signal: requeteChat.signal,
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
@@ -3713,11 +3717,11 @@ export default function Home() {
           if (data.rireApres) await jouerSouffle(data.rireApres);
         }
         catch { if (!estLeTour(monTour)) return; await speak(aDire, emotionRef.current, data.apprend ? "apprentissage" : "réponse", false,
-          (data as {dialogue_memorise?:boolean}).dialogue_memorise ? {langue:(data as {langue?:"fr"|"wo"}).langue||"wo",premierSon:()=>{}} : undefined); }
+          data.son_courant ? {langue:data.son_courant.langue,premierSon:()=>{},sonCourant:data.son_courant,...((data as {salutation?:boolean}).salutation?{debutSalutation}:{})} : (data as {dialogue_memorise?:boolean}).dialogue_memorise ? {langue:(data as {langue?:"fr"|"wo"}).langue||"wo",premierSon:()=>{}} : undefined); }
       } else {
         if (!estLeTour(monTour)) return;
         await speak(aDire, emotionRef.current, data.apprend ? "apprentissage" : "réponse", false,
-          (data as {dialogue_memorise?:boolean}).dialogue_memorise ? {langue:(data as {langue?:"fr"|"wo"}).langue||"wo",premierSon:()=>{}} : undefined);
+          data.son_courant ? {langue:data.son_courant.langue,premierSon:()=>{},sonCourant:data.son_courant,...((data as {salutation?:boolean}).salutation?{debutSalutation}:{})} : (data as {dialogue_memorise?:boolean}).dialogue_memorise ? {langue:(data as {langue?:"fr"|"wo"}).langue||"wo",premierSon:()=>{}} : undefined);
       }
     } catch {
       annulerReaction();
@@ -4022,19 +4026,23 @@ export default function Home() {
   }, [code, audioParole]);
 
   useEffect(()=>{
-    if(!code||!essaiChatterboxActif()||voixChatterboxBia()!=="female"||personaRef.current==="rara")return;
+    accesSalutationsRef.current="";
+    if(!code||personaRef.current==="rara")return;
     let vivant=true;let timer:ReturnType<typeof setTimeout>|undefined;
     const charger=async()=>{
       const bilan={demandes:0,deja_la:0,chargees:0,ratees:0,ms:0,octets:0};const debut=Date.now();
       try{
-        const r=await fetch("/api/sons-courants",{cache:"no-store"});if(!r.ok)return;
+        await verifierAcces(code);if(!vivant)return;accesSalutationsRef.current=code;
+        const r=await fetch("/api/sons-courants",{cache:"no-store"});if(!r.ok)throw Error("Catalogue indisponible");
         const d=await r.json() as {sons:SonCourant[];attendus:number};if(!vivant)return;
         sonsCourantsRef.current=d.sons;
-        for(const son of d.sons){
-          if(!vivant)return;bilan.demandes++;
-          if(cacheSons.current.has(son.adresse)){bilan.deja_la++;continue;}
-          try{const octets=await octetsDuRepertoire(son.adresse);bilan.chargees++;bilan.octets+=octets.byteLength;}catch{bilan.ratees++;}
-        }
+        const ordre=[...d.sons].sort((a,b)=>Number(b.usage==="salutation")-Number(a.usage==="salutation"));let prochain=0;
+        await Promise.all(Array.from({length:4},async()=>{
+          while(vivant&&prochain<ordre.length){const son=ordre[prochain++];bilan.demandes++;
+            if(cacheSons.current.has(son.adresse)){bilan.deja_la++;continue;}
+            try{const octets=await octetsDuRepertoire(son.adresse);bilan.chargees++;bilan.octets+=octets.byteLength;}catch{bilan.ratees++;}
+          }
+        }));
         if(vivant)timer=setTimeout(()=>void charger(),30000);
       }catch{if(vivant)timer=setTimeout(()=>void charger(),30000);}
       bilan.ms=Date.now()-debut;

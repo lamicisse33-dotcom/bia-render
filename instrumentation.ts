@@ -1,5 +1,10 @@
 export async function register(){
  if(process.env.NEXT_RUNTIME==='nodejs'&&process.env.NEXT_PHASE!=='phase-production-build'){
+  const {prechaufferSalutations}=await import('./lib/reponse-salutation');
+  void prechaufferSalutations();
+  if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-14T06:00:00Z')){
+   setTimeout(()=>{void import('./lib/reponse-salutation').then(m=>m.verifierSalutations()).catch(()=>{});},15000).unref();
+  }
   const {reprendreAudioMemoire}=await import('./lib/audio-memoire');
   void reprendreAudioMemoire();
   const {chargerDialoguesRapides}=await import("./lib/dialogue-rapide");

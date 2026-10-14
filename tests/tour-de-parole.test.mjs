@@ -148,3 +148,14 @@ test('interruption during a prerecorded lesson download prevents all playback',a
  const {env,played}=environment(Promise.resolve());const gate=deferred();env.lireAudioMemoire=()=>gate.promise;
  const pending=makeSpeak(env)('Phrase apprise');env.numeroDuTourRef.current++;gate.resolve(new ArrayBuffer(2500));await pending;assert.equal(played(),0);
 });
+
+test('a supplied greeting clip plays with its language even when synthesis is disabled',async()=>{
+ const {env}=environment(Promise.resolve({ok:true}));let tts=0,played=0;
+ const son={adresse:'/bonjour.mp3',texte:'Bonjour !',langue:'fr'};
+ env.essaiChatterboxActif=()=>false;env.voixChatterboxBia=()=> 'piper';env.cacheSons.current.set(son.adresse,new ArrayBuffer(2000));
+ env.fetch=(url)=>{assert.equal(url,'/api/mesure');return Promise.resolve({ok:true});};
+ env.fetchVoixBia=()=>{tts++;throw Error('greeting must not synthesize');};
+ env.jouerEtAnimer=async(bytes,_flag,options)=>{assert.equal(bytes.byteLength,2000);assert(options.actuel());options.commence();played++;return 1;};
+ await makeSpeak(env)(son.texte,'douce','réponse',false,{langue:'fr',premierSon:()=>{},sonCourant:son,debutSalutation:performance.now()});
+ assert.equal(played,1);assert.equal(tts,0);
+});

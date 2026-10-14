@@ -26,3 +26,17 @@ test('audio from an older correction is never attached to a newer greeting',asyn
  const api=load('lib/reponse-salutation.ts',{'./salutations-dialogue':salut,'./repertoire':{langueDe:()=> 'fr'},'./sons-courants':{lireCatalogueCourant:async()=>[{cle:'salut',langue:'fr',texte:'Bonjour !',audio:{texte:'Ancienne phrase'}}]}});
  const r=await api.reponseSalutation('Bonjour');assert.equal(r.reply,'Bonjour !');assert.equal(r.son_courant,undefined);
 });
+const courants=load('lib/sons-courants-core.ts',{'./repertoire-textes':textes,'./base-textes':load('lib/base-textes.ts'),'./services-textes':services});
+const local=load('lib/salutation-locale.ts',{'./salutations-dialogue':salut,'./langue':load('lib/langue.ts'),'./sons-courants-core':courants});
+test('local greeting uses current corrected recording in either language, never a filler',()=>{
+ const sons=courants.PHRASES_COURANTES.map(s=>({...s,version:courants.VERSION_SONS_COURANTS,adresse:'/audio/'+s.cle+'/'+s.langue,octets:2000,secondes:2}));
+ const options={apprend:false,correction:false,persona:'bia'};
+ for(const [q,langue] of [['Bonjour','fr'],['Bonsoir','fr'],['Salut, comment vas-tu ?','fr'],['Nanga def ?','wo'],['Naka nga def ?','wo'],['Nangudeef','wo']]){
+  const r=local.salutationLocale(q,sons,options);assert(r,q);assert.equal(r.langue,langue,q);assert.equal(r.reply,r.son_courant.texte);assert.equal(r.son_courant.usage,'salutation');
+ }
+ for(const q of ['Bonjour, je suis triste','Nanga def, je veux un conseil','D’accord'])assert.equal(local.salutationLocale(q,sons,options),null);
+ assert.equal(local.salutationLocale('Bonjour',sons,{...options,apprend:true}),null);
+ assert.equal(local.salutationLocale('Bonjour',sons,{...options,correction:true}),null);
+ assert.equal(local.salutationLocale('Bonjour',sons,{...options,persona:'rara'}),null);
+ assert.equal(local.salutationLocale('Bonjour',sons.map(s=>({...s,version:'ancien'})),options),null);
+});
