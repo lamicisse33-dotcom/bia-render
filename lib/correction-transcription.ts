@@ -45,8 +45,8 @@ export async function corrigerTranscription(texte:string,regles?:Regle[],phrases
  return {...resultat,suggestions_ecriture:suggestionsEcriture(resultat.texte,[...regles.map(r=>r.corrige),...lecons],budgetSuggestions)};
 }
 const gPhrases=globalThis as typeof globalThis&{biaReferencesTranscription?:Map<string,{phrases?:string[];expire:number;chargement?:Promise<string[]>}>;biaRevisionMemoire?:number;biaGenerationDevoirs?:number;biaGenerationPrononciation?:number};
-const references=gPhrases.biaReferencesTranscription??=new Map();
-export async function phrasesLexiqueComplet(wolofSeulement=false){
+const references:NonNullable<typeof gPhrases.biaReferencesTranscription>=gPhrases.biaReferencesTranscription??=new Map();
+export async function phrasesLexiqueComplet(wolofSeulement=false):Promise<string[]>{
  const cle=JSON.stringify([wolofSeulement,gPhrases.biaRevisionMemoire||0,gPhrases.biaGenerationDevoirs||0,gPhrases.biaGenerationPrononciation||0]);
  let entree=references.get(cle);if(entree?.phrases&&entree.expire>Date.now())return entree.phrases;
  if(entree?.chargement)return entree.chargement;
