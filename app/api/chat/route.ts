@@ -1365,7 +1365,9 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     // generic formulas: a yes/no must answer the preceding learned question.
     if(maitre.ok&&!body.apprend&&!body.malDit?.encours
        &&!concerneProduits(question,body.history)&&!estUnSecours(question)&&!intentionMedia(question)&&!besoinDInternet(question)&&!demandeDeNombre(question)){
-      const memorisee=await dialoguerAvecDevoirs(question,body.history,{cacheSeulement:false});
+      // Reuse verified choices immediately. On a miss, the final conversational
+      // call selects the exact learned ID itself; never pay for two serial calls.
+      const memorisee=await dialoguerAvecDevoirs(question,body.history,{cacheSeulement:true});
       if(memorisee){
         // Audio is read from the existing private library, never regenerated.
         // Reading alongside provenance avoids an extra browser/server round trip.

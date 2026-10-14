@@ -159,3 +159,19 @@ test('a supplied greeting clip plays with its language even when synthesis is di
  await makeSpeak(env)(son.texte,'douce','réponse',false,{langue:'fr',premierSon:()=>{},sonCourant:son,debutSalutation:performance.now()});
  assert.equal(played,1);assert.equal(tts,0);
 });
+
+
+test('a slow neighbour cannot hold the ready first clip, and both passages still play',async()=>{
+ const {env}=environment(Promise.resolve());const sounds=[];let controller;const decoded=deferred(),first=deferred();
+ env.fetch=async(url)=>url==='/tts'?new Response(new ReadableStream({start(c){controller=c;}})):{ok:true};
+ const ctx={state:'running',currentTime:0,decodeAudioData:async()=>{decoded.resolve();return {duration:.5};},createBufferSource:()=>({connect(){},start(t){sounds.push(t);first.resolve();}})};
+ env.reveillerLeSon=async()=>ctx;env.ralentir=(_ctx,a)=>a;env.vitesseAudioBia=()=>1;env.enveloppeDe=()=>({valeurs:[1],pic:1,pas:.01});
+ const pending=makeSpeak(env)('Bul jël suspicion.',undefined,'lecture_devoirs',false,{langue:'wo',conserverTour:true,premierSon(){}});
+ await new Promise(r=>setTimeout(r,0));const enc=new TextEncoder();
+ const emit=x=>controller.enqueue(enc.encode(JSON.stringify(x)+'\n'));
+ emit({type:'morceau',audio:'AA==',parties:2,partie:0,empreinte:'same'});await decoded.promise;
+ await Promise.race([first.promise,new Promise((_,reject)=>setTimeout(()=>reject(Error('ready audio blocked')),1200))]);
+ assert.equal(sounds.length,1);
+ emit({type:'morceau',audio:'AA==',parties:2,partie:1,empreinte:'same'});emit({type:'fin'});controller.close();await pending;
+ assert.equal(sounds.length,2);assert(Math.abs(sounds[1]-sounds[0]-.5)<.00001);
+});

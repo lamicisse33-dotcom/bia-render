@@ -2943,8 +2943,10 @@ export default function Home() {
         // cover synthesis of its neighbour. Prime one clip, preserving all
         // samples and normal speaking speed instead of leaving a mid-word gap.
         if(essaiChatterboxActif()&&quand===0&&total>1&&mémoire.duration<1.6){
-          const suivant=await enVol.get(1);
-          if(!suivant?.audio)throw new Error("La voix n’a pas pu préparer la suite.");
+          // Prime a fast neighbour, but never hold ready speech behind a slow
+          // synthesis/retry. The normal loop still reads every following clip.
+          const suivant=await Promise.race([enVol.get(1),new Promise<"delai">((resolve)=>setTimeout(()=>resolve("delai"),400))]);
+          if(suivant!=="delai"&&!suivant?.audio)throw new Error("La voix n’a pas pu préparer la suite.");
           if(perdu()||!await peutParler()||perdu())return;
         }
         const { valeurs, pic, pas } = enveloppeDe(mémoire);
