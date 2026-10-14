@@ -1,3 +1,4 @@
+import {resumeLatencePipeline} from '@/lib/essai-latence-pipeline';
 import {resumeCommerceContextuel} from '@/lib/essai-commerce-contextuel';
 import {resumeDialogueDomaines} from '@/lib/essai-dialogue-domaines';
 import {silenceQuiSuffit} from '@/lib/micro';
@@ -190,6 +191,7 @@ export async function GET(request: Request) {
     connexion_fiches:resumeConnexionFiches(),
     memorisation_maitre:resumeEssaiMemoire(),
     latence_conversation:resumeLatenceConversation(),
+    latence_pipeline:resumeLatencePipeline(),
     comprehension_conversation:resumeEssaiComprehension(),
     transcription_contextuelle: resumeCorrectionContexte(),
     correction_vocale:resumeEssaiCorrectionVocale(),

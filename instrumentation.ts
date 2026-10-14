@@ -1,5 +1,8 @@
 export async function register(){
  if(process.env.NEXT_RUNTIME==='nodejs'&&process.env.NEXT_PHASE!=='phase-production-build'){
+  if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-14T12:00:00Z')){
+   setTimeout(()=>{void import('./lib/essai-latence-pipeline').then(m=>m.verifierLatencePipeline()).catch(()=>{});},25000).unref();
+  }
   const {prechaufferSalutations}=await import('./lib/reponse-salutation');
   void prechaufferSalutations();
   if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-14T06:00:00Z')){

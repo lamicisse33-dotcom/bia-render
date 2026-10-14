@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     if (!verdict.ok) return NextResponse.json({ erreur: "code" }, { status: 401 });
 
     const form = await request.formData();
+    const diagnostic=verdict.maitre&&form.get("diagnostic")==="1";
 
     /* ── LE SON EST DÉJÀ LÀ, OU IL ARRIVE AVEC CETTE REQUÊTE ───────────────
 
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
        de suite. Un extrait perdu coûte un extrait ; une seconde d'attente se
        paie à chaque phrase de chaque journée. */
     let extrait: string | null = null;
-    if (verdict.maitre && corpusActif() && fichier instanceof Blob) {
+    if (!diagnostic && verdict.maitre && corpusActif() && fichier instanceof Blob) {
       const audio = fichier;
       const contexte = String(form.get("contexte") || "") || null;
       /* On n'attend pas, mais on rend quand même sa clé au téléphone quand
