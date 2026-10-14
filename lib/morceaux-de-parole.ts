@@ -65,7 +65,8 @@ type Depot = {
   octets: number;
 };
 
-const depots = new Map<string, Depot>();
+const g=globalThis as typeof globalThis&{biaDepotsParole?:Map<string,Depot>;biaAttentesParole?:{fois:number;ms:number;en_vain:number;ms_max:number}};
+const depots=g.biaDepotsParole??=new Map<string, Depot>();
 
 /** Une minute : bien plus qu'un tour de parole, bien moins qu'une fuite. */
 const DUREE_DE_VIE = 60_000;
@@ -260,7 +261,7 @@ export function oublierLeDepot(cle: string) { depots.delete(cle); }
 /* Ce que le serveur a attendu le dernier morceau, et combien de fois il a
    attendu pour rien. RÈGLE 1 : si `attendus_en_vain` monte, le pari est
    perdu et on remet l'ancien ordre. */
-const attentes = { fois: 0, ms: 0, en_vain: 0, ms_max: 0 };
+const attentes=g.biaAttentesParole??={ fois: 0, ms: 0, en_vain: 0, ms_max: 0 };
 export function noterAttenteDesMorceaux(ms: number, complet: boolean) {
   attentes.fois += 1;
   attentes.ms += ms;

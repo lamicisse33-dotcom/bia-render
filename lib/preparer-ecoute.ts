@@ -1,7 +1,7 @@
 import {transcrire} from './ecoute';
 import {motsCorriges} from './lexique';
 import {pourScribe} from './mots-a-entendre';
-import {corrigerTranscription,lireCorrectionsTranscription,vocabulaireAppris} from './correction-transcription';
+import {corrigerTranscription,lireCorrectionsTranscription,phrasesLexiqueComplet} from './correction-transcription';
 import {salutationReconnue} from './salutations-dialogue';
 
 export type TempsEcoute = {total_ms:number; reconnaissance_ms:number; vocabulaire_ms:number; correction_apres_reconnaissance_ms:number; salutation:boolean};
@@ -14,10 +14,11 @@ export const noterDiagnosticEcoute=(bilan:unknown)=>{etat.diagnostic=bilan;};
 export async function preparerEcoute(audio:Blob,nom:string,indice:string|null){
  const debut=Date.now();let vocabulaire_ms=0;
  const corrections=lireCorrectionsTranscription().catch(()=>null);
+ const phrases=phrasesLexiqueComplet().catch(()=>null);
  const reco=await transcrire(audio,nom,indice,async()=>{
   const t=Date.now();
   try{
-   const [mots,appris]=await Promise.all([motsCorriges(60).catch(()=>[]),vocabulaireAppris().catch(()=>[])]);
+   const [mots,appris]=await Promise.all([motsCorriges(60).catch(()=>[]),phrases.then(p=>p?[...new Set(p.flatMap(s=>[s,...s.match(/[\p{L}\p{M}'’-]{3,}/gu)||[]]))]:[])]);
    return [...new Set([...pourScribe(mots),...appris])];
   }finally{vocabulaire_ms=Date.now()-t;}
  });
@@ -26,7 +27,7 @@ export async function preparerEcoute(audio:Blob,nom:string,indice:string|null){
  let correction_disponible=true;
  try{
   const regles=await corrections;if(!regles)throw Error('Corrections indisponibles');
-  ecriture=await corrigerTranscription(ecriture.texte,regles);
+  ecriture=await corrigerTranscription(ecriture.texte,regles,phrases);
  }catch{correction_disponible=false;}
  const chronometrage:TempsEcoute={total_ms:Date.now()-debut,reconnaissance_ms:reconnu-debut,vocabulaire_ms,correction_apres_reconnaissance_ms:Date.now()-reconnu,salutation:!!salutationReconnue(ecriture.texte)};
  etat.appels++;etat.dernier=chronometrage;

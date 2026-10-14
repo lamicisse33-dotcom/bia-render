@@ -3,7 +3,7 @@ import {cleDialogue,chargerDialoguesRapides,chercherChoixRapide,garderChoixRapid
 import {fetchAnthropic,contenuAnthropic,MODELE_SONNET,reglagesSonnet} from "./cerveau-anthropic";
 import {appelerCerebras} from "./cerveau-cerebras";
 import {devoirsALire} from "./devoirs-apprentissage";
-import {CONSIGNE_MAITRISES,maitrisesPourConversation,invitationAConverser,chercherDialogues,contexteDialogue,indexerDevoirs,paquetSelection,resoudreSelection,normaliserDialogue,finDuSujet,demandeArgumentation,choixConversation,repliqueChoisie,type DialogueAppris,type TourDialogue} from "./dialogue-devoirs-core";
+import {CONSIGNE_MAITRISES,maitrisesPourConversation,invitationAConverser,chercherDialogues,chercherRepliques,contexteDialogue,indexerDevoirs,paquetSelection,resoudreSelection,normaliserDialogue,finDuSujet,demandeArgumentation,choixConversation,repliqueChoisie,type DialogueAppris,type TourDialogue} from "./dialogue-devoirs-core";
 import {detecterLangue} from "./langue";
 import {salutationAutonome} from "./salutations-dialogue";
 
@@ -86,7 +86,7 @@ export async function dialoguerAvecDevoirs(question:string,historique:unknown,op
   // An invitation to lead is not a request to ask the user to pick a topic.
   // The conversational brain receives the validated map and proposes an angle.
   if(invitationAConverser(question)){if(!diagnostic)etat.dernier_statut="initiative_conversation";return null;}
-  const index=options.index||await indexDialogue(),candidats=chercherDialogues(index,question,history);
+  const index=options.index||await indexDialogue(),candidats=chercherRepliques(index,question,history);
   if(!candidats.length){if(!diagnostic){etat.hors_sujet++;etat.dernier_statut="non_couvert";}return null;}
   const langue=langueDuDialogue(question,history),devoirs=paquetSelection(candidats,history,langue,question);
   if(!devoirs.some(d=>d.repliques.some(p=>p.selectionnable&&!p.deja_dite))){if(!diagnostic)etat.dernier_statut="aucune_replique_adaptee";return null;}

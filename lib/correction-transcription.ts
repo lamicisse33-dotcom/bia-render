@@ -36,12 +36,12 @@ export function appliquerCorrectionsTranscription(texte:string,regles:Regle[]){
  return {texte:corrige,texte_brut:texte,corrections_transcription:corrections};
 }
 export const suggestionsEcriture=propositionsLexique;
-export async function corrigerTranscription(texte:string,regles?:Regle[]){
+export async function corrigerTranscription(texte:string,regles?:Regle[],phrasesEnCours?:Promise<string[]|null>){
  regles??=await lireCorrectionsTranscription();const resultat=appliquerCorrectionsTranscription(texte,regles);
  // An exact greeting needs the validated corrections, not a fuzzy search
  // through every homework phrase. Never discard the rest of a real request.
  if(salutationAutonome(resultat.texte))return {...resultat,suggestions_ecriture:[] as string[]};
- const lecons=await phrasesLexiqueComplet();
+ const lecons=await (phrasesEnCours||phrasesLexiqueComplet());if(!lecons)throw Error("Lexique indisponible");
  return {...resultat,suggestions_ecriture:suggestionsEcriture(resultat.texte,[...regles.map(r=>r.corrige),...lecons])};
 }
 export async function phrasesLexiqueComplet(wolofSeulement=false){

@@ -16,16 +16,20 @@ export function verifierLatencePipeline(){return etat.travail??=(async()=>{
   const r=await fetch(`${lexiqueConfig.url}/rest/v1/${table}?select=cle,chemin,entendu,verifie,langue,type_audio&order=cle.desc&limit=200`,{headers:{apikey:lexiqueConfig.cle,Authorization:`Bearer ${lexiqueConfig.cle}`},signal:AbortSignal.timeout(8000),cache:'no-store'});
   if(!r.ok)throw Error('corpus_HTTP_'+r.status);const lignes=await r.json() as ExtraitCorpus[];
   const exemple=lignes.find(e=>salutationReconnue(e.verifie||e.entendu));
-  if(exemple){
-   const source=await lireExtraitAudio(exemple.chemin);if(!source)throw Error('enregistrement_absent');const audio=await source.blob(),bytes=new Uint8Array(await audio.arrayBuffer()),tour=randomUUID(),coupe=Math.floor(bytes.length/2);
+  let audio:Blob|undefined;
+  if(exemple){const source=await lireExtraitAudio(exemple.chemin);if(source)audio=await source.blob();}
+  if(!audio){const r=await fetch(base+'/salutations-prechargees-v1.json',{signal:AbortSignal.timeout(10000)});const lot=await r.json();const entree=lot.sons.find((s:any)=>s.son.cle==='ca-va'&&s.son.langue==='wo');if(entree)audio=new Blob([Buffer.from(entree.audio,'base64')],{type:'audio/mpeg'});}
+  if(audio){
+   rapport.origine_audio=exemple?'enregistrement_archive':'audio_pre_enregistre_controle';
+   const bytes=new Uint8Array(await audio.arrayBuffer()),tour=randomUUID(),coupe=Math.floor(bytes.length/2);
    rapport.etape='depot';const debut=Date.now();
-   const uploads=await Promise.all([bytes.slice(0,coupe),bytes.slice(coupe)].map(async(b,i)=>{const f=new FormData();f.append('tour',tour);f.append('indice',String(i));f.append('type',audio.type);f.append('nom',exemple.chemin.split('/').at(-1)||'archive.wav');f.append('morceau',new Blob([b],{type:audio.type}));return (await fetch(base+'/api/ecouter/morceau',{method:'POST',headers,body:f,signal:AbortSignal.timeout(10000)})).status;}));
+   const uploads=await Promise.all([bytes.slice(0,coupe),bytes.slice(coupe)].map(async(b,i)=>{const f=new FormData();f.append('tour',tour);f.append('indice',String(i));f.append('type',audio.type);f.append('nom',exemple?.chemin.split('/').at(-1)||'controle.mp3');f.append('morceau',new Blob([b],{type:audio.type}));return (await fetch(base+'/api/ecouter/morceau',{method:'POST',headers,body:f,signal:AbortSignal.timeout(10000)})).status;}));
    rapport.depot={morceaux:2,statuts:uploads,ms:Date.now()-debut};
    const f=new FormData();f.append('tour',tour);f.append('total','2');f.append('depot_confirme','1');f.append('diagnostic','1');f.append('indice_langue','wo');
    rapport.etape='transcription';let t=Date.now(),rr=await fetch(base+'/api/ecouter',{method:'POST',headers,body:f,signal:AbortSignal.timeout(30000)}),d=await rr.json();
    rapport.recousu={statut:rr.status,renvoyer:d.renvoyer===true,ms:Date.now()-t};
-   if(d.renvoyer===true){const entier=new FormData();entier.append('audio',audio,exemple.chemin.split('/').at(-1)||'archive.wav');entier.append('tour',tour);entier.append('diagnostic','1');entier.append('indice_langue','wo');t=Date.now();rr=await fetch(base+'/api/ecouter',{method:'POST',headers,body:entier,signal:AbortSignal.timeout(30000)});d=await rr.json();}
-   rapport.transcription={statut:rr.status,ms:Date.now()-t,chronometrage:d.chronometrage||null,salutation_reconnue:!!salutationReconnue(String(d.texte||'')),date_extrait:exemple.cle.split('/')[0]};
+   if(d.renvoyer===true){const entier=new FormData();entier.append('audio',audio,exemple?.chemin.split('/').at(-1)||'controle.mp3');entier.append('tour',tour);entier.append('diagnostic','1');entier.append('indice_langue','wo');t=Date.now();rr=await fetch(base+'/api/ecouter',{method:'POST',headers,body:entier,signal:AbortSignal.timeout(30000)});d=await rr.json();}
+   rapport.transcription={statut:rr.status,ms:Date.now()-t,chronometrage:d.chronometrage||null,salutation_reconnue:!!salutationReconnue(String(d.texte||'')),date_extrait:exemple?.cle.split('/')[0]||null};
   }else rapport.transcription={enregistrement_salutation_disponible:false};
   rapport.etape='cerveau_voix';const debut=Date.now();
   const response=await fetch(base+'/api/chat',{method:'POST',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({message:'Explique en une phrase courte pourquoi le ciel est bleu. Réponds en français.',history:[],diffuse:true,apprentissageTest:true}),signal:AbortSignal.timeout(30000)});

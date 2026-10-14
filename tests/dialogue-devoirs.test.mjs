@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import ts from 'typescript';
 import crypto from 'node:crypto';
 const compile=s=>ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-function load(path,deps={},env={}){const module={exports:{}};new Function('require','module','exports',...Object.keys(env),compile(fs.readFileSync(path,'utf8')))(n=>{assert(n in deps,`Unexpected import ${n}`);return deps[n];},module,module.exports,...Object.values(env));return module.exports;}
+function load(path,deps={},env={}){if(path==='lib/reponse-salutation.ts'){delete globalThis.biaSalutationsEtat;delete globalThis.biaSalutationsCatalogue;}const module={exports:{}};new Function('require','module','exports',...Object.keys(env),compile(fs.readFileSync(path,'utf8')))(n=>{assert(n in deps,`Unexpected import ${n}`);return deps[n];},module,module.exports,...Object.values(env));return module.exports;}
 const core=load('lib/dialogue-devoirs-core.ts'),langue=load('lib/langue.ts');
 const produits=load('lib/contexte-produits.ts');
 const horloge=load('lib/horloge.ts'),recherche=load('lib/recherche.ts',{'./nombre-env':load('lib/nombre-env.ts')});
@@ -434,3 +434,14 @@ test('project clarification survives an active profit example and an oversized l
 test('an explicitly described product prevents asking its business type again, while questions about price remain usable',()=>{const faits=core.faitsExplicites('Je veux vendre des chaussures à Dakar.',[]);assert.equal(core.questionDejaResolue('Quel genre de business veux-tu faire ?',faits),true);assert.equal(core.questionDejaResolue('Quel prix envisages-tu pour ces produits ?',faits),false);});
 
 test('reporting BIA invented a profit is not an affirmation of that profit',()=>assert.equal(core.montantDeLeconNonConfirme('Ton bénéfice est de 2000 francs.','Bénéfice bi 2000 francs la.','Tu dis que mon bénéfice est de 2000 francs, mais je ne t’ai pas donné ces chiffres.',[]),true));
+test('generic wording does not send an unrelated science question through a lesson selector',()=>{
+ const index=core.indexerDevoirs([saved('Wolof : BIA : Waxal ma sa problème de couple.\nFrançais : BIA : Explique ton problème de couple en une phrase courte.')]);
+ assert.equal(core.chercherDialogues(index,'Explique en une phrase courte pourquoi le ciel est bleu. Réponds en français.',[]).length,0);
+ assert.equal(core.chercherDialogues(index,'Je voudrais un conseil pour mon couple.',[]).length,1);
+});
+test('an isolated dictionary word remains context but never substitutes for a full explanation',()=>{
+ const d={id:'lexique:bleu',titre:'Lexique KHALAM — bleu',date:'',repliques:[{id:'0',fr:'bleu',wo:'baxa',role:'inconnu'}]};
+ assert.equal(core.chercherRepliques([d],'Pourquoi le ciel est bleu ?',[]).length,0);
+ assert.equal(core.choixConversation([d],'Pourquoi le ciel est bleu ?',[],'fr').paquet.length,0);
+ assert.equal(core.chercherRepliques([d],'Traduis bleu en wolof.',[]).length,1);
+});

@@ -84,6 +84,7 @@ export function termesDialogue(s:string){
   .replace(/\b(?:enfants?|xale(?:y)?|khale(?:y)?)\b/g," enfant ");
  return new Set(t.split(" ").filter(w=>w.length>=3&&!outils.has(w)));
 }
+for(const mot of 'explique expliquer reponds repondez repondre reponse reponses phrase phrases court courte courts courtes raconte raconter dis dire dites parle parler aide aider conseille conseil conseils voudrais'.split(' '))outils.add(mot);
 const termes=termesDialogue;
 export function contexteDialogue(historique:unknown):TourDialogue[]{
  if(!Array.isArray(historique))return [];
@@ -112,6 +113,11 @@ export function chercherDialogues(index:DialogueAppris[],question:string,history
   if(actif&&(reprise||accords>0||q.size===0)){score+=5;for(const mot of recent)if(mots.has(mot))score+=1;}
   return {d,actif,score,accords};
  }).filter(x=>x.actif||x.accords>=2||x.accords>=1&&x.score>=3.5).sort((a,b)=>b.score-a.score).slice(0,3);
+}
+/** Dictionary vocabulary grounds a reply, without replacing a multiword question. */
+export function chercherRepliques(index:DialogueAppris[],question:string,history:TourDialogue[]){
+ const mots=termes(question),traduction=/\b(?:traduis|traduire|traduction|comment (?:on )?dit)\b/.test(normaliserDialogue(question));
+ return chercherDialogues(index,question,history).filter(c=>!c.d.id.startsWith('lexique:')||mots.size<=1||traduction||c.d.repliques.some(p=>termes(p.fr).size>1));
 }
 /** Implicit lesson speakers must not turn the person's first-person question
  * into BIA's own question. Explicit BIA labels remain authoritative. */
@@ -220,7 +226,7 @@ export function resoudreSelection(verdict:unknown,paquet:ReturnType<typeof paque
 
 /** Candidate data for the SAME call that can answer freely. No separate judge. */
 export function choixConversation(index:DialogueAppris[],question:string,history:TourDialogue[],langue:"fr"|"wo",budget=5000){
- const candidats=chercherDialogues(index,question,history);
+ const candidats=chercherRepliques(index,question,history);
  const paquet=paquetSelection(candidats,history,langue,question);
  const mots=termes(question),derniere=[...history].reverse().find(t=>t.role==='bia')?.text||'';
  const notes=paquet.flatMap((d,i)=>d.repliques.filter(p=>p.selectionnable&&!p.deja_dite).map(p=>{
