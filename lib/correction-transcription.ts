@@ -36,15 +36,26 @@ export function appliquerCorrectionsTranscription(texte:string,regles:Regle[]){
  return {texte:corrige,texte_brut:texte,corrections_transcription:corrections};
 }
 export const suggestionsEcriture=propositionsLexique;
-export async function corrigerTranscription(texte:string,regles?:Regle[],phrasesEnCours?:Promise<string[]|null>){
+export async function corrigerTranscription(texte:string,regles?:Regle[],phrasesEnCours?:Promise<string[]|null>,budgetSuggestions?:number){
  regles??=await lireCorrectionsTranscription();const resultat=appliquerCorrectionsTranscription(texte,regles);
  // An exact greeting needs the validated corrections, not a fuzzy search
  // through every homework phrase. Never discard the rest of a real request.
  if(salutationAutonome(resultat.texte))return {...resultat,suggestions_ecriture:[] as string[]};
  const lecons=await (phrasesEnCours||phrasesLexiqueComplet());if(!lecons)throw Error("Lexique indisponible");
- return {...resultat,suggestions_ecriture:suggestionsEcriture(resultat.texte,[...regles.map(r=>r.corrige),...lecons])};
+ return {...resultat,suggestions_ecriture:suggestionsEcriture(resultat.texte,[...regles.map(r=>r.corrige),...lecons],budgetSuggestions)};
 }
+const gPhrases=globalThis as typeof globalThis&{biaReferencesTranscription?:Map<string,{phrases?:string[];expire:number;chargement?:Promise<string[]>}>;biaRevisionMemoire?:number;biaGenerationDevoirs?:number;biaGenerationPrononciation?:number};
+const references=gPhrases.biaReferencesTranscription??=new Map();
 export async function phrasesLexiqueComplet(wolofSeulement=false){
+ const cle=JSON.stringify([wolofSeulement,gPhrases.biaRevisionMemoire||0,gPhrases.biaGenerationDevoirs||0,gPhrases.biaGenerationPrononciation||0]);
+ let entree=references.get(cle);if(entree?.phrases&&entree.expire>Date.now())return entree.phrases;
+ if(entree?.chargement)return entree.chargement;
+ if(!entree){entree={expire:0};references.set(cle,entree);}const cible=entree;
+ cible.chargement=chargerPhrasesLexique(wolofSeulement).then(phrases=>{cible.phrases=phrases;cible.expire=Date.now()+15000;return phrases;}).finally(()=>{cible.chargement=undefined;});
+ for(const k of references.keys())if(k!==cle&&references.size>4)references.delete(k);
+ return cible.chargement;
+}
+async function chargerPhrasesLexique(wolofSeulement=false){
  const resultats=await Promise.allSettled([lireLecons(),phrasesApprisesDevoirs(wolofSeulement),lireCorrectionsBiba(),lireLexiquePartage()]);
  const individuelles=resultats[0].status==="fulfilled"?resultats[0].value.filter(l=>l.statut==="validé"&&(!wolofSeulement||l.langue==="wo")).map(l=>l.texte):[];
  const devoirs=resultats[1].status==="fulfilled"?resultats[1].value:[];

@@ -10,3 +10,9 @@ test('lexicon lookup starts during ASR and the exact same promise feeds post-ASR
  }});
  const pending=api.preparerEcoute(new Blob(['audio']),'sample.wav','wo');assert.equal(lexReads,1);finishLex(['Dama soxla.']);finishASR({texte:'Dama soxla.'});const r=await pending;assert(r.correction_disponible);assert.equal(r.ecriture.texte,'Dama soxla.');assert.equal(lexReads,1);
 });
+test('a stalled fuzzy vocabulary cannot hold speech back; exact owner correction still applies',async()=>{
+ const api=load({'./ecoute':{transcrire:async()=>({texte:'Dama sokhla.'})},'./lexique':{motsCorriges:async()=>[]},'./mots-a-entendre':{pourScribe:x=>x},'./salutations-dialogue':{salutationReconnue:()=>undefined},'./correction-transcription':{
+  phrasesLexiqueComplet:()=>new Promise(()=>{}),lireCorrectionsTranscription:async()=>[{entendu:'sokhla',corrige:'soxla'}],corrigerTranscription:async(t,regles,p)=>{assert.equal(regles[0].corrige,'soxla');assert.deepEqual(await p,[]);return {texte:'Dama soxla.',texte_brut:t,corrections_transcription:[regles[0]],suggestions_ecriture:[]};}
+ }});
+ const start=Date.now();const r=await api.preparerEcoute(new Blob(['audio']),'sample.wav','wo');assert(Date.now()-start<700);assert(r.correction_disponible);assert.equal(r.ecriture.texte,'Dama soxla.');assert.equal(r.chronometrage.references_pretes,false);
+});
