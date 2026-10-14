@@ -2106,7 +2106,19 @@ aussi l'éteindre lui-même en gardant le doigt appuyé dessus.`;
         .map(item=>Array.isArray(item.gestes)?item.gestes.filter(g=>typeof g==="string"):[]),
     );
 
-    const savoir=await savoirKhalam();
+    // Independent memory/catalogue reads share one preparation window.
+    const [savoir,cosmetiques,aMontrer,referencesDuTour]=await Promise.all([
+      savoirKhalam(),savoirProduits(),catalogue(),
+      Promise.all([
+      contexteDevoirs(question).catch(()=>{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");return "";}),
+      maitre.ok&&maitre.maitre?contexteInstructions().catch(()=>{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");return "";}):Promise.resolve(""),
+      maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?contexteMaitrises(question,body.history,3000).catch(()=>""):Promise.resolve(""),
+      fichesPourConversation(question,body.history||[],3500),
+      utiliserChoix?choixDuTour(question,body.history).catch(()=>null):Promise.resolve(null),
+      Promise.resolve(''), // BIBA now shares the common memory retrieval.
+
+    ])
+    ]);
     if(savoir)socle+=`\n\n═══ CE QUE TU SAIS DE KHALAM ═══\n${savoir}\n═══ fin de ce que tu sais de KHALAM ═══`;
 
     /* ── LES PRODUITS DE BEAUTÉ, ET LA BARRIÈRE AUTOUR ─────────────────────
@@ -2121,7 +2133,7 @@ aussi l'éteindre lui-même en gardant le doigt appuyé dessus.`;
        l'on donne un texte de marque sans condition finit toujours par le
        placer — dans une conversation sur la fatigue, sur la pluie — et une
        assistante qui vend quelque chose n'est plus une assistante. */
-    const cosmetiques=await savoirProduits();
+
     const produitsDuTour=concerneProduits(question,body.history)?cosmetiques:"";
     // Le sujet précédent ne change jamais l’identité de BIA.
     if(cosmetiques)socle+=`\n\n═══ LES PRODUITS DE BEAUTÉ ═══
@@ -2226,7 +2238,7 @@ ${cosmetiques}
       variable+=consigneRepertoireCandidates(question,elleADit[elleADit.length-1]||"");
     }
 
-    const aMontrer=await catalogue();
+
     if(aMontrer)variable+=`\n\nCE QUE TU PEUX MONTRER À L'ÉCRAN
 Tu as des images — parfois une vidéo — que tu peux faire apparaître :
 ${aMontrer}
@@ -2339,15 +2351,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        toujours avant (juste au-dessus). La consigne entre dans la clé : si
        Lamine la change, les réponses se renouvellent d'elles-mêmes. */
     // Independent source reads share the same waiting period, not four in series.
-    const [devoirs,instructionsDuTour,maitrises,fichesDuTour,choixPrepare,bibaDuTour]=await Promise.all([
-      contexteDevoirs(question).catch(()=>{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");return "";}),
-      maitre.ok&&maitre.maitre?contexteInstructions().catch(()=>{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");return "";}):Promise.resolve(""),
-      maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?contexteMaitrises(question,body.history,3000).catch(()=>""):Promise.resolve(""),
-      fichesPourConversation(question,body.history||[],3500),
-      utiliserChoix?choixDuTour(question,body.history).catch(()=>null):Promise.resolve(null),
-      Promise.resolve(''), // BIBA now shares the common memory retrieval.
-
-    ]);
+    const [devoirs,instructionsDuTour,maitrises,fichesDuTour,choixPrepare,bibaDuTour]=referencesDuTour;
     choixIntegre=choixPrepare;
     if(instructionsDuTour)variable+="\n"+instructionsDuTour;
     if(body.apprentissageTest)variable+="\nTEST PÉDAGOGIQUE : réponds à la question avec les connaissances et les corrections mémorisées. Ne transforme pas la question en leçon, ne la répète pas comme exercice et ne propose aucun enregistrement.";
