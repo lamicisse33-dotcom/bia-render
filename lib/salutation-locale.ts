@@ -10,3 +10,13 @@ export function salutationLocale(question:string,sons:SonCourant[],options:{appr
  const son=sons.find(s=>s.cle===e.cle&&s.langue===langue&&s.version===VERSION_SONS_COURANTS&&s.octets>1000);
  return son?{reply:son.texte,langue,emotion:e.emotion||'douce',salutation:true,cle_salutation:e.cle,source:'salutation locale préenregistrée',son_courant:son}:null;
 }
+/** A shipped audio can be reused only when the live catalogue still names it. */
+export function lotSalutationsCourant(sons:SonCourant[],lot:unknown):Array<{son:SonCourant;audio:string}>{
+ if(!lot||typeof lot!=='object'||!Array.isArray((lot as {sons?:unknown}).sons))return [];
+ return ((lot as {sons:unknown[]}).sons).flatMap(row=>{
+  if(!row||typeof row!=='object')return [];const r=row as {son?:SonCourant;audio?:unknown};
+  if(typeof r.audio!=='string'||!r.son)return [];
+  const courant=sons.find(s=>s.usage==='salutation'&&s.version===VERSION_SONS_COURANTS&&s.cle===r.son!.cle&&s.langue===r.son!.langue&&s.texte===r.son!.texte&&s.adresse===r.son!.adresse);
+  return courant?[{son:courant,audio:r.audio}]:[];
+ });
+}

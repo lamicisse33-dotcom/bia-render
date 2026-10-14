@@ -6,7 +6,7 @@ import {sansSilence} from "@/lib/bords-audio";
 import {useAudioMemoire} from "@/lib/use-audio-memoire";
 import {sonPourTexte,reactionDisponible,type SonCourant} from "@/lib/sons-courants-core";
 import {programmerReactionCourante} from "@/lib/reaction-courante";
-import {salutationLocale} from '@/lib/salutation-locale';
+import {salutationLocale,lotSalutationsCourant} from '@/lib/salutation-locale';
 import {accusePertinent} from "@/lib/salutations-dialogue";
 import {piperLocaleDisponible} from "@/lib/voix-piper-locale";
 
@@ -4027,15 +4027,20 @@ export default function Home() {
 
   useEffect(()=>{
     accesSalutationsRef.current="";
-    if(!code||personaRef.current==="rara")return;
+    if(personaRef.current==="rara")return;
     let vivant=true;let timer:ReturnType<typeof setTimeout>|undefined;
     const charger=async()=>{
       const bilan={demandes:0,deja_la:0,chargees:0,ratees:0,ms:0,octets:0};const debut=Date.now();
       try{
-        await verifierAcces(code);if(!vivant)return;accesSalutationsRef.current=code;
-        const r=await fetch("/api/sons-courants",{cache:"no-store"});if(!r.ok)throw Error("Catalogue indisponible");
+        if(code)void verifierAcces(code).then(()=>{if(vivant)accesSalutationsRef.current=code;}).catch(()=>{if(vivant)accesSalutationsRef.current="";});
+        const [r,lot]=await Promise.all([fetch("/api/sons-courants",{cache:"no-store"}),fetch("/salutations-prechargees-v1.json",{cache:"force-cache"}).then(r=>r.ok?r.json():null).catch(()=>null)]);
+        if(!r.ok)throw Error("Catalogue indisponible");
         const d=await r.json() as {sons:SonCourant[];attendus:number};if(!vivant)return;
         sonsCourantsRef.current=d.sons;
+        for(const entree of lotSalutationsCourant(d.sons,lot)){
+          if(cacheSons.current.has(entree.son.adresse))continue;
+          try{const bytes=octetsDeBase64(entree.audio);if(bytes.byteLength>1000)cacheSons.current.set(entree.son.adresse,bytes);}catch{}
+        }
         const ordre=[...d.sons].sort((a,b)=>Number(b.usage==="salutation")-Number(a.usage==="salutation"));let prochain=0;
         await Promise.all(Array.from({length:4},async()=>{
           while(vivant&&prochain<ordre.length){const son=ordre[prochain++];bilan.demandes++;

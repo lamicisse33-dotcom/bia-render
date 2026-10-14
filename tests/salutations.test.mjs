@@ -40,3 +40,10 @@ test('local greeting uses current corrected recording in either language, never 
  assert.equal(local.salutationLocale('Bonjour',sons,{...options,persona:'rara'}),null);
  assert.equal(local.salutationLocale('Bonjour',sons.map(s=>({...s,version:'ancien'})),options),null);
 });
+test('the shipped audio batch cannot restore an old edited greeting',()=>{
+ const son={...courants.PHRASES_COURANTES[0],version:courants.VERSION_SONS_COURANTS,adresse:'/current.mp3',octets:2000,secondes:1};
+ assert.equal(local.lotSalutationsCourant([son],{sons:[{son,audio:'AA=='}]}).length,1);
+ assert.equal(local.lotSalutationsCourant([{...son,texte:'Nouvelle correction'}],{sons:[{son,audio:'AA=='}]}).length,0);
+ assert.equal(local.lotSalutationsCourant([{...son,adresse:'/new.mp3'}],{sons:[{son,audio:'AA=='}]}).length,0);
+ assert.deepEqual(local.lotSalutationsCourant([son],null),[]);
+});
