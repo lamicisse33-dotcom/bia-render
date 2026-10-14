@@ -84,6 +84,7 @@ import {
   DUREE_DU_RATTRAPAGE, GARDER_CE_QUIL_DIT_PENDANT_QUELLE_PARLE, RELANCE_DU_DEPOT,
   faut_il_se_taire, recoller, suitePendantReflexion, PORTE_AU_PLUS, type Prononce,
 } from "@/lib/sa-propre-voix";
+import {creerFocusLocuteur} from "@/lib/focus-locuteur";
 import { attendreSonTour, creerDetectionInterruption } from "@/lib/tour-de-parole";
 import Installer from "./installer";
 import Ecran from "./ecran";
@@ -575,6 +576,7 @@ export default function Home() {
      donc dans « Moi », avec le reste de ce qui appartient à la personne, et
      il ne demande aucun code. */
   const [debit, setDebit] = useState(VITESSE_POSEE);
+  const [suivreMaVoix,setSuivreMaVoix]=useState(true);
   const debitNatifRef = useRef(0.85);
   const [erreurDebit, setErreurDebit] = useState("");
   const voixAvecDebitNatif = () => (window as Window & { BiaLocalVoice?: { getSpeed?: () => Promise<{speed: number}>; setSpeed?: (speed: number) => Promise<{speed: number}>; settings?: () => Promise<unknown> } }).BiaLocalVoice;
@@ -1063,6 +1065,9 @@ export default function Home() {
      le temps d'une phrase. C'est aussi ce qui permet de l'entendre pendant
      qu'elle parle : sans flux ouvert à ce moment-là, on ne pourrait pas lui
      couper la parole. */
+  const focusLocuteurRef=useRef<ReturnType<typeof creerFocusLocuteur>|null>(null);
+  if(!focusLocuteurRef.current)focusLocuteurRef.current=creerFocusLocuteur();
+  useEffect(()=>{try{const actif=localStorage.getItem("bia-focus-voix")!=="non";setSuivreMaVoix(actif);focusLocuteurRef.current?.activer(actif);}catch{}},[]);
   const fluxRef = useRef<MediaStream | null>(null);
   const analyseRef = useRef<AnalyserNode | null>(null);
   /* Second analyseur, dédié à la hauteur de voix (voir hauteurDeVoix dans
@@ -4459,7 +4464,10 @@ export default function Home() {
     fluxRef.current = flux;
     analyseRef.current = analyse;
     analysePeriodiqueRef.current = analysePeriodique;
+    let detacherFocus=()=>{};
+    void focusLocuteurRef.current!.brancher(ctxMicro,entree).then(detacher=>{if(fluxRef.current!==flux)detacher();else detacherFocus=detacher;});
     debrancherMicroRef.current = () => {
+      detacherFocus();
       try { entree.disconnect(); } catch { }
       try { analyse.disconnect(); } catch { }
       try { analysePeriodique.disconnect(); } catch { }
@@ -4482,6 +4490,7 @@ export default function Home() {
      la page. On coupe le fil AVANT le micro, pour qu'aucune veille ne
      redémarre un tour sur un flux qu'on vient d'éteindre. */
   const fermerConversation = useCallback(() => {
+    focusLocuteurRef.current?.terminer();
     conversationRef.current = false;
     /* ── FERMER LA CONVERSATION, C'EST TUER CE QUI EST EN VOL ──────────────
 
@@ -4705,7 +4714,11 @@ export default function Home() {
           analyse.getByteFrequencyData(spectre);
           proportionVocale = partVocale(spectre, ctxMicro.sampleRate);
         } catch { /* L'écoute reste utilisable sans analyse fréquentielle. */ }
-        const uneVoix = filtrerDeclenchement(audible, proportionVocale);
+        const candidateVocale=filtrerDeclenchement(audible, proportionVocale);
+        let voixPeriodique=false,hauteurCandidate=0;
+        if(candidateVocale){try{analysePeriodique.getByteTimeDomainData(tamponPeriodique);hauteurCandidate=hauteurDeVoix(tamponPeriodique,ctxMicro.sampleRate);voixPeriodique=hauteurCandidate>=HAUTEUR_MINIMALE;}catch{}}
+        focusLocuteurRef.current?.observer(candidateVocale,voixPeriodique);
+        const uneVoix=candidateVocale&&(focusLocuteurRef.current?.autoriser()??true);
         seuilRef.current = bruit.seuil();
 
         if (uneVoix) {
@@ -4727,8 +4740,7 @@ export default function Home() {
           try {
             analyse.getByteFrequencyData(spectre);
             partVocaleTotale += partVocale(spectre, ctxMicro.sampleRate);
-            analysePeriodique.getByteTimeDomainData(tamponPeriodique);
-            hauteurTotale += hauteurDeVoix(tamponPeriodique, ctxMicro.sampleRate);
+            hauteurTotale += hauteurCandidate;
             mesuresVocales++;
           } catch { /* pas de spectre : on enverra, comme avant */ }
 
@@ -4914,7 +4926,7 @@ export default function Home() {
            cher qu'une transcription de trop. */
         const partVocaleMoyenne = mesuresVocales > 0 ? partVocaleTotale / mesuresVocales : null;
         const hauteurMoyenne = mesuresVocales > 0 ? hauteurTotale / mesuresVocales : null;
-        if (!aParle || !morceaux.length || !vraimentUneVoix(dureeParlee, partVocaleMoyenne, hauteurMoyenne)) {
+        if (!aParle || !morceaux.length || !focusLocuteurRef.current?.autoriser() || !vraimentUneVoix(dureeParlee, partVocaleMoyenne, hauteurMoyenne)) {
           if (aParle && partVocaleMoyenne !== null && vautLaPeine(dureeParlee)) {
             /* Silencieux à l'écran, mais pas invisible : sans cette ligne, le
                jour où le filtre jetterait une vraie voix, on n'aurait aucun
@@ -6020,6 +6032,9 @@ export default function Home() {
         estUneVoix = partVocale(spectreInterruption, analyse.context.sampleRate) >= 0.2 &&
           hauteurDeVoix(tamponPeriodique, analysePeriodique.context.sampleRate) >= HAUTEUR_MINIMALE;
       }
+      const candidateInterruption=creux>barre&&estUneVoix;
+      focusLocuteurRef.current?.observer(candidateInterruption);
+      estUneVoix=estUneVoix&&(focusLocuteurRef.current?.interruption()??true);
       const interruption = detecter(creux > barre, estUneVoix, TOUR_DE_VEILLE);
       if (creux > barre && estUneVoix) {
         revisionParole += 1;
@@ -7249,6 +7264,8 @@ export default function Home() {
           <button type="button" disabled={mode !== "ready" || conversation} onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
         </div>
         {panne ? <p role="alert">{panne}</p> : null}
+        <label className="papier-champ"><span>Se concentrer sur ma voix</span><input type="checkbox" checked={suivreMaVoix} onChange={e=>{const actif=e.target.checked;setSuivreMaVoix(actif);focusLocuteurRef.current?.activer(actif);try{localStorage.setItem("bia-focus-voix",actif?"oui":"non");}catch{}}} /></label>
+        <p className="papier-note">Au début de la conversation, parle seul quelques secondes pour que Bia repère ta voix. Ferme puis rouvre le micro pour passer la parole à une autre personne.</p>
         <p className="papier-titre">La voix de Bia</p>
         <fieldset style={{ margin: "12px 0", padding: 12, border: "1px solid #8c7549", borderRadius: 12 }}>
           <legend>Choisir la voix</legend>
@@ -7421,6 +7438,7 @@ export default function Home() {
     if (id === profil) { setQuiParle(false); return; }
     taire();
     couperSon();
+    focusLocuteurRef.current?.reset();
     setProfil(id);
     profilRef.current = id;
     garderProfils(profils, id);
@@ -7464,6 +7482,7 @@ export default function Home() {
   function changerProfilVers(liste: Profil[], id: string) {
     taire();
     couperSon();
+    focusLocuteurRef.current?.reset();
     setProfil(id);
     profilRef.current = id;
     nomRef.current = liste.find((x) => x.id === id)?.nom || "";

@@ -1,3 +1,4 @@
+import {resumeFocusLocuteur} from "@/lib/focus-locuteur-etat";
 import {resumeLatencePipeline} from '@/lib/essai-latence-pipeline';
 import {resumeCommerceContextuel} from '@/lib/essai-commerce-contextuel';
 import {resumeDialogueDomaines} from '@/lib/essai-dialogue-domaines';
@@ -197,6 +198,7 @@ export async function GET(request: Request) {
     correction_vocale:resumeEssaiCorrectionVocale(),
     corrections_biba:resumeBibaCorrections(),
     memoire_organisee:resumeMemoireOrganisee(),
+    focus_locuteur:resumeFocusLocuteur(),
     ecoute_configuration: {
       soynade_selectionnee: (process.env.STT_PROVIDER || "soynade") === "soynade",
       locale_selectionnee: process.env.STT_PROVIDER === "local_wolof",

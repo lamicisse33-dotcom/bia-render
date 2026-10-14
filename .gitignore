@@ -26,3 +26,6 @@ __pycache__/
 
 # Copied from the pinned ONNX runtime at build time
 public/piper/runtime/
+
+# Pinned speaker model fetched and checked during build
+public/locuteur/model.onnx

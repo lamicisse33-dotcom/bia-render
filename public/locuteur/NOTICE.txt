@@ -1,0 +1,10 @@
+Speaker verification: ReDimNet B2, pretrained on VoxCeleb2.
+Architecture and original models: https://github.com/IDRnD/redimnet
+Copyright (c) 2024 ID R&D, Inc. MIT license in LICENSE.
+ONNX conversion: https://huggingface.co/OpenVoiceOS/redimnet-b2-vox2-onnx
+Pinned revision: 5127cc45350579cafea037f82634c2be04ca712d
+SHA-256: a7586b34c8db1bbf32c64efc2b269be54f66787e50320c4472614bbe95218a81
+Model input: mono 16000 Hz PCM [batch, 1, samples]; output: 192-dimensional voice embedding.
+The BIA integration compares a temporary session reference locally. No speaker
+embedding is persisted or sent to Supabase. This is not authentication and does
+not separate overlapping speakers or establish whom somebody is addressing.
