@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
 const compile=s=>ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-function load(path,deps={}){const m={exports:{}};new Function('require','module','exports',compile(fs.readFileSync(path,'utf8')))(n=>{assert(n in deps,n);return deps[n];},m,m.exports);return m.exports;}
+function load(path,deps={}){if(path==='lib/reponse-salutation.ts'){delete globalThis.biaSalutationsEtat;delete globalThis.biaSalutationsCatalogue;}const m={exports:{}};new Function('require','module','exports',compile(fs.readFileSync(path,'utf8')))(n=>{assert(n in deps,n);return deps[n];},m,m.exports);return m.exports;}
 const textes=load('lib/repertoire-textes.ts'),normaliser=load('lib/normaliser.ts'),services=load('lib/services-textes.ts');
 const salut=load('lib/salutations-dialogue.ts',{'./repertoire-textes':textes,'./normaliser':normaliser,'./services-textes':services});
 test('whole and combined French/Wolof greetings are identified without swallowing a real request',()=>{
@@ -31,7 +31,7 @@ const local=load('lib/salutation-locale.ts',{'./salutations-dialogue':salut,'./l
 test('local greeting uses current corrected recording in either language, never a filler',()=>{
  const sons=courants.PHRASES_COURANTES.map(s=>({...s,version:courants.VERSION_SONS_COURANTS,adresse:'/audio/'+s.cle+'/'+s.langue,octets:2000,secondes:2}));
  const options={apprend:false,correction:false,persona:'bia'};
- for(const [q,langue] of [['Bonjour','fr'],['Bonsoir','fr'],['Salut, comment vas-tu ?','fr'],['Nanga def ?','wo'],['Naka nga def ?','wo'],['Nangudeef','wo']]){
+ for(const [q,langue] of [['Bonjour','fr'],['Coucou','fr'],['Ça va ?','fr'],['Bonsoir','fr'],['Salut, comment vas-tu ?','fr'],['Nanga def ?','wo'],['Naka nga def ?','wo'],['Nangudeef','wo']]){
   const r=local.salutationLocale(q,sons,options);assert(r,q);assert.equal(r.langue,langue,q);assert.equal(r.reply,r.son_courant.texte);assert.equal(r.son_courant.usage,'salutation');
  }
  for(const q of ['Bonjour, je suis triste','Nanga def, je veux un conseil','D’accord'])assert.equal(local.salutationLocale(q,sons,options),null);
