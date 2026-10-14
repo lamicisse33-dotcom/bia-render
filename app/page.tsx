@@ -7735,7 +7735,7 @@ export default function Home() {
               important de tous : sans lui, elle appelle le suivant par le
               prénom du précédent. */}
           <button type="button" className="qui" onClick={() => setQuiParle(true)}>
-            {profils.find((x) => x.id === profil)?.nom || "Qui parle ?"}
+            Changer d’utilisateur
           </button>
           <button type="button" onClick={nouvelleConversation}>Nouvelle conversation</button>
           {resume ? <button type="button" onClick={toutOublier}>Tout oublier</button> : null}
