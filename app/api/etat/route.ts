@@ -1,3 +1,4 @@
+import {resumeProfilPreparation} from '@/lib/profil-preparation';
 import {resumePossessifSa} from "@/lib/essai-possessif-sa";
 import {resumeEmpruntGerer} from "@/lib/essai-emprunt-gerer";
 import {resumeFocusLocuteur} from "@/lib/focus-locuteur-etat";
@@ -195,6 +196,7 @@ export async function GET(request: Request) {
     fiches_connaissances:resumeFichesConnaissances(),
     connexion_fiches:resumeConnexionFiches(),
     memorisation_maitre:resumeEssaiMemoire(),
+    preparation_detaillee:resumeProfilPreparation(),
     latence_conversation:resumeLatenceConversation(),
     latence_pipeline:resumeLatencePipeline(),
     comprehension_conversation:resumeEssaiComprehension(),
