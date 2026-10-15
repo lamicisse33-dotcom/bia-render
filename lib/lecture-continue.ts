@@ -49,19 +49,37 @@ export function segmentsLecture(texte: string, max = MAX_SEGMENT): string[] {
 }
 
 export type EtatLecture = "prêt"|"lecture"|"pause"|"erreur"|"terminé"|"arrêté";
+export type PlageLecture={debut:number;fin:number};
+export type SegmentLecture=PlageLecture&{texte:string;langue?:"fr"|"wo"};
 export type Progression = {etat:EtatLecture; index:number; total:number; erreur?:string};
+/** Offsets refer to the displayed full text, including separators between lessons. */
+export function planLecture(passages:Array<{texte:string;langue?:"fr"|"wo"}>,depart=0):SegmentLecture[]{
+ const complet=passages.map(p=>p.texte).join("\n\n");
+ let curseur=Math.min(complet.length,Math.max(0,Number.isFinite(depart)?Math.floor(depart):0));
+ // A caret inside a word starts at that word, without losing its first syllable.
+ if(curseur<complet.length)while(curseur>0&&/\S/u.test(complet[curseur])&&/\S/u.test(complet[curseur-1]))curseur--;
+ const out:SegmentLecture[]=[];let base=0;
+ for(const p of passages){
+  const fin=base+p.texte.length;
+  if(curseur<fin){let debut=Math.max(base,curseur);
+   for(const texte of segmentsLecture(p.texte.slice(debut-base))){out.push({texte,langue:p.langue,debut,fin:debut+texte.length});debut+=texte.length;}
+  }
+  base=fin+2;
+ }
+ return out;
+}
 /** One cursor owns a reading. Failures never skip a segment or claim completion. */
 export class LectureContinue {
   private token=0; private paused=false; private running=false;
   private controller:AbortController|null=null;
-  private segments:Array<{texte:string;langue?:"fr"|"wo"}>=[]; private index=0; private completion=false;
+  private segments:SegmentLecture[]=[]; private index=0; private completion=false;
   constructor(private synthese:(texte:string,signal:AbortSignal,langue?:"fr"|"wo")=>Promise<unknown>,
-    private jouer:(audio:unknown,signal:AbortSignal)=>Promise<void>,
+    private jouer:(audio:unknown,signal:AbortSignal,plage?:PlageLecture)=>Promise<void>,
     private transport:{pause:()=>void; reprendre:()=>void; stop:()=>void},
     private informer:(p:Progression)=>void) {}
   private emit(etat:EtatLecture,erreur?:string) { this.informer({etat,index:this.index,total:this.segments.length,erreur}); }
-  demarrer(texte:string) { this.demarrerPassages([{texte}]); }
-  demarrerPassages(passages:Array<{texte:string;langue?:"fr"|"wo"}>) { this.stop(); this.segments=passages.flatMap(p=>segmentsLecture(p.texte).map(texte=>({texte,langue:p.langue}))); this.index=0; this.completion=false;
+  demarrer(texte:string,depart=0) { this.demarrerPassages([{texte}],depart); }
+  demarrerPassages(passages:Array<{texte:string;langue?:"fr"|"wo"}>,depart=0) { this.stop(); this.segments=planLecture(passages,depart); this.index=0; this.completion=false;
     if (!this.segments.length) {this.emit("prêt");return;} this.paused=false; this.transport.reprendre(); void this.run(); }
   pause() {this.paused=true;this.transport.pause();this.emit("pause");}
   reprendre() {this.paused=false;this.transport.reprendre();if(!this.running)void this.run();else this.emit("lecture");}
@@ -79,7 +97,7 @@ export class LectureContinue {
         const text=passage?.texte ?? "Exercice terminé";
         let succeeded=false;let last="";
         for(let attempt=0;attempt<3;attempt++) {
-          try {const audio=await this.synthese(text,signal,passage?.langue ?? (passage?undefined:"fr"));await this.gate(token);await this.jouer(audio,signal);
+          try {const audio=await this.synthese(text,signal,passage?.langue ?? (passage?undefined:"fr"));await this.gate(token);await this.jouer(audio,signal,passage);
             if(token!==this.token)return;succeeded=true;break;
           } catch(e) {if(signal.aborted||token!==this.token)return;last=e instanceof Error?e.message:"Voix indisponible";
             if(e instanceof Error && ["AudioSuspendu","TimeoutError"].includes(e.name)){this.paused=true;this.emit("erreur",e.name==="TimeoutError"?"La voix met trop de temps à répondre. Appuie sur REPRENDRE pour réessayer.":last);return;}
@@ -93,3 +111,4 @@ export class LectureContinue {
     finally{if(token===this.token)this.running=false;}
   }
 }
+
