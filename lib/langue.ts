@@ -95,6 +95,10 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
     }
     const labels=tokens.map((token,index)=>{
       if(contexteWolof.has(index))return 'wo' as const;
+      // Homograph: resolve sa with its neighbours/sentence instead of
+      // creating a one-syllable French clip inside Wolof speech. Keep
+      // sentence language scoring unchanged for measured mixed groups.
+      if(keys[index]==='sa')return null;
       if(protectedIndices.has(index))return "fr" as const;
       const mots=token.toLocaleLowerCase().normalize("NFC").match(/[\p{L}\p{N}]+/gu)||[];
       if(mots.length===1&&emprunts.has(mots[0])&&!COMMUNS.has(mots[0])&&!estMotWolof(mots[0]))return "fr" as const;

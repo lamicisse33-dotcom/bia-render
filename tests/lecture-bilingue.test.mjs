@@ -207,3 +207,14 @@ test('gérer and its French forms keep French delivery inside the actual urban W
   assert(ps.some(p=>p.langue==='fr'&&p.texte.includes(mot)),mot);
  }
 });
+
+
+test('Wolof possessive sa never becomes an isolated French clip in the reported sentence',()=>{
+ const screenshot='Baax na papa, Waxoon nga ma ni xamoo ba léegi. kan nga mën a jaay sa yéré yi. Kon nanu tàmbali ndànk, ak nit ñi nga xam déjà ci sa quartier. Ci sa entourage, kan moo mëna soxla ay tenue pour une fête ?';
+ const plan=passagesLanguesVoix(screenshot,'wo');assert.equal(plan.map(p=>p.texte).join(''),screenshot);
+ assert.equal(plan.filter(p=>p.langue==='fr'&&p.texte.trim()==='sa').length,0);
+ assert(plan.some(p=>p.langue==='wo'&&p.texte.includes('jaay sa yéré')));
+ assert(plan.some(p=>p.langue==='wo'&&p.texte.includes('ci sa quartier')));
+ assert(plan.some(p=>p.langue==='wo'&&p.texte.includes('Ci sa entourage')));
+ for(const t of ['Il parle de sa famille.','Sa voiture est dans sa rue.'])assert.deepEqual(passagesLanguesVoix(t,'fr'),[{texte:t,langue:'fr'}]);
+});

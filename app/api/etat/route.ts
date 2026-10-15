@@ -1,3 +1,4 @@
+import {resumePossessifSa} from "@/lib/essai-possessif-sa";
 import {resumeEmpruntGerer} from "@/lib/essai-emprunt-gerer";
 import {resumeFocusLocuteur} from "@/lib/focus-locuteur-etat";
 import {resumeLatencePipeline} from '@/lib/essai-latence-pipeline';
@@ -176,6 +177,7 @@ export async function GET(request: Request) {
     lecture_administration: resumeAdministration(),
     lecture_business: resumeBusiness(),
     lecture_emprunt_gerer:resumeEmpruntGerer(),
+    lecture_possessif_sa:resumePossessifSa(),
     lecture_soxla: resumeSoxla(),
     lecture_lan_lool: resumeLanLool(),
     lecture_fin_bi: resumeFinBi(),
