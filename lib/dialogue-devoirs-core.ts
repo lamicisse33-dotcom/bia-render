@@ -97,6 +97,15 @@ export function invitationAConverser(question:string){
  const q=normaliserDialogue(question).replace(/^bia /,"");
  return /^(?:je veux (?:juste )?(?:discuter|bavarder|parler)(?: avec toi)?|(?:on|nous) (?:peut |pouvons )?(?:discuter|bavarder)|parlons|discutons|choisis (?:un|le) sujet|propose moi (?:un sujet|quelque chose)|de quoi (?:peut on|veux tu|on peut) parler|je t ecoute|nanu waxtaan|dama begg waxtaan)(?: un peu| en wolof| en francais)?$/.test(q);
 }
+const indexRecherche=new WeakMap<DialogueAppris[],{signature:string;docs:Array<{d:DialogueAppris;mots:Set<string>;titre:Set<string>;repliques:Set<string>}>;df:Map<string,number>}>();
+function preparerRecherche(index:DialogueAppris[]){
+ // The content signature also detects edits to an existing array or object.
+ const signature=JSON.stringify(index),connu=indexRecherche.get(index);
+ if(connu?.signature===signature)return connu;
+ const docs=index.filter(d=>d.repliques.length).map(d=>({d,mots:termes(d.titre+' '+d.repliques.map(p=>p.wo+' '+p.fr).join(' ')),titre:termes(d.titre),repliques:new Set(d.repliques.flatMap(p=>[normaliserDialogue(p.wo),normaliserDialogue(p.fr)]))}));
+ const df=new Map<string,number>();for(const doc of docs)for(const w of doc.mots)df.set(w,(df.get(w)||0)+1);
+ const resultat={signature,docs,df};indexRecherche.set(index,resultat);return resultat;
+}
 export function chercherDialogues(index:DialogueAppris[],question:string,history:TourDialogue[]){
  // A short answer refers to BIA's last proposal even when that proposal was
  // conversational wording rather than an exact source line.
@@ -104,11 +113,9 @@ export function chercherDialogues(index:DialogueAppris[],question:string,history
  const reprise=repriseDuFil(question);
  const q=termes(reprise?dernierTexte+" "+(history.filter(t=>t.role==="user").at(-1)?.text||""):question),recent=termes(history.filter(t=>t.role==="user").slice(-2).map(t=>t.text).join(" "));
  const derniere=[...history].reverse().find(t=>t.role==="bia")?.text||"";
- const docs=index.filter(d=>d.repliques.length).map(d=>({d,mots:termes(d.titre+" "+d.repliques.map(p=>p.wo+" "+p.fr).join(" "))}));
- const df=new Map<string,number>();for(const doc of docs)for(const w of doc.mots)df.set(w,(df.get(w)||0)+1);
- return docs.map(({d,mots})=>{
-  const titre=termes(d.titre);
-  const actif=Boolean(derniere)&&d.repliques.some(p=>[p.wo,p.fr].some(t=>normaliserDialogue(t)===normaliserDialogue(derniere)));
+ const {docs,df}=preparerRecherche(index),derniereNormale=normaliserDialogue(derniere);
+ return docs.map(({d,mots,titre,repliques})=>{
+  const actif=Boolean(derniere)&&repliques.has(derniereNormale);
   let score=0,accords=0;for(const mot of q)if(mots.has(mot)){accords++;score+=1+Math.log(1+docs.length/(df.get(mot)||1))+(titre.has(mot)?3:0);}
   if(actif&&(reprise||accords>0||q.size===0)){score+=5;for(const mot of recent)if(mots.has(mot))score+=1;}
   return {d,actif,score,accords};

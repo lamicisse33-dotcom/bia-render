@@ -33,5 +33,16 @@ export function verifierPreparation(){return etat.essai??=(async()=>{
    tours.push({ms:Math.round(performance.now()-debut),mesures,ok:true});
   }catch{tours.push({ms:Math.round(performance.now()-debut),mesures,ok:false});}
  }
- etat.diagnostic={date:new Date().toISOString(),version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),perimetre:'Lectures de préparation réelles, sans cerveau, microphone ni voix. Premier tour puis deux réutilisations immédiates.',tours};
+ const {contexteMemoireCommune}=await import('./memoire-organisee');
+ const comparaison=[];
+ for(const nom of ['mots_corriges','fiches']){
+  try{
+   const calculer=(force:boolean)=>nom==='mots_corriges'?motsCorriges(40,force):contexteMemoireCommune(q,history,3500,force);
+   await calculer(false);
+   const t=performance.now(),avant=await calculer(true),avantMs=performance.now()-t;
+   const u=performance.now(),apres=await calculer(false),apresMs=performance.now()-u;
+   comparaison.push({nom,recalcul_ms:Math.round(avantMs),reutilisation_ms:Math.round(apresMs),resultat_identique:JSON.stringify(avant)===JSON.stringify(apres)});
+  }catch{comparaison.push({nom,indisponible:true});}
+ }
+ etat.diagnostic={comparaison,date:new Date().toISOString(),version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),perimetre:'Lectures de préparation réelles, sans cerveau, microphone ni voix. Premier tour puis deux réutilisations immédiates.',tours};
 })();}

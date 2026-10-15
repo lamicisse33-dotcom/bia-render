@@ -15,13 +15,17 @@ export function passagesFiches(fiches:FicheConnaissance[]):PassageFiche[]{
   });
  });
 }
-export function selectionnerFiches(fiches:FicheConnaissance[],question:string,history:Array<{role:string;text?:string;content?:string}>=[],budget=6500){
- const q=termes(question),courte=q.size<3||/^(?:et |oui|non|combien|pourquoi|comment|quels?|quelles?)/.test(normal(question));
- const contexte=courte?termes(history.slice(-4).map(t=>t.text??t.content??'').join(' ')):new Set<string>();
+export function indexerFiches(fiches:FicheConnaissance[]){
  const passages=passagesFiches(fiches),frequences=new Map<string,number>();
  for(const p of passages)for(const m of termes(p.passage))frequences.set(m,(frequences.get(m)||0)+1);
- const notes=passages.map(p=>{
-  const mots=termes(p.passage+' '+p.titre),titre=termes(p.titre);let score=0;
+ return {source:fiches,passages,frequences,documents:passages.map(p=>({p,mots:termes(p.passage+' '+p.titre),titre:termes(p.titre)}))};
+}
+export function selectionnerFiches(fiches:FicheConnaissance[],question:string,history:Array<{role:string;text?:string;content?:string}>=[],budget=6500,index?:ReturnType<typeof indexerFiches>){
+ const q=termes(question),courte=q.size<3||/^(?:et |oui|non|combien|pourquoi|comment|quels?|quelles?)/.test(normal(question));
+ const contexte=courte?termes(history.slice(-4).map(t=>t.text??t.content??'').join(' ')):new Set<string>();
+ const {passages,frequences,documents}=index?.source===fiches?index:indexerFiches(fiches);
+ const notes=documents.map(({p,mots,titre})=>{
+  let score=0;
   for(const m of q)if(mots.has(m))score+=1+Math.log(1+passages.length/(frequences.get(m)||1))+(titre.has(m)?2:0);
   for(const m of contexte)if(mots.has(m))score+=.25;
   return {p,score};
