@@ -17,6 +17,7 @@ import {morceauxLecture} from "@/lib/lecture-morceaux";
 export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false,obtenirAudio}:{obtenirAudio:()=>AudioContext;edition?:boolean;code:string;voice:"piper"|"piper-web"|"female"|"male";
  demande:{texte:string;nonce:number;auto:boolean;source?:"memoire"};onStart:()=>void;onClose:()=>void}){
  const [curseur,setCurseur]=useState(0);
+ const [fenetreLecture,setFenetreLecture]=useState(0);
  const [plageLue,setPlageLue]=useState<PlageLecture|null>(null);
  const suivi=useRef<HTMLDivElement|null>(null);
 
@@ -32,6 +33,10 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
  const messageGeneration=useRef(0);
  const [texte,setTexte]=useState(demande.texte);const [langue,setLangue]=useState<"fr"|"wo">("wo");
  const motsLecture=useMemo(()=>Array.from(texte.matchAll(/\S+|\s+/gu),m=>({texte:m[0],debut:m.index!,fin:m.index!+m[0].length})),[texte]);
+ const motsVisibles=useMemo(()=>motsLecture.filter(m=>m.fin>fenetreLecture&&m.debut<fenetreLecture+6000),[motsLecture,fenetreLecture]);
+ useEffect(()=>{const position=plageLue?.debut??curseur;
+  setFenetreLecture(debut=>position<debut||position>=debut+6000?Math.max(0,position-800):debut);
+ },[curseur,plageLue?.debut]);
  const correctionGeneration=useRef(0);
  const [correctionLexique,setCorrectionLexique]=useState<{original:string;texte:string;passages:PassageCorrige[]}|null>(null);
  const [etatCorrection,setEtatCorrection]=useState("");const [correctionEnCours,setCorrectionEnCours]=useState(false);
@@ -198,7 +203,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   void traiter(t,depart);
  }
  useEffect(()=>{
-  ++correctionGeneration.current;setCorrectionEnCours(false);setCorrectionLexique(null);setEtatCorrection("");player.current?.stop();setCurseur(0);setPlageLue(null);setTexte(demande.texte);depuis.current=performance.now();premierSon.current=false;
+  ++correctionGeneration.current;setCorrectionEnCours(false);setCorrectionLexique(null);setEtatCorrection("");player.current?.stop();setCurseur(0);setFenetreLecture(0);setPlageLue(null);setTexte(demande.texte);depuis.current=performance.now();premierSon.current=false;
   if(demande.source!=="memoire"){if(demande.texte.trim()){if(edition&&routerApprentissage(demande.texte).type==="exercice")void corrigerCollage(demande.texte);else lancer(demande.texte);}return;}
   const controller=new AbortController();chargement.current=controller;setCharge(true);setResultatMessage("Chargement des devoirs enregistrés…");
   void (async()=>{try{
@@ -253,10 +258,14 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    <label>Langue <select value={langue} disabled={demande.source==="memoire"||validationEnCours||p.etat==="lecture"||p.etat==="pause"} onChange={e=>setLangue(e.target.value as "fr"|"wo")}><option value="wo">Wolof</option><option value="fr">Français</option></select></label>
    <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} readOnly={demande.source==="memoire"} disabled={validationEnCours} rows={10} onSelect={e=>setCurseur(e.currentTarget.selectionStart)} onPaste={coller} onChange={e=>{player.current?.stop();setCurseur(e.currentTarget.selectionStart);exercice.current.valide=false;++correctionGeneration.current;setCorrectionEnCours(false);setCorrectionLexique(null);setEtatCorrection("");setTexte(e.target.value);setToutCorrect(false);}} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
    {routerApprentissage(texte).type==="exercice"&&texte.trim()&&<>
-    <button type="button" disabled={correctionEnCours||charge||validationEnCours||curseur>=texte.length} onClick={()=>lireIci(curseur)}>LIRE À PARTIR DU CURSEUR</button>
+    <button type="button" disabled={correctionEnCours||charge||validationEnCours||curseur>=texte.length} onClick={()=>lireIci(texteEditeur.current?.selectionStart??curseur)}>LIRE À PARTIR DU CURSEUR</button>
     <p>Place le curseur dans le texte puis appuie sur « Lire à partir du curseur », ou touche un mot ci-dessous. Le passage entendu apparaît en jaune.</p>
+    {texte.length>6000&&<nav aria-label="Parcourir le texte à écouter" style={{display:"flex",gap:12}}>
+     <button type="button" disabled={fenetreLecture===0} onClick={()=>setFenetreLecture(n=>Math.max(0,n-5000))}>Voir avant</button>
+     <button type="button" disabled={fenetreLecture+6000>=texte.length} onClick={()=>setFenetreLecture(n=>n+5000)}>Voir la suite</button>
+    </nav>}
     <div ref={suivi} aria-label="Suivi de la lecture — toucher un mot pour écouter à partir de là" style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",maxHeight:320,overflowY:"auto",padding:14,background:"#191920",border:"1px solid #555",borderRadius:8,lineHeight:2,fontSize:18}}>
-     {motsLecture.map(m=>/^\s+$/u.test(m.texte)?<span key={m.debut}>{m.texte}</span>:<button key={m.debut} type="button" data-lu={Boolean(plageLue&&m.debut<plageLue.fin&&m.fin>plageLue.debut)} disabled={correctionEnCours||charge||validationEnCours} aria-label={`Lire à partir de : ${m.texte}`} onClick={()=>lireIci(m.debut)} style={{display:"inline",font:"inherit",lineHeight:"inherit",border:0,borderRadius:3,padding:"2px 0",margin:0,cursor:"pointer",color:plageLue&&m.debut<plageLue.fin&&m.fin>plageLue.debut?"#201800":"inherit",background:plageLue&&m.debut<plageLue.fin&&m.fin>plageLue.debut?"#ffe083":"transparent"}}>{m.texte}</button>)}
+     {motsVisibles.map(m=>/^\s+$/u.test(m.texte)?<span key={m.debut}>{m.texte}</span>:<button key={m.debut} type="button" data-lu={Boolean(plageLue&&m.debut<plageLue.fin&&m.fin>plageLue.debut)} disabled={correctionEnCours||charge||validationEnCours} aria-label={`Lire à partir de : ${m.texte}`} onClick={()=>lireIci(m.debut)} style={{display:"inline",font:"inherit",lineHeight:"inherit",border:0,borderRadius:3,padding:"2px 0",margin:0,cursor:"pointer",color:plageLue&&m.debut<plageLue.fin&&m.fin>plageLue.debut?"#201800":"inherit",background:plageLue&&m.debut<plageLue.fin&&m.fin>plageLue.debut?"#ffe083":"transparent"}}>{m.texte}</button>)}
     </div>
    </>}
    {edition&&demande.source!=="memoire"&&<>
