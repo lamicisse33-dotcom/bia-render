@@ -1,3 +1,4 @@
+import {chronometrerPreparation as chrono} from '@/lib/profil-preparation';
 import {uneQuestionParTour} from '@/lib/question-unique';
 import {fichesPourConversation} from "@/lib/fiches-connaissances";
 import {concerneProduits} from "@/lib/contexte-produits";
@@ -1367,7 +1368,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        &&!concerneProduits(question,body.history)&&!estUnSecours(question)&&!intentionMedia(question)&&!besoinDInternet(question)&&!demandeDeNombre(question)){
       // Reuse verified choices immediately. On a miss, the final conversational
       // call selects the exact learned ID itself; never pay for two serial calls.
-      const memorisee=await dialoguerAvecDevoirs(question,body.history,{cacheSeulement:true});
+      const memorisee=await chrono('choix_cache',()=>dialoguerAvecDevoirs(question,body.history,{cacheSeulement:true}));
       if(memorisee){
         // Audio is read from the existing private library, never regenerated.
         // Reading alongside provenance avoids an extra browser/server round trip.
@@ -1781,19 +1782,19 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        que de lever. Une mémoire qui ne répond pas ne doit pas l'empêcher de
        parler. Voir lib/souvenirs.ts. */
     const laMemoire=souvenirsActifs()&&quiParle
-      ? retrouver(quiParle,question)
+      ? chrono('souvenirs',()=>retrouver(quiParle,question))
       : Promise.resolve([] as Souvenir[]);
 
     // Start independent read-only context retrieval while personal memory loads.
     // Capture rejection immediately; rethrow at the original consumption point.
     const contexteEnCours=Promise.all([
-      savoirKhalam(),savoirProduits(),catalogue(),
+      chrono('khalam',()=>savoirKhalam()),chrono('produits',()=>savoirProduits()),chrono('vitrine',()=>catalogue()),
       Promise.all([
-      contexteDevoirs(question).catch(()=>{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");return "";}),
-      maitre.ok&&maitre.maitre?contexteInstructions().catch(()=>{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");return "";}):Promise.resolve(""),
-      maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?contexteMaitrises(question,body.history,3000).catch(()=>""):Promise.resolve(""),
-      fichesPourConversation(question,body.history||[],3500),
-      utiliserChoix?choixDuTour(question,body.history).catch(()=>null):Promise.resolve(null),
+      chrono('devoirs',()=>contexteDevoirs(question)).catch(()=>{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");return "";}),
+      maitre.ok&&maitre.maitre?chrono('instructions',()=>contexteInstructions()).catch(()=>{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");return "";}):Promise.resolve(""),
+      maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?chrono('maitrises',()=>contexteMaitrises(question,body.history,3000)).catch(()=>""):Promise.resolve(""),
+      chrono('fiches',()=>fichesPourConversation(question,body.history||[],3500)),
+      utiliserChoix?chrono('choix',()=>choixDuTour(question,body.history)).catch(()=>null):Promise.resolve(null),
       Promise.resolve(''), // BIBA now shares the common memory retrieval.
 
     ])
@@ -1801,7 +1802,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       valeurs=>({ok:true as const,valeurs}),
       erreur=>({ok:false as const,erreur}),
     );
-    const motsEnCours=motsCorriges().then(
+    const motsEnCours=chrono('mots_corriges',()=>motsCorriges()).then(
       valeurs=>({ok:true as const,valeurs}),
       erreur=>({ok:false as const,erreur}),
     );
@@ -2306,7 +2307,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           +mots.map(m=>`- ne dis pas « ${m.faux} » — dis « ${m.juste} »`).join("\n");
       }
 
-      const exacte=await correctionExacte(question);
+      const exacte=await chrono('correction_exacte',()=>correctionExacte(question));
       if(exacte){
         /* ── UNE CORRECTION SE RESSERT TELLE QUELLE ─────────────────────────
 
@@ -2340,7 +2341,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         }
         lexiqueDuTour+=`\n\nFORMULATION VALIDÉE POUR CETTE QUESTION EXACTE\nUn locuteur natif a corrigé la réponse à cette question précise. Sa formulation fait autorité sur la tienne :\n« ${exacte.corrigee} »\nReprends-la : c'est la bonne. Tu n'y touches que si le fil rend sa phrase impossible à dire ici.`;
       }else{
-        const exemples=await exemplesPour(question);
+        const exemples=await chrono('exemples',()=>exemplesPour(question));
         if(exemples.length){
           lexiqueDuTour+="\n\nCOMMENT ON DIT ICI (corrections de locuteurs natifs)\n"
             +"Ces exemples t'apprennent la MANIÈRE de dire — tournure, vocabulaire, rythme. "
@@ -2372,7 +2373,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const consigneSignee="conversation-appel-unique-v1\n"+(choixIntegre?.consigne||"")+"fiches-connectees-v1\n"+fichesDuTour+bibaDuTour+(produitsDuTour?"produits-connectes-v1\n"+produitsDuTour:"")+maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
     const reutilisable=!body.suggestionsTranscription?.length&&!dependDuContexte(question)&&!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
-      const dejaDonnee=await reponseGardee(question,langueDe(question),consigneSignee);
+      const dejaDonnee=await chrono('reponse_gardee',()=>reponseGardee(question,langueDe(question),consigneSignee));
       if(dejaDonnee){
         oublierPanne();
         return {corps:{
