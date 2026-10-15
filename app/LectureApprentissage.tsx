@@ -176,7 +176,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   if(route.type==="exercice"){
    setTexte(route.contenu);setRevus([]);setToutCorrect(false);setValidationInfo("");setMemoire("");
    exercice.current={texte:route.contenu,valide:false,langue:settings.current.langue};
-   const position=Math.max(0,depart-(t.length-route.contenu.length));setCurseur(position);
+   const position=Math.max(0,depart-Math.max(0,t.indexOf(route.contenu)));setCurseur(position);
    settings.current.onStart();player.current?.demarrer(route.contenu,position);return;
   }
   // Instructions, save commands and tests never enter the reader.
