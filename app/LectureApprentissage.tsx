@@ -4,7 +4,7 @@ import {sansSilence} from "@/lib/bords-audio";
 import {lirePiperWeb,mesurerPiperWeb} from "@/lib/piper-web";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {routerApprentissage,type TypeApprentissage} from "@/lib/routage-apprentissage";
-import {LectureContinue,type Progression} from "@/lib/lecture-continue";
+import {LectureContinue,type Progression,type PlageLecture} from "@/lib/lecture-continue";
 import {ambiguitiesWolof} from "@/lib/langue";
 import type {Lecon} from "@/lib/lexique-apprentissage-core";
 import {lirePiperLocale,piperLocaleDisponible} from "@/lib/voix-piper-locale";
@@ -16,6 +16,10 @@ import {morceauxLecture} from "@/lib/lecture-morceaux";
 
 export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false,obtenirAudio}:{obtenirAudio:()=>AudioContext;edition?:boolean;code:string;voice:"piper"|"piper-web"|"female"|"male";
  demande:{texte:string;nonce:number;auto:boolean;source?:"memoire"};onStart:()=>void;onClose:()=>void}){
+ const [curseur,setCurseur]=useState(0);
+ const [plageLue,setPlageLue]=useState<PlageLecture|null>(null);
+ const suivi=useRef<HTMLDivElement|null>(null);
+
  const depuis=useRef(0);const premierSon=useRef(false);
  const lectureMemoire=useRef(false);lectureMemoire.current=demande.source==="memoire";
  const chargement=useRef<AbortController|null>(null);
@@ -27,11 +31,12 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
  const exercice=useRef({texte:"",valide:false,langue:"wo" as "fr"|"wo"});
  const messageGeneration=useRef(0);
  const [texte,setTexte]=useState(demande.texte);const [langue,setLangue]=useState<"fr"|"wo">("wo");
+ const motsLecture=useMemo(()=>Array.from(texte.matchAll(/\S+|\s+/gu),m=>({texte:m[0],debut:m.index!,fin:m.index!+m[0].length})),[texte]);
  const correctionGeneration=useRef(0);
  const [correctionLexique,setCorrectionLexique]=useState<{original:string;texte:string;passages:PassageCorrige[]}|null>(null);
  const [etatCorrection,setEtatCorrection]=useState("");const [correctionEnCours,setCorrectionEnCours]=useState(false);
  async function corrigerCollage(original:string){
-  const generation=++correctionGeneration.current;setCorrectionLexique(null);
+  const generation=++correctionGeneration.current;player.current?.stop();exercice.current.valide=false;setCorrectionLexique(null);
   if(!edition||langue!=="wo"||routerApprentissage(original).type!=="exercice"){setTexte(original);return;}
   setTexte(original);setToutCorrect(false);setCorrectionEnCours(true);setEtatCorrection("Vérification des formes validées dans Supabase…");player.current?.stop();
   try{const r=await fetch('/api/apprentissage/corriger',{method:'POST',headers:headers(),signal:AbortSignal.timeout(12000),body:JSON.stringify({texte:original})});const d=await r.json();
@@ -98,12 +103,20 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    try{yield* morceauxLecture(value.first,(part,empreinte)=>demander(value.text,part,signal,empreinte,value.langue),signal,(settings.current.voice!=="piper"&&settings.current.voice!=="piper-web"));}
    catch(error){if(!signal.aborted)secoursComplet=true;throw error;}
   }
-  const jouer=async(value:unknown,signal:AbortSignal)=>{
+  const jouer=async(value:unknown,signal:AbortSignal,plage?:PlageLecture)=>{
    const debutLecture=performance.now();
    const file=new LecteurAudioContinu(ctx,()=>{
     if(!premierSon.current){premierSon.current=true;mesurer("premier_son");if(settings.current.voice==="piper-web")mesurerPiperWeb("lecture",performance.now()-depuis.current);}
    },!(value as {first:MorceauVoix}).first.flux&&(value as {first:MorceauVoix}).first.parties>1);
    lecteur=file;
+   let animation=0;
+   const suivre=()=>{
+    if(signal.aborted)return;
+    const next=file.audible()&&plage?plage:null;
+    if(!enPause.current)setPlageLue(old=>old?.debut===next?.debut&&old?.fin===next?.fin?old:next);
+    animation=requestAnimationFrame(suivre);
+   };
+   animation=requestAnimationFrame(suivre);
    const abort=()=>file.arreter();signal.addEventListener("abort",abort,{once:true});
    if(enPause.current)file.pause();
    try{
@@ -121,11 +134,11 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
     await file.terminer();
     void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'lecture',continu:true,...file.bilan,duree_ms:performance.now()-debutLecture}),keepalive:true}).catch(()=>{});
    }catch(e){file.arreter(e instanceof Error?e:Error("Lecture interrompue"));throw e;}
-   finally{signal.removeEventListener("abort",abort);if(lecteur===file)lecteur=null;}
+   finally{cancelAnimationFrame(animation);signal.removeEventListener("abort",abort);if(lecteur===file){lecteur=null;setPlageLue(null);}}
   };
   player.current=new LectureContinue(async(text,signal,langue=settings.current.langue)=>{
    return {text,langue,first:await demander(text,0,signal,undefined,langue)};
-  },jouer,{pause:()=>{enPause.current=true;suspendre();},reprendre:()=>{enPause.current=false;reprendreSon();},stop:()=>{enPause.current=true;arreterSon();}},progression=>{setP(progression);if(progression.etat==="erreur")mesurer("erreur");if(progression.etat==="terminé")mesurer("fin");});
+  },jouer,{pause:()=>{enPause.current=true;suspendre();},reprendre:()=>{enPause.current=false;reprendreSon();},stop:()=>{enPause.current=true;arreterSon();}},progression=>{setP(progression);if(["arrêté","terminé","erreur"].includes(progression.etat))setPlageLue(null);if(progression.etat==="erreur")mesurer("erreur");if(progression.etat==="terminé")mesurer("fin");});
   if(edition&&!lectureMemoire.current)void charger();return()=>{chargement.current?.abort();player.current?.stop();arreterSon();};
  },[code]);
  async function retenirDevoir(t:string,valide=false,langueDevoir=settings.current.langue){
@@ -151,14 +164,15 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
  }
  async function validerTout(){if(typeMessage!=="exercice"||!toutCorrect||!texte.trim()||validationEnCours)return;exercice.current={texte,valide:true,langue};setValidationEnCours(true);setValidationInfo("Validation et vérification du devoir entier…");try{await retenirDevoir(texte,true);}finally{setValidationEnCours(false);}}
  useEffect(()=>{setToutCorrect(false);setValidationInfo("");},[texte,langue]);
- async function traiter(t=texte){
+ async function traiter(t=texte,depart=0){
   const route=routerApprentissage(t),generation=++messageGeneration.current;
   setTypeMessage(route.type);setResultatMessage("");player.current?.stop();
   if(!route.contenu.trim()){setResultatMessage("Ajoute le contenu après le préfixe.");return;}
   if(route.type==="exercice"){
    setTexte(route.contenu);setRevus([]);setToutCorrect(false);setValidationInfo("");setMemoire("");
    exercice.current={texte:route.contenu,valide:false,langue:settings.current.langue};
-   settings.current.onStart();player.current?.demarrer(route.contenu);return;
+   const position=Math.max(0,depart-(t.length-route.contenu.length));setCurseur(position);
+   settings.current.onStart();player.current?.demarrer(route.contenu,position);return;
   }
   // Instructions, save commands and tests never enter the reader.
   setP({etat:"prêt",index:0,total:0});
@@ -177,13 +191,14 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    if(generation===messageGeneration.current)setResultatMessage(route.type==="instruction"?"Instruction appliquée et enregistrée dans Supabase.":String(d.reply||"Aucune réponse au test."));
   }catch(e){if(generation===messageGeneration.current)setResultatMessage((e as Error).message);}
  }
- function lancer(t=texte){
+ function lancer(t=texte,depart=0){
+  void reveiller(obtenirAudio());setPlageLue(null);
   depuis.current=performance.now();premierSon.current=false;
-  if(lectureMemoire.current){settings.current.onStart();player.current?.demarrerPassages(passagesMemoire.current);return;}
-  void traiter(t);
+  if(lectureMemoire.current){settings.current.onStart();player.current?.demarrerPassages(passagesMemoire.current,depart);return;}
+  void traiter(t,depart);
  }
  useEffect(()=>{
-  ++correctionGeneration.current;setCorrectionEnCours(false);setCorrectionLexique(null);setEtatCorrection("");player.current?.stop();setTexte(demande.texte);depuis.current=performance.now();premierSon.current=false;
+  ++correctionGeneration.current;setCorrectionEnCours(false);setCorrectionLexique(null);setEtatCorrection("");player.current?.stop();setCurseur(0);setPlageLue(null);setTexte(demande.texte);depuis.current=performance.now();premierSon.current=false;
   if(demande.source!=="memoire"){if(demande.texte.trim()){if(edition&&routerApprentissage(demande.texte).type==="exercice")void corrigerCollage(demande.texte);else lancer(demande.texte);}return;}
   const controller=new AbortController();chargement.current=controller;setCharge(true);setResultatMessage("Chargement des devoirs enregistrés…");
   void (async()=>{try{
@@ -199,6 +214,16 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   finally{if(!controller.signal.aborted)setCharge(false);}})();
   return()=>controller.abort();
  },[demande.nonce]);
+ function lireIci(position:number){
+  if(correctionEnCours||charge||validationEnCours||routerApprentissage(texte).type!=="exercice")return;
+  setCurseur(position);lancer(texte,position);
+ }
+ useEffect(()=>{
+  const conteneur=suivi.current,actif=conteneur?.querySelector<HTMLElement>('[data-lu="true"]');
+  if(conteneur&&actif){const c=conteneur.getBoundingClientRect(),a=actif.getBoundingClientRect();
+   if(a.top<c.top||a.bottom>c.bottom)conteneur.scrollTop+=a.top-c.top-conteneur.clientHeight/3;
+  }
+ },[plageLue?.debut]);
  function arreter(){chargement.current?.abort();setCharge(false);player.current?.stop();}
  function reprendre(){void reveiller(obtenirAudio()).then(ok=>{if(ok)player.current?.reprendre();else setResultatMessage("Le son reste bloqué. Réessaie en activant le son du navigateur.");});}
 
@@ -226,7 +251,14 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    <p role="status">mode_{typeMessage}</p>
    <p role="status" aria-live="polite">{resultatMessage}</p>
    <label>Langue <select value={langue} disabled={demande.source==="memoire"||validationEnCours||p.etat==="lecture"||p.etat==="pause"} onChange={e=>setLangue(e.target.value as "fr"|"wo")}><option value="wo">Wolof</option><option value="fr">Français</option></select></label>
-   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} readOnly={demande.source==="memoire"} disabled={validationEnCours} rows={10} onPaste={coller} onChange={e=>{++correctionGeneration.current;setCorrectionEnCours(false);setCorrectionLexique(null);setEtatCorrection("");setTexte(e.target.value);setToutCorrect(false);}} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
+   <textarea ref={texteEditeur} aria-label="Texte complet de l’exercice" value={texte} readOnly={demande.source==="memoire"} disabled={validationEnCours} rows={10} onSelect={e=>setCurseur(e.currentTarget.selectionStart)} onPaste={coller} onChange={e=>{player.current?.stop();setCurseur(e.currentTarget.selectionStart);exercice.current.valide=false;++correctionGeneration.current;setCorrectionEnCours(false);setCorrectionLexique(null);setEtatCorrection("");setTexte(e.target.value);setToutCorrect(false);}} style={{width:"100%",color:"#fff",background:"#222",padding:12}}/>
+   {routerApprentissage(texte).type==="exercice"&&texte.trim()&&<>
+    <button type="button" disabled={correctionEnCours||charge||validationEnCours||curseur>=texte.length} onClick={()=>lireIci(curseur)}>LIRE À PARTIR DU CURSEUR</button>
+    <p>Place le curseur dans le texte puis appuie sur « Lire à partir du curseur », ou touche un mot ci-dessous. Le passage entendu apparaît en jaune.</p>
+    <div ref={suivi} aria-label="Suivi de la lecture — toucher un mot pour écouter à partir de là" style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",maxHeight:320,overflowY:"auto",padding:14,background:"#191920",border:"1px solid #555",borderRadius:8,lineHeight:2,fontSize:18}}>
+     {motsLecture.map(m=>/^\s+$/u.test(m.texte)?<span key={m.debut}>{m.texte}</span>:<button key={m.debut} type="button" data-lu={Boolean(plageLue&&m.debut<plageLue.fin&&m.fin>plageLue.debut)} disabled={correctionEnCours||charge||validationEnCours} aria-label={`Lire à partir de : ${m.texte}`} onClick={()=>lireIci(m.debut)} style={{display:"inline",font:"inherit",lineHeight:"inherit",border:0,borderRadius:3,padding:"2px 0",margin:0,cursor:"pointer",color:plageLue&&m.debut<plageLue.fin&&m.fin>plageLue.debut?"#201800":"inherit",background:plageLue&&m.debut<plageLue.fin&&m.fin>plageLue.debut?"#ffe083":"transparent"}}>{m.texte}</button>)}
+    </div>
+   </>}
    {edition&&demande.source!=="memoire"&&<>
     <p role="status">{etatCorrection}</p>
     <button type="button" disabled={correctionEnCours||validationEnCours||!texte.trim()} onClick={()=>void corrigerCollage(texte)}>Corriger avec le lexique validé</button>
@@ -237,7 +269,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
       {correctionLexique.texte.slice(correctionLexique.passages.at(-1)!.fin)}
      </div>
      <ul>{correctionLexique.passages.map((c,i)=><li key={i}>{c.avant} → <mark>{c.apres}</mark></li>)}</ul>
-     <button type="button" onClick={()=>{++correctionGeneration.current;setTexte(correctionLexique.original);setCorrectionLexique(null);setEtatCorrection("Texte initial rétabli.");setToutCorrect(false);}}>Revenir au texte initial</button>
+     <button type="button" onClick={()=>{player.current?.stop();exercice.current.valide=false;++correctionGeneration.current;setTexte(correctionLexique.original);setCorrectionLexique(null);setEtatCorrection("Texte initial rétabli.");setToutCorrect(false);}}>Revenir au texte initial</button>
     </>:null}
    </>}
 
@@ -279,3 +311,4 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   </div>
  </section>;
 }
+
