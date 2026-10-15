@@ -12,7 +12,7 @@ export class LecteurAudioContinu {
  readonly bilan={morceaux:0,couture_max_ms:0,couture_totale_ms:0};
  constructor(private ctx:BaseAudioContext,private premierSon:()=>void=()=>{},private amorcerCourts=false){}
  /** True only on the audio clock, never during generation, priming or a gap. */
- audible(){return !this.pausee&&!this.erreur&&this.ctx.state!=="suspended"&&this.ctx.state!=="closed"&&this.entrees.some(e=>e.source&&this.ctx.currentTime>=e.debut&&this.ctx.currentTime<e.debut+e.buffer.duration-e.offset);}
+ audible(){return !this.pausee&&!this.erreur&&this.ctx.state==="running"&&this.entrees.some(e=>e.source&&this.ctx.currentTime>=e.debut&&this.ctx.currentTime<e.debut+e.buffer.duration-e.offset);}
  ajouter(buffer:AudioBuffer){
   if(this.erreur)throw this.erreur;
   if(this.finie)throw Error('Lecture déjà clôturée');
