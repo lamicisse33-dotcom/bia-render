@@ -1,0 +1,20 @@
+name: Validate learning reader cursor and playback
+on:
+  push:
+    branches: ['feat/lecture-curseur-20261015']
+permissions: {contents: read}
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - run: node --test tests/lecture-continue.test.mjs tests/lecteur-audio-continu.test.mjs tests/lecture-curseur.test.mjs
+      - run: npm run build
+      - run: npm install --no-save --package-lock=false esbuild @playwright/test@1.51.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/lecture-curseur-browser.mjs
