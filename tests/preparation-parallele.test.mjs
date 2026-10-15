@@ -20,7 +20,7 @@ function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve
 function scenario(){
  const pending={},calls=[];
  const io=name=>()=>{calls.push(name);return (pending[name]??=deferred()).promise;};
- const env={souvenirsActifs:()=>true,quiParle:'owner',question:'question',body:{history:[]},maitre:{ok:true,maitre:true},utiliserChoix:true,
+ const env={chrono:(_nom,fn)=>fn(),souvenirsActifs:()=>true,quiParle:'owner',question:'question',body:{history:[]},maitre:{ok:true,maitre:true},utiliserChoix:true,
  retrouver:io('memory'),savoirKhalam:io('knowledge'),savoirProduits:io('products'),catalogue:io('catalogue'),contexteDevoirs:io('lessons'),contexteInstructions:io('instructions'),contexteMaitrises:io('mastery'),fichesPourConversation:io('cards'),choixDuTour:io('choice'),motsCorriges:io('words'),consigneDesSouvenirs:x=>x,noterPanne:()=>{}};
  const result=new AsyncFunction(...Object.keys(env),body)(...Object.values(env));
  return {pending,calls,result};
