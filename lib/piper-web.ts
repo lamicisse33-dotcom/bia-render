@@ -2,6 +2,12 @@ import type {MorceauVoix} from './flux-khalam';
 export function piperWebActif(){try{return typeof window!=='undefined'&&localStorage.getItem('bia-choix-voix-v1')==='piper-web';}catch{return false;}}
 export function vitessePiperWeb(){try{const v=Number(localStorage.getItem('bia-piper-web-speed'));return v>=.7&&v<=1.2?v:1;}catch{return 1;}}
 export function mesurerPiperWeb(etape:string,ms=0){void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'piper_web',etape,ms}),keepalive:true}).catch(()=>{});}
+export type VoixFemininePiper = 0 | 1;
+export function voixFemininePiper():VoixFemininePiper {try{return localStorage.getItem('bia-piper-web-speaker')==='0'?0:1;}catch{return 1;}}
+export function choisirVoixFemininePiper(speaker:VoixFemininePiper){
+ if(speaker!==0&&speaker!==1)return false;
+ try{localStorage.setItem('bia-piper-web-speaker',String(speaker));return true;}catch{return false;}
+}
 let worker:Worker|null=null,id=0;
 type Result={id:number;ready?:boolean;error?:string;progress?:string;wav?:ArrayBuffer;empty?:boolean;parts:number;part:number;ms:number;speed:number};
 const pending=new Map<number,{resolve:(r:Result)=>void;reject:(e:Error)=>void;cleanup:()=>void}>();
@@ -15,7 +21,7 @@ export function annulerPiperWeb(){
 function moteur(){
  if(worker)return worker;
  if(typeof Worker==='undefined'||typeof WebAssembly==='undefined')throw Error('Ce navigateur ne peut pas utiliser Khalam V2.');
- worker=new Worker('/piper/worker.js');
+ worker=new Worker('/piper/worker.js?v=voix-feminines-1');
  worker.onmessage=({data:d}:{data:Result})=>{
   if(d.progress){statut(d.progress);return;}
   const p=pending.get(d.id);if(!p)return;pending.delete(d.id);p.cleanup();
@@ -38,8 +44,8 @@ function demander(data:object,signal?:AbortSignal){
  });
 }
 export async function preparerPiperWeb(code:string){await demander({kind:'prepare',code});}
-export async function lirePiperWeb(texte:string,partie:number,code:string,signal?:AbortSignal):Promise<MorceauVoix>{
- const d=await demander({kind:'speak',text:texte,part:partie,code,speed:vitessePiperWeb()},signal);
+export async function lirePiperWeb(texte:string,partie:number,code:string,signal?:AbortSignal,speaker:VoixFemininePiper=voixFemininePiper()):Promise<MorceauVoix>{
+ const d=await demander({kind:'speak',text:texte,part:partie,code,speaker,speed:vitessePiperWeb()},signal);
  let audio:string|null=null;
  if(d.wav){const bytes=new Uint8Array(d.wav);let str='';for(let at=0;at<bytes.length;at+=8192)str+=String.fromCharCode(...bytes.subarray(at,at+8192));audio=btoa(str);}
  return {parties:d.parts,partie:d.part,audio,type_mime:'audio/wav',fabrication_ms:d.ms,speed:d.speed};

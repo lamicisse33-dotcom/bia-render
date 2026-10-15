@@ -46,3 +46,33 @@ const ready=api.preparerPiperWeb('test');assert.equal(workers.length,2);
 workers[1].onmessage({data:{id:workers[1].last.id,ready:true}});await ready;
 const calls=remote;await api.fetchVoixBia('/api/chatterbox-test/bia',{});assert.equal(remote,calls+1);
 console.log('Piper web: queued cancellation, late-result isolation, restart and main engine routing passed.');
+
+// A preview must not replace the saved voice. Ordinary playback uses the saved
+// choice; the ONNX feed must receive that exact speaker (including zero).
+let savedSpeaker=null;
+browser.localStorage.getItem=key=>key==='bia-piper-web-speaker'?savedSpeaker:null;
+browser.localStorage.setItem=(key,value)=>{if(key==='bia-piper-web-speaker')savedSpeaker=value;};
+assert.equal(api.voixFemininePiper(),1);
+assert.equal(api.choisirVoixFemininePiper(2),false);
+const preview=api.lirePiperWeb('Bonjour',0,'test',undefined,0);
+assert.equal(workers[1].last.speaker,0);assert.equal(savedSpeaker,null);
+workers[1].onmessage({data:{id:workers[1].last.id,parts:1,part:0,empty:true}});await preview;
+assert.equal(api.choisirVoixFemininePiper(0),true);
+const normal=api.lirePiperWeb('Bonjour',0,'test');assert.equal(workers[1].last.speaker,0);
+workers[1].onmessage({data:{id:workers[1].last.id,parts:1,part:0,empty:true}});await normal;
+savedSpeaker='999';assert.equal(api.voixFemininePiper(),1);
+const messages=[],feeds=[];
+class Tensor{constructor(type,data,shape){this.data=data;}dispose(){}}
+const runtime={importScripts(){},ort:{env:{wasm:{}},Tensor},KhalamPiperCore:core,
+ postMessage:d=>messages.push(d),performance:{now:()=>0},configData:config,
+ fakeSession:{run:async inputs=>{feeds.push(Number(inputs.sid.data[0]));return {output:{data:new Float32Array([.1,-.1]),dispose(){}}};}}};
+vm.createContext(runtime);vm.runInContext(fs.readFileSync('public/piper/worker.js','utf8'),runtime);
+vm.runInContext('prepared=Promise.resolve();config=configData;session=fakeSession;',runtime);
+for(const speaker of [0,1,undefined,2,-1,99,.5]){
+ runtime.onmessage({data:{id:messages.length+1,kind:'speak',text:'Bonjour',part:0,speaker}});
+ await vm.runInContext('queue',runtime);
+}
+assert.deepEqual(feeds,[0,1,1]);
+assert.equal(messages.filter(m=>m.wav).length,3);
+assert.equal(messages.filter(m=>m.error).length,4);
+console.log('Piper female voices: preview isolation, saved choice, exact ONNX speaker IDs and invalid-speaker rejection passed.');

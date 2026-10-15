@@ -43,12 +43,14 @@ onmessage=({data:d})=>{
    if(d.kind==='prepare'){postMessage({id:d.id,ready:true});return;}
    const parts=KhalamPiperCore.split(d.text),text=parts[d.part];
    if(text===undefined){postMessage({id:d.id,parts:parts.length,empty:true});return;}
+   const speaker=d.speaker??config.default_speaker_id;
+   if(!Number.isInteger(speaker)||![config.speaker_id_map.didi,config.speaker_id_map.wolof_tts_female].includes(speaker)||speaker<0||speaker>=config.num_speakers)throw Error('Cette voix féminine Piper est indisponible.');
    const ids=KhalamPiperCore.encode(text,config),inf=config.inference;
    const start=performance.now(),speed=Math.max(.7,Math.min(1.2,Number(d.speed)||1));
    const inputs={input:new ort.Tensor('int64',BigInt64Array.from(ids,BigInt),[1,ids.length]),
     input_lengths:new ort.Tensor('int64',BigInt64Array.from([BigInt(ids.length)]),[1]),
     scales:new ort.Tensor('float32',new Float32Array([inf.noise_scale,inf.length_scale/speed,inf.noise_w]),[3]),
-    sid:new ort.Tensor('int64',BigInt64Array.from([BigInt(config.default_speaker_id)]),[1])};
+    sid:new ort.Tensor('int64',BigInt64Array.from([BigInt(speaker)]),[1])};
    const result=await session.run(inputs);
    try{
     const wav=KhalamPiperCore.wav(result.output.data,config.audio.sample_rate);
