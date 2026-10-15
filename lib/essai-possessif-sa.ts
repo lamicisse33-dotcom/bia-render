@@ -12,9 +12,10 @@ export const audioPossessifSa=()=>etat.audio;
  * current preparation, keeping the same source words and learned corrections. */
 export function verifierPossessifSa(){return etat.travail??=(async()=>{
  const texte='Kan nga mën a jaay sa yéré yi.',debut=Date.now(),cas=[];
+ let planCourant:PassageVoix[]=[];
  etat.rapport={statut:'en_cours',version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12)};
  try{
-  const apres=await preparerPassagesKhalam(texte,'wo',false,true);
+  const apres=await preparerPassagesKhalam(texte,'wo',false,false);planCourant=apres;
   if(apres.length!==1||apres[0].langue!=='wo')throw Error('sa_encore_decoupe');
   const m=apres[0].texte.match(/^(.*?)(\s+sa)(\s+.*)$/u);if(!m)throw Error('extrait_inattendu');
   const avant:PassageVoix[]=[{texte:m[1],langue:'wo'},{texte:m[2],langue:'fr'},{texte:m[3],langue:'wo'}];
@@ -30,5 +31,5 @@ export function verifierPossessifSa(){return etat.travail??=(async()=>{
    cas.push({variante,morceaux:plan.length,secondes:audio.secondes,details});
   }
   etat.rapport={statut:'termine',version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),texte,cas,ms:Date.now()-debut,audio_disponible:true,ecoute_humaine_verifiee:false,lecture_navigateur_mesuree:false};
- }catch{etat.rapport={statut:etat.audio?'comparaison_partielle':'echec',cas,ms:Date.now()-debut,audio_disponible:!!etat.audio,ecoute_humaine_verifiee:false,lecture_navigateur_mesuree:false};}
+ }catch(e){etat.rapport={statut:etat.audio?'comparaison_partielle':'echec',motif:['sa_encore_decoupe','extrait_inattendu','synthese_incomplete'].includes((e as Error).message)?(e as Error).message:'verification_indisponible',plan:planCourant,cas,ms:Date.now()-debut,audio_disponible:!!etat.audio,ecoute_humaine_verifiee:false,lecture_navigateur_mesuree:false};}
 })();}

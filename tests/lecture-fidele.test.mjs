@@ -192,3 +192,14 @@ test('punctuation-only input never reaches synthesis and the family greeting kee
   assert.deepEqual(await preparerPassagesKhalam('Naka sa famille ?','wo',false,faithful),[{texte:'Naka sa famille ?',langue:'wo'}]);
  }
 });
+
+
+test('possessive sa stays in continuous conversation while faithful reading keeps its bounded groups',async()=>{
+ const texte='Kan nga mën a jaay sa yéré yi.';
+ const conversation=await preparerPassagesKhalam(texte,'wo',false,false);
+ assert.deepEqual(conversation,[{texte,langue:'wo'}]);
+ const lecture=await preparerPassagesKhalam(texte,'wo',false,true);
+ assert.equal(lecture.length,2);assert(lecture.every(p=>p.langue==='wo'));
+ assert(lecture.some(p=>p.texte.includes('jaay sa yéré')));
+ assert.equal(lecture.map(p=>p.texte).join(' ').replace(/\s+/g,' '),texte);
+});
