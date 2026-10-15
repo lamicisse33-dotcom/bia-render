@@ -1,3 +1,4 @@
+import {resumeEmpruntGerer} from "@/lib/essai-emprunt-gerer";
 import {resumeFocusLocuteur} from "@/lib/focus-locuteur-etat";
 import {resumeLatencePipeline} from '@/lib/essai-latence-pipeline';
 import {resumeCommerceContextuel} from '@/lib/essai-commerce-contextuel';
@@ -174,6 +175,7 @@ export async function GET(request: Request) {
     rythme_conversation: resumeRythme(),
     lecture_administration: resumeAdministration(),
     lecture_business: resumeBusiness(),
+    lecture_emprunt_gerer:resumeEmpruntGerer(),
     lecture_soxla: resumeSoxla(),
     lecture_lan_lool: resumeLanLool(),
     lecture_fin_bi: resumeFinBi(),

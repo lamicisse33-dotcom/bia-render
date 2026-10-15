@@ -193,3 +193,17 @@ test('spaced punctuation follows its spoken neighbour without creating a new voi
  const texte='Naka sa famille ?';assert.deepEqual(passagesLanguesVoix(texte,'wo'),[{texte,langue:'wo'}]);
  assert(passagesLanguesVoix('Dama bëgg famille bi.','wo').some(p=>p.langue==='fr'&&p.texte.includes('famille')));
 });
+
+
+test('gérer and its French forms keep French delivery inside the actual urban Wolof sentence',()=>{
+ const screenshot='Waaw papa, dégg naa la. Ma jël couture : dafa yomb a gérer, ndax xaalis bu ndaw rekk lay soxla, te sa xam-xam ak sa kër mëna doy.';
+ const plan=passagesLanguesVoix(screenshot,'wo');
+ assert.equal(plan.map(p=>p.texte).join(''),screenshot);
+ for(const mot of ['gérer','couture'])assert(plan.some(p=>p.langue==='fr'&&p.texte.includes(mot)));
+ for(const mot of ['dégg','xaalis','soxla','kër'])assert(plan.some(p=>p.langue==='wo'&&p.texte.includes(mot)));
+ for(const mot of ['gérer','gère','gérons','gérez','gèrent','géré','gérée','gérerai','gérerait','gerer','ge\u0301rer']){
+  const text='Dama bëgg '+mot+' sama business.';const ps=passagesLanguesVoix(text,'wo');
+  assert.equal(ps.map(p=>p.texte).join(''),text);
+  assert(ps.some(p=>p.langue==='fr'&&p.texte.includes(mot)),mot);
+ }
+});

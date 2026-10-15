@@ -1,0 +1,7 @@
+import {audioEmpruntGerer} from '@/lib/essai-emprunt-gerer';
+export const dynamic='force-dynamic';
+export async function GET(){
+ const audio=audioEmpruntGerer();
+ if(!audio)return Response.json({disponible:false},{status:503});
+ return new Response(new Uint8Array(audio),{headers:{'content-type':'audio/mpeg','cache-control':'no-store','content-disposition':'inline; filename="Bia-gerer-francais.mp3"'}});
+}
