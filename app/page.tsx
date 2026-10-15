@@ -7284,7 +7284,7 @@ export default function Home() {
         </fieldset>
         <p className="papier-note">Ton choix est mémorisé dans ce navigateur. Khalam V2 fonctionne sur cet appareil et reste indépendant du serveur Khalam Voice. Le premier téléchargement fait 77 Mo.</p>
         {etatSecours && <p className="papier-note" role="status">{etatSecours}</p>}
-        <a className="papier-lien" href="/voix/secours">Préparer et écouter Khalam V2 →</a>
+        <a className="papier-lien" href="/voix/secours">Choisir et écouter une voix féminine Piper →</a>
         {erreurChoixVoix && <p className="panne" role="alert">{erreurChoixVoix}</p>}
         <button type="button" className="papier-lien" disabled={mode !== "ready" || conversation}
           onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
