@@ -509,9 +509,15 @@ function remplacements(dit: string, voulu: string): Array<{ faux: string; juste:
  * Ce que les locuteurs ont corrigé dans SA FAÇON DE DIRE, indépendamment de
  * la question. Le plus souvent corrigé vient en premier.
  */
-export async function motsCorriges(max = 40): Promise<MotCorrige[]> {
+let motsCalcules: {signature:string;valeurs:MotCorrige[]}|undefined;
+export async function motsCorriges(max = 40, recalculer=false): Promise<MotCorrige[]> {
+  const entrees=await toutes();
+  // Compare the actual inputs, including in-place edits and removals. No TTL
+  // delays a correction; unchanged data reuses the exact alignment result.
+  const signature=JSON.stringify(entrees.map(e=>[e.proposee,e.corrigee]));
+  if(!recalculer&&motsCalcules?.signature===signature)return motsCalcules.valeurs.slice(0,max).map(m=>({...m}));
   const compte = new Map<string, MotCorrige>();
-  for (const e of await toutes()) {
+  for (const e of entrees) {
     if (!e.proposee || !e.corrigee) continue;
     for (const r of remplacements(e.proposee, e.corrigee)) {
       const cle = `${r.faux.toLowerCase()}→${r.juste.toLowerCase()}`;
@@ -520,8 +526,8 @@ export async function motsCorriges(max = 40): Promise<MotCorrige[]> {
       else compte.set(cle, { faux: r.faux, juste: r.juste, fois: 1 });
     }
   }
-  return [...compte.values()]
-    .sort((x, y) => y.fois - x.fois || x.faux.length - y.faux.length)
-    .slice(0, max);
+  const valeurs=[...compte.values()].sort((x,y)=>y.fois-x.fois||x.faux.length-y.faux.length);
+  motsCalcules={signature,valeurs};
+  return valeurs.slice(0,max).map(m=>({...m}));
 }
 
