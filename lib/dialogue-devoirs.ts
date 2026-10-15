@@ -11,12 +11,16 @@ const g=globalThis as typeof globalThis & {biaDialogueDevoirs?:{tours:number;sel
 const etat=g.biaDialogueDevoirs??={tours:0,selectionnes:0,hors_sujet:0,clarifications:0,erreurs:0,dernier_ms:0,devoirs:0,repliques:0,non_structures:0,dernier_statut:"aucun",appels_modele:0,jetons_entree:0,jetons_sortie:0,dernier_modele_ms:0};
 export function resumeDialogueDevoirs(){const {essai,...publics}=etat;return {actif:true,source:"Supabase",reponse:"une réplique mémorisée, sans réécriture",...publics,lexique_partage:resumeLexiquePartage(),acces_direct:resumeDialoguesRapides()};}
 export function publierDiagnosticDialogue(bilan:Record<string,unknown>){etat.diagnostic=bilan;}
+let indexCalcule:{signature:string;index:DialogueAppris[]}|undefined;
 export async function indexDialogue(){
  void chargerDialoguesRapides();
- const [{devoirs},partage]=await Promise.all([devoirsALire(1500),indexLexiquePartage()]);const index=indexerDevoirs(devoirs);
+ const [{devoirs},partage]=await Promise.all([devoirsALire(1500),indexLexiquePartage()]);const signature=JSON.stringify([devoirs,partage]);
+ if(indexCalcule?.signature===signature)return indexCalcule.index;
+ const index=indexerDevoirs(devoirs);
  etat.devoirs=index.length;etat.repliques=index.reduce((n,d)=>n+d.repliques.length,0);etat.non_structures=index.filter(d=>!d.repliques.length).length;
  const formulations=new Set(index.flatMap(d=>d.repliques.map(p=>normaliserDialogue(p.fr))));
- return [...index,...partage.filter(d=>!formulations.has(normaliserDialogue(d.repliques[0].fr)))];
+ const complet=[...index,...partage.filter(d=>!formulations.has(normaliserDialogue(d.repliques[0].fr)))];
+ indexCalcule={signature,index:complet};return complet;
 }
 export async function contexteMaitrises(question:string,historique:unknown,budget=6000){
  const index=await indexDialogue(),history=contexteDialogue(historique);
