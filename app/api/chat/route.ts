@@ -1784,6 +1784,28 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       ? retrouver(quiParle,question)
       : Promise.resolve([] as Souvenir[]);
 
+    // Start independent read-only context retrieval while personal memory loads.
+    // Capture rejection immediately; rethrow at the original consumption point.
+    const contexteEnCours=Promise.all([
+      savoirKhalam(),savoirProduits(),catalogue(),
+      Promise.all([
+      contexteDevoirs(question).catch(()=>{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");return "";}),
+      maitre.ok&&maitre.maitre?contexteInstructions().catch(()=>{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");return "";}):Promise.resolve(""),
+      maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?contexteMaitrises(question,body.history,3000).catch(()=>""):Promise.resolve(""),
+      fichesPourConversation(question,body.history||[],3500),
+      utiliserChoix?choixDuTour(question,body.history).catch(()=>null):Promise.resolve(null),
+      Promise.resolve(''), // BIBA now shares the common memory retrieval.
+
+    ])
+    ]).then(
+      valeurs=>({ok:true as const,valeurs}),
+      erreur=>({ok:false as const,erreur}),
+    );
+    const motsEnCours=motsCorriges().then(
+      valeurs=>({ok:true as const,valeurs}),
+      erreur=>({ok:false as const,erreur}),
+    );
+
     /* ── TROIS POCHES, ET C'EST TOUTE L'ÉCONOMIE ──────────────────────────
 
        Pesé le 17 septembre 2026, après que Lamine a vu 50 $ partir en trois
@@ -2106,19 +2128,9 @@ aussi l'éteindre lui-même en gardant le doigt appuyé dessus.`;
         .map(item=>Array.isArray(item.gestes)?item.gestes.filter(g=>typeof g==="string"):[]),
     );
 
-    // Independent memory/catalogue reads share one preparation window.
-    const [savoir,cosmetiques,aMontrer,referencesDuTour]=await Promise.all([
-      savoirKhalam(),savoirProduits(),catalogue(),
-      Promise.all([
-      contexteDevoirs(question).catch(()=>{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");return "";}),
-      maitre.ok&&maitre.maitre?contexteInstructions().catch(()=>{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");return "";}):Promise.resolve(""),
-      maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?contexteMaitrises(question,body.history,3000).catch(()=>""):Promise.resolve(""),
-      fichesPourConversation(question,body.history||[],3500),
-      utiliserChoix?choixDuTour(question,body.history).catch(()=>null):Promise.resolve(null),
-      Promise.resolve(''), // BIBA now shares the common memory retrieval.
-
-    ])
-    ]);
+    const contextePret=await contexteEnCours;
+    if(!contextePret.ok)throw contextePret.erreur;
+    const [savoir,cosmetiques,aMontrer,referencesDuTour]=contextePret.valeurs;
     if(savoir)socle+=`\n\n═══ CE QUE TU SAIS DE KHALAM ═══\n${savoir}\n═══ fin de ce que tu sais de KHALAM ═══`;
 
     /* ── LES PRODUITS DE BEAUTÉ, ET LA BARRIÈRE AUTOUR ─────────────────────
@@ -2281,7 +2293,9 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
          Ce bloc-ci n'est lié à aucune question : ce sont ses mots à elle,
          corrigés par des gens d'ici, et ils valent dans toutes ses phrases. */
-      const mots=await motsCorriges();
+      const motsPrets=await motsEnCours;
+      if(!motsPrets.ok)throw motsPrets.erreur;
+      const mots=motsPrets.valeurs;
       if(mots.length){
         lexiqueDuTour+="\n\nTA FAÇON DE DIRE, CORRIGÉE PAR DES GENS D'ICI\n"
           +"Des locuteurs de Dakar ont repris ces mots dans TES réponses. Leur "
