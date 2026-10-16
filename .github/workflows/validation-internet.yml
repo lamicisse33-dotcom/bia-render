@@ -15,9 +15,9 @@ jobs:
         with: {node-version: 22, cache: npm}
       - run: npm ci
       - run: |
-          ./node_modules/.bin/tsc lib/actions-internet.ts --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck --outDir /tmp/bia-internet-tests/lib
+          ./node_modules/.bin/tsc lib/actions-internet.ts --target ES2022 --module commonjs --moduleResolution node --skipLibCheck --outDir /tmp/bia-internet-tests/lib
           mkdir -p /tmp/bia-internet-tests/tests
           cp tests/actions-internet.mjs /tmp/bia-internet-tests/tests/
-          echo '{"type":"module"}' > /tmp/bia-internet-tests/package.json
+          echo '{"type":"commonjs"}' > /tmp/bia-internet-tests/package.json
           node /tmp/bia-internet-tests/tests/actions-internet.mjs
       - run: npm run build
