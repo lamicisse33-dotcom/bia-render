@@ -9,7 +9,7 @@ export function preparerAvecRegles(texte:string,defaut:LangueVoix,lecons:Lecon[]
  const wolof=lecons.filter(l=>l.langue==='wo'&&l.statut==='validé').map(l=>l.texte);
  for(const passage of lierPossessifWolof(passagesLanguesVoix(espacerPonctuationLecture(texte),defaut,emprunts,wolof))){
   const prononce=appliquerRegles(texteKhalamVoix(passage.texte),reglesLeconsMixtes(lecons,passage.langue,anciennes));
-  const morceaux=lectureFiable&&passage.langue==='wo'?segmentsLectureWolof(prononce):lecture?segmentsLecture(prononce):decouperVoixKhalam(prononce);
+  const morceaux=lectureFiable&&passage.langue==='wo'?segmentsLectureWolof(prononce):lecture?segmentsLecture(prononce):decouperVoixKhalam(prononce,passage.langue==='wo');
   for(const morceau of morceaux)if(/[\p{L}\p{N}]/u.test(morceau))out.push({texte:morceau,langue:passage.langue});
  }
  return lierBiFinal(out).map(p=>{
