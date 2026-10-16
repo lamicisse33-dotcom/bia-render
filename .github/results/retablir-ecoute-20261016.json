@@ -1,0 +1,174 @@
+{
+  "incident": "Echecs transcription après PR34; rollback PR35",
+  "cause_exacte_confirmee": false,
+  "hypothese": "Parcours ASR anticipé et complet concurrent, ou effet découpage MediaRecorder; retiré",
+  "avant": {
+    "version": "1b5382f5368e",
+    "pannes_transcription": 14,
+    "anticipations_utilisees": 0
+  },
+  "apres": {
+    "version": "441951c3c93f",
+    "ecoute_anticipee": {
+      "utilisees": 0,
+      "lancees": 0,
+      "recuperees": 0,
+      "replis": 0,
+      "dernier_avancement_ms": 0,
+      "compatible": false,
+      "comparaisons": 0,
+      "identiques": 0,
+      "divergences": 0,
+      "diagnostic": null,
+      "suspendue": true,
+      "motif_suspension": "echecs_transcription_complete_observes",
+      "en_cours": 0,
+      "confirmee": false,
+      "strategie": "pause de 300 ms, une anticipation par tour, annulée si la parole reprend"
+    },
+    "latence_pipeline": {
+      "date": "2026-10-16T23:03:04.763Z",
+      "version": "441951c3c93f",
+      "mesure": "Appels réels : enregistrement archivé, ASR, réponse et premier audio HTTP. Hors microphone et lecture navigateur.",
+      "etape": "termine",
+      "lecture_navigateur_mesuree": false,
+      "origine_audio": "audio_pre_enregistre_controle",
+      "depot": {
+        "morceaux": 2,
+        "statuts": [
+          200,
+          200
+        ],
+        "ms": 41
+      },
+      "recousu": {
+        "statut": 200,
+        "renvoyer": false,
+        "ms": 765
+      },
+      "transcription": {
+        "statut": 200,
+        "ms": 765,
+        "chronometrage": {
+          "total_ms": 741,
+          "reconnaissance_ms": 647,
+          "vocabulaire_ms": 0,
+          "correction_apres_reconnaissance_ms": 94,
+          "salutation": false,
+          "references_ms": 0,
+          "comparaison_ms": 94,
+          "references_pretes": true
+        },
+        "salutation_reconnue": false,
+        "date_extrait": null
+      },
+      "conversation": {
+        "statut": 200,
+        "premier_texte_ms": 1553,
+        "premiere_phrase_ms": 1906,
+        "texte_complet_ms": 2452,
+        "voix": {
+          "audio_recu": true,
+          "premier_audio_ms": 1396,
+          "depuis_demande_ms": 3302
+        }
+      },
+      "fin": "2026-10-16T23:03:09.326Z"
+    },
+    "oreille_locale": {
+      "modele": "omniASR_LLM_1B_v2",
+      "ecoutes": 3,
+      "reussites": 3,
+      "replis": 0,
+      "silences": 0,
+      "ms_moyen": 652,
+      "audio_secondes": 8.4,
+      "dernier_refus": ""
+    },
+    "pannes": {
+      "total": 0,
+      "dernieres": []
+    },
+    "tours": {
+      "tours": 1,
+      "ou_passe_le_temps": [
+        {
+          "quoi": "le modèle",
+          "ms": 5990,
+          "part": 59
+        },
+        {
+          "quoi": "la transcription",
+          "ms": 1746,
+          "part": 17
+        },
+        {
+          "quoi": "la fabrication de la voix",
+          "ms": 1139,
+          "part": 11
+        },
+        {
+          "quoi": "le silence avant la coupure du micro",
+          "ms": 958,
+          "part": 9
+        },
+        {
+          "quoi": "le transport de la voix (réseau + décodage)",
+          "ms": 268,
+          "part": 3
+        },
+        {
+          "quoi": "le démarrage du son",
+          "ms": 64,
+          "part": 1
+        },
+        {
+          "quoi": "l'attente qu'il finisse de parler (la porte)",
+          "ms": 0,
+          "part": 0
+        }
+      ],
+      "reponse_du_modele": {
+        "tours": 1,
+        "vecu_ms": 10165,
+        "queue_ms": 958,
+        "transcription_ms": 1746,
+        "modele_ms": 5990,
+        "voix_ms": 1407,
+        "demarrage_ms": 64,
+        "ailleurs_ms": 0
+      },
+      "reponse_enregistree": null,
+      "avec_phrase_dattente": 0,
+      "partis_avant_la_fin": 1,
+      "sources": {
+        "BIA intelligente": 1
+      },
+      "derniers": [
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 958,
+          "transcription_ms": 1746,
+          "modele_ms": 5990,
+          "voix_ms": 1407,
+          "voix_fabrication_ms": 1139,
+          "voix_transfert_ms": 268,
+          "demarrage_ms": 64,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 10165,
+          "quand": 1792191749262
+        }
+      ]
+    }
+  },
+  "endpoint_anticipation": {
+    "acceptee": false,
+    "raison": "anticipation_suspendue"
+  },
+  "verification": "TypeScript, 8 tests ciblés et deux workflows GitHub réussis",
+  "limites": "Test automatique sur audio préenregistré. Micro physique et texte reconnu non validés par ce test; demander rechargement navigateur puis essai utilisateur."
+}
