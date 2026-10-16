@@ -16,6 +16,7 @@ export function verifierCharabiaMarche(){return etat.travail??=(async()=>{
    {variante:'ancien-fragment-francais-en-wolof',texte:'continue.',langue:'wo'},
    {variante:'ancienne-coupure-apres-te',texte:'Mu dem ci marse bi, jënd soble ak tamaate, te',langue:'wo'},
    {variante:'ancienne-suite-sans-te',texte:'dellusi ci kër ga.',langue:'wo'},
+   {variante:'comparaison-phrase-wolof-entiere',texte:'Mu dem ci marse bi, jënd soble ak tamaate, te dellusi ci kër ga.',langue:'wo'},
    ...plan.filter(p=>p.texte.includes('continue')||p.texte.includes('marse')||p.texte.includes('dellusi')).map(p=>({variante:'preparation-corrigee',texte:p.texte,langue:p.langue})),
   ];
   for(const c of cas){
