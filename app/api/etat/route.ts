@@ -1,3 +1,4 @@
+import {resumeCharabiaMarche} from '@/lib/essai-charabia-marche';
 import {resumeProfilPreparation} from '@/lib/profil-preparation';
 import {resumePossessifSa} from "@/lib/essai-possessif-sa";
 import {resumeEmpruntGerer} from "@/lib/essai-emprunt-gerer";
@@ -186,6 +187,7 @@ export async function GET(request: Request) {
     identite: resumeIdentite(),
     prises_voix: resumeEssaiPrises(),
     integrite_audio:resumeIntegriteAudio(),
+    lecture_charabia_marche:resumeCharabiaMarche(),
     lecture_bilingue:resumeLectureBilingue(),
     dialogue_devoirs: resumeDialogueDevoirs(),
     acces_devoirs:resumeAccesDevoirs(),

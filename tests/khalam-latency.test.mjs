@@ -37,3 +37,13 @@ test('GPU lookahead starts the following synthesis as soon as its predecessor co
   active=false; lancer(3);
   assert.equal(enVol.has(3), false);
 });
+
+
+test('forced short heads keep conjunctions with their following clause without adding or dropping words',()=>{
+ for(const text of ['Mu dem ci marse bi, jënd soble ak tamaate, te dellusi ci kër ga.','Elle est allée au marché, a acheté des oignons et des tomates, puis elle est rentrée à la maison.']){
+  const p=split(text);assert.equal(p.join(' '),text);
+  assert(p.every(x=>x.length<=140&&x.split(/\s+/).length<=16));
+  assert(!p.slice(0,-1).some(x=>/\b(?:te|ak|et)\s*$/u.test(x)));
+ }
+ assert.deepEqual(split('Mu dem ci marse bi, jënd soble ak tamaate, te dellusi ci kër ga.'),['Mu dem ci marse bi, jënd soble ak tamaate,','te dellusi ci kër ga.']);
+});

@@ -19,6 +19,7 @@ for(const mot of ['message','messages','appel','appels','appeler','appelée','ap
 // French verbs keep their French voice inside urban Wolof. Exact lexical
 // forms only: accents alone must never reclassify a Wolof word.
 for(const mot of ['gérer','gère','gères','gérons','gérez','gèrent','géré','gérée','gérés','gérées','gérais','gérait','gérions','gériez','géraient','gérerai','géreras','gérera','gérerons','gérerez','géreront','gérerais','gérerait','gérerions','géreriez','géreraient','gerer','couture'])MOTS_FRANCAIS.add(mot);
+for(const mot of ['continue','continues','continuer','continuons','continuez','continuent','continué','continuée'])MOTS_FRANCAIS.add(mot);
 /** Recognize compact Wolof clitics only when their entire remainder is an
  * already known Wolof word. An x alone never makes a French word Wolof. */
 function estMotWolof(mot:string):boolean {
@@ -90,6 +91,9 @@ export function passagesLanguesVoix(texte:string, defaut:LangueVoix="wo", emprun
     // measured takes. Keep its following noun in the Wolof reporting clause.
     // This does not reclassify French negation "ne" in other contexts.
     const contexteWolof=new Set<number>();
+    // Keep the existing Wolof address together when a French clause follows:
+    // correcting "continue" must not create a new one-word "Waaw" clip.
+    if(keys[0]==='waaw'&&keys[1]==='papa'){contexteWolof.add(0);contexteWolof.add(1);}
     for(let i=0;i+3<keys.length;i++)if(keys.slice(i,i+4).join(' ')==='dañu ma ne dossierbi'){
       for(let j=i;j<i+4;j++)contexteWolof.add(j);
     }
