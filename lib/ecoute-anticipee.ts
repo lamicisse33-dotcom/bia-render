@@ -2,8 +2,8 @@ import {createHash} from 'node:crypto';
 import {chezOreilleLocale} from './ecoute-locale';
 import type {Ecoute} from './ecoute';
 type Travail={owner:string;hash:string;octets:number;langue:string|null;debut:number;resultat:Promise<Ecoute|null>};
-const g=globalThis as typeof globalThis&{biaEcouteAnticipee?:{travaux:Map<string,Travail>;lancees:number;recuperees:number;replis:number;dernier_avancement_ms:number;compatible:boolean;comparaisons:number;identiques:number;divergences:number;diagnostic?:unknown}};
-const etat=g.biaEcouteAnticipee??={travaux:new Map(),lancees:0,recuperees:0,replis:0,dernier_avancement_ms:0,compatible:false,comparaisons:0,identiques:0,divergences:0,diagnostic:null as unknown};
+const g=globalThis as typeof globalThis&{biaEcouteAnticipee?:{travaux:Map<string,Travail>;utilisees:number;lancees:number;recuperees:number;replis:number;dernier_avancement_ms:number;compatible:boolean;comparaisons:number;identiques:number;divergences:number;diagnostic?:unknown}};
+const etat=g.biaEcouteAnticipee??={travaux:new Map(),utilisees:0,lancees:0,recuperees:0,replis:0,dernier_avancement_ms:0,compatible:false,comparaisons:0,identiques:0,divergences:0,diagnostic:null as unknown};
 const hash=(s:Uint8Array|string)=>createHash('sha256').update(s).digest('hex');
 export const resumeEcouteAnticipee=()=>{const {travaux,...r}=etat;return {...r,en_cours:travaux.size,confirmee:anticipationConfirmee(),strategie:'pause de 300 ms, une anticipation par tour, annulée si la parole reprend'};};
 export const noterEssaiAnticipation=(r:{tours:Array<{texte_identique:boolean}>;[key:string]:unknown})=>{etat.diagnostic=r;etat.compatible=r.tours.length>=2&&r.tours.every(t=>t.texte_identique);};
@@ -40,3 +40,5 @@ export function comparerAnticipation(avant:Ecoute,complet:Ecoute){
  const normal=(s:string)=>s.normalize('NFC').toLowerCase().replace(/[\p{P}\p{Z}\s]+/gu,' ').trim();
  etat.comparaisons++;if(normal(avant.texte)===normal(complet.texte))etat.identiques++;else etat.divergences++;
 }
+
+export const noterUtilisationAnticipation=()=>{etat.utilisees++;};
