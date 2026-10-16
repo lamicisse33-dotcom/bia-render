@@ -1,7 +1,12 @@
 const MAX_CHARS = 140;
 const MAX_WORDS = 16;
 
-export function decouperVoixKhalam(text: string) {
+export function decouperVoixKhalam(text: string,phraseCourte=false) {
+  const complet=text.trim().replace(/\s+/gu,' ');
+  // A measured 14-word Wolof sentence was faithful as a whole, whereas a
+  // ten-word head hallucinated a continuation. Keep bounded complete clauses.
+  if(phraseCourte&&complet.length<=90&&complet.split(/\s+/u).length<=MAX_WORDS
+     &&/[.!?…]$/u.test(complet)&&(complet.match(/[.!?…]/gu)||[]).length===1)return [complet];
   const parts: string[] = [];
   let words: string[] = [];
   const flush = (lierSuite=false) => {
