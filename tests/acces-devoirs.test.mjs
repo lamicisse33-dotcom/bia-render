@@ -31,3 +31,17 @@ test('a read started before a root correction cannot restore an obsolete cache',
  assert.equal((await s.devoirsALire()).devoirs[0].texte,newer.texte);
  assert.equal(reads,2);
 });
+test('reused assembly stays exact and a correction replaces it immediately',async()=>{
+ let reads=0,current=bloc('DEVOIR 1\nWolof : Phrase validée.\nFrançais : Texte validé.');
+ const s=service(async()=>{reads++;return {ok:true,json:async()=>[{proposee:JSON.stringify(current)}]};});
+ const a=await s.devoirsALire(),expected=structuredClone(a);
+ a.devoirs[0].texte='local caller mutation';
+ assert.deepEqual(await s.devoirsALire(),expected);
+ assert.equal(reads,1);
+ current={...current,texte:'DEVOIR 1\nWolof : Phrase corrigée.\nFrançais : Texte corrigé.'};
+ s.invaliderDevoirs();
+ const updated=await s.devoirsALire();
+ assert.equal(updated.devoirs[0].texte,current.texte);
+ assert.notEqual(updated.devoirs[0].revision,expected.devoirs[0].revision);
+ assert.equal(reads,2);
+});

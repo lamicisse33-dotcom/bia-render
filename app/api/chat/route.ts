@@ -1360,6 +1360,12 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     // Do not teach the conversational model to repeat that routing failure.
     body={...body,history:sansRelanceAutomatique(body.history||[])};
 
+    // Independent read: overlap memory lookup with learned-answer selection.
+    // Commands/corrections and authentication have already been handled above.
+    const laMemoire=souvenirsActifs()&&quiParle
+      ? chrono('souvenirs',()=>retrouver(quiParle,question))
+      : Promise.resolve([] as Souvenir[]);
+
     utiliserChoix=maitre.ok&&!body.apprend&&!body.malDit?.encours
       &&(process.env.BIA_LLM_PROVIDER||"anthropic").toLowerCase()==="anthropic"
       &&!concerneProduits(question,body.history)&&!estUnSecours(question)&&!intentionMedia(question)&&!besoinDInternet(question)&&!demandeDeNombre(question);
@@ -1782,9 +1788,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        Et elle ne peut pas échouer : retrouver() rend une liste vide plutôt
        que de lever. Une mémoire qui ne répond pas ne doit pas l'empêcher de
        parler. Voir lib/souvenirs.ts. */
-    const laMemoire=souvenirsActifs()&&quiParle
-      ? chrono('souvenirs',()=>retrouver(quiParle,question))
-      : Promise.resolve([] as Souvenir[]);
+
 
     // Start independent read-only context retrieval while personal memory loads.
     // Capture rejection immediately; rethrow at the original consumption point.
@@ -2081,7 +2085,7 @@ quelqu'un parce que le sujet est glissant.`;
        reformule, et une reformulation devient un souvenir faux au tour
        suivant. Dans la partie VARIABLE, jamais dans le socle mis en cache :
        ces passages changent à chaque question. */
-    const souvenirsDuTour=consigneDesSouvenirs(await laMemoire);
+    const souvenirsDuTour=consigneDesSouvenirs(await chrono('souvenirs_attente',()=>laMemoire));
     variable+=souvenirsDuTour;
 
     /* ── ET CE QU'ELLE A FAIT ELLE-MÊME ────────────────────────────────────
