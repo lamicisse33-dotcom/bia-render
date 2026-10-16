@@ -46,3 +46,19 @@ export function verifierPreparation(){return etat.essai??=(async()=>{
  }
  etat.diagnostic={comparaison,date:new Date().toISOString(),version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),perimetre:'Lectures de préparation réelles, sans cerveau, microphone ni voix. Premier tour puis deux réutilisations immédiates.',tours};
 })();}
+
+/** Fixed questions, existing lessons, no model call or memory write. */
+export async function verifierCalculPreparation(){
+ const {indexDialogue}=await import('./dialogue-devoirs');
+ const {chercherDialogues}=await import('./dialogue-devoirs-core');
+ const {comparerAssemblageDevoirs}=await import('./devoirs-apprentissage');
+ const index=await indexDialogue(),lexique=index.filter(d=>d.id.startsWith('lexique:'));
+ const tours=[];
+ for(const question of ['Je viens de France.','Ma copine ne répond plus à mes appels.','Dama sonn tey.','Je veux organiser mes études.']){
+  chercherDialogues(lexique,question,[]);
+  const t=performance.now(),avant=chercherDialogues(index.filter(d=>d.id.startsWith('lexique:')),question,[]),avantMs=performance.now()-t;
+  const u=performance.now(),apres=chercherDialogues(lexique,question,[]),apresMs=performance.now()-u;
+  tours.push({reconstruction_ms:Math.round(avantMs*100)/100,reutilisation_ms:Math.round(apresMs*100)/100,identique:JSON.stringify(avant)===JSON.stringify(apres)});
+ }
+ etat.diagnostic={date:new Date().toISOString(),version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),perimetre:'Calculs sur les leçons réellement chargées, sans cerveau ni audio ; aucune réduction bout à bout déduite.',lexique:{entrees:lexique.length,tours},assemblage:await comparerAssemblageDevoirs()};
+}
