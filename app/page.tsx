@@ -4593,6 +4593,9 @@ export default function Home() {
       const envois: Promise<void>[] = [];
       let deposes = 0;
       let perdu = false;
+      let anticipationDemandee=false,anticipationValide=false,instantAnticipation=0;
+      let capturerAnticipation=false;
+
       /* De quoi juger, à la fin, si c'était une voix ou la rue. On garde la
          somme et le compte plutôt que la moyenne : une moyenne qu'on met à
          jour tour par tour dérive, et celle-ci doit rester exacte. */
@@ -4748,11 +4751,22 @@ export default function Home() {
           else dureeParlee += Date.now() - dernierSon;
           aParle = true;
           dernierSon = Date.now();
+          if(anticipationDemandee)anticipationValide=false;
+
         } else if (aParle) {
           /* On ne montre plus « je t'entends » : le témoin redevient « je
              t'écoute » dès que la voix retombe, et c'est ce qui donne
              l'impression qu'elle suit. */
           setEntendParler(false);
+          // One speculative snapshot, only after all detected speech. Resuming
+          // speech invalidates it permanently; the complete recording remains.
+          if(!anticipationDemandee&&estMaitreRef.current&&!apprend.current&&!attendLeNomRef.current
+             &&enregistreur.mimeType.includes('webm')&&Date.now()-dernierSon>=300
+             &&focusLocuteurRef.current?.autoriser()
+             &&vraimentUneVoix(dureeParlee,mesuresVocales?partVocaleTotale/mesuresVocales:null,mesuresVocales?hauteurTotale/mesuresVocales:null)){
+            anticipationDemandee=true;anticipationValide=true;instantAnticipation=dernierSon;capturerAnticipation=true;
+            try{enregistreur.requestData();}catch{anticipationValide=false;capturerAnticipation=false;}
+          }
           const assez = silenceQuiSuffit(dernierSon - debutParole, coupesTropTotRef.current);
           if (Date.now() - dernierSon > assez) {
             /* LA BORNE QUE PERSONNE NE COMPTAIT. `dernierSon` est l'instant
@@ -4810,6 +4824,17 @@ export default function Home() {
         if (!e.data.size) return;
         const indice = morceaux.length;
         morceaux.push(e.data);
+        if(capturerAnticipation){
+          capturerAnticipation=false;
+          if(anticipationValide&&dernierSon===instantAnticipation&&estCetEnregistrement(idEnr)){
+            const type=enregistreur.mimeType||e.data.type;
+            const f=new FormData();f.append('tour',tourDeParole);f.append('indice_langue',langueDuFil.current);
+            f.append('audio',new Blob(morceaux,{type}),'anticipation.webm');
+            void fetch('/api/ecouter/anticiper',{method:'POST',headers:{'x-bia-code':codeRef.current},body:f})
+              .then(r=>r.ok?r.json():null).then(d=>{if(!d?.acceptee)anticipationValide=false;}).catch(()=>{anticipationValide=false;});
+          }
+        }
+
         if (perdu) return;
         const type = enregistreur.mimeType || e.data.type || "audio/webm";
         const f = new FormData();
@@ -5103,6 +5128,9 @@ export default function Home() {
           legere.append("depot_confirme", "1");
           const indice = forme.get("indice_langue");
           if (indice !== null) legere.append("indice_langue", String(indice));
+          if(anticipationValide&&dernierSon===instantAnticipation){
+            legere.append('anticipation',tourDeParole);forme.append('anticipation',tourDeParole);
+          }
           const r = await envoyerEcoute(legere, forme, {
             total: morceaux.length, deposes, perdu,
           }, corps => fetch("/api/ecouter", {
