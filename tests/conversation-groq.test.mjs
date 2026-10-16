@@ -12,8 +12,8 @@ test('cached personality stays identical when retrieved topics change',()=>{
  const a=messagesConversation({question:'Parlons des études',history:[],maitrises:'études',outils:'outil A',fiches:'fiche études'});
  const b=messagesConversation({question:'Parlons du commerce',history:[],maitrises:'commerce',outils:'outil B',fiches:'fiche commerce'});
  assert.equal(a[0].content,b[0].content);
- assert(a.some(m=>m.content.includes('outil A')&&m.content.includes('études')));
- assert(b.some(m=>m.content.includes('outil B')&&m.content.includes('commerce')));
+ assert(a.filter(m=>m.role==='system').map(m=>m.content).join('\n\n').includes('outil A\n\nétudes'));
+ assert(b.filter(m=>m.role==='system').map(m=>m.content).join('\n\n').includes('outil B\n\ncommerce'));
 });
 test('rapid context prioritises late relevant memories without cutting the current long question',()=>{
  const question='Je défends un budget limité pour les transports. '+ 'Mon objection reste précise. '.repeat(35);
@@ -85,4 +85,12 @@ test('a refusal must reach contextual conversation, not a fixed echo',async()=>{
  assert(!dependDuContexte('Bonjour'));
  const route=fs.readFileSync('app/api/chat/route.ts','utf8');
  assert(route.includes('const repertoireUtilisable=()=>repertoireActif()&&!estRara&&!dependDuContexte(question);'));
+});
+
+
+test('tools precede changing lesson options with exactly the same combined source text',()=>{
+ const outils="Les commandes d'écran se placent ici.\nRègle inchangée.",maitrises='Répliques exactes du devoir.';
+ const msgs=messagesConversation({question:'Et ensuite ?',history:[],outils,maitrises});
+ const i=msgs.findIndex(m=>m.content===outils);assert(i>0);assert.equal(msgs[i+1].content,maitrises);
+ assert.equal(msgs.slice(i,i+2).map(m=>m.content).join('\n\n'),outils+'\n\n'+maitrises);
 });
