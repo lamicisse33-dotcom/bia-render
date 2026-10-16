@@ -1,3 +1,4 @@
+import {resumeAnticipationLexique} from '@/lib/anticipation-lexique-voix';
 import {resumeCharabiaMarche} from '@/lib/essai-charabia-marche';
 import {resumeProfilPreparation} from '@/lib/profil-preparation';
 import {resumePossessifSa} from "@/lib/essai-possessif-sa";
@@ -201,6 +202,7 @@ export async function GET(request: Request) {
     preparation_detaillee:resumeProfilPreparation(),
     latence_conversation:resumeLatenceConversation(),
     latence_pipeline:resumeLatencePipeline(),
+    anticipation_lexique_voix:resumeAnticipationLexique(),
     comprehension_conversation:resumeEssaiComprehension(),
     transcription_contextuelle: resumeCorrectionContexte(),
     correction_vocale:resumeEssaiCorrectionVocale(),
