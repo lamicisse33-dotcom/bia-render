@@ -1,0 +1,232 @@
+{
+  "statut": "termine",
+  "date": "2026-10-16T22:10:02.388Z",
+  "cas": [
+    {
+      "nom": "fr",
+      "model": "claude-sonnet-5-5",
+      "statut": 200,
+      "premier_texte_ms": 1518,
+      "premiere_phrase_ms": 1910,
+      "complet_ms": 2410,
+      "stop": "end_turn",
+      "usage": {
+        "input_tokens": 790,
+        "cache_creation_input_tokens": 3923,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 3923,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 119,
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard",
+        "output_tokens_details": {
+          "thinking_tokens": 0
+        }
+      },
+      "reponse_test": "Ah, belle question ! La lumière du soleil contient toutes les couleurs, et en traversant l'atmosphère, le bleu est dispersé par les molécules d'air bien plus que le rouge. Du coup, ce bleu arrive vers nos yeux de partout dans le ciel, et c'est pour ça qu'on le voit bleu.",
+      "correction_exacte": null
+    },
+    {
+      "nom": "fr",
+      "model": "claude-haiku-5-5",
+      "statut": 200,
+      "premier_texte_ms": 716,
+      "premiere_phrase_ms": 725,
+      "complet_ms": 1189,
+      "stop": "end_turn",
+      "usage": {
+        "input_tokens": 790,
+        "cache_creation_input_tokens": 3923,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 3923,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 120,
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard",
+        "output_tokens_details": {
+          "thinking_tokens": 0
+        }
+      },
+      "reponse_test": "Ah oui, bonne question ! Le ciel est bleu parce que la lumière du soleil contient toutes les couleurs, et l'air de l'atmosphère disperse davantage les petites longueurs d'onde, c'est-à-dire le bleu, dans toutes les directions. Ce bleu nous arrive donc de partout dans le ciel.",
+      "correction_exacte": null
+    },
+    {
+      "nom": "wo",
+      "model": "claude-haiku-5-5",
+      "statut": 200,
+      "premier_texte_ms": 723,
+      "premiere_phrase_ms": 871,
+      "complet_ms": 1187,
+      "stop": "end_turn",
+      "usage": {
+        "input_tokens": 867,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 3923,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 54,
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard",
+        "output_tokens_details": {
+          "thinking_tokens": 0
+        }
+      },
+      "reponse_test": "Ah oui, dama sonn tey, ça va bien. Bëgg naa dégg sa xalaat. Wax ma lu la neex ci tey.",
+      "correction_exacte": null
+    },
+    {
+      "nom": "wo",
+      "model": "claude-sonnet-5-5",
+      "statut": 200,
+      "premier_texte_ms": 808,
+      "premiere_phrase_ms": 1200,
+      "complet_ms": 2700,
+      "stop": "end_turn",
+      "usage": {
+        "input_tokens": 867,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 3923,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 100,
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard",
+        "output_tokens_details": {
+          "thinking_tokens": 0
+        }
+      },
+      "reponse_test": "Ah papa, sonn na la tey ! Dafa mel ni yaw dafa jaaxal lool. Noppalul bu baax, naan ndox, te bu la soxlee, dalal ci kër gi.\n\nLan moo la sonal, liggéey bi walla yoon wi ?",
+      "correction_exacte": null
+    },
+    {
+      "nom": "contexte",
+      "model": "claude-sonnet-5-5",
+      "statut": 200,
+      "premier_texte_ms": 676,
+      "premiere_phrase_ms": 961,
+      "complet_ms": 1836,
+      "stop": "end_turn",
+      "usage": {
+        "input_tokens": 854,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 3923,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 123,
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard",
+        "output_tokens_details": {
+          "thinking_tokens": 0
+        }
+      },
+      "reponse_test": "Ah d'accord, alors marche en sortant du travail, après 18 h, quand la chaleur baisse. Si tu as une pause déjeuner, vingt minutes autour de midi marchent aussi, à l'ombre si possible. Tu rentres comment, à pied, en bus ? Descendre un arrêt plus tôt peut faire l'affaire.",
+      "correction_exacte": null
+    },
+    {
+      "nom": "contexte",
+      "model": "claude-haiku-5-5",
+      "statut": 200,
+      "premier_texte_ms": 706,
+      "premiere_phrase_ms": 844,
+      "complet_ms": 1529,
+      "stop": "end_turn",
+      "usage": {
+        "input_tokens": 854,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 3923,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 147,
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard",
+        "output_tokens_details": {
+          "thinking_tokens": 0
+        }
+      },
+      "reponse_test": "Ah d'accord, alors le mieux serait sans doute la pause de midi : vingt minutes de marche autour du bureau ou dans le quartier, et tu rentres reposée. Si ça ne marche pas, tu peux aussi couper ton trajet du soir, par exemple descendre un arrêt plus tôt, ou marcher pendant un appel téléphonique. Laquelle de ces options te semble possible chez toi ?",
+      "correction_exacte": null
+    },
+    {
+      "nom": "correction",
+      "model": "claude-haiku-5-5",
+      "statut": 200,
+      "premier_texte_ms": 805,
+      "premiere_phrase_ms": 832,
+      "complet_ms": 838,
+      "stop": "end_turn",
+      "usage": {
+        "input_tokens": 869,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 3923,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 16,
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard",
+        "output_tokens_details": {
+          "thinking_tokens": 0
+        }
+      },
+      "reponse_test": "Bon, nu wax ci leneen.",
+      "correction_exacte": true
+    },
+    {
+      "nom": "correction",
+      "model": "claude-sonnet-5-5",
+      "statut": 200,
+      "premier_texte_ms": 1291,
+      "premiere_phrase_ms": 1749,
+      "complet_ms": 1755,
+      "stop": "end_turn",
+      "usage": {
+        "input_tokens": 869,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 3923,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 16,
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard",
+        "output_tokens_details": {
+          "thinking_tokens": 0
+        }
+      },
+      "reponse_test": "Bon, nu wax ci leneen.",
+      "correction_exacte": true
+    }
+  ],
+  "fin": "2026-10-16T22:10:15.832Z",
+  "version": "2ad7b5f52f23",
+  "limite": "Questions synthétiques, personnalité BIA sans mémoire privée ni synthèse vocale. Petit échantillon ; qualité wolof à valider.",
+  "decision": "No production model switch: Haiku faster on these fixed prompts but incoherent Wolof response to fatigue. First complete sentence may be filler; these timings are not time to first useful answer.",
+  "sources": [
+    "https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-latency",
+    "https://platform.claude.com/docs/en/build-with-claude/prompt-caching",
+    "https://github.com/resemble-ai/chatterbox/issues/552",
+    "https://github.com/resemble-ai/chatterbox/issues/193"
+  ]
+}
