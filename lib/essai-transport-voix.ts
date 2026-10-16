@@ -1,5 +1,7 @@
 import {ouvrirRepliques} from './flux-repliques';
 import {preparerEcoute} from './preparer-ecoute';
+import {createHash} from 'node:crypto';
+import {chezOreilleLocale} from './ecoute-locale';
 const g=globalThis as typeof globalThis&{biaTransportVoix?:{rapport:unknown;travail?:Promise<void>}};
 const etat=g.biaTransportVoix??={rapport:null};
 export const resumeTransportVoix=()=>etat.rapport;
@@ -19,7 +21,7 @@ const normal=(s:string)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLow
 /** Fixed same-text transport comparisons. No public paid trigger or data writes. */
 export function verifierTransportVoix(){return etat.travail??=(async()=>{
  etat.rapport={statut:'en_cours',date:new Date().toISOString()};const cas=[];
- for(const [langue,texte] of [['fr','Le budget doit rester accessible à tous.'],['wo','Dañu bëgg ma def lu ma bëggul.']]){
+ for(const [langue,texte] of [['fr','Le budget doit rester accessible à tous.'],['wo','Dañu bëgg ma def lu ma bëggul.'],['wo','Mu dem ci marse bi, jënd soble ak tamaate, te dellusi ci kër ga.']]){
   const passes=[];
   for(const mode of ['complet','stream','stream_replay']){
    const debut=Date.now(),frames:Buffer[]=[],arrivees:number[]=[],durees:number[]=[];let premier=0,generation:number|undefined,tempsGPU:unknown,preparation:number|undefined,cache=false,paquets=0,samples=0;
@@ -41,12 +43,13 @@ export function verifierTransportVoix(){return etat.travail??=(async()=>{
      if(!fin||!paquets)throw Error('fin_absente');
     }
     const reception=Date.now()-debut,wav=reunirWav(frames);let verification:unknown={statut:'non_verifiee'};
+    if(langue==='wo'){const ecriture=await chezOreilleLocale(new Blob([wav],{type:'audio/wav'}));verification={statut:'reconnaissance_indicative_WO',transcription:ecriture?.texte||null};}
     if(langue==='fr'){const {ecriture}=await preparerEcoute(new Blob([wav]),'verification.wav','fr');verification={statut:'reconnaissance_FR',texte_exact:normal(ecriture.texte)===normal(texte)};}
     let finAudio=0,trou=0;for(let i=0;i<arrivees.length;i++){if(i)trou=Math.max(trou,Math.max(0,arrivees[i]+60-finAudio));finAudio=Math.max(finAudio,arrivees[i]+60)+durees[i];}
-    passes.push({mode,premier_audio_ms:premier,couture_estimee_max_ms:Math.round(trou),arrivees_ms:arrivees,reception_complete_ms:reception,generation_ms:generation,preparation_ms:preparation,temps_gpu:tempsGPU,audio_en_cache:cache,paquets:mode!=='complet'?paquets:1,echantillons:(wav.length-44)/2,integrite:true,verification});
+    passes.push({sha256_pcm:createHash('sha256').update(pcmWav(wav)).digest('hex'),mode,premier_audio_ms:premier,couture_estimee_max_ms:Math.round(trou),arrivees_ms:arrivees,reception_complete_ms:reception,generation_ms:generation,preparation_ms:preparation,temps_gpu:tempsGPU,audio_en_cache:cache,paquets:mode!=='complet'?paquets:1,echantillons:(wav.length-44)/2,integrite:true,verification});
    }catch{passes.push({mode,erreur:true,ms:Date.now()-debut});}
   }
-  cas.push({langue,passes});
+  cas.push({langue,passes,signal_identique_complet_stream:!!passes[0]?.sha256_pcm&&passes[0].sha256_pcm===passes[1]?.sha256_pcm});
  }
  etat.rapport={statut:'termine',date:new Date().toISOString(),version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),mesure:'Mêmes phrases, vraie voix GPU ; réception HTTP et vérification des échantillons. Reconnaissance française automatique ; écoute humaine non mesurée.',cas};
 })().catch(()=>{etat.rapport={statut:'erreur',date:new Date().toISOString()};});}
