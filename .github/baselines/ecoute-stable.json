@@ -1,0 +1,16 @@
+{
+  "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
+  "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
+  "files": {
+    "app/page.tsx": "10eb87705295f320a95077f582ade9b5e161af2ab85f27ff81df10726f607b81",
+    "lib/micro.ts": "db1ccea17958421c1cf59e2623e462f7050b1a3c335547430449ef565865d15e",
+    "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
+    "lib/ecoute-locale.ts": "ad34b135d0d3589badf6161afd07df8dce927de633ea9ffc215a07dd26c47f19",
+    "lib/transport-conversation.ts": "ac8d95016a165bc00abfad385cc2f5c87278775854dfbddbcfbbe4b308e607ce",
+    "app/api/ecouter/route.ts": "571c7d76bf8363785eddabc4dd419a847d2990ce8523f281474042477dbe322d",
+    "app/api/ecouter/anticiper/route.ts": "56867d683f1b63e0f57803de17426e4417b717122c8043d3132fa617982f153d",
+    "app/api/chatterbox-test/bia/route.ts": "06f5882392525abe2c9aa7b999582321112e019dd196d972e533b13f41f6fdd9",
+    "app/api/chatterbox-test/bia/stream/route.ts": "36e3b05090c75a79c194afb2c83fa62b3c10a0b1d476a91aab7a0227d04c8d40",
+    "lib/passages-khalam.ts": "0d7231c37a44692889bd2a2ee90a66240302efb0a6114430144255cb7474ccd7"
+  }
+}

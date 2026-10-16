@@ -29,7 +29,7 @@ export async function register(){
    setTimeout(()=>{void import('./lib/profil-preparation').then(m=>m.verifierCalculPreparation()).then(()=>import('./lib/essai-latence-pipeline')).then(m=>m.verifierLatencePipeline()).catch(()=>{});},90000).unref();
   }
   if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-17T01:00:00Z')){
-   setTimeout(()=>{void import('./lib/essai-latence-pipeline').then(m=>m.verifierLatencePipeline()).catch(()=>{});},90000).unref();
+   setTimeout(()=>{void import('./lib/essai-streaming-isole').then(m=>m.verifierStreamingIsole()).catch(()=>{});},90000).unref();
   }
   const {prechaufferSalutations}=await import('./lib/reponse-salutation');
   void prechaufferSalutations();
