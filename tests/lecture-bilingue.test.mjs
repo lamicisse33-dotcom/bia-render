@@ -218,3 +218,13 @@ test('Wolof possessive sa never becomes an isolated French clip in the reported 
  assert(plan.some(p=>p.langue==='wo'&&p.texte.includes('Ci sa entourage')));
  for(const t of ['Il parle de sa famille.','Sa voiture est dans sa rue.'])assert.deepEqual(passagesLanguesVoix(t,'fr'),[{texte:t,langue:'fr'}]);
 });
+
+
+test('reported market story keeps je continue in French and every Wolof word intact',()=>{
+ const text='Waaw papa, je continue. Mu dem ci marse bi, jënd soble ak tamaate, te dellusi ci kër ga. Elle est allée au marché, a acheté des oignons et des tomates, puis elle est rentrée à la maison. Là, elle prépare le repas pour toute la famille, et ça sent déjà bon !';
+ const plan=passagesLanguesVoix(text,'wo');
+ assert.equal(plan.map(p=>p.texte).join(''),text);
+ assert(plan.some(p=>p.langue==='fr'&&p.texte.trim()==='je continue.'));
+ assert(!plan.some(p=>p.langue==='wo'&&/continue/i.test(p.texte)));
+ assert(plan.some(p=>p.langue==='wo'&&p.texte.includes('Mu dem ci marse bi, jënd soble ak tamaate, te dellusi ci kër ga.')));
+});
