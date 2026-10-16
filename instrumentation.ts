@@ -19,8 +19,11 @@ export async function register(){
   if(process.env.RENDER_GIT_COMMIT&&process.env.CHATTERBOX_TEST_KEY&&Date.now()<Date.parse('2026-10-16T04:00:00Z')){
    setTimeout(()=>{void import('./lib/essai-transport-voix').then(m=>m.verifierTransportVoix()).catch(()=>{});},60000).unref();
   }
-  if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-17T02:00:00Z')){
+  if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-16T21:55:00Z')){
    setTimeout(()=>{void import('./lib/anticipation-lexique-voix').then(m=>m.verifierAnticipation()).then(()=>import('./lib/essai-latence-pipeline')).then(m=>m.verifierLatencePipeline()).catch(()=>{});},90000).unref();
+  }
+  if(process.env.RENDER_GIT_COMMIT&&(process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY)&&Date.now()<Date.parse('2026-10-17T01:00:00Z')){
+   setTimeout(()=>{void import('./lib/essai-cerveaux-rapides').then(m=>m.comparerCerveaux()).catch(()=>{});},120000).unref();
   }
   const {prechaufferSalutations}=await import('./lib/reponse-salutation');
   void prechaufferSalutations();
