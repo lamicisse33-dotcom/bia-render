@@ -5,7 +5,7 @@ type Travail={owner:string;hash:string;octets:number;langue:string|null;debut:nu
 const g=globalThis as typeof globalThis&{biaEcouteAnticipee?:{travaux:Map<string,Travail>;utilisees:number;lancees:number;recuperees:number;replis:number;dernier_avancement_ms:number;compatible:boolean;comparaisons:number;identiques:number;divergences:number;diagnostic?:unknown}};
 const etat=g.biaEcouteAnticipee??={travaux:new Map(),utilisees:0,lancees:0,recuperees:0,replis:0,dernier_avancement_ms:0,compatible:false,comparaisons:0,identiques:0,divergences:0,diagnostic:null as unknown};
 const hash=(s:Uint8Array|string)=>createHash('sha256').update(s).digest('hex');
-export const resumeEcouteAnticipee=()=>{const {travaux,...r}=etat;return {...r,en_cours:travaux.size,confirmee:anticipationConfirmee(),strategie:'pause de 300 ms, une anticipation par tour, annulée si la parole reprend'};};
+export const resumeEcouteAnticipee=()=>{const {travaux,...r}=etat;return {...r,suspendue:true,motif_suspension:'echecs_transcription_complete_observes',en_cours:travaux.size,confirmee:anticipationConfirmee(),strategie:'pause de 300 ms, une anticipation par tour, annulée si la parole reprend'};};
 export const noterEssaiAnticipation=(r:{tours:Array<{texte_identique:boolean}>;[key:string]:unknown})=>{etat.diagnostic=r;etat.compatible=r.tours.length>=2&&r.tours.every(t=>t.texte_identique);};
 export async function anticiperEcoute(cle:string,code:string,audio:Blob,langue:string|null){
  if(process.env.STT_PROVIDER!=='local_wolof'||langue==='fr'&&process.env.WOLOF_LOCAL_ALL_LANGUAGES!=='true')return false;
