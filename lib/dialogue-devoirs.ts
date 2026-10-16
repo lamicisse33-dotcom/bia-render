@@ -11,7 +11,7 @@ const g=globalThis as typeof globalThis & {biaDialogueDevoirs?:{tours:number;sel
 const etat=g.biaDialogueDevoirs??={tours:0,selectionnes:0,hors_sujet:0,clarifications:0,erreurs:0,dernier_ms:0,devoirs:0,repliques:0,non_structures:0,dernier_statut:"aucun",appels_modele:0,jetons_entree:0,jetons_sortie:0,dernier_modele_ms:0};
 export function resumeDialogueDevoirs(){const {essai,...publics}=etat;return {actif:true,source:"Supabase",reponse:"une réplique mémorisée, sans réécriture",...publics,lexique_partage:resumeLexiquePartage(),acces_direct:resumeDialoguesRapides()};}
 export function publierDiagnosticDialogue(bilan:Record<string,unknown>){etat.diagnostic=bilan;}
-let indexCalcule:{signature:string;index:DialogueAppris[]}|undefined;
+let indexCalcule:{signature:string;index:DialogueAppris[];lexique:DialogueAppris[]}|undefined;
 export async function indexDialogue(){
  void chargerDialoguesRapides();
  const [{devoirs},partage]=await Promise.all([devoirsALire(1500),indexLexiquePartage()]);const signature=JSON.stringify([devoirs,partage]);
@@ -20,13 +20,13 @@ export async function indexDialogue(){
  etat.devoirs=index.length;etat.repliques=index.reduce((n,d)=>n+d.repliques.length,0);etat.non_structures=index.filter(d=>!d.repliques.length).length;
  const formulations=new Set(index.flatMap(d=>d.repliques.map(p=>normaliserDialogue(p.fr))));
  const complet=[...index,...partage.filter(d=>!formulations.has(normaliserDialogue(d.repliques[0].fr)))];
- indexCalcule={signature,index:complet};return complet;
+ indexCalcule={signature,index:complet,lexique:complet.filter(d=>d.id.startsWith("lexique:"))};return complet;
 }
 export async function contexteMaitrises(question:string,historique:unknown,budget=6000){
  const index=await indexDialogue(),history=contexteDialogue(historique);
  const carte={...maitrisesPourConversation(index,question,history,budget),references_lexique:[] as Array<{fr:string;wo:string}>};
  let taille=0;
- for(const c of chercherDialogues(index.filter(d=>d.id.startsWith("lexique:")),question,history))for(const p of c.d.repliques){
+ for(const c of chercherDialogues(indexCalcule?.index===index?indexCalcule.lexique:index.filter(d=>d.id.startsWith("lexique:")),question,history))for(const p of c.d.repliques){
   const n=p.fr.length+p.wo.length;if(taille+n>2500)continue;taille+=n;carte.references_lexique.push({fr:p.fr,wo:p.wo});
  }
  return CONSIGNE_MAITRISES+"\nDOMAINES VALIDÉS DISPONIBLES\n"+JSON.stringify(carte);
