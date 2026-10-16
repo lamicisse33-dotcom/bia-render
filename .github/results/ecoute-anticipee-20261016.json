@@ -1,0 +1,144 @@
+{
+  "version": "1b5382f5368e",
+  "ecoute_anticipee": {
+    "utilisees": 0,
+    "lancees": 0,
+    "recuperees": 0,
+    "replis": 0,
+    "dernier_avancement_ms": 0,
+    "compatible": true,
+    "comparaisons": 0,
+    "identiques": 0,
+    "divergences": 0,
+    "diagnostic": {
+      "date": "2026-10-16T22:49:27.924Z",
+      "tours": [
+        {
+          "langue": "fr",
+          "prefixe_accepte": true,
+          "complet_accepte": true,
+          "texte_identique": true,
+          "prefixe_ms": 732,
+          "complet_ms": 464
+        },
+        {
+          "langue": "wo",
+          "prefixe_accepte": true,
+          "complet_accepte": true,
+          "texte_identique": true,
+          "prefixe_ms": 548,
+          "complet_ms": 546
+        }
+      ],
+      "mesure": "Compatibilité réelle de deux WebM incomplets terminant dans le silence ; hors micro navigateur. Ne valide pas le gain utilisateur et ne compte pas pour les trois comparaisons réelles."
+    },
+    "en_cours": 0,
+    "confirmee": false,
+    "strategie": "pause de 300 ms, une anticipation par tour, annulée si la parole reprend"
+  },
+  "parcours": {
+    "statut": "termine",
+    "date": "2026-10-16T22:49:36.686Z",
+    "version": "1b5382f5368e",
+    "mesure": "Chat web et premier audio HTTP réels ; hors microphone, réseau utilisateur et lecture navigateur.",
+    "cas": [
+      {
+        "nom": "lecon",
+        "statut": 200,
+        "premier_texte_ms": null,
+        "premiere_phrase_ms": null,
+        "texte_complet_ms": 2728,
+        "audio_recu": true,
+        "premier_audio_http_ms": 2728,
+        "audio_memorise": true,
+        "source": "dialogue mémorisé (Supabase)",
+        "replique_exacte": true,
+        "contexte": {
+          "comprehension_contextuelle": 1,
+          "historique_tours": 0,
+          "suggestions_transcription": 0,
+          "souvenirs_signes": 654,
+          "lexique_signes": 1789,
+          "lecons_signes": 0,
+          "fiches_signes": 3606,
+          "instructions_signes": 9111,
+          "devoirs_signes": 0,
+          "vitrine_signes": 0,
+          "produits_signes": 0,
+          "connaissances_khalam_signes": 0,
+          "messages_signes": 38325,
+          "prefixe_cache_signes": 9984
+        }
+      },
+      {
+        "nom": "commerce",
+        "statut": 200,
+        "premier_texte_ms": 1618,
+        "premiere_phrase_ms": null,
+        "texte_complet_ms": 2101,
+        "audio_recu": true,
+        "premier_audio_http_ms": 2101,
+        "audio_memorise": true,
+        "source": "dialogue mémorisé (Supabase)",
+        "replique_exacte": true,
+        "contexte": {
+          "comprehension_contextuelle": 1,
+          "historique_tours": 0,
+          "suggestions_transcription": 0,
+          "souvenirs_signes": 1794,
+          "lexique_signes": 1789,
+          "lecons_signes": 0,
+          "fiches_signes": 3802,
+          "instructions_signes": 9111,
+          "devoirs_signes": 0,
+          "vitrine_signes": 0,
+          "produits_signes": 0,
+          "connaissances_khalam_signes": 0,
+          "messages_signes": 39690,
+          "prefixe_cache_signes": 9984
+        }
+      },
+      {
+        "nom": "phrase_longue",
+        "statut": 200,
+        "premier_texte_ms": 1413,
+        "premiere_phrase_ms": 1413,
+        "texte_complet_ms": 2618,
+        "audio_recu": true,
+        "premier_audio_http_ms": 3684,
+        "transport": "stream-fr",
+        "source": "BIA intelligente",
+        "replique_exacte": false,
+        "contexte": {
+          "comprehension_contextuelle": 1,
+          "historique_tours": 0,
+          "suggestions_transcription": 0,
+          "souvenirs_signes": 1799,
+          "lexique_signes": 1789,
+          "lecons_signes": 0,
+          "fiches_signes": 3805,
+          "instructions_signes": 9111,
+          "devoirs_signes": 0,
+          "vitrine_signes": 0,
+          "produits_signes": 0,
+          "connaissances_khalam_signes": 0,
+          "messages_signes": 38167,
+          "prefixe_cache_signes": 9984
+        }
+      }
+    ]
+  },
+  "validation": {
+    "tests_cibles": 69,
+    "typescript": true,
+    "ci_internet": 38977502552,
+    "ci_flux": 38977502625
+  },
+  "limites": [
+    "Compatibilité ASR réelle confirmée sur deux extraits publics seulement.",
+    "Trois comparaisons sur enregistrements réels encore nécessaires avant réutilisation.",
+    "Pas de mesure du microphone ou du navigateur utilisateur dans ces essais.",
+    "Aucun gain total avant/après démontré.",
+    "Sonnet et moteur Khalam Voice non remplacés ; aucun changement des poids, des voix ou de configuration GPU."
+  ]
+}
