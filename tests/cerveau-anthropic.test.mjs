@@ -64,3 +64,13 @@ test('pedagogical reads share a cache but a saved instruction requires fresh dur
  await api.garderInstruction('Conserve mes corrections exactes.');assert.equal(writes,1);assert.equal(calls,3);
  assert((await api.contexteInstructions()).includes('Conserve mes corrections exactes.'));assert.equal(calls,3);
 });
+
+
+test('stable tool text gets a cache breakpoint before changing lesson options without altering any text',()=>{
+ const api=load(async()=>Response.json({}));
+ const data=[{role:'system',content:'personnalité '.repeat(300)},{role:'system',content:'INSTRUCTIONS PÉDAGOGIQUES DU MAÎTRE AUTHENTIFIÉ\n'+'règles '.repeat(500)},{role:'system',content:"Les commandes d'écran se placent en fin de réponse.\n"+'règle outil '.repeat(400)},{role:'system',content:'Choix du devoir changeant '.repeat(200)},{role:'user',content:'Ma question'}];
+ const avant=api.messagesAnthropic(data,false),apres=api.messagesAnthropic(data);
+ assert.deepEqual(apres.system.map(b=>b.text),avant.system.map(b=>b.text));assert.deepEqual(apres.messages,avant.messages);
+ assert.equal(avant.system[2].cache_control,undefined);assert(apres.system[2].cache_control);assert.equal(apres.system[3].cache_control,undefined);
+ assert.equal(apres.system.filter(b=>b.cache_control).length,3);
+});
