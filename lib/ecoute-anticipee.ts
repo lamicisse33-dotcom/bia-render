@@ -17,7 +17,9 @@ export async function anticiperEcoute(cle:string,code:string,audio:Blob,langue:s
  if(!audio.type.includes('webm')||audio.size<4000||audio.size>2*1024*1024)return false;
  const bytes=new Uint8Array(await audio.arrayBuffer());
  etat.lancees++;
- etat.travaux.set(key,{owner,hash:hash(bytes),octets:bytes.length,langue,debut:Date.now(),resultat:chezOreilleLocale(audio).catch(()=>null)});
+ const travail={owner,hash:hash(bytes),octets:bytes.length,langue,debut:Date.now(),resultat:chezOreilleLocale(audio).catch(()=>null)};
+ etat.travaux.set(key,travail);
+ setTimeout(()=>{if(etat.travaux.get(key)===travail)etat.travaux.delete(key);},30000).unref();
  return true;
 }
 /** Final audio must begin with the exact authenticated snapshot. Browser also
