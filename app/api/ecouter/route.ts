@@ -1,3 +1,4 @@
+import {reprendreEcoute,anticipationConfirmee,comparerAnticipation,noterUtilisationAnticipation} from '@/lib/ecoute-anticipee';
 import { detecterLangue } from "@/lib/langue";
 import {preparerEcoute} from "@/lib/preparer-ecoute";
 import { NextRequest, NextResponse } from "next/server";
@@ -103,7 +104,13 @@ export async function POST(request: NextRequest) {
        refusait. Le format d'un enregistrement ne se décide pas sur le
        serveur : il se constate. */
     const nom = (fichier instanceof File && fichier.name) ? fichier.name : "parole.webm";
-    const {reco,ecriture,correction_disponible,chronometrage} = await preparerEcoute(fichier,nom,indice);
+    const anticipation=verdict.maitre&&cleValide(form.get('anticipation'))?reprendreEcoute(cleValide(form.get('anticipation')),request.headers.get('x-bia-code')||'',fichier,indice):Promise.resolve(null);
+    const confirmee=anticipationConfirmee();
+    const anticipee=confirmee?await anticipation:null;
+    const {reco,ecriture,correction_disponible,chronometrage}=await preparerEcoute(fichier,nom,indice,anticipee);
+    if(anticipee)noterUtilisationAnticipation();
+    // Calibration never delays the complete transcript or writes a partial one.
+    if(!confirmee)void anticipation.then(r=>{if(r)comparerAnticipation(r,reco);}).catch(()=>{});
     if (transcriptionEnBoucle(String(reco.texte || ""))) {
       noterPanne("transcription répétitive rejetée", "boucle de reconnaissance vocale", "ecoute");
       return NextResponse.json({ texte: "", transcription_rejetee: true,
@@ -160,7 +167,7 @@ export async function POST(request: NextRequest) {
       // as usable without pretending a contextual model check took place.
       verification: { statut: "conservee", langue: detecterLangue(ecriture.texte, indice === "fr" ? "fr" : "wo"),
         source_langue: "lexique", verification_contextuelle: false },
-      au_fil_de_leau: recousu, extrait });
+      au_fil_de_leau: recousu, anticipation_utilisee:!!anticipee, extrait });
   } catch (err) {
     /* ── UNE ÉCOUTE QUI ÉCHOUE NE LAISSAIT AUCUNE TRACE ──────────────────
 

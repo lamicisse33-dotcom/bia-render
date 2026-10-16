@@ -1,4 +1,4 @@
-import {transcrire} from './ecoute';
+import {transcrire,type Ecoute} from './ecoute';
 import {motsCorriges} from './lexique';
 import {pourScribe} from './mots-a-entendre';
 import {corrigerTranscription,lireCorrectionsTranscription,phrasesLexiqueComplet} from './correction-transcription';
@@ -11,11 +11,11 @@ export const resumePreparationEcoute=()=>({...etat});
 export const noterDiagnosticEcoute=(bilan:unknown)=>{etat.diagnostic=bilan;};
 
 /** Corrections load during recognition. Hints load only for a provider using them. */
-export async function preparerEcoute(audio:Blob,nom:string,indice:string|null){
+export async function preparerEcoute(audio:Blob,nom:string,indice:string|null,recoAnticipee?:Ecoute|null){
  const debut=Date.now();let vocabulaire_ms=0,references_ms=0,comparaison_ms=0,references_pretes=false;
  const corrections=lireCorrectionsTranscription().catch(()=>null);
  const phrases=phrasesLexiqueComplet().catch(()=>null);
- const reco=await transcrire(audio,nom,indice,async()=>{
+ const reco=recoAnticipee??await transcrire(audio,nom,indice,async()=>{
   const t=Date.now();
   try{
    const [mots,appris]=await Promise.all([motsCorriges(60).catch(()=>[]),phrases.then(p=>p?[...new Set(p.flatMap(s=>[s,...s.match(/[\p{L}\p{M}'’-]{3,}/gu)||[]]))]:[])]);
