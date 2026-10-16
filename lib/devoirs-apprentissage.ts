@@ -67,8 +67,27 @@ export async function phrasesApprisesDevoirs(wolofSeulement=false){
 
 export const revisionDevoir=(texte:string)=>createHash("sha256").update(texte).digest("hex");
 export function invaliderDevoirs(){cache=null;revisions.biaGenerationDevoirs=(revisions.biaGenerationDevoirs||0)+1;}
+// Blocks are private immutable snapshots, replaced on expiry or invalidation.
+// Reuse parsing/hashing only for the same snapshot; no additional freshness TTL.
+const assemblages=new WeakMap<Bloc[],ReturnType<typeof assemblerDevoirs>>();
+function assemblerSnapshot(blocs:Bloc[],recalculer=false){
+ let resultat=recalculer?undefined:assemblages.get(blocs);
+ if(!resultat){const brut=assemblerDevoirs(blocs);resultat={...brut,devoirs:brut.devoirs.map(d=>({...d,revision:revisionDevoir(d.texte)}))};assemblages.set(blocs,resultat);}
+ return resultat;
+}
 export async function devoirsALire(delaiMs=8000){
  const debut=Date.now();
- try{const resultat=assemblerDevoirs(await lireBlocs(delaiMs));noterChargementDevoirs(Date.now()-debut,resultat);return {...resultat,devoirs:resultat.devoirs.map(d=>({...d,revision:revisionDevoir(d.texte)}))};}
+ try{const resultat=assemblerSnapshot(await lireBlocs(delaiMs));noterChargementDevoirs(Date.now()-debut,resultat);return {...resultat,devoirs:resultat.devoirs.map(d=>({...d}))};}
  catch(e){noterChargementDevoirs(Date.now()-debut);throw e;}
+}
+
+/** Read-only benchmark on the current snapshot; source text never leaves here. */
+export async function comparerAssemblageDevoirs(){
+ const blocs=await lireBlocs(),tours=[];
+ for(let i=0;i<4;i++){
+  const t=performance.now(),avant=assemblerSnapshot(blocs,true),avantMs=performance.now()-t;
+  const u=performance.now(),apres=assemblerSnapshot(blocs),apresMs=performance.now()-u;
+  tours.push({recalcul_ms:Math.round(avantMs*100)/100,reutilisation_ms:Math.round(apresMs*100)/100,identique:JSON.stringify(avant)===JSON.stringify(apres)});
+ }
+ return {blocs:blocs.length,tours};
 }
