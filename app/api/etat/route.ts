@@ -1,3 +1,4 @@
+import {resumeEcouteAnticipee} from '@/lib/ecoute-anticipee';
 import {resumeComparaisonCerveaux} from '@/lib/essai-cerveaux-rapides';
 import {resumeAnticipationLexique} from '@/lib/anticipation-lexique-voix';
 import {resumeCharabiaMarche} from '@/lib/essai-charabia-marche';
@@ -200,6 +201,7 @@ export async function GET(request: Request) {
     fiches_connaissances:resumeFichesConnaissances(),
     connexion_fiches:resumeConnexionFiches(),
     memorisation_maitre:resumeEssaiMemoire(),
+    ecoute_anticipee:resumeEcouteAnticipee(),
     preparation_detaillee:resumeProfilPreparation(),
     latence_conversation:resumeLatenceConversation(),
     latence_pipeline:resumeLatencePipeline(),
