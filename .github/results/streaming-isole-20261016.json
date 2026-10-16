@@ -1,0 +1,372 @@
+{
+  "stable_reference": "441951c3c93f426bfa186731c3ab4c284e966b09",
+  "published": "fbf62fd9d6198a8c8f4034ef3059ad3d436174d9",
+  "before": {
+    "version": "441951c3c93f",
+    "oreille_locale": {
+      "modele": "omniASR_LLM_1B_v2",
+      "ecoutes": 19,
+      "reussites": 19,
+      "replis": 0,
+      "silences": 0,
+      "ms_moyen": 691,
+      "audio_secondes": 84.3,
+      "dernier_refus": ""
+    },
+    "pannes": {
+      "total": 0,
+      "dernieres": []
+    },
+    "tours": {
+      "tours": 16,
+      "ou_passe_le_temps": [
+        {
+          "quoi": "le modèle",
+          "ms": 1923,
+          "part": 34
+        },
+        {
+          "quoi": "la fabrication de la voix",
+          "ms": 1590,
+          "part": 28
+        },
+        {
+          "quoi": "la transcription",
+          "ms": 1088,
+          "part": 19
+        },
+        {
+          "quoi": "le silence avant la coupure du micro",
+          "ms": 831,
+          "part": 15
+        },
+        {
+          "quoi": "le transport de la voix (réseau + décodage)",
+          "ms": 187,
+          "part": 3
+        },
+        {
+          "quoi": "le démarrage du son",
+          "ms": 65,
+          "part": 1
+        },
+        {
+          "quoi": "l'attente qu'il finisse de parler (la porte)",
+          "ms": 0,
+          "part": 0
+        }
+      ],
+      "reponse_du_modele": {
+        "tours": 16,
+        "vecu_ms": 5658,
+        "queue_ms": 831,
+        "transcription_ms": 1088,
+        "modele_ms": 1923,
+        "voix_ms": 1793,
+        "demarrage_ms": 65,
+        "ailleurs_ms": 0
+      },
+      "reponse_enregistree": null,
+      "avec_phrase_dattente": 0,
+      "partis_avant_la_fin": 15,
+      "sources": {
+        "BIA intelligente": 14,
+        "inconnue": 1,
+        "BIA intelligente + internet": 1
+      },
+      "derniers": [
+        {
+          "voie": "parole",
+          "source": "inconnue",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 958,
+          "transcription_ms": 1444,
+          "modele_ms": 2151,
+          "voix_ms": 125,
+          "voix_fabrication_ms": 0,
+          "voix_transfert_ms": 125,
+          "demarrage_ms": 465,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 5143,
+          "quand": 1792192242280
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 960,
+          "transcription_ms": 986,
+          "modele_ms": 2907,
+          "voix_ms": 1923,
+          "voix_fabrication_ms": 1754,
+          "voix_transfert_ms": 169,
+          "demarrage_ms": 64,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 6840,
+          "quand": 1792192381448
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 703,
+          "transcription_ms": 804,
+          "modele_ms": 1755,
+          "voix_ms": 1837,
+          "voix_fabrication_ms": 1650,
+          "voix_transfert_ms": 187,
+          "demarrage_ms": 64,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 5163,
+          "quand": 1792192400123
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 958,
+          "transcription_ms": 996,
+          "modele_ms": 1786,
+          "voix_ms": 1813,
+          "voix_fabrication_ms": 1604,
+          "voix_transfert_ms": 209,
+          "demarrage_ms": 62,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 5615,
+          "quand": 1792192800930
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": false,
+          "queue_ms": 958,
+          "transcription_ms": 1379,
+          "modele_ms": 2268,
+          "voix_ms": 1897,
+          "voix_fabrication_ms": 1691,
+          "voix_transfert_ms": 206,
+          "demarrage_ms": 66,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 6568,
+          "quand": 1792192818417
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 703,
+          "transcription_ms": 983,
+          "modele_ms": 1537,
+          "voix_ms": 1743,
+          "voix_fabrication_ms": 1590,
+          "voix_transfert_ms": 153,
+          "demarrage_ms": 464,
+          "attente_porte_ms": 1,
+          "ailleurs_ms": 0,
+          "vecu_ms": 5431,
+          "quand": 1792192833163
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 703,
+          "transcription_ms": 1028,
+          "modele_ms": 1939,
+          "voix_ms": 1647,
+          "voix_fabrication_ms": 1461,
+          "voix_transfert_ms": 186,
+          "demarrage_ms": 64,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 5381,
+          "quand": 1792192852733
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 705,
+          "transcription_ms": 1191,
+          "modele_ms": 1908,
+          "voix_ms": 1831,
+          "voix_fabrication_ms": 1665,
+          "voix_transfert_ms": 166,
+          "demarrage_ms": 66,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 5701,
+          "quand": 1792192916082
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 702,
+          "transcription_ms": 1033,
+          "modele_ms": 1632,
+          "voix_ms": 1817,
+          "voix_fabrication_ms": 1616,
+          "voix_transfert_ms": 201,
+          "demarrage_ms": 65,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 5249,
+          "quand": 1792192937683
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente + internet",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 957,
+          "transcription_ms": 1220,
+          "modele_ms": 1937,
+          "voix_ms": 136,
+          "voix_fabrication_ms": 0,
+          "voix_transfert_ms": 136,
+          "demarrage_ms": 465,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 4715,
+          "quand": 1792192964488
+        }
+      ]
+    }
+  },
+  "after": {
+    "reference": "441951c3c93f",
+    "conversation_modifiee": false,
+    "serveur": {
+      "statut": "termine",
+      "date": "2026-10-16T23:43:00.513Z",
+      "version": "fbf62fd9d619",
+      "mesure": "GPU HTTP : réception du premier WAV, hors micro/LLM/navigateur ; pas une validation de prononciation.",
+      "cas": [
+        {
+          "langue": "wo",
+          "texte": "Dañu bëgg ma def lu ma bëggul.",
+          "passes": [
+            {
+              "mode": "complet",
+              "premier_audio_ms": 1181,
+              "reception_complete_ms": 1182,
+              "generation_ms": 1006,
+              "paquets": 1,
+              "duree_ms": 1440,
+              "sha256_pcm": "c83dcff6af01ed6810b03e7402279462f20440c6583cf3ae8d930219b285139f",
+              "integrite": true
+            },
+            {
+              "mode": "stream",
+              "premier_audio_ms": 2030,
+              "reception_complete_ms": 2031,
+              "generation_ms": 1876,
+              "paquets": 1,
+              "duree_ms": 1480,
+              "sha256_pcm": "fd1d0f314ea4097ef0c3c67005c6c817a560a63a19e1852ee0e8fdc7ddacdcba",
+              "integrite": true
+            }
+          ],
+          "gain_premier_audio_ms": -849,
+          "pcm_identique": false,
+          "ecart_duree_ms": 40
+        },
+        {
+          "langue": "wo",
+          "texte": "Mu dem ci marse bi, jënd soble ak tamaate, te dellusi ci kër ga.",
+          "passes": [
+            {
+              "mode": "stream",
+              "premier_audio_ms": 1618,
+              "reception_complete_ms": 2303,
+              "generation_ms": 2209,
+              "paquets": 2,
+              "duree_ms": 3320,
+              "sha256_pcm": "5ba3d57ac12d1e3847b0dd90afec72a4640e1594980aaadc8b5ba994d07001ea",
+              "integrite": true
+            },
+            {
+              "mode": "complet",
+              "premier_audio_ms": 3880,
+              "reception_complete_ms": 3881,
+              "generation_ms": 3537,
+              "paquets": 1,
+              "duree_ms": 3960,
+              "sha256_pcm": "335f5b39873186e4fa49af96735f95a0d764a2bd846890488f06b6069792d049",
+              "integrite": true
+            }
+          ],
+          "gain_premier_audio_ms": 2262,
+          "pcm_identique": false,
+          "ecart_duree_ms": -640
+        },
+        {
+          "langue": "fr",
+          "texte": "Le budget doit rester accessible à tous.",
+          "passes": [
+            {
+              "mode": "complet",
+              "premier_audio_ms": 2620,
+              "reception_complete_ms": 2620,
+              "generation_ms": 2376,
+              "paquets": 1,
+              "duree_ms": 2840,
+              "sha256_pcm": "b934a36f5f0bd70e3237ecc7248987815aa44663236dff7e068f47717ccfb887",
+              "integrite": true
+            },
+            {
+              "mode": "stream",
+              "premier_audio_ms": 2801,
+              "reception_complete_ms": 3290,
+              "generation_ms": 3214,
+              "paquets": 2,
+              "duree_ms": 2840,
+              "sha256_pcm": "742725e4a41b71b605a52dfc30d23664c666ccd9e4d6412af942667564436491",
+              "integrite": true
+            }
+          ],
+          "gain_premier_audio_ms": -181,
+          "pcm_identique": false,
+          "ecart_duree_ms": 0
+        }
+      ],
+      "fin": "2026-10-16T23:43:15.820Z"
+    },
+    "navigateur": []
+  },
+  "model_health": {
+    "ok": true,
+    "checkpoint_sha256": "8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f",
+    "female_condition_sha256": "1c887622e66751816d26d796936da25a70862ebd277f0b80f1173e5f945559b7",
+    "language_profiles": {
+      "wo": "8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f",
+      "fr": "b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75"
+    },
+    "streaming": "tokens-prefix-v1"
+  },
+  "validation": {
+    "focused_tests": 7,
+    "typescript": "pass",
+    "github_workflows": 3,
+    "unauthenticated_experiment_endpoint": 401,
+    "browser_page": "visible; French sample selection updates phrase and language",
+    "browser_audio": "not exercised: master sign-in required"
+  },
+  "decision": "Keep production routing unchanged. Single paired trials show mixed gains; longer Wolof streaming output is 640 ms shorter, requires human word-by-word listening. No ASR streaming or new model deployed.",
+  "page": "https://app.khalam.app/essai-streaming"
+}
