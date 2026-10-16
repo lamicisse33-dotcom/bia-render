@@ -1,0 +1,726 @@
+{
+  "date": "2026-10-16",
+  "deployed_commit": "bd3e03787a65",
+  "pull_request": 31,
+  "baseline": {
+    "tours": {
+      "tours": 60,
+      "ou_passe_le_temps": [
+        {
+          "quoi": "le modèle",
+          "ms": 2432,
+          "part": 37
+        },
+        {
+          "quoi": "la fabrication de la voix",
+          "ms": 1594,
+          "part": 24
+        },
+        {
+          "quoi": "la transcription",
+          "ms": 1256,
+          "part": 19
+        },
+        {
+          "quoi": "le silence avant la coupure du micro",
+          "ms": 958,
+          "part": 15
+        },
+        {
+          "quoi": "le transport de la voix (réseau + décodage)",
+          "ms": 291,
+          "part": 4
+        },
+        {
+          "quoi": "le démarrage du son",
+          "ms": 71,
+          "part": 1
+        },
+        {
+          "quoi": "l'attente qu'il finisse de parler (la porte)",
+          "ms": 0,
+          "part": 0
+        }
+      ],
+      "reponse_du_modele": {
+        "tours": 58,
+        "vecu_ms": 6703,
+        "queue_ms": 958,
+        "transcription_ms": 1256,
+        "modele_ms": 2432,
+        "voix_ms": 1923,
+        "demarrage_ms": 71,
+        "ailleurs_ms": 0
+      },
+      "reponse_enregistree": {
+        "tours": 2,
+        "vecu_ms": 11235,
+        "queue_ms": 977,
+        "transcription_ms": 2065,
+        "modele_ms": 3489,
+        "voix_ms": 4588,
+        "demarrage_ms": 117,
+        "ailleurs_ms": 0
+      },
+      "avec_phrase_dattente": 0,
+      "partis_avant_la_fin": 57,
+      "sources": {
+        "inconnue": 6,
+        "BIA intelligente": 52,
+        "service (gratuit)": 1,
+        "ordre du maître (compris par elle)": 1
+      },
+      "derniers": [
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 958,
+          "transcription_ms": 1036,
+          "modele_ms": 2484,
+          "voix_ms": 2097,
+          "voix_fabrication_ms": 1786,
+          "voix_transfert_ms": 311,
+          "demarrage_ms": 67,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 6642,
+          "quand": 1792175001225
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 658,
+          "transcription_ms": 853,
+          "modele_ms": 4923,
+          "voix_ms": 2100,
+          "voix_fabrication_ms": 1725,
+          "voix_transfert_ms": 375,
+          "demarrage_ms": 67,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 8601,
+          "quand": 1792175032161
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 959,
+          "transcription_ms": 881,
+          "modele_ms": 1943,
+          "voix_ms": 1599,
+          "voix_fabrication_ms": 1312,
+          "voix_transfert_ms": 287,
+          "demarrage_ms": 63,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 5445,
+          "quand": 1792175050796
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 658,
+          "transcription_ms": 879,
+          "modele_ms": 2180,
+          "voix_ms": 1969,
+          "voix_fabrication_ms": 1683,
+          "voix_transfert_ms": 286,
+          "demarrage_ms": 64,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 5750,
+          "quand": 1792175066998
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 959,
+          "transcription_ms": 1399,
+          "modele_ms": 2303,
+          "voix_ms": 1899,
+          "voix_fabrication_ms": 1607,
+          "voix_transfert_ms": 292,
+          "demarrage_ms": 66,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 6626,
+          "quand": 1792175087350
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 959,
+          "transcription_ms": 1083,
+          "modele_ms": 8218,
+          "voix_ms": 3181,
+          "voix_fabrication_ms": 2813,
+          "voix_transfert_ms": 368,
+          "demarrage_ms": 67,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 13508,
+          "quand": 1792175121851
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 659,
+          "transcription_ms": 1068,
+          "modele_ms": 1313,
+          "voix_ms": 1658,
+          "voix_fabrication_ms": 1370,
+          "voix_transfert_ms": 288,
+          "demarrage_ms": 65,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 4763,
+          "quand": 1792175144050
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 660,
+          "transcription_ms": 958,
+          "modele_ms": 2225,
+          "voix_ms": 2069,
+          "voix_fabrication_ms": 1595,
+          "voix_transfert_ms": 474,
+          "demarrage_ms": 465,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 6377,
+          "quand": 1792183111178
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 658,
+          "transcription_ms": 849,
+          "modele_ms": 1815,
+          "voix_ms": 1888,
+          "voix_fabrication_ms": 1611,
+          "voix_transfert_ms": 277,
+          "demarrage_ms": 66,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 5276,
+          "quand": 1792183127343
+        },
+        {
+          "voie": "parole",
+          "source": "BIA intelligente",
+          "attente": false,
+          "surLaTete": true,
+          "queue_ms": 959,
+          "transcription_ms": 1051,
+          "modele_ms": 1808,
+          "voix_ms": 2001,
+          "voix_fabrication_ms": 1718,
+          "voix_transfert_ms": 283,
+          "demarrage_ms": 467,
+          "attente_porte_ms": 0,
+          "ailleurs_ms": 0,
+          "vecu_ms": 6286,
+          "quand": 1792183164559
+        }
+      ]
+    },
+    "etapes": {
+      "preparation": {
+        "appels": 19,
+        "premier_octet_ms": 468,
+        "complet_ms": 468,
+        "coulee_ms": 0,
+        "verdict": "tout arrive d'un coup : rien à gagner à ne pas attendre la fin",
+        "signes_median": 31,
+        "derniers": [
+          {
+            "quoi": "preparation",
+            "premier_ms": 246,
+            "fin_ms": 246,
+            "coulee_ms": 0,
+            "signes": 16,
+            "quand": 1792175141319
+          },
+          {
+            "quoi": "preparation",
+            "premier_ms": 429,
+            "fin_ms": 429,
+            "coulee_ms": 0,
+            "signes": 23,
+            "quand": 1792183106907
+          },
+          {
+            "quoi": "preparation",
+            "premier_ms": 285,
+            "fin_ms": 285,
+            "coulee_ms": 0,
+            "signes": 25,
+            "quand": 1792183123923
+          },
+          {
+            "quoi": "preparation",
+            "premier_ms": 555,
+            "fin_ms": 555,
+            "coulee_ms": 0,
+            "signes": 29,
+            "quand": 1792183160910
+          },
+          {
+            "quoi": "preparation",
+            "premier_ms": 430,
+            "fin_ms": 430,
+            "coulee_ms": 0,
+            "signes": 62,
+            "quand": 1792183180933
+          }
+        ]
+      },
+      "ecoute": {
+        "appels": 21,
+        "premier_octet_ms": 768,
+        "complet_ms": 768,
+        "coulee_ms": 0,
+        "verdict": "tout arrive d'un coup : rien à gagner à ne pas attendre la fin",
+        "signes_median": 31,
+        "derniers": [
+          {
+            "quoi": "ecoute",
+            "premier_ms": 693,
+            "fin_ms": 693,
+            "coulee_ms": 0,
+            "signes": 23,
+            "quand": 1792183106223
+          },
+          {
+            "quoi": "ecoute",
+            "premier_ms": 566,
+            "fin_ms": 566,
+            "coulee_ms": 0,
+            "signes": 25,
+            "quand": 1792183123402
+          },
+          {
+            "quoi": "ecoute",
+            "premier_ms": 770,
+            "fin_ms": 770,
+            "coulee_ms": 0,
+            "signes": 29,
+            "quand": 1792183160064
+          },
+          {
+            "quoi": "ecoute",
+            "premier_ms": 1321,
+            "fin_ms": 1321,
+            "coulee_ms": 0,
+            "signes": 50,
+            "quand": 1792183178754
+          },
+          {
+            "quoi": "ecoute",
+            "premier_ms": 332,
+            "fin_ms": 332,
+            "coulee_ms": 0,
+            "signes": 11,
+            "quand": 1792183180155
+          }
+        ]
+      },
+      "modele": {
+        "appels": 20,
+        "premier_octet_ms": 1247,
+        "complet_ms": 2101,
+        "coulee_ms": 854,
+        "verdict": "il y a 854 ms à reprendre : le reste coule après le premier octet",
+        "signes_median": 161,
+        "derniers": [
+          {
+            "quoi": "modele",
+            "premier_ms": 636,
+            "fin_ms": 2434,
+            "coulee_ms": 1798,
+            "signes": 187,
+            "quand": 1792175143753
+          },
+          {
+            "quoi": "modele",
+            "premier_ms": 1411,
+            "fin_ms": 1853,
+            "coulee_ms": 442,
+            "signes": 112,
+            "quand": 1792183108760
+          },
+          {
+            "quoi": "modele",
+            "premier_ms": 1082,
+            "fin_ms": 1840,
+            "coulee_ms": 758,
+            "signes": 337,
+            "quand": 1792183125763
+          },
+          {
+            "quoi": "modele",
+            "premier_ms": 669,
+            "fin_ms": 1927,
+            "coulee_ms": 1258,
+            "signes": 293,
+            "quand": 1792183162837
+          },
+          {
+            "quoi": "modele",
+            "premier_ms": 1565,
+            "fin_ms": 3366,
+            "coulee_ms": 1801,
+            "signes": 172,
+            "quand": 1792183184299
+          }
+        ]
+      },
+      "voix_tete": null,
+      "voix": null
+    },
+    "attentes": {
+      "apres_le_micro": {
+        "echanges": 40,
+        "total_ms": 5564,
+        "transcription_ms": 1253,
+        "modele_ms": 3013,
+        "voix_ms": 1728
+      },
+      "question_tapee": null,
+      "derniere": {
+        "voie": "parole",
+        "transcription": 1049,
+        "modele": 2584,
+        "voix": 1225,
+        "total": 4858,
+        "quand": "2026-10-16T20:39:24.148Z"
+      }
+    },
+    "lecture": {
+      "reponses": 40,
+      "en_plusieurs_morceaux": 29,
+      "couture_max_ms": 380,
+      "couture_mediane_ms": 0,
+      "dernieres": [
+        {
+          "continu": false,
+          "morceaux": 3,
+          "couture_max_ms": 0,
+          "couture_totale_ms": 0,
+          "duree_ms": 4907,
+          "quand": "2026-10-16T20:38:35.679Z"
+        },
+        {
+          "continu": false,
+          "morceaux": 2,
+          "couture_max_ms": 0,
+          "couture_totale_ms": 0,
+          "duree_ms": 2820,
+          "quand": "2026-10-16T20:38:40.444Z"
+        },
+        {
+          "continu": false,
+          "morceaux": 2,
+          "couture_max_ms": 0,
+          "couture_totale_ms": 0,
+          "duree_ms": 3384,
+          "quand": "2026-10-16T20:38:50.722Z"
+        },
+        {
+          "continu": false,
+          "morceaux": 11,
+          "couture_max_ms": 0,
+          "couture_totale_ms": 0,
+          "duree_ms": 21109,
+          "quand": "2026-10-16T20:39:13.940Z"
+        },
+        {
+          "continu": false,
+          "morceaux": 4,
+          "couture_max_ms": 0,
+          "couture_totale_ms": 0,
+          "duree_ms": 8066,
+          "quand": "2026-10-16T20:39:32.219Z"
+        }
+      ]
+    }
+  },
+  "live_probe": {
+    "anticipation_lexique_voix": {
+      "appels": 3,
+      "erreurs": 0,
+      "dernier_ms": 13,
+      "diagnostic": {
+        "date": "2026-10-16T21:51:07.214Z",
+        "tours": [
+          {
+            "langue": "fr",
+            "lecture_et_preparation_ms": 245,
+            "preparation_apres_anticipation_ms": 0,
+            "passages_identiques": true
+          },
+          {
+            "langue": "wo",
+            "lecture_et_preparation_ms": 130,
+            "preparation_apres_anticipation_ms": 0,
+            "passages_identiques": true
+          }
+        ],
+        "perimetre": "Lecture Supabase forcée comparée à un lexique déjà préparé ; aucun gain bout à bout déduit de cet essai."
+      },
+      "en_cours": false
+    },
+    "latence_pipeline": {
+      "date": "2026-10-16T21:51:07.215Z",
+      "version": "bd3e03787a65",
+      "mesure": "Appels réels : enregistrement archivé, ASR, réponse et premier audio HTTP. Hors microphone et lecture navigateur.",
+      "etape": "termine",
+      "lecture_navigateur_mesuree": false,
+      "origine_audio": "audio_pre_enregistre_controle",
+      "depot": {
+        "morceaux": 2,
+        "statuts": [
+          200,
+          200
+        ],
+        "ms": 306
+      },
+      "recousu": {
+        "statut": 200,
+        "renvoyer": false,
+        "ms": 899
+      },
+      "transcription": {
+        "statut": 200,
+        "ms": 899,
+        "chronometrage": {
+          "total_ms": 873,
+          "reconnaissance_ms": 781,
+          "vocabulaire_ms": 0,
+          "correction_apres_reconnaissance_ms": 92,
+          "salutation": false,
+          "references_ms": 0,
+          "comparaison_ms": 92,
+          "references_pretes": true
+        },
+        "salutation_reconnue": false,
+        "date_extrait": null
+      },
+      "conversation": {
+        "statut": 200,
+        "premier_texte_ms": 3498,
+        "premiere_phrase_ms": 4069,
+        "texte_complet_ms": 4080,
+        "voix": {
+          "audio_recu": true,
+          "premier_audio_ms": 2484,
+          "depuis_demande_ms": 6553
+        }
+      },
+      "fin": "2026-10-16T21:51:15.227Z"
+    },
+    "etapes": {
+      "preparation": {
+        "appels": 1,
+        "premier_octet_ms": 1134,
+        "complet_ms": 1134,
+        "coulee_ms": 0,
+        "verdict": "tout arrive d'un coup : rien à gagner à ne pas attendre la fin",
+        "signes_median": 77,
+        "derniers": [
+          {
+            "quoi": "preparation",
+            "premier_ms": 1134,
+            "fin_ms": 1134,
+            "coulee_ms": 0,
+            "signes": 77,
+            "quand": 1792187469833
+          }
+        ]
+      },
+      "ecoute": {
+        "appels": 1,
+        "premier_octet_ms": 779,
+        "complet_ms": 779,
+        "coulee_ms": 0,
+        "verdict": "tout arrive d'un coup : rien à gagner à ne pas attendre la fin",
+        "signes_median": 28,
+        "derniers": [
+          {
+            "quoi": "ecoute",
+            "premier_ms": 779,
+            "fin_ms": 779,
+            "coulee_ms": 0,
+            "signes": 28,
+            "quand": 1792187468572
+          }
+        ]
+      },
+      "modele": {
+        "appels": 1,
+        "premier_octet_ms": 2335,
+        "complet_ms": 2913,
+        "coulee_ms": 578,
+        "verdict": "tout arrive d'un coup : rien à gagner à ne pas attendre la fin",
+        "signes_median": 195,
+        "derniers": [
+          {
+            "quoi": "modele",
+            "premier_ms": 2335,
+            "fin_ms": 2913,
+            "coulee_ms": 578,
+            "signes": 195,
+            "quand": 1792187472746
+          }
+        ]
+      },
+      "voix_tete": null,
+      "voix": null
+    },
+    "preparation_detaillee": {
+      "mesures": [
+        {
+          "nom": "choix_cache",
+          "ms": 83,
+          "ok": true,
+          "quand": "2026-10-16T21:51:08.785Z"
+        },
+        {
+          "nom": "khalam",
+          "ms": 2,
+          "ok": true,
+          "quand": "2026-10-16T21:51:08.789Z"
+        },
+        {
+          "nom": "produits",
+          "ms": 2,
+          "ok": true,
+          "quand": "2026-10-16T21:51:08.789Z"
+        },
+        {
+          "nom": "devoirs",
+          "ms": 76,
+          "ok": true,
+          "quand": "2026-10-16T21:51:08.864Z"
+        },
+        {
+          "nom": "mots_corriges",
+          "ms": 77,
+          "ok": true,
+          "quand": "2026-10-16T21:51:08.865Z"
+        },
+        {
+          "nom": "choix",
+          "ms": 87,
+          "ok": true,
+          "quand": "2026-10-16T21:51:08.875Z"
+        },
+        {
+          "nom": "vitrine",
+          "ms": 140,
+          "ok": true,
+          "quand": "2026-10-16T21:51:08.927Z"
+        },
+        {
+          "nom": "instructions",
+          "ms": 178,
+          "ok": true,
+          "quand": "2026-10-16T21:51:08.966Z"
+        },
+        {
+          "nom": "fiches",
+          "ms": 903,
+          "ok": true,
+          "quand": "2026-10-16T21:51:09.691Z"
+        },
+        {
+          "nom": "souvenirs",
+          "ms": 922,
+          "ok": true,
+          "quand": "2026-10-16T21:51:09.708Z"
+        },
+        {
+          "nom": "correction_exacte",
+          "ms": 4,
+          "ok": true,
+          "quand": "2026-10-16T21:51:09.716Z"
+        },
+        {
+          "nom": "exemples",
+          "ms": 10,
+          "ok": true,
+          "quand": "2026-10-16T21:51:09.726Z"
+        },
+        {
+          "nom": "reponse_gardee",
+          "ms": 105,
+          "ok": true,
+          "quand": "2026-10-16T21:51:09.831Z"
+        }
+      ],
+      "diagnostic": null
+    },
+    "anthropic": {
+      "appels": 1,
+      "acceptes": 1,
+      "erreurs": 0,
+      "dernier_statut": 200,
+      "dernier_ms": 2324,
+      "modele": "claude-sonnet-5-5",
+      "cle_presente": true
+    },
+    "chatterbox_test": {
+      "scope": "upstream_generations_since_process_start",
+      "started_at": "2026-10-16T21:49:37.082Z",
+      "male": {
+        "completed": 0,
+        "error": 0,
+        "last_generation_ms": null,
+        "last_completed_at": null,
+        "last_error_at": null,
+        "last_error_code": null,
+        "last_error_status": null
+      },
+      "female": {
+        "completed": 1,
+        "error": 0,
+        "last_generation_ms": 2024,
+        "last_completed_at": "2026-10-16T21:51:15.210Z",
+        "last_error_at": null,
+        "last_error_code": null,
+        "last_error_status": null
+      }
+    }
+  },
+  "validation": {
+    "targeted_tests_passed": 76,
+    "typescript": "passed",
+    "streaming_ci": 38971558313,
+    "internet_ci": 38971558390
+  },
+  "limitations": [
+    "Controlled pronunciation comparison forces a fresh read; this is not a measured per-user end-to-end gain.",
+    "Pipeline probe uses prerecorded control audio then a separate fixed French question; excludes user microphone, VAD and playback.",
+    "No new post-deployment real browser turns measured.",
+    "Runpod production engine, voice references and model files unchanged."
+  ]
+}
