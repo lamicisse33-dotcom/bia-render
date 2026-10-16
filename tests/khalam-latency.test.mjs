@@ -47,3 +47,12 @@ test('forced short heads keep conjunctions with their following clause without a
  }
  assert.deepEqual(split('Mu dem ci marse bi, jënd soble ak tamaate, te dellusi ci kër ga.'),['Mu dem ci marse bi, jënd soble ak tamaate,','te dellusi ci kër ga.']);
 });
+
+
+test('complete short Wolof sentence can stay whole within existing synthesis limits',()=>{
+ const t='Mu dem ci marse bi, jënd soble ak tamaate, te dellusi ci kër ga.';
+ assert.deepEqual(split(t,true),[t]);
+ assert.equal(split(t).length,2);
+ const many='mot '.repeat(20)+'fin.';assert(split(many,true).length>1);
+ assert.deepEqual(split('Première phrase. Deuxième phrase.',true),['Première phrase.','Deuxième phrase.']);
+});
