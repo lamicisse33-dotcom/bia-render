@@ -1,3 +1,4 @@
+import {reprendreEcoute,anticipationConfirmee,comparerAnticipation} from '@/lib/ecoute-anticipee';
 import { detecterLangue } from "@/lib/langue";
 import {preparerEcoute} from "@/lib/preparer-ecoute";
 import { NextRequest, NextResponse } from "next/server";
@@ -103,7 +104,11 @@ export async function POST(request: NextRequest) {
        refusait. Le format d'un enregistrement ne se décide pas sur le
        serveur : il se constate. */
     const nom = (fichier instanceof File && fichier.name) ? fichier.name : "parole.webm";
-    const {reco,ecriture,correction_disponible,chronometrage} = await preparerEcoute(fichier,nom,indice);
+    const anticipation=verdict.maitre&&cleValide(form.get('anticipation'))?reprendreEcoute(cleValide(form.get('anticipation')),request.headers.get('x-bia-code')||'',fichier,indice):Promise.resolve(null);
+    const confirmee=anticipationConfirmee();
+    const preparation=confirmee?anticipation.then(r=>preparerEcoute(fichier,nom,indice,r)):preparerEcoute(fichier,nom,indice);
+    const [{reco,ecriture,correction_disponible,chronometrage},anticipee]=await Promise.all([preparation,anticipation]);
+    if(anticipee&&!confirmee)comparerAnticipation(anticipee,reco);
     if (transcriptionEnBoucle(String(reco.texte || ""))) {
       noterPanne("transcription répétitive rejetée", "boucle de reconnaissance vocale", "ecoute");
       return NextResponse.json({ texte: "", transcription_rejetee: true,
