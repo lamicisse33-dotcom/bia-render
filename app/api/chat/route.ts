@@ -1,3 +1,4 @@
+import {anticiperLexiqueVoix} from '@/lib/anticipation-lexique-voix';
 import {chronometrerPreparation as chrono} from '@/lib/profil-preparation';
 import {uneQuestionParTour} from '@/lib/question-unique';
 import {fichesPourConversation} from "@/lib/fiches-connaissances";
@@ -2836,6 +2837,9 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
     /* L'HORLOGE PART ICI, avant la connexion : voir lireLeFlux() et
        lib/etapes.ts. Le premier token se mesure depuis ce point. */
+    // Read-only pronunciation preparation overlaps model generation.
+    // The voice route still rechecks its normal cache and correction revision.
+    if(maitre.ok)anticiperLexiqueVoix();
     const partiModele=Date.now();
     noterEtape("preparation",departPreparation,partiModele,partiModele,question.length);
     const premiersReglages={plafond:PLAFOND,avecOutil:cherche,reflexion:(reflechit?"allumee":"eteinte") as Reflexion};
