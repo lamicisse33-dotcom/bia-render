@@ -1,3 +1,6 @@
+import {resumeEssaiAnticipation} from '@/lib/essai-anticipation-conversation';
+import {resumeAnticipationReponse} from '@/lib/anticipation-reponse';
+import {resumeEcouteProgressive} from '@/lib/anticipation-etat';
 import {resumeEcouteLongue} from '@/lib/ecoute-longue-etat';
 import {resumePrisesValidees} from '@/lib/prises-validees';
 import {resumeMotsSautes} from '@/lib/essai-mots-sautes';
@@ -145,7 +148,7 @@ export async function GET(request: Request) {
   let auteurs: Record<string, number> | null = null;
   try { auteurs = await parAuteur(); } catch { auteurs = null; }
 
-  return NextResponse.json({ecoute_longue:resumeEcouteLongue(),prises_validees:resumePrisesValidees(),
+  return NextResponse.json({anticipation_conversation:{essai:resumeEssaiAnticipation(),...resumeAnticipationReponse(),ecoute:resumeEcouteProgressive()},ecoute_longue:resumeEcouteLongue(),prises_validees:resumePrisesValidees(),
     /* ── LA VERSION EN LIGNE, POUR QUE LE TÉLÉPHONE SE METTE À JOUR SEUL ────
 
        Lamine, le 14 septembre 2026 : « il faut forcer les mises à jour ; dès
