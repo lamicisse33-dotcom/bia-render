@@ -1,5 +1,6 @@
 "use client";
 import {transportConversation} from '@/lib/transport-conversation';
+import {brancherAnticipation} from "@/lib/anticipation-client";
 import {ecouterLongue} from "@/lib/ecoute-longue";
 import {envoyerEcoute} from "@/lib/envoi-ecoute";
 import {verifierAcces} from '@/lib/acces-client';
@@ -482,6 +483,8 @@ export default function Home() {
     return () => document.removeEventListener("visibilitychange", visible);
   }, []);
   const [code, setCode] = useState<string | null>(null);
+  const anticipationPretRef=useRef<{id:string;texte:string;voice:string}|null>(null);
+  const audioAnticipeRef=useRef<{texte:string;voice:string;audio:ArrayBuffer}|null>(null);
   const prisesValidees=usePriseValidee(code);
   const {lire:lireAudioMemoire,installer:installerAudioMemoire}=useAudioMemoire(code);
   useEffect(()=>{if(code&&piperWebActif())void preparerPiperWeb(code).catch(e=>setEtatSecours(e.message));},[code]);
@@ -2690,6 +2693,12 @@ export default function Home() {
         }
       }catch(e){setPanne(e instanceof Error?e.message:"Prise indisponible");stopMouth(answer);return;}
     }
+    const dejaPret=audioAnticipeRef.current;
+    if(!suite&&dejaPret&&dejaPret.texte===answer.trim()&&dejaPret.voice===voixChatterboxBia()&&essaiChatterboxActif()&&personaRef.current!=="rara"){
+      audioAnticipeRef.current=null;await prendreLaParole();if(!await peutParler())return;
+      const duree=await jouerEtAnimer(dejaPret.audio,true,{actuel,termine:capturerCache,commence:()=>lecture?.premierSon()});
+      if(!actuel())return;if(duree>0){stopMouth(answer);return;}
+    }
     // Current female Khalam recordings only. Lessons keep their fresh source
     // pronunciation; an absent/unwarmed clip never delays ordinary synthesis.
     if(!enLecon&&!suite&&personaRef.current!=="rara"&&(lecture?.sonCourant||(!lecture&&essaiChatterboxActif()&&voixChatterboxBia()==="female"))){
@@ -3229,6 +3238,9 @@ export default function Home() {
     /* Le micro a déjà ouvert son tour avant d'envoyer la parole à la
        transcription : on le REPREND, on n'en ouvre pas un second. Une
        question tapée, elle, ouvre le sien. */
+    const anticipee=anticipationPretRef.current?.texte===clean?anticipationPretRef.current:null;
+    anticipationPretRef.current=null;
+    audioAnticipeRef.current=null;
     const priseAvantReponse=prisesValidees.api.derniere();
     const monTour = tourDonne ?? ouvrirUnTour();
     busyRef.current = true;
@@ -3305,6 +3317,7 @@ export default function Home() {
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
         body: JSON.stringify({
           message: clean,
+          anticipationId:anticipee?.id,voixAnticipee:anticipee?.voice,
           parole,
           suggestionsTranscription,
           persona,
@@ -3462,6 +3475,8 @@ export default function Home() {
       /* La formulation de service qu'elle vient de servir : on la retient
          pour ne pas la resservir juste après. */
       if (data.service) dernierService.current = data.service;
+      const pretAudio=(data as typeof data&{audio_anticipe?:{base64:string;voice:string}}).audio_anticipe;
+      if(pretAudio&&pretAudio.base64.length<4_000_000)audioAnticipeRef.current={texte:data.reply.trim(),voice:pretAudio.voice,audio:octetsDeBase64(pretAudio.base64)};
       const sonJoint=data as typeof data&{audio_memorise?:{id:string;base64:string};langue?:"fr"|"wo"};
       if(sonJoint.audio_memorise&&sonJoint.langue)installerAudioMemoire(data.reply,sonJoint.langue,sonJoint.audio_memorise);
       const provenance=data as typeof data&{origine_devoir?:SourceDevoir|null;correction_devoir?:OrigineDevoir|null};
@@ -4658,6 +4673,9 @@ export default function Home() {
          contente de débrancher, comme le fait déjà lib/frappe.ts. */
       const tampon = new Uint8Array(analyse.frequencyBinCount);
       let aParle = false;
+      let progressive:Awaited<ReturnType<typeof brancherAnticipation>>=null;
+      let fermetureProgressive:Promise<void>|null=null;
+      let captureProgressiveValide=true;
       let dernierSon = 0;
       let debutParole = 0;
       let dureeParlee = 0;
@@ -4858,6 +4876,8 @@ export default function Home() {
         );
       };
       enregistreur.onstop = async () => {
+        fermetureProgressive=progressive?.fermerCapture().catch(()=>{captureProgressiveValide=false;})||null;
+
         /* ── LA PLACE SE LIBÈRE D'ABORD, LE SORT DE L'ENREGISTREMENT ENSUITE ─
 
            Lamine, le 12 septembre 2026 : « le micro après deux ou trois
@@ -4889,7 +4909,8 @@ export default function Home() {
 
         /* Cet arrêt appartient-il encore à l'enregistrement en cours ? Si on a
            coupé la parole entre-temps, ce qui suit n'a plus rien à dire. */
-        if (!estCetEnregistrement(idEnr)) return;
+        await fermetureProgressive;
+        if (!estCetEnregistrement(idEnr)) { await progressive?.annuler(); return; }
 
         /* ── LE MICRO NE SE FERME QUE SI LA CONVERSATION SE FERME ──────────
 
@@ -4928,6 +4949,7 @@ export default function Home() {
            fil ni dans ses notes. */
         if (annuleRef.current) {
           annuleRef.current = false;
+          void progressive?.annuler();
           setMode("ready");
           setFace("yeux_ouverts");
           setAnnule(true);
@@ -4958,6 +4980,7 @@ export default function Home() {
         const partVocaleMoyenne = mesuresVocales > 0 ? partVocaleTotale / mesuresVocales : null;
         const hauteurMoyenne = mesuresVocales > 0 ? hauteurTotale / mesuresVocales : null;
         if (!aParle || !morceaux.length || !focusLocuteurRef.current?.autoriser() || !vraimentUneVoix(dureeParlee, partVocaleMoyenne, hauteurMoyenne)) {
+          void progressive?.annuler();
           if (aParle && partVocaleMoyenne !== null && vautLaPeine(dureeParlee)) {
             /* Silencieux à l'écran, mais pas invisible : sans cette ligne, le
                jour où le filtre jetterait une vraie voix, on n'aurait aucun
@@ -5134,9 +5157,15 @@ export default function Home() {
           legere.append("depot_confirme", "1");
           const indice = forme.get("indice_langue");
           if (indice !== null) legere.append("indice_langue", String(indice));
-          const envoyer=(corps:FormData)=>fetch("/api/ecouter",{method:"POST",headers:{"x-bia-code":codeRef.current},body:corps});
+          const envoyer=(corps:FormData)=>fetch(progressive?"/api/anticipation/segment":"/api/ecouter",{method:"POST",headers:{"x-bia-code":codeRef.current},body:corps});
           let r:Response;
-          if(Date.now()-ouverture>25000){
+          let resultatProgressif:Awaited<ReturnType<NonNullable<typeof progressive>['resultat']>>=null;
+          if(progressive){try{await fermetureProgressive;if(!captureProgressiveValide)throw Error('Capture non confirmée');resultatProgressif=await progressive.resultat();}catch{await progressive.annuler();}}
+          if(resultatProgressif){
+            if(resultatProgressif.anticipationId)anticipationPretRef.current={id:resultatProgressif.anticipationId,texte:resultatProgressif.texte,voice:voixChatterboxBia()};
+            void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'ecoute_progressive',...resultatProgressif.progressive}),keepalive:true}).catch(()=>{});
+            r=Response.json(resultatProgressif);
+          }else if(Date.now()-ouverture>25000){
             const son=await contexte().decodeAudioData(await sonDit.arrayBuffer());
             const d=await ecouterLongue(son,String(indice||"wo"),envoyer,()=>estCetEnregistrement(idEnr)&&estLeTour(monTour));
             void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'ecoute_longue',...d.longue}),keepalive:true}).catch(()=>{});
@@ -5328,6 +5357,10 @@ export default function Home() {
          connexion mobile de Dakar. Plus long laisserait un plus gros reste à
          monter au moment précis où il se tait — et c'est ce reste, et lui
          seul, qu'il attend. */
+      if(essaiChatterboxActif()&&personaRef.current!=="rara"&&!apprend.current&&!correctionDevoirRef.current&&!chantierMalDit.current&&localStorage.getItem("bia-anticipation")!=="non"){
+        progressive=await brancherAnticipation({ctx:ctxMicro,flux,code:codeRef.current,tour:tourDeParole,history:fenetreDuFil(historyRef.current),resume:resumeRef.current,voice:voixChatterboxBia(),persona:personaRef.current,langue:()=>langueDuFil.current,parle:()=>aParle,actuel:()=>estCetEnregistrement(idEnr)});
+      }
+      if(!estCetEnregistrement(idEnr)){await progressive?.annuler();return;}
       enregistreur.start(400);
       setMode("listening");
       setFace("ecoute");
