@@ -1,3 +1,4 @@
+import {consommerReponseAnticipee} from '@/lib/anticipation-reponse';
 import {anticiperLexiqueVoix} from '@/lib/anticipation-lexique-voix';
 import {chronometrerPreparation as chrono} from '@/lib/profil-preparation';
 import {uneQuestionParTour} from '@/lib/question-unique';
@@ -780,7 +781,7 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
-type Corps={parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
+type Corps={anticipationId?:string;voixAnticipee?:string;parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
   /* Ancien choix visuel conservé pour les clients existants ; le nom reste BIA. */
   persona?:string;
   /* ── L'APPRENTISSAGE À LA VOIX ──────────────────────────────────────────
@@ -887,6 +888,10 @@ export async function POST(request:NextRequest){
   if(vocale)body={...body,message:vocale.message};
   const avecTranscription=(corps:Record<string,unknown>)=>vocale?{...corps,transcription:vocale.transcription}:corps;
 
+  if(body.anticipationId){
+    const anticipee=await consommerReponseAnticipee(body,code||'',request.signal);
+    if(anticipee){if(!vocale)garderCeTour(body,code,anticipee);return NextResponse.json(avecTranscription(anticipee));}
+  }
   if(!DIFFUSER_LE_MODELE||!body.diffuse){
     const r=await repondre(body,code,null);
     if(!vocale)garderCeTour(body,code,r.corps,r.statut);
