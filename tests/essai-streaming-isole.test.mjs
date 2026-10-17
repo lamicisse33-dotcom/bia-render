@@ -20,3 +20,11 @@ test('missing terminal packet is recorded as failure, never marked integral',asy
  globalThis.fetch=async()=>new Response('');
  try{const m=await import('data:text/javascript;base64,'+Buffer.from(source+'\n// missing tail case').toString('base64'));await m.verifierStreamingIsole();assert(m.resumeStreamingIsole().serveur.cas.every(c=>c.passes.every(p=>p.erreur&&!p.integrite)));}finally{globalThis.fetch=original;}
 });
+
+test('browser failures are bounded and never retain code, text or arbitrary error strings',async()=>{
+ delete globalThis.biaStreamingIsole;const m=await import('data:text/javascript;base64,'+Buffer.from(source+'\n// browser failure telemetry').toString('base64'));
+ const d={type:'erreur',mode:'stream',langue:'wo',etape:'activation_audio',code:'son_bloque',secret:'do-not-save',texte:'private'};
+ for(let i=0;i<15;i++)assert.equal(m.noterEssaiStreaming(d),true);
+ const rows=m.resumeStreamingIsole().erreurs;assert.equal(rows.length,12);assert(!JSON.stringify(rows).includes('do-not-save'));assert(!JSON.stringify(rows).includes('private'));
+ assert.equal(m.noterEssaiStreaming({...d,code:'arbitrary secret'}),false);
+});
