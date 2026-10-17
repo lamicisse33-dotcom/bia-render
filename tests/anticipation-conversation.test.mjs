@@ -56,3 +56,13 @@ test('first partial transcription starts after four seconds and preserves ordere
  p.pousser(new Float32Array(4000).fill(.2),true);await new Promise(r=>setTimeout(r,0));assert.equal(sent.length,1);assert.equal(updates.length,1);
  const end=await p.finir();assert.equal(sent.reduce((n,b)=>n+(b-44)/2,0),4*16000);assert.equal(end.progressive.secondes,4);
 });
+
+test('a short utterance is transcribed during the endpointing pause and resumed speech retains every sample',async()=>{
+ let frames=0;const updates=[];const p=progressive().creerEcouteProgressive(async f=>{frames+=((await f.get('audio').arrayBuffer()).byteLength-44)/2;return Response.json({texte:'Un point complet.'});},()=> 'fr',()=>true,t=>updates.push(t));
+ for(let i=0;i<8;i++)p.pousser(new Float32Array(4000).fill(.2),true);
+ for(let i=0;i<2;i++)p.pousser(new Float32Array(4000),false);
+ await new Promise(r=>setTimeout(r,0));assert.equal(p.segmentsCommences,1);assert.equal(updates.length,1,'must start before the 1.5–2 second endpoint');assert.equal(frames,40000);
+ for(let i=0;i<5;i++)p.pousser(new Float32Array(4000).fill(.15),true);
+ for(let i=0;i<2;i++)p.pousser(new Float32Array(4000),false);
+ const result=await p.finir();assert.equal(frames,17*4000);assert.equal(result.progressive.secondes,4.25);
+});
