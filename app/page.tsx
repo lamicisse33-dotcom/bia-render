@@ -4258,7 +4258,14 @@ export default function Home() {
      personne devant un bouton mort. */
   useEffect(() => {
     if (mode !== "thinking" && mode !== "speaking") return;
-    const secours = setTimeout(() => setMode("ready"), 180000);
+    const tourSecours=numeroDuTourRef.current;
+    const secours = setTimeout(() => {
+      if(numeroDuTourRef.current!==tourSecours)return;
+      if(modeRef.current!=="thinking"&&modeRef.current!=="speaking")return;
+      // Cancel the abandoned work as well as its UI state; otherwise busy
+      // and pending sources survive and prevent the microphone from reopening.
+      taireRef.current?.();
+    }, 180000);
     return () => clearTimeout(secours);
   }, [mode]);
 
@@ -4299,7 +4306,8 @@ export default function Home() {
   useEffect(() => {
     if (!conversation || mode !== "thinking") return;
     const filet = setTimeout(() => {
-      if (!conversationRef.current || attenteRef.current) return;
+      if (!conversationRef.current || attenteRef.current || busyRef.current) return;
+      if (modeRef.current !== "thinking") return;
       /* Et pas pendant qu'une voix de secours parle : entre l'appel et son
          `onstart`, l'état est encore « réfléchit », et rouvrir le micro là
          serait l'ouvrir sur sa propre phrase. */
@@ -4661,7 +4669,7 @@ export default function Home() {
        d'ouvrir le micro : demander la permission peut durer une seconde, et
        pendant cette seconde on a pu couper la parole ou fermer la
        conversation. Ce qui revient après ne doit plus rien écrire. */
-    if(ouvertureEcouteRef.current||enregistreurRef.current?.state==='recording')return;
+    if(busyRef.current||ouvertureEcouteRef.current||enregistreurRef.current?.state==='recording')return;
     const tentative=Symbol('ouverture-micro');ouvertureEcouteRef.current=tentative;
     const idEnr = nouvelEnregistrement();
     let aDemarre=false,nettoyerOuverture=()=>{};
@@ -5220,7 +5228,7 @@ export default function Home() {
         const priseBriques:BlocPrise[]=[];let taillePriseBriques=0,priseBriquesTropLongue=false;
         const actifBriques=()=>!abortBriques.signal.aborted&&personaRef.current===apparenceDesBriques&&estLeTour(monTour)&&estCetEnregistrement(idEnr)&&!carteOuverteRef.current;
         const mesureBriques=(etape:string,ms:number,extra:Record<string,number>={})=>{
-          void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'briques',etape,ms,...extra}),keepalive:true}).catch(()=>{});
+          void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'briques',tour:tourDeParole,etape,ms,...extra}),keepalive:true}).catch(()=>{});
         };
         const taireBriques=()=>{attendBrique=false;if(estLeTour(monTour))taireLeSouffle();};
         const stockBriques=progressive?.etatBriques();
@@ -5229,6 +5237,7 @@ export default function Home() {
           signal:abortBriques.signal,
           jouer:async b=>{
             if(!actifBriques()||b.voice!==voixChatterboxBia()||!essaiChatterboxActif())return false;
+            mesureBriques('lecture_demandee',Date.now()-debutBriques,{numero:b.numero});
             if(premierBrique){await finirAttente(b.langue,false);if(!actifBriques())return false;couperSon();prisesValidees.api.oublier();}
             if(!await autoriserLaVoix(actifBriques))return false;
             taireBriques();
@@ -5238,6 +5247,7 @@ export default function Home() {
             const ms=await jouerEtAnimer(exact||octetsDeBase64(b.audio),false,{actuel:actifBriques,exact:!!exact,commence:()=>{
               debutPriseBrique=contexte().currentTime;
               ditesBriques.push(b.texte);
+              mesureBriques('debut_brique',Date.now()-debutBriques,{numero:b.numero});
               if(premierBrique){premierBrique=false;mesureBriques('premier_son',Date.now()-finParoleBriques,{micro_ms:Date.now()-debutBriques});}
               else if(finSonBrique)mesureBriques('blanc',Date.now()-finSonBrique);
             },termine:audio=>{
@@ -5247,6 +5257,7 @@ export default function Home() {
               priseBriques.push({debut:debutPriseBrique,sampleRate:audio.sampleRate,canaux:Array.from({length:audio.numberOfChannels},(_,c)=>audio.getChannelData(c).slice())});
             }});
             finSonBrique=Date.now();
+            mesureBriques('fin_brique',Date.now()-debutBriques,{numero:b.numero,actuel:Number(actifBriques())});
             if(actifBriques()){setMode('thinking');setFace('pensive');}
             return ms>0&&actifBriques();
           },
@@ -5340,7 +5351,9 @@ export default function Home() {
           // Let the conversation model interpret it with the actual history.
           dernierDitRef.current = dit;
           if(lectureBriques){
+            mesureBriques('transcrit',Date.now()-debutBriques);
             await progressive!.terminerBriques(dit);
+            mesureBriques('fin_preparation',Date.now()-debutBriques);
             const lecture=await lectureBriques.fin;
             if(!actifBriques())return;
             const reponse=ditesBriques.join(' ');
@@ -5348,6 +5361,7 @@ export default function Home() {
             historyRef.current=fil;setHistory(fil);
             langueRef.current=estWolof(dit)?'wo':'fr';langueDuFil.current=langueRef.current;
             busyRef.current=false;briquesTerminees=true;fluxVoixRef.current.delete(abortBriques);taireBriques();
+            mesureBriques('fin_chaine',Date.now()-debutBriques,{nombre:ditesBriques.length,repli:Number(lecture.normal)});
             if(lecture.normal&&dit){await askBia(dit,true,monTour,d.suggestions_ecriture,true);}
             else {
               if(!priseBriquesTropLongue&&priseBriques.length===ditesBriques.length&&priseBriques.length){
@@ -5485,6 +5499,7 @@ export default function Home() {
           if (estLeTour(monTour)) setMode("error");
         } finally {
           if(lectureBriques&&!briquesTerminees){
+            mesureBriques('annulation',Date.now()-debutBriques,{tour_actuel:Number(estLeTour(monTour)),capture_actuelle:Number(estCetEnregistrement(idEnr))});
             abortBriques.abort();void progressive?.annuler();
             if(estLeTour(monTour)){busyRef.current=false;couperSon();}
           }
@@ -5918,7 +5933,7 @@ export default function Home() {
     if (!conversation || mode !== "ready") return;
     if (enregistreEncore()) return;
     const t = setTimeout(() => {
-      if (!conversationRef.current || enregistreEncore()) return;
+      if (!conversationRef.current || busyRef.current || modeRef.current!=="ready" || enregistreEncore()) return;
       void ecouterRef.current?.();
     }, 180);
     return () => clearTimeout(t);
