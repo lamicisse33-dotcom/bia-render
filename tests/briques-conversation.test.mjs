@@ -38,7 +38,7 @@ test('interrupting a waiting queue immediately releases it and prevents future b
  await tick();abort.abort();f.ajouter(brick(1));assert.equal(await done,'Brique 0');assert.deepEqual(played,[0]);
 });
 
-function server(){
+function server(answer){
  delete globalThis.biaBriques;const models=[],syntheses=[],state={},saved=[];let quota=0;
  const core=load('lib/anticipation-core.ts',()=>crypto);
  const api=load('lib/briques-reponse.ts',id=>{
@@ -50,7 +50,7 @@ function server(){
   if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
   if(id==='./cerveau-anthropic')return {MODELE_SONNET:'test',messagesAnthropic:messages=>({messages}),contenuAnthropic:d=>d.text,fetchAnthropic:async(u,init)=>{
    const request=JSON.parse(init.body),context=JSON.parse(request.messages.at(-1).content);models.push(context);
-   return Response.json({text:JSON.stringify({eligible:true,reply:context.fin_de_parole?'Tu as finalement payé trois mille francs.':'Tu as profité de ta sortie pour faire réparer tes chaussures.',traite:context.texte_integral})});
+   return Response.json({text:JSON.stringify(answer?answer(context):{eligible:true,reply:context.fin_de_parole?'Tu as finalement payé trois mille francs.':'Tu as profité de ta sortie pour faire réparer tes chaussures.',traite:context.texte_integral})});
   }};
   if(id==='./conversation-groq')return {messagesConversation:o=>[{role:'system',content:JSON.stringify(o)}]};
   if(id==='./memoire-organisee')return {contexteMemoireCommune:async()=>''};if(id==='./instructions-apprentissage')return {contexteInstructions:async()=>''};
@@ -125,4 +125,73 @@ test('capture telemetry distinguishes default appearance from a real learning ex
  assert.equal(api.resumeProtectionParole().derniere_capture.apparence,'rara');
  api.noterProtectionParole({type:'capture_progressive',etape:'contexte_exclu',motif:'correction_devoir',apparence:'rara'});
  assert.equal(api.resumeProtectionParole().motifs_exclusion.correction_devoir,1);
+});
+
+
+test('an unfinished first preparation survives microphone closure and plays before final ASR',async()=>{
+ const original=globalThis.fetch,firstReady=deferred(),finalReady=deferred(),started=[];
+ globalThis.fetch=async(url,init)=>{const b=JSON.parse(init.body);if(b.final){await finalReady.promise;return Response.json({preparation:{id:'session',brique:brick(1),termine:true}});}await firstReady.promise;return Response.json({preparation:{id:'session',brique:brick(0)}});};
+ try{
+  const p=load('lib/briques-client.ts',()=>fileApi).creerProducteurBriques({...body,code:'owner',actuel:()=>true});
+  p.progresser(question);p.arreterEcoute();assert.deepEqual(p.etat(),{pretes:0,en_cours:true});
+  const reading=p.commencer({signal:new AbortController().signal,jouer:async b=>{started.push(b.numero);return true;},attente(){},taire(){},mesure(){}});assert(reading);assert.deepEqual(started,[]);
+  firstReady.resolve();await tick();assert.deepEqual(started,[0],'must play without waiting for terminer / final ASR');
+  const finishing=p.terminer(question+' Ensuite je suis allé chez le coiffeur.');await tick();assert.deepEqual(started,[0]);
+  finalReady.resolve();await finishing;assert.equal((await reading.fin).reponse,'Brique 0 Brique 1');
+ }finally{globalThis.fetch=original;}
+});
+test('pending ineligible preparation returns to ordinary chat without silence-loop or fabricated speech',async()=>{
+ const original=globalThis.fetch,firstReady=deferred();
+ globalThis.fetch=async(url,init)=>{const b=JSON.parse(init.body);if(b.action)return Response.json({});await firstReady.promise;return Response.json({preparation:null});};
+ try{
+  const p=load('lib/briques-client.ts',()=>fileApi).creerProducteurBriques({...body,code:'owner',actuel:()=>true});
+  p.progresser(question);p.arreterEcoute();
+  const reading=p.commencer({signal:new AbortController().signal,jouer:async()=>assert.fail('no audio exists'),attente(){assert.fail('no filler before first brick');},taire(){},mesure(){}});assert(reading);
+  const finishing=p.terminer(question);firstReady.resolve();await finishing;
+  assert.deepEqual(await reading.fin,{reponse:'',normal:true});
+ }finally{globalThis.fetch=original;}
+});
+test('a cancelled pending preparation can never speak in a new turn',async()=>{
+ const original=globalThis.fetch,firstReady=deferred();
+ globalThis.fetch=async()=>{await firstReady.promise;return Response.json({preparation:{id:'session',brique:brick(0)}});};
+ try{
+  const p=load('lib/briques-client.ts',()=>fileApi).creerProducteurBriques({...body,code:'owner',actuel:()=>true});
+  p.progresser(question);p.arreterEcoute();const abort=new AbortController();
+  const reading=p.commencer({signal:abort.signal,jouer:async()=>assert.fail('obsolete audio'),attente(){},taire(){},mesure(){}});
+  abort.abort();firstReady.resolve();assert.equal((await reading.fin).reponse,'');await tick();assert.equal(p.etat().pretes,0);
+ }finally{globalThis.fetch=original;}
+});
+test('all already transcribed points can be prepared silently without waiting for more words',async()=>{
+ const original=globalThis.fetch;let calls=0;const started=[];
+ globalThis.fetch=async(url,init)=>{const b=JSON.parse(init.body);if(b.final)return Response.json({preparation:{id:'session',termine:true}});const n=calls++;return Response.json({preparation:{id:'session',brique:brick(n),continuer:n===0}});};
+ try{
+  const p=load('lib/briques-client.ts',()=>fileApi).creerProducteurBriques({...body,code:'owner',actuel:()=>true});
+  p.progresser(question+' Puis je suis passé chez le coiffeur pour me coiffer.');await tick();await tick();
+  assert.equal(calls,2);assert.deepEqual(started,[]);assert.equal(p.etat().pretes,2);p.arreterEcoute();
+  const reading=p.commencer({signal:new AbortController().signal,jouer:async b=>{started.push(b.numero);return true;},attente(){},taire(){},mesure(){}});
+  await p.terminer(question);assert.equal((await reading.fin).reponse,'Brique 0 Brique 1');assert.deepEqual(started,[0,1]);
+ }finally{globalThis.fetch=original;}
+});
+test('server drains an unprocessed point from the same transcript and accepts a revised final transcript',async()=>{
+ const combined=question+' Ensuite je suis passé chez le coiffeur pour me coiffer.';
+ const s=server(c=>({eligible:true,reply:c.prefixe_deja_traite?'Tu précises la suite de ta journée.':'Tu as fait réparer tes chaussures.',traite:c.prefixe_deja_traite?c.texte_integral:question})),signal=new AbortController().signal;
+ const first=await s.preparerBrique({...body,texte:combined},'owner',true,signal),locked=JSON.stringify(first.brique);assert(first.continuer);
+ const second=await s.preparerBrique({id:first.id,texte:combined},'owner',true,signal);assert.equal(second.brique.numero,1);assert(!second.continuer);
+ const revision='En fait je suis passé chez le coiffeur avant le cordonnier.';
+ const last=await s.preparerBrique({id:first.id,texte:revision,final:true},'owner',true,signal);
+ assert.equal(last.brique.numero,2);assert(last.termine);assert.equal(last.normal,false);assert.equal(JSON.stringify(first.brique),locked);
+});
+test('buying a charger in a story remains eligible, while instructions still retain normal routing',async()=>{
+ const core=load('lib/anticipation-core.ts',()=>crypto);
+ assert(core.eligibleBriques('Après le coiffeur je suis parti au marché pour acheter un chargeur.'));
+ assert(core.eligibleBriques('Finalement, le chargeur coûtait trois mille francs.'));
+ assert(core.eligibleBriques('Je me corrige : le chargeur coûtait trois mille francs.'));
+ assert(!core.eligibleBriques('Mémorise cette phrase pour la prochaine conversation.'));
+ assert(!core.eligibleBriques('Peux-tu acheter un chargeur pour mon téléphone demain ?'));
+ const s=server(),r=await s.preparerBrique({...body,texte:question+' Je suis ensuite allé acheter un chargeur.'},'owner',true,new AbortController().signal);assert(r.brique);
+});
+test('departure telemetry separates ready, still running, and absent preparation',()=>{
+ delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts');
+ a.noterBriques({etape:'depart',ms:0,pretes:2,en_cours:1});a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:1});a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:0});
+ assert.deepEqual(a.resumeBriques().departs,{prete:1,en_fabrication:1,sans_preparation:1});
 });

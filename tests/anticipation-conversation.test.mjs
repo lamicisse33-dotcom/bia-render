@@ -47,3 +47,12 @@ test('Sonnet request preserves the constrained JSON schema and default conversat
  const normal=api.corpsAnthropic({model:api.MODELE_SONNET,max_tokens:1200,temperature:.7});assert.deepEqual(normal.output_config,{effort:'low'});assert.equal(normal.temperature,undefined);
  const constrained=api.corpsAnthropic({model:api.MODELE_SONNET,max_tokens:1200,output_config:{format:schema}});assert.deepEqual(constrained.output_config,{effort:'low',format:schema});assert.deepEqual(constrained.thinking,normal.thinking);
 });
+
+
+test('first partial transcription starts after four seconds and preserves ordered complete samples',async()=>{
+ const sent=[],updates=[];const p=progressive().creerEcouteProgressive(async f=>{sent.push((await f.get('audio').arrayBuffer()).byteLength);return Response.json({texte:'Un premier point achevé.'});},()=> 'fr',()=>true,t=>updates.push(t));
+ for(let i=0;i<15;i++)p.pousser(new Float32Array(4000).fill(.2),true);
+ await new Promise(r=>setTimeout(r,0));assert.equal(sent.length,0);
+ p.pousser(new Float32Array(4000).fill(.2),true);await new Promise(r=>setTimeout(r,0));assert.equal(sent.length,1);assert.equal(updates.length,1);
+ const end=await p.finir();assert.equal(sent.reduce((n,b)=>n+(b-44)/2,0),4*16000);assert.equal(end.progressive.secondes,4);
+});

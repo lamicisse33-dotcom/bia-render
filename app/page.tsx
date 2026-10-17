@@ -4936,6 +4936,7 @@ export default function Home() {
         );
       };
       enregistreur.onstop = async () => {
+        const finMicroBriques=Date.now();
         void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'micro_capture',cause:causeArret,duree_ms:Date.now()-ouverture,parole_ms:debutParole?dernierSon-debutParole:0,silence_ms:dernierSon?Date.now()-dernierSon:0,pic:picMicro,mesures:mesuresMicro,vocales:mesuresVocales,plat:analyseurMort,actuel:estCetEnregistrement(idEnr),contexte:ctxMicro.state}),keepalive:true}).catch(()=>{});
         fermetureProgressive=progressive?.fermerCapture().catch(()=>{captureProgressiveValide=false;})||null;
 
@@ -5209,11 +5210,11 @@ export default function Home() {
         // A nonverbal breath can accompany transcription; no filler words.
         void soufflerEnAttendant(jeton);
 
-        // The first complete audio is already on the device. Start it while
-        // the final ASR segment is still running; subsequent bricks append.
+        // Play the first locked audio, or keep its running preparation alive.
+        // Neither depends on the final ASR; subsequent bricks only append.
         const abortBriques=new AbortController();
         const voixDesBriques=voixChatterboxBia(),apparenceDesBriques=personaRef.current;
-        const debutBriques=Date.now(),finParoleBriques=bornesRef.current.parole||debutBriques;
+        const debutBriques=finMicroBriques,finParoleBriques=bornesRef.current.parole||debutBriques;
         let premierBrique=true,attendBrique=false,briquesTerminees=false,finSonBrique=0;
         const ditesBriques:string[]=[];
         const priseBriques:BlocPrise[]=[];let taillePriseBriques=0,priseBriquesTropLongue=false;
@@ -5222,6 +5223,8 @@ export default function Home() {
           void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'briques',etape,ms,...extra}),keepalive:true}).catch(()=>{});
         };
         const taireBriques=()=>{attendBrique=false;if(estLeTour(monTour))taireLeSouffle();};
+        const stockBriques=progressive?.etatBriques();
+        if(stockBriques)mesureBriques('depart',0,{pretes:stockBriques.pretes,en_cours:Number(stockBriques.en_cours)});
         const lectureBriques=!busyRef.current&&!motsRattrapesRef.current&&captureProgressiveValide?progressive?.commencerBriques({
           signal:abortBriques.signal,
           jouer:async b=>{
@@ -5354,8 +5357,7 @@ export default function Home() {
             }
             return;
           }
-          // No first brick was ready when the microphone closed: retain the
-          // ordinary chat path and release speculative work immediately.
+          // No queued or running brick: retain the ordinary conversation path.
           await progressive?.terminerBriques(dit);
           if (dit) {
             langueRef.current = estWolof(dit) ? "wo" : "fr";
