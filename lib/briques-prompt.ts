@@ -1,4 +1,9 @@
 type Message={role:string;content:string};
+/** Remove only a repeated opening address, before audio is generated. */
+export function enchainerBrique(texte:string,numero:number):string{
+ if(numero===0)return texte;
+ return texte.replace(/^(?:(?:(?:oui|d['’]accord|bien s[uû]r|entendu|très bien|bonjour|bonsoir|salut)[,\s]+)?papa\s*[,!:.…—–-]+\s*)+/iu,'');
+}
 /** Focused read-only speech task; complete pedagogical instructions and exact
  * retrieved formulations stay present, without the ordinary UI/tool protocol. */
 export function messagesBriques(o:{maitre:boolean;instructions:string;memoire:string;resume:string;history:Message[]}):Message[]{

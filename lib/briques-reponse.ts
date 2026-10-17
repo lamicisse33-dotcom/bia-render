@@ -3,7 +3,7 @@ import {NextRequest} from 'next/server';
 import {verifierCode} from './codes';
 import {fetchAnthropic,messagesAnthropic,contenuAnthropic,MODELE_SONNET} from './cerveau-anthropic';
 import {messagesConversation} from './conversation-groq';
-import {messagesBriques} from './briques-prompt';
+import {messagesBriques,enchainerBrique} from './briques-prompt';
 import {lireAudioBrique} from './briques-audio';
 import {contexteMemoireCommune} from './memoire-organisee';
 import {contexteInstructions} from './instructions-apprentissage';
@@ -60,6 +60,9 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
     const [memoire,instructions]=await Promise.all([contexteMemoireCommune(texte,s.history,6500),maitre?contexteInstructions():Promise.resolve('')]);
     const messages=diagnosticAncien?messagesConversation({question:texte,history:s.history,resume:s.resume,maitre,fiches:memoire,instructions,rapide:true}):messagesBriques({history:s.history,resume:s.resume,maitre,memoire,instructions});
     messages.push({role:'system',content:`RÉPONSE ORALE PAR BRIQUES VERROUILLÉES. Aucun outil ni action ni écriture de mémoire. Les briques précédentes seront prononcées dans l'ordre et ne peuvent plus être modifiées. Réponds uniquement au prochain point achevé et utile du récit. Une phrase naturelle complète de 6 à 10 mots, idéalement 60 à 85 caractères, maximum 90 caractères. Exprime un point utile sans formule d’attente ; les détails suivants alimentent les prochaines briques. Ne coupe jamais une formulation apprise exacte pour la raccourcir : si elle exige plus de place, conserve-la entière. ${final?'Traite un point à la fois, puis les prochaines briques traiteront les autres.':'Aucune question, aucun conseil sensible ni conclusion globale prématurée.'} Ne commente pas chaque détail, ne répète pas une brique et n'annonce pas une suite. Respecte les formulations apprises et la langue de la personne. Une correction tardive se traite MAINTENANT, sans nier que la brique précédente a été dite. Ne confirme pas une actualité sportive non vérifiée : tu peux réagir au récit sans certifier le résultat. Si action, recherche, urgence, instruction de mémorisation/correction de devoir, ou demande incompatible, eligible=false. Si le point est inachevé, eligible=false. Ne produis ni balise, ni indication de scène, ni « hmm » écrit. traite doit être un PRÉFIXE EXACT du texte intégral, jusqu'au point auquel cette brique répond. ${final?'La personne a fini : traite le prochain point restant ou la correction, sans répéter les briques précédentes. Si tout est traité, traite est exactement le texte intégral. Si la transcription finale a révisé le préfixe déjà traité, réponds à cette précision et utilise le texte intégral comme traite.':'La personne parle encore : traite doit dépasser le préfixe déjà traité. Aucun mot des points suivants ne doit être inclus.'} Retourne eligible, reply et traite.`});
+    messages.push({role:'system',content:s.briques.length===0
+      ?'Tu commences une seule réponse composée de plusieurs briques. Une adresse comme « Oui papa » ou « D’accord papa » est facultative et réservée au début de cette première brique, jamais répétée ensuite.'
+      :'Tu CONTINUES la même réponse, tu ne recommences pas une conversation. Enchaîne directement sur le contenu utile, sans salutation, sans formule d’accord introductive et sans nouvelle adresse « papa ». Les briques verrouillées constituent déjà le début de ta réponse.'});
     const mots=texte.split(' ');
     if(!diagnosticAncien)messages.push({role:'system',content:'FORMAT COMPACT : traite est le NUMÉRO du dernier mot traité (entier), choisi dans les positions fournies, et non le texte du préfixe. Si tout est traité, utilise le numéro du dernier mot. Ne recompte pas les mots, lis leur numéro. Le serveur reconstitue le préfixe exact. Les autres règles sur les préfixes restent applicables.'});
     messages.push({role:'user',content:JSON.stringify({texte_integral:texte,prefixe_deja_traite:s.traite,briques_verrouillees:s.briques.map(b=>b.texte),fin_de_parole:final,...(!diagnosticAncien?{positions:mots.map((mot,i)=>[i+1,mot])}:{})})});
@@ -73,7 +76,7 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
     const d=JSON.parse(contenuAnthropic(data));
     if(d.eligible!==true){if(final||diagnostic)s.fermee=true;return {...resultat(s,undefined,final),mesure};}
     if(!diagnosticAncien&&(!Number.isInteger(d.traite)||d.traite<1||d.traite>mots.length))throw Error('Brique invalide');
-    const traite=diagnosticAncien?normaliserAnticipation(d.traite):mots.slice(0,d.traite).join(' '),reply=String(d.reply||'').trim();
+    const traite=diagnosticAncien?normaliserAnticipation(d.traite):mots.slice(0,d.traite).join(' '),reply=enchainerBrique(String(d.reply||'').trim(),s.briques.length);
     if(!texte.startsWith(traite)||((!final||texte.startsWith(s.traite))&&(!traite.startsWith(s.traite)||traite.length<=s.traite.length))||reply.length<4||reply.length>220||/\[\[|\]\]/.test(reply)||(final&&!texte.startsWith(s.traite)&&traite!==texte))throw Error('Brique invalide');
     mesure.eligible=true;
     // Internal startup comparison only: do not synthesize or charge a spoken
