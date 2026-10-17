@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "7b1c354ffac3b3130679971cf44f5efc214b66c87a48d1e8c4c62dc27a33d244",
+    "app/page.tsx": "d85fd539403cd26ab26724dd254b9e4acb95a50b79bbbdf5d89fc75c2409e947",
     "lib/micro.ts": "db1ccea17958421c1cf59e2623e462f7050b1a3c335547430449ef565865d15e",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "ad34b135d0d3589badf6161afd07df8dce927de633ea9ffc215a07dd26c47f19",
