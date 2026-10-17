@@ -3,6 +3,8 @@ import {transportConversation} from '@/lib/transport-conversation';
 import {envoyerEcoute} from "@/lib/envoi-ecoute";
 import {verifierAcces} from '@/lib/acces-client';
 import {sansSilence} from "@/lib/bords-audio";
+import {usePriseValidee} from "@/lib/use-prise-validee";
+import {wavPrise,ordreValiderPrise,type BlocPrise} from "@/lib/prise-validee-core";
 import {useAudioMemoire} from "@/lib/use-audio-memoire";
 import {sonPourTexte,reactionDisponible,type SonCourant} from "@/lib/sons-courants-core";
 import {programmerReactionCourante} from "@/lib/reaction-courante";
@@ -479,6 +481,7 @@ export default function Home() {
     return () => document.removeEventListener("visibilitychange", visible);
   }, []);
   const [code, setCode] = useState<string | null>(null);
+  const prisesValidees=usePriseValidee(code);
   const {lire:lireAudioMemoire,installer:installerAudioMemoire}=useAudioMemoire(code);
   useEffect(()=>{if(code&&piperWebActif())void preparerPiperWeb(code).catch(e=>setEtatSecours(e.message));},[code]);
   const [codeSaisi, setCodeSaisi] = useState("");
@@ -1741,7 +1744,7 @@ export default function Home() {
      accusés de réception et des transitions, qui sortent du haut-parleur
      AVANT la réponse. Les compter comme « première syllabe » ferait croire à
      un tour de deux secondes là où il en a duré neuf. */
-  const jouerEtAnimer = useCallback(async (octets: ArrayBuffer, estLaReponse = false, garde?: {actuel:()=>boolean;commence?:()=>void}) => {
+  const jouerEtAnimer = useCallback(async (octets: ArrayBuffer, estLaReponse = false, garde?: {actuel:()=>boolean;commence?:()=>void;exact?:boolean;termine?:(audio:AudioBuffer)=>void}) => {
     /* Le haut-parleur d'abord, le son ensuite. Voir reveillerLeSon(). */
     const ctx = await reveillerLeSon();
     return new Promise<number>((fini) => {
@@ -1760,7 +1763,7 @@ export default function Home() {
          voix n'a AUCUN réglage de vitesse — vérifié dans sa documentation —
          alors on étire le son ici, sans toucher à sa hauteur : c'est la voix
          de Kha, elle ne doit pas devenir plus grave. Voir lib/ralentir.ts. */
-      const mémoire = ralentir(ctx, sansSilence(ctx, brut), vitesseAudioBia(octets));
+      const mémoire = garde?.exact ? brut : ralentir(ctx, sansSilence(ctx, brut), vitesseAudioBia(octets));
       const { valeurs, pic, pas } = enveloppeDe(mémoire);
       const source = ctx.createBufferSource();
       source.buffer = mémoire;
@@ -1792,6 +1795,7 @@ export default function Home() {
 
       const duree = mémoire.duration * 1000;
       source.onended = () => {
+        if(garde?.actuel()&&sourceRef.current===source&&ctx.currentTime-depart>=mémoire.duration-0.02)garde.termine?.(mémoire);
         // A stopped acknowledgement may end after the real reply starts.
         // Only its own source can stop the mouth animation.
         if (sourceRef.current === source) {
@@ -2669,6 +2673,22 @@ export default function Home() {
        On décide ici, une fois, sur la réponse ENTIÈRE — un fragment de
        quatre mots ne se juge pas, une réponse complète oui. */
     const langueDite = lecture?.langue ?? (estWolof(answer) ? "wo" : "fr");
+    const capturerCache=(b:AudioBuffer)=>{
+      if(!estMaitreRef.current||suite||!essaiChatterboxActif()||personaRef.current==="rara")return;
+      try{prisesValidees.api.capturer({texte:answer.trim(),langue:langueDite,voice:voixChatterboxBia(),date:Date.now(),audio:wavPrise([{debut:0,sampleRate:b.sampleRate,canaux:Array.from({length:b.numberOfChannels},(_,c)=>b.getChannelData(c))}])});}catch{}
+    };
+    // A human-validated take has priority over regenerated or automatic audio.
+    if(!suite&&essaiChatterboxActif()&&personaRef.current!=="rara"){
+      try{
+        const exact=await prisesValidees.api.lire(answer,langueDite,voixChatterboxBia());
+        if(!actuel())return;
+        if(exact){await prendreLaParole();if(!await peutParler())return;
+          const duree=await jouerEtAnimer(exact,true,{actuel,exact:true,commence:()=>lecture?.premierSon()});
+          if(!actuel())return;if(duree<=0)throw Error("La lecture de la prise validée a échoué.");
+          if(!lecture?.conserverTour)stopMouth(answer);return;
+        }
+      }catch(e){setPanne(e instanceof Error?e.message:"Prise indisponible");stopMouth(answer);return;}
+    }
     // Current female Khalam recordings only. Lessons keep their fresh source
     // pronunciation; an absent/unwarmed clip never delays ordinary synthesis.
     if(!enLecon&&!suite&&personaRef.current!=="rara"&&(lecture?.sonCourant||(!lecture&&essaiChatterboxActif()&&voixChatterboxBia()==="female"))){
@@ -2677,7 +2697,7 @@ export default function Home() {
       if(octets){
         await prendreLaParole();if(!await peutParler())return;
         const debut=performance.now();poserBorne(bornesRef.current,"enMain");
-        const duree=await jouerEtAnimer(octets,true,{actuel,commence:()=>{void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"sons_courants",usage:"reponse",ms:performance.now()-debut,...(lecture?.debutSalutation!==undefined?{salutation_ms:performance.now()-lecture.debutSalutation,precharge:true}:{})})}).catch(()=>{});}});
+        const duree=await jouerEtAnimer(octets,true,{actuel,termine:capturerCache,commence:()=>{void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"sons_courants",usage:"reponse",ms:performance.now()-debut,...(lecture?.debutSalutation!==undefined?{salutation_ms:performance.now()-lecture.debutSalutation,precharge:true}:{})})}).catch(()=>{});}});
         if(!actuel())return;
         if(duree>0){stopMouth(answer);return;}
       }
@@ -2690,7 +2710,7 @@ export default function Home() {
       if(octets){
         await prendreLaParole();if(!await peutParler())return;
         const debut=performance.now();poserBorne(bornesRef.current,"enMain");
-        const duree=await jouerEtAnimer(octets,true,{actuel,commence:()=>{lecture?.premierSon();void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"audio_memoire",ms:performance.now()-debut})}).catch(()=>{});}});
+        const duree=await jouerEtAnimer(octets,true,{actuel,termine:capturerCache,commence:()=>{lecture?.premierSon();void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"audio_memoire",ms:performance.now()-debut})}).catch(()=>{});}});
         if(!actuel())return;
         if(duree>0){if(!lecture?.conserverTour)stopMouth(answer);return;}
       }
@@ -2734,6 +2754,7 @@ export default function Home() {
       return;
     }
 
+    if(!suite)prisesValidees.api.oublier();
     const routeVoix = routeVoixBia();
     const voixChoisie = voixChatterboxBia();
     let empreinteLecture: string | undefined;
@@ -2925,6 +2946,8 @@ export default function Home() {
       const ctx = await reveillerLeSon();
       if (perdu()) return;
       if (String(ctx.state) !== "running") throw new Error("Appuie sur le micro pour réactiver le son.");
+      const priseBlocs:BlocPrise[]=[];
+      let priseTropLongue=false;
       const segments: Array<{ debut: number; fin: number; valeurs: number[]; pic: number; pas: number }> = [];
       let quand = 0;
       // Vrai par défaut : le premier morceau, on l'a déjà en main (bloc), pas de blanc au départ.
@@ -2963,6 +2986,10 @@ export default function Home() {
         const debut = Math.max(ctx.currentTime + 0.06, quand);
         if (quand > 0) coutures.push(Math.round((debut - quand) * 1000));
         source.start(debut);
+        if(estMaitreRef.current&&essaiChatterboxActif()&&!suite&&personaRef.current!=="rara"&&!priseTropLongue){
+          if(debut-(priseBlocs[0]?.debut??debut)+mémoire.duration>60){priseTropLongue=true;priseBlocs.length=0;}
+          else priseBlocs.push({debut,sampleRate:mémoire.sampleRate,canaux:Array.from({length:mémoire.numberOfChannels},(_,c)=>mémoire.getChannelData(c).slice())});
+        }
         /* LE TEXTE ENTRE DANS LA FENÊTRE D'ÉCHO AU MOMENT OÙ IL SE JOUE, pas
            quand il a été écrit. Une seule fois par appel : les morceaux
            suivants disent la même phrase. On garde court — au-delà de
@@ -3077,6 +3104,7 @@ export default function Home() {
       await pause(reste + 120);
       segmentEnCoursRef.current = true;   // fini : plus de blanc à couvrir, le guetteur rejuge normalement
       if (perdu()) return;
+      if(priseBlocs.length&&!priseTropLongue){try{prisesValidees.api.capturer({texte:answer.trim(),langue:langueDite,voice:voixChoisie,audio:wavPrise(priseBlocs),date:Date.now()});}catch{/* Oversized takes are never offered as complete. */}}
       void fetch("/api/mesure", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -3123,7 +3151,7 @@ export default function Home() {
       if (ou === "apprentissage" || locale || essaiChatterboxActif()) { stopMouth(answer); return; }
       await parlerAvecLeTelephone(answer);
     }
-  }, [contexte, reveillerLeSon, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth, jouerEtAnimer, lireAudioMemoire]);
+  }, [contexte, reveillerLeSon, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth, jouerEtAnimer, lireAudioMemoire, prisesValidees.api]);
 
 
 
@@ -3200,6 +3228,7 @@ export default function Home() {
     /* Le micro a déjà ouvert son tour avant d'envoyer la parole à la
        transcription : on le REPREND, on n'en ouvre pas un second. Une
        question tapée, elle, ouvre le sien. */
+    const priseAvantReponse=prisesValidees.api.derniere();
     const monTour = tourDonne ?? ouvrirUnTour();
     busyRef.current = true;
     setSaisie("");
@@ -3513,6 +3542,7 @@ export default function Home() {
          Le texte est déjà retenu par le serveur à cet instant. Le son est un
          PLUS : s'il ne part pas, la mémoire reste juste. On ne fait donc pas
          attendre la réponse pour lui, et on n'échoue pas dessus. */
+      if(data.retenu&&estMaitreRef.current&&ordreValiderPrise(clean))void prisesValidees.api.valider(priseAvantReponse,data.retenu);
       if (data.retenu && sonDeSaVoix.current) {
         const son = sonDeSaVoix.current;
         const quoi = data.retenu;
@@ -3748,7 +3778,7 @@ export default function Home() {
         questionEnVolRef.current = "";
       }
     }
-  }, [speak, installerAudioMemoire, finirAttente, ouvrirUnTour, estLeTour, lectureContinue, stopMouth, couperSon, jouerEtAnimer]);
+  }, [speak, prisesValidees.api, installerAudioMemoire, finirAttente, ouvrirUnTour, estLeTour, lectureContinue, stopMouth, couperSon, jouerEtAnimer]);
 
   /* LE TEXTE FRANÇAIS QU'ON COLLE, DIT EN WOLOF.
 
@@ -8337,6 +8367,10 @@ export default function Home() {
           pendant dix minutes en croyant qu'elle retient, ou l'inverse. Un
           bandeau discret, et les trois phrases qui en sortent — parce qu'on
           n'apprend pas une commande par cœur en conduisant. */}
+      {estMaitre&&(prisesValidees.candidate||prisesValidees.message)?<aside style={{position:'fixed',bottom:90,left:12,right:12,zIndex:70,background:'#151515',color:'white',padding:12,borderRadius:12}}>
+        {prisesValidees.candidate?<><div style={{maxHeight:65,overflow:'auto'}}>« {prisesValidees.candidate.texte} »</div><button disabled={mode==='speaking'||mode==='thinking'} onClick={()=>void prisesValidees.api.valider(prisesValidees.candidate)}>Cette prononciation est bonne — conserver l’audio</button></>:null}
+        {prisesValidees.message?<p role="status">{prisesValidees.message}</p>:null}
+      </aside>:null}
       {estMaitre && enApprentissage ? (
         <div className="apprend-bandeau">
           <b>{correctionDevoirRef.current ? "Correction du devoir" : "Mode apprentissage"}</b> — dis ta phrase complète, elle la répète. Valide pour la mémoriser.
