@@ -41,3 +41,9 @@ test('draft ownership, single consumption and changed intent are enforced withou
  const reply=await api.consommerReponseAnticipee(final,'test-owner');assert(reply.audio_anticipe);assert.equal(syntheses,1);assert.equal(modeles,1);assert.equal(await api.consommerReponseAnticipee(final,'test-owner'),null);
  const p2=await api.preparerReponseAnticipee(body,'owner-2',true,new AbortController().signal);assert(p2);assert.equal(await api.consommerReponseAnticipee({...final,anticipationId:p2.id,message:question+' Finalement non, changeons de sujet.'},'owner-2'),null);
 });
+
+test('Sonnet request preserves the constrained JSON schema and default conversation settings',()=>{
+ const api=load('lib/cerveau-anthropic.ts');const schema={type:'json_schema',schema:{type:'object',properties:{valide:{type:'boolean'}},required:['valide'],additionalProperties:false}};
+ const normal=api.corpsAnthropic({model:api.MODELE_SONNET,max_tokens:1200,temperature:.7});assert.deepEqual(normal.output_config,{effort:'low'});assert.equal(normal.temperature,undefined);
+ const constrained=api.corpsAnthropic({model:api.MODELE_SONNET,max_tokens:1200,output_config:{format:schema}});assert.deepEqual(constrained.output_config,{effort:'low',format:schema});assert.deepEqual(constrained.thinking,normal.thinking);
+});
