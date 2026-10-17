@@ -28,6 +28,9 @@ export async function register(){
   if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-16T22:30:00Z')){
    setTimeout(()=>{void import('./lib/profil-preparation').then(m=>m.verifierCalculPreparation()).then(()=>import('./lib/essai-latence-pipeline')).then(m=>m.verifierLatencePipeline()).catch(()=>{});},90000).unref();
   }
+  if(process.env.RENDER_GIT_COMMIT&&process.env.CHATTERBOX_TEST_KEY&&Date.now()<Date.parse('2026-10-17T02:30:00Z')){
+   setTimeout(()=>{void import('./lib/essai-mots-sautes').then(m=>m.verifierMotsSautes()).catch(()=>{});},45000).unref();
+  }
   if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-17T01:00:00Z')){
    setTimeout(()=>{void import('./lib/essai-streaming-isole').then(m=>m.verifierStreamingIsole()).catch(()=>{});},90000).unref();
   }

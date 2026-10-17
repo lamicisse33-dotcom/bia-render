@@ -1,3 +1,4 @@
+import {resumeMotsSautes} from '@/lib/essai-mots-sautes';
 import {resumeStreamingIsole} from '@/lib/essai-streaming-isole';
 import {resumeEcouteAnticipee} from '@/lib/ecoute-anticipee';
 import {resumeComparaisonCerveaux} from '@/lib/essai-cerveaux-rapides';
@@ -386,6 +387,7 @@ export async function GET(request: Request) {
     parcours_rapide: resumeParcoursRapide(),
     transport_voix:resumeTransportVoix(),
     essai_streaming_isole:resumeStreamingIsole(),
+    mots_sautes:resumeMotsSautes(),
     /* ── ET LE VRAI NOMBRE, CELUI DE LA TABLE ─────────────────────────────
        Le 18 septembre à 23 h, la page disait « Souvenirs gardés : 0 » une
        heure après avoir dit 74. Rien n'était perdu : `gardes` compte ce qui
