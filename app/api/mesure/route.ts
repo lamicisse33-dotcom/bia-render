@@ -1,3 +1,4 @@
+import {noterEcouteProgressive} from '@/lib/anticipation-etat';
 import {noterEcouteLongue} from '@/lib/ecoute-longue-etat';
 import {noterFocusLocuteur} from "@/lib/focus-locuteur-etat";
 import {noterPiperWeb} from "@/lib/piper-web-etat";
@@ -30,6 +31,7 @@ export async function POST(requete: Request) {
         }));
       }
     }
+    else if (corps && corps.type === "ecoute_progressive") noterEcouteProgressive(corps);
     else if (corps && corps.type === "ecoute_longue") noterEcouteLongue(corps);
     else if (corps && corps.type === "focus_locuteur") noterFocusLocuteur(corps);
     else if (corps && corps.type === "piper_web") noterPiperWeb(corps);
