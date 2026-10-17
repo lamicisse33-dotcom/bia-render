@@ -97,3 +97,32 @@ test('client consumes queued audio while final generation is still pending',asyn
   finalRequest.resolve();await finishing;const r=await reading.fin;assert.equal(r.reponse,'Brique 0 Brique 1');assert.equal(r.normal,false);
  }finally{globalThis.fetch=original;}
 });
+
+test('the actual default portrait can activate silent preparation; other exclusions remain explicit',()=>{
+ const text=fs.readFileSync('app/page.tsx','utf8'),ast=ts.createSourceFile('page.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let definition;
+ function walk(n){if(ts.isFunctionDeclaration(n)&&n.name?.text==='personnageAuDemarrage')definition=n.getText(ast);ts.forEachChild(n,walk);}walk(ast);assert(definition);
+ const choisir=new Function(ts.transpileModule(definition,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText+';return personnageAuDemarrage;')();
+ const values=new Map(),persona=choisir({getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)});assert.equal(persona,'rara');
+ const {exclusionAnticipation}=load('lib/activation-anticipation.ts');
+ const context={persona,voixCompatible:true,desactivee:false,apprentissage:false,correctionDevoir:false,correctionListe:false,prenom:false,reprise:false};
+ assert.equal(exclusionAnticipation(context),'');assert.equal(exclusionAnticipation({...context,persona:'bia'}),'');
+ for(const [flag,reason] of [['apprentissage','apprentissage'],['correctionDevoir','correction_devoir'],['correctionListe','correction_liste'],['prenom','prenom'],['reprise','reprise'],['desactivee','desactivee']])assert.equal(exclusionAnticipation({...context,[flag]:true}),reason);
+ assert.equal(exclusionAnticipation({...context,voixCompatible:false}),'voix_incompatible');
+});
+test('server prepares both locked bricks with the default portrait and selected voice',async()=>{
+ const s=server(),signal=new AbortController().signal;
+ const first=await s.preparerBrique({...body,persona:'rara'},'owner-default',true,signal);
+ assert(first?.brique);const locked=JSON.stringify(first.brique);
+ const next=await s.preparerBrique({id:first.id,texte:question+' Ensuite je suis passé chez le coiffeur pour me coiffer.',final:true},'owner-default',true,signal);
+ assert(next?.termine);assert(next.brique);assert.equal(JSON.stringify(first.brique),locked);
+ assert.equal(s.syntheses.length,2);assert(s.syntheses.every(x=>x.voice===body.voice));
+});
+test('capture telemetry distinguishes default appearance from a real learning exclusion',()=>{
+ delete globalThis.biaProtectionParole;
+ const api=load('lib/protection-parole-etat.ts');
+ api.noterProtectionParole({type:'capture_progressive',etape:'branchee',motif:'',apparence:'rara'});
+ assert.equal(api.resumeProtectionParole().captures.branchee,1);
+ assert.equal(api.resumeProtectionParole().derniere_capture.apparence,'rara');
+ api.noterProtectionParole({type:'capture_progressive',etape:'contexte_exclu',motif:'correction_devoir',apparence:'rara'});
+ assert.equal(api.resumeProtectionParole().motifs_exclusion.correction_devoir,1);
+});

@@ -4,12 +4,12 @@ import {createHash} from 'node:crypto';
 /** Bounded real-model/audio smoke check; never stored as a user's conversation. */
 export async function verifierBriques(){
  if(etatBriques.essai||!process.env.BIA_CODE_MAITRE)return;
- const essai=etatBriques.essai={statut:'en_cours',synthetique:true} as Record<string,unknown>;
+ const essai=etatBriques.essai={statut:'en_cours',synthetique:true,apparence:'rara'} as Record<string,unknown>;
  const code=process.env.BIA_CODE_MAITRE;
  const texte='Ce matin, en allant au marché, je suis passé chez le cordonnier pour faire réparer mes chaussures. Ensuite je suis passé chez le coiffeur.';
  try{
   const debut=Date.now();
-  const a=await preparerBrique({texte,tour:'diagnostic-briques-20261017',history:[],resume:'',voice:'female',persona:'bia'},code,true,AbortSignal.timeout(35000));
+  const a=await preparerBrique({texte,tour:'diagnostic-briques-20261017',history:[],resume:'',voice:'female',persona:'rara'},code,true,AbortSignal.timeout(35000));
   essai.premiere_preparation_ms=Date.now()-debut;
   if(!a?.brique){essai.statut='premiere_non_confirmee';return;}
   const empreinte=createHash('sha256').update(a.brique.audio).digest('hex');essai.premier_audio_octets=Buffer.from(a.brique.audio,'base64').length;

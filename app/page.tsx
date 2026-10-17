@@ -89,6 +89,7 @@ import {
   faut_il_se_taire, recoller, suitePendantReflexion, PORTE_AU_PLUS, type Prononce,
 } from "@/lib/sa-propre-voix";
 import {creerFocusLocuteur} from "@/lib/focus-locuteur";
+import {exclusionAnticipation} from '@/lib/activation-anticipation';
 import { attendreSonTour, creerDetectionInterruption } from "@/lib/tour-de-parole";
 import Installer from "./installer";
 import Ecran from "./ecran";
@@ -5192,12 +5193,12 @@ export default function Home() {
         // The first complete audio is already on the device. Start it while
         // the final ASR segment is still running; subsequent bricks append.
         const abortBriques=new AbortController();
-        const voixDesBriques=voixChatterboxBia();
+        const voixDesBriques=voixChatterboxBia(),apparenceDesBriques=personaRef.current;
         const debutBriques=Date.now(),finParoleBriques=bornesRef.current.parole||debutBriques;
         let premierBrique=true,attendBrique=false,briquesTerminees=false,finSonBrique=0;
         const ditesBriques:string[]=[];
         const priseBriques:BlocPrise[]=[];let taillePriseBriques=0,priseBriquesTropLongue=false;
-        const actifBriques=()=>!abortBriques.signal.aborted&&estLeTour(monTour)&&estCetEnregistrement(idEnr)&&!carteOuverteRef.current;
+        const actifBriques=()=>!abortBriques.signal.aborted&&personaRef.current===apparenceDesBriques&&estLeTour(monTour)&&estCetEnregistrement(idEnr)&&!carteOuverteRef.current;
         const mesureBriques=(etape:string,ms:number,extra:Record<string,number>={})=>{
           void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'briques',etape,ms,...extra}),keepalive:true}).catch(()=>{});
         };
@@ -5209,7 +5210,7 @@ export default function Home() {
             if(premierBrique){await finirAttente(b.langue,false);if(!actifBriques())return false;couperSon();prisesValidees.api.oublier();}
             if(!await autoriserLaVoix(actifBriques))return false;
             taireBriques();
-            const exact=await prisesValidees.api.lire(b.texte,b.langue,b.voice).catch(()=>null);
+            const exact=apparenceDesBriques==='rara'?null:await prisesValidees.api.lire(b.texte,b.langue,b.voice).catch(()=>null);
             if(!actifBriques())return false;
             let debutPriseBrique=0;
             const ms=await jouerEtAnimer(exact||octetsDeBase64(b.audio),false,{actuel:actifBriques,exact:!!exact,commence:()=>{
@@ -5218,7 +5219,7 @@ export default function Home() {
               if(premierBrique){premierBrique=false;mesureBriques('premier_son',Date.now()-finParoleBriques,{micro_ms:Date.now()-debutBriques});}
               else if(finSonBrique)mesureBriques('blanc',Date.now()-finSonBrique);
             },termine:audio=>{
-              if(!estMaitreRef.current||priseBriquesTropLongue)return;
+              if(apparenceDesBriques==='rara'||!estMaitreRef.current||priseBriquesTropLongue)return;
               taillePriseBriques+=audio.length*audio.numberOfChannels*4;
               if(taillePriseBriques>8_000_000||priseBriques.length&&debutPriseBrique-priseBriques[0].debut+audio.duration>60){priseBriquesTropLongue=true;priseBriques.length=0;return;}
               priseBriques.push({debut:debutPriseBrique,sampleRate:audio.sampleRate,canaux:Array.from({length:audio.numberOfChannels},(_,c)=>audio.getChannelData(c).slice())});
@@ -5232,7 +5233,7 @@ export default function Home() {
             // Only a real, approved take in this voice. Missing takes remain
             // silent; never synthesize "hmm" or replay the rejected short clips.
             const souffle=souffleDe('reflexion');
-            if(voixChatterboxBia()!=='female'||!souffle?.fichiers.length)return;
+            if(apparenceDesBriques==='rara'||voixChatterboxBia()!=='female'||!souffle?.fichiers.length)return;
             const fichier=fichierDe(souffle,dernierSouffle.current);
             void (async()=>{
               try{
@@ -5486,12 +5487,13 @@ export default function Home() {
          connexion mobile de Dakar. Plus long laisserait un plus gros reste à
          monter au moment précis où il se tait — et c'est ce reste, et lui
          seul, qu'il attend. */
-      if(essaiChatterboxActif()&&personaRef.current!=="rara"&&!apprend.current&&!correctionDevoirRef.current&&!chantierMalDit.current&&!attendLeNomRef.current&&!motsRattrapesRef.current&&localStorage.getItem("bia-anticipation")!=="non"){
+      const exclusionCapture=exclusionAnticipation({persona:personaRef.current,voixCompatible:essaiChatterboxActif(),desactivee:localStorage.getItem('bia-anticipation')==='non',apprentissage:apprend.current,correctionDevoir:!!correctionDevoirRef.current,correctionListe:chantierMalDit.current,prenom:attendLeNomRef.current,reprise:!!motsRattrapesRef.current});
+      if(!exclusionCapture){
         progressive=await brancherAnticipation({ctx:ctxMicro,flux,code:codeRef.current,tour:tourDeParole,history:fenetreDuFil(historyRef.current),resume:resumeRef.current,voice:voixChatterboxBia(),persona:personaRef.current,langue:()=>langueDuFil.current,parle:()=>aParle,actuel:()=>estCetEnregistrement(idEnr)});
       }
       if(!estCetEnregistrement(idEnr)){await progressive?.annuler();return;}
-      const etapeCapture=progressive?'branchee':!essaiChatterboxActif()?'voix_incompatible':localStorage.getItem('bia-anticipation')==='non'?'desactivee':personaRef.current==='rara'||apprend.current||correctionDevoirRef.current||chantierMalDit.current||attendLeNomRef.current||motsRattrapesRef.current?'contexte_exclu':'indisponible';
-      void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'capture_progressive',etape:etapeCapture}),keepalive:true}).catch(()=>{});
+      const etapeCapture=progressive?'branchee':['voix_incompatible','desactivee'].includes(exclusionCapture)?exclusionCapture:exclusionCapture?'contexte_exclu':'indisponible';
+      void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'capture_progressive',etape:etapeCapture,motif:exclusionCapture,apparence:personaRef.current}),keepalive:true}).catch(()=>{});
       enregistreur.start(400);
       setMode("listening");
       setFace("ecoute");

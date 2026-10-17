@@ -26,7 +26,7 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
   let s:Session|undefined;
   if(body.id){s=sessions.get(String(body.id));if(!s||s.owner!==owner)throw Error('Session inconnue');}
   else {
-    if(!eligibleAnticipation(texte)||!Array.isArray(body.history)||!['female','male'].includes(body.voice)||body.persona==='rara'||body.apprend||! /^[a-zA-Z0-9_-]{8,80}$/.test(String(body.tour||'')))return null;
+    if(!eligibleAnticipation(texte)||!Array.isArray(body.history)||!['female','male'].includes(body.voice)||body.apprend||! /^[a-zA-Z0-9_-]{8,80}$/.test(String(body.tour||'')))return null;
     if(sessions.size>=32||[...sessions.values()].filter(x=>x.owner===owner&&!x.fermee).length>=4)return null;
     const v=verifierCode(code,false);if(!v.ok)return null;
     s={id:randomUUID(),owner,tour:body.tour,history:contexteAnticipation(body.history.map((m:any)=>({...m,role:m.role==='bia'?'assistant':m.role}))),resume:String(body.resume||'').slice(0,6000),voice:body.voice,maitre,expire:Date.now()+240000,traite:'',dernier:'',briques:[],occupe:false,fermee:false,appels:0};
