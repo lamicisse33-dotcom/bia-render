@@ -54,11 +54,12 @@ function server(answer){
    if(request.output_config.format.schema.properties.traite.type==='integer'&&typeof result.traite==='string')result.traite=result.traite.split(' ').length;
    return Response.json({text:JSON.stringify(result)});
   }};
+  if(id==='./briques-audio')return load('lib/briques-audio.ts');
   if(id==='./briques-prompt')return load('lib/briques-prompt.ts');
   if(id==='./conversation-groq')return {messagesConversation:o=>[{role:'system',content:JSON.stringify(o)}]};
   if(id==='./memoire-organisee')return {contexteMemoireCommune:async()=>''};if(id==='./instructions-apprentissage')return {contexteInstructions:async()=>''};
   if(id==='./langue')return {detecterLangue:()=> 'fr'};if(id==='./assembler-sons-courants')return {assemblerSonsCourants:()=>({wav:new ArrayBuffer(1200)})};
-  if(id.includes('chatterbox-test'))return {POST:async req=>{const body=await req.json();syntheses.push(body);return Response.json({audio:Buffer.alloc(1200).toString('base64'),partie:0,parties:1,empreinte:'stable',voice:'female'});}};
+  if(id.includes('chatterbox-test'))return {POST:async req=>{const body=await req.json();syntheses.push(body);return new Response(JSON.stringify({type:'morceau',audio:Buffer.alloc(1200).toString('base64'),partie:0,parties:1,empreinte:'stable',voice:'female'})+'\n'+JSON.stringify({type:'fin'})+'\n');}};
   throw Error(id);
  });return {...api,models,syntheses,saved,quota:()=>quota};
 }
@@ -230,4 +231,19 @@ test('focused prompt preserves complete teaching instructions and exact memory w
  const {messagesBriques}=load('lib/briques-prompt.ts');const instructions='Règle précise du maître. '.repeat(400),memoire='BIA-SPO-001 : formulation wolof exactement validée.';
  const m=messagesBriques({maitre:true,instructions,memoire,resume:'Un contexte donné.',history:[{role:'user',content:'Une question précédente.'}]});
  assert(m.some(x=>x.content.endsWith(instructions)));assert(m.some(x=>x.content.includes(memoire)));assert.equal(m.filter(x=>x.role==='user').length,1);assert(m[0].content.includes('papa'));assert(m[0].content.includes('Ton nom est Bia'));
+});
+
+
+test('continuous brick audio keeps one complete ordered pronunciation plan and requires explicit end',async()=>{
+ const {lireAudioBrique}=load('lib/briques-audio.ts'),signal=new AbortController().signal;
+ const frame=n=>({type:'morceau',partie:n,parties:2,empreinte:'stable',voice:'female',audio:Buffer.from('son '+n).toString('base64'),preparation_ms:350,generation_ms:800,fabrication_ms:1000});
+ const valid=[frame(0),frame(1),{type:'fin'}];
+ const response=events=>{const bytes=new TextEncoder().encode(events.map(x=>JSON.stringify(x)).join('\n')+'\n');return new Response(new ReadableStream({start(c){for(let i=0;i<bytes.length;i+=7)c.enqueue(bytes.slice(i,i+7));c.close();}}));};
+ const a=await lireAudioBrique(response(valid),'female',signal);assert.equal(a.clips.length,2);assert.equal(a.preparation_ms,350,'pronunciation preparation is counted once');assert.equal(a.generation_ms,1600);assert.equal(Buffer.from(a.clips[0]).toString(),'son 0');
+ for(const broken of [[frame(0),frame(1)],[frame(0),{type:'fin'}],[frame(1),frame(0),{type:'fin'}],[frame(0),{...frame(1),voice:'male'},{type:'fin'}],[frame(0),{...frame(1),empreinte:'changed'},{type:'fin'}]])await assert.rejects(lireAudioBrique(response(broken),'female',signal),/incomplet/);
+});
+test('cancelling continuous brick audio releases the reader without returning a partial brick',async()=>{
+ const {lireAudioBrique}=load('lib/briques-audio.ts'),abort=new AbortController();let cancelled=false;
+ const response=new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode(JSON.stringify({type:'morceau',partie:0,parties:2,empreinte:'stable',voice:'female',audio:'AAAA'})+'\n'));},cancel(){cancelled=true;}}));
+ const result=lireAudioBrique(response,'female',abort.signal);await tick();abort.abort();await assert.rejects(result);assert(cancelled);
 });

@@ -4,6 +4,7 @@ import {verifierCode} from './codes';
 import {fetchAnthropic,messagesAnthropic,contenuAnthropic,MODELE_SONNET} from './cerveau-anthropic';
 import {messagesConversation} from './conversation-groq';
 import {messagesBriques} from './briques-prompt';
+import {lireAudioBrique} from './briques-audio';
 import {contexteMemoireCommune} from './memoire-organisee';
 import {contexteInstructions} from './instructions-apprentissage';
 import {detecterLangue} from './langue';
@@ -54,11 +55,11 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
   if(final&&texte===s.traite){if(!verifierCode(code,true).ok)return resultat(s,undefined,true);s.fermee=true;etatBriques.finalisees++;return resultat(s);}
   s.occupe=true;s.appels++;s.dernier=texte;
   let etape='contexte';const debutPreparation=Date.now();
-  const mesure={profil:diagnosticAncien?'classique':'concis',synthetique:s.tour.startsWith('diagnostic-'),contexte_ms:0,modele_ms:0,audio_ms:0,total_ms:0,entree_signes:0,sortie_signes:0,parties:0,eligible:false};
+  const mesure={profil:diagnosticAncien?'classique':'concis',synthetique:s.tour.startsWith('diagnostic-'),contexte_ms:0,modele_ms:0,audio_ms:0,total_ms:0,entree_signes:0,sortie_signes:0,parties:0,preparation_voix_ms:0,generation_voix_ms:0,fabrication_voix_ms:0,cache_parties:0,eligible:false};
   try {
     const [memoire,instructions]=await Promise.all([contexteMemoireCommune(texte,s.history,6500),maitre?contexteInstructions():Promise.resolve('')]);
     const messages=diagnosticAncien?messagesConversation({question:texte,history:s.history,resume:s.resume,maitre,fiches:memoire,instructions,rapide:true}):messagesBriques({history:s.history,resume:s.resume,maitre,memoire,instructions});
-    messages.push({role:'system',content:`RÉPONSE ORALE PAR BRIQUES VERROUILLÉES. Aucun outil ni action ni écriture de mémoire. Les briques précédentes seront prononcées dans l'ordre et ne peuvent plus être modifiées. Réponds uniquement au prochain point achevé et utile du récit. Une phrase naturelle complète de 8 à 18 mots environ, maximum 180 caractères. ${final?'Traite un point à la fois, puis les prochaines briques traiteront les autres.':'Aucune question, aucun conseil sensible ni conclusion globale prématurée.'} Ne commente pas chaque détail, ne répète pas une brique et n'annonce pas une suite. Respecte les formulations apprises et la langue de la personne. Une correction tardive se traite MAINTENANT, sans nier que la brique précédente a été dite. Ne confirme pas une actualité sportive non vérifiée : tu peux réagir au récit sans certifier le résultat. Si action, recherche, urgence, instruction de mémorisation/correction de devoir, ou demande incompatible, eligible=false. Si le point est inachevé, eligible=false. Ne produis ni balise, ni indication de scène, ni « hmm » écrit. traite doit être un PRÉFIXE EXACT du texte intégral, jusqu'au point auquel cette brique répond. ${final?'La personne a fini : traite le prochain point restant ou la correction, sans répéter les briques précédentes. Si tout est traité, traite est exactement le texte intégral. Si la transcription finale a révisé le préfixe déjà traité, réponds à cette précision et utilise le texte intégral comme traite.':'La personne parle encore : traite doit dépasser le préfixe déjà traité. Aucun mot des points suivants ne doit être inclus.'} Retourne eligible, reply et traite.`});
+    messages.push({role:'system',content:`RÉPONSE ORALE PAR BRIQUES VERROUILLÉES. Aucun outil ni action ni écriture de mémoire. Les briques précédentes seront prononcées dans l'ordre et ne peuvent plus être modifiées. Réponds uniquement au prochain point achevé et utile du récit. Une phrase naturelle complète de 6 à 10 mots, idéalement 60 à 85 caractères, maximum 90 caractères. Exprime un point utile sans formule d’attente ; les détails suivants alimentent les prochaines briques. Ne coupe jamais une formulation apprise exacte pour la raccourcir : si elle exige plus de place, conserve-la entière. ${final?'Traite un point à la fois, puis les prochaines briques traiteront les autres.':'Aucune question, aucun conseil sensible ni conclusion globale prématurée.'} Ne commente pas chaque détail, ne répète pas une brique et n'annonce pas une suite. Respecte les formulations apprises et la langue de la personne. Une correction tardive se traite MAINTENANT, sans nier que la brique précédente a été dite. Ne confirme pas une actualité sportive non vérifiée : tu peux réagir au récit sans certifier le résultat. Si action, recherche, urgence, instruction de mémorisation/correction de devoir, ou demande incompatible, eligible=false. Si le point est inachevé, eligible=false. Ne produis ni balise, ni indication de scène, ni « hmm » écrit. traite doit être un PRÉFIXE EXACT du texte intégral, jusqu'au point auquel cette brique répond. ${final?'La personne a fini : traite le prochain point restant ou la correction, sans répéter les briques précédentes. Si tout est traité, traite est exactement le texte intégral. Si la transcription finale a révisé le préfixe déjà traité, réponds à cette précision et utilise le texte intégral comme traite.':'La personne parle encore : traite doit dépasser le préfixe déjà traité. Aucun mot des points suivants ne doit être inclus.'} Retourne eligible, reply et traite.`});
     const mots=texte.split(' ');
     if(!diagnosticAncien)messages.push({role:'system',content:'FORMAT COMPACT : traite est le NUMÉRO du dernier mot traité (entier), choisi dans les positions fournies, et non le texte du préfixe. Si tout est traité, utilise le numéro du dernier mot. Ne recompte pas les mots, lis leur numéro. Le serveur reconstitue le préfixe exact. Les autres règles sur les préfixes restent applicables.'});
     messages.push({role:'user',content:JSON.stringify({texte_integral:texte,prefixe_deja_traite:s.traite,briques_verrouillees:s.briques.map(b=>b.texte),fin_de_parole:final,...(!diagnosticAncien?{positions:mots.map((mot,i)=>[i+1,mot])}:{})})});
@@ -79,14 +80,14 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
     // turn for the old prompt. The public route cannot enable this argument.
     if(diagnostic){s.fermee=true;return {...resultat(s),mesure};}
     etape='audio';const debutAudio=Date.now();const langue=detecterLangue(reply,detecterLangue(texte,'wo')) as 'wo'|'fr';
-    const clips:ArrayBuffer[]=[];let parties=1,empreinte:string|undefined;
-    for(let partie=0;partie<parties;partie++){
+    const audioComplet=await gpuAnticipation(async()=>{
       signal.throwIfAborted();
-      const response=await gpuAnticipation(async()=>{signal.throwIfAborted();return synthetiser(new NextRequest('https://app.khalam.app/api/chatterbox-test/bia',{method:'POST',headers:{'content-type':'application/json','x-bia-code':code},body:JSON.stringify({texte:reply,langue,voice:s!.voice,lecture_fidele:true,partie,empreinte}),signal}));},final?1:0);
-      const a=await response.json();if(!response.ok||!a.audio||a.voice!==s.voice||a.partie!==partie||!Number.isInteger(a.parties)||a.parties<1||a.parties>8||(empreinte&&a.empreinte!==empreinte))throw Error('Audio incomplet');
-      parties=a.parties;empreinte=a.empreinte;clips.push(Uint8Array.from(Buffer.from(a.audio,'base64')).buffer);
-    }
+      const response=await synthetiser(new NextRequest('https://app.khalam.app/api/chatterbox-test/bia',{method:'POST',headers:{'content-type':'application/json','x-bia-code':code},body:JSON.stringify({texte:reply,langue,voice:s!.voice,lecture_fidele:true,continu:true}),signal}));
+      return lireAudioBrique(response,s!.voice,signal);
+    },final?1:0);
+    const {clips,parties}=audioComplet;
     mesure.audio_ms=Date.now()-debutAudio;mesure.parties=parties;
+    mesure.preparation_voix_ms=audioComplet.preparation_ms;mesure.generation_voix_ms=audioComplet.generation_ms;mesure.fabrication_voix_ms=audioComplet.fabrication_ms;mesure.cache_parties=audioComplet.cache_parties;
     signal.throwIfAborted();if(s.fermee)throw Error('Session annulée');
     const audio=Buffer.from(assemblerSonsCourants(clips,30).wav).toString('base64');
     const termine=final&&traite===texte;

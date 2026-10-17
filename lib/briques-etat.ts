@@ -1,7 +1,7 @@
 const g=globalThis as typeof globalThis&{biaBriquesEtat?:any};
 const etat=g.biaBriquesEtat??={sessions:0,preparees:0,finalisees:0,erreurs:0,lectures:0,dernier_premier_son_ms:null,dernier_depuis_micro_ms:null,dernier_blanc_ms:null,blanc_max_ms:0,reflexions:0,dernier_echec:null};
 export const etatBriques=etat;
-export const resumeBriques=()=>({mode:'briques_verrouillees',revision:'pause-et-briques-courtes-v4',premier_segment_apres_ms:4000,pause_transcription_ms:500,...etat,son_reflexion:'prise_naturelle_manquante'});
+export const resumeBriques=()=>({mode:'briques_verrouillees',revision:'audio-une-preparation-v5',premier_segment_apres_ms:4000,pause_transcription_ms:500,...etat,son_reflexion:'prise_naturelle_manquante'});
 export function noterBriques(d:Record<string,unknown>){
   const ms=Number(d.ms);if(!Number.isFinite(ms)||ms<0||ms>180000)return;
   if(typeof d.tour==='string'&&/^[a-zA-Z0-9_-]{8,80}$/.test(d.tour)&&['depart','lecture_demandee','debut_brique','fin_brique','transcrit','fin_preparation','fin_chaine','annulation'].includes(String(d.etape))){
