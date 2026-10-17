@@ -1,0 +1,22 @@
+{
+  "commit": "ea932a004076886f4cd16b5234c0c3f677c9199a",
+  "reference": "reference/bia-validee-2026-10-17",
+  "validation": "Utilisateur : réponses à temps, amélioration confirmée le 17 octobre 2026 ; conserver cet acquis.",
+  "files": {
+    "app/page.tsx": "c215f9b29185d6fa9542c0525e2f8f5000a794f82a98ce9f281af724e9675e07",
+    "lib/micro.ts": "aafc23254d52d4b13a1dca38dd678bab86c4e70da77231c13acf1d0133e2ef2d",
+    "lib/sa-propre-voix.ts": "57e3c593a94f72f4c8d329687abdd5b5f73f5cc805be93f35eac5b217d047b7d",
+    "lib/tour-de-parole.ts": "ce4150538285f221cb4dd3f21068f777bda5a7454850471cd211145f4b81780f",
+    "lib/anticipation-client.ts": "d4d951d1cb06db2f0c67fb6840d8813f35786af5877f61f88e942c6b94df0338",
+    "lib/ecoute-progressive.ts": "ff1dd9d13c9fa5f4b2208c00ef0dd52301c296c76a133afbc1537ca90a82dd22",
+    "lib/activation-anticipation.ts": "b92ddd8235f440aaa9a1aba5f97112cea0e003e25fce44a370e66122d51cdc61",
+    "lib/briques-client.ts": "6e043c583a2b1c9f5966288b1a2e60f32f36ac3de7940c7b6d410a8c6311513d",
+    "lib/briques-file.ts": "eb3c5ff3b5a20df06b0b34936253177c88a062ddcd250e4354ca0b3f691136c0",
+    "lib/briques-reponse.ts": "cbb6951f9b843ad62110c54c27c7d87e8fc23a512acc3eb95fdb27b03fac9d78",
+    "lib/briques-prompt.ts": "d3ed63d31fc3cd4fa36c5a3f7e8cbcaaa5ee6f36335c029a9f81984afe94e599",
+    "lib/briques-audio.ts": "8e2312c454a3a6d893e28b1e960afff216374d561e260f6bb2a38ea54012c3ad",
+    "lib/anticipation-gpu.ts": "1aaf4370f9917f3b1a22145104796fa1060cf3b089cfff4bba43c713bd859635",
+    "app/api/ecouter/apercu/route.ts": "5e80180f6163ac563979d2333bfc505b3cb3e8c6711a5dc4fb72a30744145fd7",
+    "lib/morceaux-de-parole.ts": "d23fcad7b86f0270f576dbb114351049935b7d8ce07072ae697947eb9138a5a1"
+  }
+}
