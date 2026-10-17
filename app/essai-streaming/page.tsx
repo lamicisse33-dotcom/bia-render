@@ -63,6 +63,17 @@ export default function EssaiStreaming(){
    void fetch('/api/essai-streaming',{method:'POST',headers,body:JSON.stringify({type:'erreur',mode,langue,etape,code:abort.signal.aborted?'interrompu':etape==='verification_code'?'acces_refuse_ou_reseau':etape==='activation_audio'?'son_bloque':etape==='decodage_audio'?'audio_non_decode':'lecture_incomplete'}),signal:AbortSignal.timeout(5000)}).catch(()=>{});
   }finally{clearTimeout(timer);abort.abort();if(context)await context.close().catch(()=>{});actif.current=null;setOccupe(false);}
  }
+ async function chargerPrises(){
+  if(!code.trim()){setMessage('Saisis ton code maître pour charger les prises.');return;}
+  setOccupe(true);setMessage('Chargement des prises de la phrase signalée…');
+  try{
+   const r=await fetch('/api/essai-mots-sautes',{headers:{'x-bia-code':code},signal:AbortSignal.timeout(10000)});
+   if(!r.ok)throw Error(r.status===401?'Code maître requis.':'Chargement indisponible.');
+   const d=await r.json();if(!d.audios?.length)throw Error('Les prises ne sont pas encore disponibles. Réessaie dans une minute.');
+   const liste=d.audios.map((a:{seed:number;audio:string})=>{const bytes=Uint8Array.from(atob(a.audio),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}));urls.current.push(url);return {url,nom:`Phrase signalée — prise ${a.seed}${a.seed===913?' (référence)':''}`};});
+   setAudios(a=>[...a,...liste]);setMessage('Les prises sont prêtes plus bas. Écoute chacune et vérifie « def lu ma ». Aucun changement de voix n’est appliqué automatiquement.');
+  }catch(e){setMessage((e as Error).message);}finally{setOccupe(false);}
+ }
  const champ={width:'100%',padding:12,borderRadius:8,border:'1px solid #555',background:'#171c26',color:'#fff',margin:'8px 0'};
  return <main style={{maxWidth:850,margin:'auto',padding:24,color:'#eee',background:'#0b1018',minHeight:'100vh',fontFamily:'system-ui'}}>
   <a href="/" style={{color:'#8cd8c0'}}>← Revenir à Bia</a><h1>Comparer l’écoute en streaming</h1>
@@ -73,6 +84,7 @@ export default function EssaiStreaming(){
   <label>Langue<select value={langue} disabled={occupe} onChange={e=>setLangue(e.target.value)} style={champ}><option value="wo">Wolof</option><option value="fr">Français</option></select></label>
   <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>{(['complet','stream'] as const).map(mode=><button key={mode} disabled={occupe||!phrase.trim()} onClick={()=>void lancer(mode)} style={{padding:14,borderRadius:8}}>{mode==='complet'?'Écouter la version actuelle':'Écouter en streaming'}</button>)}<button disabled={!occupe} onClick={arreter} style={{padding:14,borderRadius:8}}>Arrêter</button></div>
   <p role="status" aria-live="polite">{message||(!code?'Saisis ton code maître, puis choisis une lecture.':'Code de Bia repris. Choisis une lecture.')}</p>
+  <p><button disabled={occupe} onClick={()=>void chargerPrises()} style={{padding:14,borderRadius:8}}>Comparer les prises de « Dañu bëgg ma def lu ma bëggul »</button></p>
   {audios.length>0&&<section aria-label="Audios reçus"><h2>Réécouter les audios reçus</h2><p>Si le son ne démarre pas automatiquement, utilise ces lecteurs. La réécoute ne mesure pas la latence du moteur.</p>{audios.map(a=><div key={a.url}><p>{a.nom}</p><audio controls preload="auto" src={a.url} style={{width:'100%'}}/></div>)}</section>}
   <p>Mesure à partir de l’envoi du texte : elle exclut le micro et le cerveau. Le démarrage affiché est celui programmé par le navigateur ; confirme à l’oreille ce que tu entends réellement.</p>
   <div style={{overflowX:'auto'}}><table style={{width:'100%',textAlign:'left'}}><thead><tr><th>Mode</th><th>Premier audio</th><th>Démarrage</th><th>Blanc max.</th><th>Cache</th></tr></thead><tbody>{resultats.map((r,i)=><tr key={i}><td>{r.mode}</td><td>{r.premier_audio_ms} ms</td><td>{r.demarrage_programme_ms} ms</td><td>{r.trou_max_ms} ms</td><td>{r.audio_en_cache?'oui':'non'}</td></tr>)}</tbody></table></div>
