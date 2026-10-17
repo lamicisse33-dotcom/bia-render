@@ -1,0 +1,72 @@
+{
+  "version": "36790c357cec",
+  "rapport": {
+    "statut": "termine",
+    "phrase": "Dañu bëgg ma def lu ma bëggul.",
+    "date": "2026-10-17T01:33:50.414Z",
+    "version": "36790c357cec",
+    "mesure": "Trois prises complètes du texte exact. Transcription automatique indicative, validation humaine requise.",
+    "prises": [
+      {
+        "seed": 913,
+        "generation_ms": 1019,
+        "duree_secondes": 1.44,
+        "reception_ms": 1703,
+        "transcription_indicative": "Dañu bëgg a ma bëggoon.",
+        "correspondance_indicative": false
+      },
+      {
+        "seed": 914,
+        "generation_ms": 979,
+        "duree_secondes": 1.36,
+        "reception_ms": 1144,
+        "transcription_indicative": "Dañu bëgg ma bëggool.",
+        "correspondance_indicative": false
+      },
+      {
+        "seed": 915,
+        "generation_ms": 1040,
+        "duree_secondes": 1.4,
+        "reception_ms": 1206,
+        "transcription_indicative": "Dañu bëgg ma bëggul.",
+        "correspondance_indicative": false
+      },
+      {
+        "seed": 913,
+        "essai": 916,
+        "groupes": [
+          "Dañu bëgg ma def",
+          "lu ma bëggul."
+        ],
+        "duree_secondes": 2.56,
+        "reception_ms": 2267,
+        "transcription_indicative": "Dañu bëgg ma def, lu ma bëggool.",
+        "correspondance_indicative": false
+      },
+      {
+        "seed": 913,
+        "essai": 917,
+        "groupes": [
+          "Dañu bëgg ma",
+          "def lu ma bëggul."
+        ],
+        "duree_secondes": 2.32,
+        "reception_ms": 2084,
+        "transcription_indicative": "Dañu bëgg ma, def lu ma bëggul.",
+        "correspondance_indicative": true
+      }
+    ],
+    "plan": [
+      {
+        "texte": "Dañu bëgg ma def lu ma bëggul.",
+        "langue": "wo"
+      }
+    ],
+    "texte_transmis": "Dañu bëgg ma def lu ma bëggul.",
+    "texte_identique": true,
+    "fin": "2026-10-17T01:34:02.996Z"
+  },
+  "decision": "No production change. Full text reaches model; three full takes reproduce central omission. Grouped trial 917 preserves word order and matches indicative ASR; human listening needed for pronunciation and rhythm before any targeted production rule.",
+  "ui": "Existing trial page exposes authenticated replay of stored generated WAVs. Browser button visibility verified; authenticated playback not exercised by agent.",
+  "stable_reference": "441951c3c93f426bfa186731c3ab4c284e966b09"
+}
