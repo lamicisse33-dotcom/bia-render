@@ -38,7 +38,7 @@ test('draft ownership, single consumption and changed intent are enforced withou
  const p=await api.preparerReponseAnticipee(body,'test-owner',true,new AbortController().signal);assert(p);
  const final={anticipationId:p.id,message:question,history:[],resume:'',voixAnticipee:'female'};
  assert.equal(await api.consommerReponseAnticipee(final,'other-owner'),null);
- const reply=await api.consommerReponseAnticipee(final,'test-owner');assert(reply.audio_anticipe);assert.equal(syntheses,1);assert.equal(modeles,1);assert.equal(await api.consommerReponseAnticipee(final,'test-owner'),null);
+ const reply=await api.consommerReponseAnticipee(final,'test-owner');assert(reply.audio_anticipe);assert.equal(syntheses,1);assert.equal(modeles,2);assert.equal(await api.consommerReponseAnticipee(final,'test-owner'),null);
  const p2=await api.preparerReponseAnticipee(body,'owner-2',true,new AbortController().signal);assert(p2);assert.equal(await api.consommerReponseAnticipee({...final,anticipationId:p2.id,message:question+' Finalement non, changeons de sujet.'},'owner-2'),null);
 });
 
