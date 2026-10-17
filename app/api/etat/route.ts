@@ -1,5 +1,6 @@
 import {resumeMicro} from '@/lib/micro-etat';
 import {resumeProtectionParole} from '@/lib/protection-parole-etat';
+import {resumeReprises} from '@/lib/reprise-etat';
 import {resumeBriques} from '@/lib/briques-etat';
 import {resumeEssaiAnticipation} from '@/lib/essai-anticipation-conversation';
 import {resumeAnticipationReponse} from '@/lib/anticipation-reponse';
@@ -151,7 +152,7 @@ export async function GET(request: Request) {
   let auteurs: Record<string, number> | null = null;
   try { auteurs = await parAuteur(); } catch { auteurs = null; }
 
-  return NextResponse.json({micro_capture:resumeMicro(),protection_parole:resumeProtectionParole(),briques_conversation:resumeBriques(),anticipation_conversation:{essai:resumeEssaiAnticipation(),...resumeAnticipationReponse(),ecoute:resumeEcouteProgressive()},ecoute_longue:resumeEcouteLongue(),prises_validees:resumePrisesValidees(),
+  return NextResponse.json({reprises_reflexion:resumeReprises(),micro_capture:resumeMicro(),protection_parole:resumeProtectionParole(),briques_conversation:resumeBriques(),anticipation_conversation:{essai:resumeEssaiAnticipation(),...resumeAnticipationReponse(),ecoute:resumeEcouteProgressive()},ecoute_longue:resumeEcouteLongue(),prises_validees:resumePrisesValidees(),
     /* ── LA VERSION EN LIGNE, POUR QUE LE TÉLÉPHONE SE METTE À JOUR SEUL ────
 
        Lamine, le 14 septembre 2026 : « il faut forcer les mises à jour ; dès
