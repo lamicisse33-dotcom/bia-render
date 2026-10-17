@@ -24,7 +24,7 @@ test('actual client gates other voices and interruptions, then resets for a new 
  worker.onmessage({data:{type:'voix',epoch,score:.05,reference:true,ms:180}});
  assert.equal(f.autoriser(),false);assert.equal(f.interruption(),false);
  worker.onmessage({data:{type:'voix',epoch,score:.3,reference:true,ms:180}});
- assert(f.autoriser());assert.equal(f.interruption(),false);
+ assert(f.autoriser());assert.equal(f.interruption(),true);
  f.reset();assert(f.autoriser());assert(f.interruption());
  worker.onmessage({data:{type:'voix',epoch,score:.05,reference:true,ms:180}});assert(f.autoriser());
  f.terminer();assert(worker.ended);

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
 const compile=s=>ts.transpileModule(s,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
+const {silenceQuiSuffit}=await import('data:text/javascript;base64,'+Buffer.from(compile(fs.readFileSync('lib/micro.ts','utf8'))).toString('base64'));
 const {attendreSonTour}=await import('data:text/javascript;base64,'+Buffer.from(compile(fs.readFileSync('lib/tour-de-parole.ts','utf8'))).toString('base64'));
 const page=fs.readFileSync('app/page.tsx','utf8'),ast=ts.createSourceFile('page.tsx',page,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 function callback(name){let body;function walk(n){if(ts.isVariableDeclaration(n)&&n.name.getText(ast)===name)body=n.initializer.arguments[0].getText(ast);ts.forEachChild(n,walk);}walk(ast);assert(body);return new Function('env',`with(env){${compile('const run='+body)};return run;}`);}
@@ -12,7 +13,7 @@ const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {
 function environment(){
  let now=10000,speech=false,plays=0;const events=[];
  const ctx={currentTime:0,destination:{},decodeAudioData:async()=>({duration:.01}),createBufferSource(){return {connect(){},start(){plays++;queueMicrotask(()=>this.onended?.());}};}};
- const env={Date:{now:()=>now},attendreSonTour,conversationRef:{current:true},enregistreurRef:{current:null},porteRef:{current:null},
+ const env={silenceQuiSuffit,coupesTropTotRef:{current:0},Date:{now:()=>now},attendreSonTour,conversationRef:{current:true},enregistreurRef:{current:null},porteRef:{current:null},
   analyseRef:{current:{frequencyBinCount:128,context:{sampleRate:48000},getByteTimeDomainData:a=>a.fill(speech?150:128),getByteFrequencyData:a=>a.fill(speech?1:0)}},
   sourceRef:{current:null},sourcesRef:{current:new Set()},voixDuTelephoneRef:{current:false},sonDelleRef:{current:0},seuilRef:{current:8},dernierSignalParoleRef:{current:{quand:0,delai:1500}},
   partVocale:()=>speech?.6:0,fetch:async(_u,o)=>{events.push(JSON.parse(o.body));return {ok:true};},numeroDuTourRef:{current:1},

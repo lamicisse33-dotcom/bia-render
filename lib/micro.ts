@@ -152,8 +152,10 @@
    attendre à l'oreille, on redescend. */
 
 /** Temps de fin de tour : une respiration ne doit pas couper la phrase. */
-export const SILENCE_QUI_FERME = 1200;
-export const SILENCE_LE_PLUS_COURT = 650;
+// 17 Oct: repeated mid-sentence cuts reported. Bricks prepare in parallel;
+// retain a two-second thinking/breathing pause during longer speech.
+export const SILENCE_QUI_FERME = 2000;
+export const SILENCE_LE_PLUS_COURT = 1200;
 export const PAROLE_COURTE = 1200;
 export const PAROLE_LONGUE = 4000;
 export const PAS_D_APPRENTISSAGE = 300;
@@ -161,7 +163,7 @@ export const SILENCE_LE_PLUS_LONG = 3000;
 
 export function silenceQuiSuffit(dureeDeParole: number, coupesTropTot = 0): number {
   const base = dureeDeParole < PAROLE_COURTE ? SILENCE_LE_PLUS_COURT
-    : dureeDeParole < PAROLE_LONGUE ? 900 : SILENCE_QUI_FERME;
+    : dureeDeParole < PAROLE_LONGUE ? 1500 : SILENCE_QUI_FERME;
   return Math.min(SILENCE_LE_PLUS_LONG, base + Math.max(0, Math.floor(coupesTropTot)) * PAS_D_APPRENTISSAGE);
 }
 

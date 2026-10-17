@@ -1052,6 +1052,7 @@ export default function Home() {
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const animationRef = useRef<number | null>(null);
   const enregistreurRef = useRef<MediaRecorder | null>(null);
+  const ouvertureEcouteRef = useRef<symbol|null>(null);
   /* De quoi débrancher l'analyseur du micro sans toucher au contexte de la
      page — qui porte toute sa voix et ne doit jamais être fermé ici. */
   const debrancherMicroRef = useRef<(() => void) | null>(null);
@@ -1761,7 +1762,7 @@ export default function Home() {
           analyse.getByteTimeDomainData(signal);analyse.getByteFrequencyData(spectre);
           let pic=0;for(const v of signal)pic=Math.max(pic,Math.abs(v-128));
           if(pic>(seuilRef.current||8)&&partVocale(spectre,analyse.context.sampleRate)>=0.2){
-            dernierSignalParoleRef.current={quand:Date.now(),delai:1500};
+            dernierSignalParoleRef.current={quand:Date.now(),delai:silenceQuiSuffit(7000,coupesTropTotRef.current)};
           }
         }catch{ return false; }
       }
@@ -4660,7 +4661,10 @@ export default function Home() {
        d'ouvrir le micro : demander la permission peut durer une seconde, et
        pendant cette seconde on a pu couper la parole ou fermer la
        conversation. Ce qui revient après ne doit plus rien écrire. */
+    if(ouvertureEcouteRef.current||enregistreurRef.current?.state==='recording')return;
+    const tentative=Symbol('ouverture-micro');ouvertureEcouteRef.current=tentative;
     const idEnr = nouvelEnregistrement();
+    let aDemarre=false,nettoyerOuverture=()=>{};
     try {
       const { flux, analyse, analysePeriodique, ctxMicro } = await micro();
       if (!estCetEnregistrement(idEnr)) return;
@@ -4721,6 +4725,12 @@ export default function Home() {
       let debutParole = 0;
       let dureeParlee = 0;
       const ouverture = Date.now();
+      let causeArret='exterieur',mesuresMicro=0,picMicro=0;
+      const terminerCapture=(cause:string)=>{
+        if(!estCetEnregistrement(idEnr)||enregistreurRef.current!==enregistreur)return;
+        causeArret=cause;
+        if(enregistreur.state==='recording')enregistreur.stop();
+      };
 
       /* ── LE SUIVEUR DE BRUIT ─────────────────────────────────────────────
 
@@ -4745,12 +4755,16 @@ export default function Home() {
       let analyseurMort = false;
 
       const veille = setInterval(() => {
+        // A delayed/stale opening must never close a later recorder.
+        if(!estCetEnregistrement(idEnr)||enregistreurRef.current!==enregistreur){clearInterval(veille);return;}
+        if(enregistreur.state!=='recording')return;
         // iOS suspend le contexte dès qu'on repose le téléphone : on le réveille.
         if (ctxMicro.state === "suspended") { void ctxMicro.resume(); }
         analyse.getByteTimeDomainData(tampon);
         let creux = 0;
         for (const v of tampon) creux = Math.max(creux, Math.abs(v - 128));
 
+        mesuresMicro++;picMicro=Math.max(picMicro,creux);
         if (creux === 0) toursMuets++; else toursMuets = 0;
         /* Deux secondes de platitude absolue : l'analyseur est mort. On ne
            peut plus se fier au son pour fermer le micro — alors on ferme au
@@ -4852,12 +4866,12 @@ export default function Home() {
                pas à BIA — et elle est présente à chaque tour. */
             poserBorne(bornesRef.current, "parole", dernierSon);
             poserBorne(bornesRef.current, "micro");
-            arreterEnregistrement();
+            terminerCapture("silence");
             return;
           }
         }
 
-        if (analyseurMort && depuis > 9000) { arreterEnregistrement(); return; }
+        if (analyseurMort && depuis > 9000) { terminerCapture("analyseur_plat"); return; }
 
         /* ── LES DEUX FILETS DE TEMPS ────────────────────────────────────
 
@@ -4869,7 +4883,7 @@ export default function Home() {
            Et le second : micro ouvert sans que personne ne dise rien. Au bout
            de deux minutes et demie, ce n'est plus une conversation, c'est une
            lampe rouge et de la batterie. On referme, et le bouton revient. */
-        if (aParle && Date.now()-debutParole >= INTERVENTION_MAXIMALE) { arreterEnregistrement(); return; }
+        if (aParle && Date.now()-debutParole >= INTERVENTION_MAXIMALE) { terminerCapture("limite"); return; }
         /* ── UN DÉPÔT QUI ATTEND, ET PERSONNE NE PARLE ──────────────────────
 
            Le guetteur a tué un tour pendant qu'elle réfléchissait et a mis
@@ -4880,13 +4894,17 @@ export default function Home() {
            demie qui clôt la conversation. Il parlerait dans le vide : c'est
            exactement le défaut qu'on répare. Passé ce délai sans un son, on
            ferme, et `onstop` renvoie le dépôt tel quel. */
-        if (!aParle && motsRattrapesRef.current && depuis > RELANCE_DU_DEPOT) { arreterEnregistrement(); return; }
+        if (!aParle && motsRattrapesRef.current && depuis > RELANCE_DU_DEPOT) { terminerCapture("reprise"); return; }
         if (!aParle && depuis > SILENCE_QUI_CLÔT_LA_CONVERSATION) {
           conversationRef.current = false;
           setConversation(false);
-          arreterEnregistrement();
+          terminerCapture("absence");
         }
       }, TOUR_DE_VEILLE);
+      nettoyerOuverture=()=>{
+        clearInterval(veille);void progressive?.annuler();
+        if(enregistreurRef.current===enregistreur)enregistreurRef.current=null;
+      };
 
       /* ── CHAQUE MORCEAU PART DÈS QU'IL EXISTE ────────────────────────────
 
@@ -4918,6 +4936,7 @@ export default function Home() {
         );
       };
       enregistreur.onstop = async () => {
+        void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'micro_capture',cause:causeArret,duree_ms:Date.now()-ouverture,parole_ms:debutParole?dernierSon-debutParole:0,silence_ms:dernierSon?Date.now()-dernierSon:0,pic:picMicro,mesures:mesuresMicro,vocales:mesuresVocales,plat:analyseurMort,actuel:estCetEnregistrement(idEnr),contexte:ctxMicro.state}),keepalive:true}).catch(()=>{});
         fermetureProgressive=progressive?.fermerCapture().catch(()=>{captureProgressiveValide=false;})||null;
 
         /* ── LA PLACE SE LIBÈRE D'ABORD, LE SORT DE L'ENREGISTREMENT ENSUITE ─
@@ -5494,11 +5513,21 @@ export default function Home() {
       if(!estCetEnregistrement(idEnr)){await progressive?.annuler();return;}
       const etapeCapture=progressive?'branchee':['voix_incompatible','desactivee'].includes(exclusionCapture)?exclusionCapture:exclusionCapture?'contexte_exclu':'indisponible';
       void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'capture_progressive',etape:etapeCapture,motif:exclusionCapture,apparence:personaRef.current}),keepalive:true}).catch(()=>{});
-      enregistreur.start(400);
+      enregistreur.start(400);aDemarre=true;
       setMode("listening");
       setFace("ecoute");
     } catch {
-      setMode("error");
+      if(estCetEnregistrement(idEnr))setMode("error");
+    } finally {
+      if(!aDemarre)nettoyerOuverture();
+      if(ouvertureEcouteRef.current===tentative)ouvertureEcouteRef.current=null;
+      // A close/reopen while permission or the worklet was loading must not
+      // leave the new conversation waiting behind the obsolete opening.
+      if(!aDemarre&&!estCetEnregistrement(idEnr)&&conversationRef.current){
+        setTimeout(()=>{
+          if(conversationRef.current&&modeRef.current==='ready'&&!busyRef.current&&!ouvertureEcouteRef.current&&enregistreurRef.current?.state!=='recording')void ecouterRef.current?.();
+        },0);
+      }
     }
   }, [arreterEnregistrement, askBia, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour, nouvelEnregistrement, estCetEnregistrement,taireLeSouffle,couperSon,jouerEtAnimer,prisesValidees.api,octetsDuRepertoire,reveillerLeSon,stopMouth,contexte,autoriserLaVoix]);
 
