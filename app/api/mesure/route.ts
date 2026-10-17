@@ -1,3 +1,4 @@
+import {noterProtectionParole} from '@/lib/protection-parole-etat';
 import {noterBriques} from '@/lib/briques-etat';
 import {noterEcouteProgressive} from '@/lib/anticipation-etat';
 import {noterEcouteLongue} from '@/lib/ecoute-longue-etat';
@@ -32,6 +33,7 @@ export async function POST(requete: Request) {
         }));
       }
     }
+    else if (corps && ["protection_parole","capture_progressive"].includes(corps.type)) noterProtectionParole(corps);
     else if (corps && corps.type === "briques") noterBriques(corps);
     else if (corps && corps.type === "ecoute_progressive") noterEcouteProgressive(corps);
     else if (corps && corps.type === "ecoute_longue") noterEcouteLongue(corps);
