@@ -1,3 +1,4 @@
+import {noterEcouteLongue} from '@/lib/ecoute-longue-etat';
 import {noterFocusLocuteur} from "@/lib/focus-locuteur-etat";
 import {noterPiperWeb} from "@/lib/piper-web-etat";
 import {noterLectureAudioMemoire} from "@/lib/audio-memoire";
@@ -29,6 +30,7 @@ export async function POST(requete: Request) {
         }));
       }
     }
+    else if (corps && corps.type === "ecoute_longue") noterEcouteLongue(corps);
     else if (corps && corps.type === "focus_locuteur") noterFocusLocuteur(corps);
     else if (corps && corps.type === "piper_web") noterPiperWeb(corps);
     else if (corps && corps.type === "audio_memoire") noterLectureAudioMemoire(corps);
