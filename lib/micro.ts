@@ -355,9 +355,8 @@ export function suivreLeBruit(): Suiveur {
     répondrait à une porte. */
 export const PAROLE_MINIMALE = 350;
 
-/** La plus longue intervention qu'on accepte d'un coup. Lamine : « 60 à 90
-    secondes ». Au-delà, on envoie ce qu'on a plutôt que de tout perdre. */
-export const INTERVENTION_MAXIMALE = 75000;
+/** Deux minutes de parole à partir du premier mot (demande du 17 octobre). */
+export const INTERVENTION_MAXIMALE = 120000;
 
 /** Micro ouvert sans que personne ne dise rien : au bout de ça, on referme la
     conversation vocale et on rend le bouton. Deux minutes de micro ouvert sur
