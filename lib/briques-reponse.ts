@@ -51,7 +51,7 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
   if(!final&&(s.briques.length>=5||s.appels>=10||texte.length-s.traite.length<35))return resultat(s);
   if(final&&texte===s.traite){if(!verifierCode(code,true).ok)return resultat(s,undefined,true);s.fermee=true;etatBriques.finalisees++;return resultat(s);}
   s.occupe=true;s.appels++;s.dernier=texte;
-  let etape='contexte';
+  let etape='contexte';const debutPreparation=Date.now();
   try {
     const [memoire,instructions]=await Promise.all([contexteMemoireCommune(texte,s.history,6500),maitre?contexteInstructions():Promise.resolve('')]);
     const messages=messagesConversation({question:texte,history:s.history,resume:s.resume,maitre,fiches:memoire,instructions,rapide:true});
@@ -81,6 +81,6 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
     s.briques.push(brique);s.traite=traite;etatBriques.preparees++;
     if(final){s.fermee=true;etatBriques.finalisees++;}
     return resultat(s,brique);
-  } catch(e){etatBriques.erreurs++;etatBriques.dernier_echec={etape,annule:signal.aborted};if(signal.aborted){s.fermee=true;if(!s.briques.length)sessions.delete(s.id);}throw e;}
+  } catch(e){etatBriques.erreurs++;const message=e instanceof Error?e.message:'';etatBriques.dernier_echec={etape,annule:signal.aborted,motif:['Audio incomplet','Brique invalide','JSON incomplet','Modèle indisponible','Session annulée'].includes(message)?message:'autre',ms:Date.now()-debutPreparation,quand:new Date().toISOString()};if(signal.aborted){s.fermee=true;if(!s.briques.length)sessions.delete(s.id);}throw e;}
   finally{s.occupe=false;}
 }

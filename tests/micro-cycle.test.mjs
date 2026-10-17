@@ -43,3 +43,8 @@ test('actual successful opening starts only once and leaves one watchdog; a stal
  const pending=make(x.env)();x.advance();x.env.conversationRef.current=true;permission.reject(Error('cancelled opening'));await pending;await tick();
  assert.equal(retry,1);assert.equal(x.env.ouvertureEcouteRef.current,null);assert.equal(x.errors.length,0);
  });
+
+test('a direct microphone opening cannot invalidate a live response between its audio bricks',async()=>{
+ const x=environment();x.env.busyRef.current=true;await make(x.env)();
+ assert.equal(x.id(),0);assert.equal(x.starts(),0);assert.equal(x.intervals.size,0);
+});
