@@ -34,7 +34,8 @@ export function creerFocusLocuteur(){
    if(!v&&voix)fin=now;voix=v;
   },
   autoriser(){return !actif||!pret||!reference||verdict!=='autre'||Date.now()-dernier>1600;},
-  interruption(){return !actif||!pret||!reference||(verdict==='meme'&&Date.now()-dernier<1200);},
+  // An uncertain/old embedding must not veto acoustically confirmed speech.
+  interruption(){return !actif||!pret||!reference||verdict!=='autre'||Date.now()-dernier>1600;},
   bilan(){return {...compte,actif,pret,reference,verdict};},
   terminer(){mesurer();reset();node?.disconnect();node=null;worker?.terminate();worker=null;pret=false;},
  };
