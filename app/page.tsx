@@ -1,5 +1,6 @@
 "use client";
 import {transportConversation} from '@/lib/transport-conversation';
+import {ecouterLongue} from "@/lib/ecoute-longue";
 import {envoyerEcoute} from "@/lib/envoi-ecoute";
 import {verifierAcces} from '@/lib/acces-client';
 import {sansSilence} from "@/lib/bords-audio";
@@ -4800,7 +4801,7 @@ export default function Home() {
 
         /* ── LES DEUX FILETS DE TEMPS ────────────────────────────────────
 
-           Lamine : « durée maximale d'une intervention : 60 à 90 secondes ».
+           Lamine, le 17 octobre : jusqu’à deux minutes à partir du premier mot.
            Passé ce cap, on envoie CE QU'ON A plutôt que de tout perdre : une
            minute et quart de parole qu'on jette, c'est bien pire qu'une
            phrase coupée.
@@ -4808,7 +4809,7 @@ export default function Home() {
            Et le second : micro ouvert sans que personne ne dise rien. Au bout
            de deux minutes et demie, ce n'est plus une conversation, c'est une
            lampe rouge et de la batterie. On referme, et le bouton revient. */
-        if (aParle && depuis > INTERVENTION_MAXIMALE) { arreterEnregistrement(); return; }
+        if (aParle && Date.now()-debutParole >= INTERVENTION_MAXIMALE) { arreterEnregistrement(); return; }
         /* ── UN DÉPÔT QUI ATTEND, ET PERSONNE NE PARLE ──────────────────────
 
            Le guetteur a tué un tour pendant qu'elle réfléchissait et a mis
@@ -5133,11 +5134,14 @@ export default function Home() {
           legere.append("depot_confirme", "1");
           const indice = forme.get("indice_langue");
           if (indice !== null) legere.append("indice_langue", String(indice));
-          const r = await envoyerEcoute(legere, forme, {
-            total: morceaux.length, deposes, perdu,
-          }, corps => fetch("/api/ecouter", {
-            method: "POST", headers: { "x-bia-code": codeRef.current }, body: corps,
-          }));
+          const envoyer=(corps:FormData)=>fetch("/api/ecouter",{method:"POST",headers:{"x-bia-code":codeRef.current},body:corps});
+          let r:Response;
+          if(Date.now()-ouverture>25000){
+            const son=await contexte().decodeAudioData(await sonDit.arrayBuffer());
+            const d=await ecouterLongue(son,String(indice||"wo"),envoyer,()=>estCetEnregistrement(idEnr)&&estLeTour(monTour));
+            void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'ecoute_longue',...d.longue}),keepalive:true}).catch(()=>{});
+            r=Response.json(d);
+          }else r=await envoyerEcoute(legere,forme,{total:morceaux.length,deposes,perdu},envoyer);
           if (!estCetEnregistrement(idEnr)) return;
           const d = await r.json() as { texte?: string; panne?: boolean; motif?: string; suggestions_ecriture?: string[]; au_fil_de_leau?: boolean };
           if (!estCetEnregistrement(idEnr)) return;

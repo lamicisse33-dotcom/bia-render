@@ -2,8 +2,8 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "d85fd539403cd26ab26724dd254b9e4acb95a50b79bbbdf5d89fc75c2409e947",
-    "lib/micro.ts": "db1ccea17958421c1cf59e2623e462f7050b1a3c335547430449ef565865d15e",
+    "app/page.tsx": "b434aaa710760cce8048805d7c47013f36523328190d219df68a42deaf861816",
+    "lib/micro.ts": "a8a38a5a5b845ecd7997f307cb983f1dd14f628e6e260cb1be3e5423c0234810",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "ad34b135d0d3589badf6161afd07df8dce927de633ea9ffc215a07dd26c47f19",
     "lib/transport-conversation.ts": "ac8d95016a165bc00abfad385cc2f5c87278775854dfbddbcfbbe4b308e607ce",
@@ -13,5 +13,6 @@
     "app/api/chatterbox-test/bia/stream/route.ts": "36e3b05090c75a79c194afb2c83fa62b3c10a0b1d476a91aab7a0227d04c8d40",
     "lib/passages-khalam.ts": "0d7231c37a44692889bd2a2ee90a66240302efb0a6114430144255cb7474ccd7"
   },
-  "migration_20261017": "Owner requested retention of the exact successful take. Only app/page.tsx migrated: bounded post-playback PCM capture and authenticated validated-take lookup before existing synthesis. No STT, endpointing, production model, or synthesis transport changes. Offline sample/gap preservation and failed read-back tests pass; encoding test 2.8 ms. Physical playback and Supabase write remain to be measured by prises_validees counters after owner validation; this is not a latency improvement claim."
+  "migration_20261017": "Owner requested retention of the exact successful take. Only app/page.tsx migrated: bounded post-playback PCM capture and authenticated validated-take lookup before existing synthesis. No STT, endpointing, production model, or synthesis transport changes. Offline sample/gap preservation and failed read-back tests pass; encoding test 2.8 ms. Physical playback and Supabase write remain to be measured by prises_validees counters after owner validation; this is not a latency improvement claim.",
+  "migration_ecoute_longue_20261017": "Owner requests two-minute utterances. Recording limit now measured from speech onset. Turns over 25 seconds use complete decoded PCM split into <=25-second contiguous segments, ASR strictly sequential after recording ends. 120-second sample coverage, ordered assembly, interruption and failed-segment rejection tests pass. No speculative ASR/reactivation, GPU/model change or claim of one-second responses. Live two-minute listening and latency remain unvalidated; ecoute_longue diagnostics report actual completed turns."
 }
