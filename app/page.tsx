@@ -90,6 +90,7 @@ import {
 } from "@/lib/sa-propre-voix";
 import {creerFocusLocuteur} from "@/lib/focus-locuteur";
 import {exclusionAnticipation} from '@/lib/activation-anticipation';
+import {brancherReprise} from '@/lib/reprise-progressive';
 import { attendreSonTour, creerDetectionInterruption } from "@/lib/tour-de-parole";
 import Installer from "./installer";
 import Ecran from "./ecran";
@@ -6087,6 +6088,11 @@ export default function Home() {
     const armer = GARDER_CE_QUIL_DIT_PENDANT_QUELLE_PARLE && flux?.active;
     let guetteur: MediaRecorder | null = null;
     const tourGuet = `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    let repriseProgressive:ReturnType<typeof brancherReprise>|null=null;
+    const mesurerReprise=(etape:string,details:Record<string,number|string>={})=>{
+      if(!pendantLaReflexion)return;
+      void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'reprise_reflexion',tour:tourGuet,etape,...details}),keepalive:true}).catch(()=>{});
+    };
     let morceauxGuet = 0;
     /* Les envois en cours. C'est le détail qui fait toute la différence : ses
        mots à lui sont dans le DERNIER morceau, celui qui n'est pas encore
@@ -6131,6 +6137,26 @@ export default function Home() {
       if (dejaRepris || !guetteur) return "";
       dejaRepris = true;
       const dits = ditsRef.current;
+      if(pendantLaReflexion&&repriseProgressive){
+        const debut=Date.now();
+        mesurerReprise('lecture',{apres_parole_ms:Date.now()-(dernierSignalParoleRef.current.quand||Date.now())});
+        try{
+          const capture=await repriseProgressive;
+          if(!vivant)return '';
+          if(capture){
+            const texte=await capture.lire();
+            if(!vivant)return '';
+            if(texte!==null){
+              mesurerReprise('transcrit',{ms:Date.now()-debut,...capture.etat()});
+              const verdict=faut_il_se_taire(texte,dits);
+              return verdict.couper?verdict.dit:'';
+            }
+          }
+        }catch{if(!vivant)return '';}
+        mesurerReprise('repli',{ms:Date.now()-debut});
+        // A partial PCM transcript must never replace the complete fallback.
+        void repriseProgressive.then(c=>c?.annuler());repriseProgressive=null;
+      }
       /* On réclame le morceau en cours — sinon il dort dans le navigateur
          jusqu'au prochain tour de 400 ms, et c'est justement celui-là qui
          porte ses mots. Puis on laisse les envois se poser. */
@@ -6202,11 +6228,12 @@ export default function Home() {
         dejaRepris = false;
         const mots = await motsDuGuetteur();
         if (!vivant || numeroDuTourRef.current !== monTour) return;
-        if (revisionParole !== revision || porteDuGuet !== porte) return;
+        if (revisionParole !== revision || porteDuGuet !== porte) {mesurerReprise('perimee');return;}
         const debut = questionEnVolRef.current.trim();
         // Il a repris pendant la transcription : garder la porte fermée et réécouter.
         if (tuDepuis < silenceQuiSuffit(Date.now() - parleDepuis - tuDepuis, coupesTropTotRef.current)) return;
         const suite = suitePendantReflexion(debut, mots, reprise);
+        mesurerReprise('decision',{action:suite.action,silence_ms:tuDepuis,apres_parole_ms:Date.now()-(dernierSignalParoleRef.current.quand||Date.now())});
         const continuation = suite.action === "recoller";
         mesurerLaCoupure(continuation, mots, continuation ? "recollee" : suite.action === "ensuite" ? "reprise_tardive" : !mots.trim() ? "sans_mots" : "pas_de_debut", reprise);
         ilParle = false;
@@ -6247,6 +6274,15 @@ export default function Home() {
     let ilParle = false;
     let parleDepuis = 0;
     let tuDepuis = 0;
+
+    // Recognition progresses silently during a thinking-phase continuation.
+    // Playback, endpointing and the speaking-phase interruption remain unchanged.
+    if(pendantLaReflexion&&armer&&flux){
+      repriseProgressive=brancherReprise({ctx:analyse.context as AudioContext,flux,code:codeRef.current,langue:()=>langueDuFil.current,
+        parle:()=>ilParle&&tuDepuis<240,dejaParle:()=>vu.tours_au_dessus>0,actuel:()=>vivant}).then(c=>{
+          if(!vivant){c?.annuler();return null;}mesurerReprise(c?'armee':'indisponible');return c;
+        });
+    }
 
     const guet = setInterval(() => {
       if (porteDuGuet && Date.now() - porteDuGuet.depuis >= PORTE_AU_PLUS && tuDepuis>=silenceQuiSuffit(7000,coupesTropTotRef.current) && !finEnCours) {
@@ -6329,6 +6365,7 @@ export default function Home() {
     }, TOUR_DE_VEILLE);
     return () => {
       vivant = false;
+      void repriseProgressive?.then(c=>c?.annuler());
       clearInterval(guet);
       if (guetteur && guetteur.state !== "inactive") { try { guetteur.stop(); } catch { } }
       /* Une porte qu'on démonte s'ouvre : elle ne doit jamais rester fermée
