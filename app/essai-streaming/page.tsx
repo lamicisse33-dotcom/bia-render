@@ -70,7 +70,7 @@ export default function EssaiStreaming(){
    const r=await fetch('/api/essai-mots-sautes',{headers:{'x-bia-code':code},signal:AbortSignal.timeout(10000)});
    if(!r.ok)throw Error(r.status===401?'Code maître requis.':'Chargement indisponible.');
    const d=await r.json();if(!d.audios?.length)throw Error('Les prises ne sont pas encore disponibles. Réessaie dans une minute.');
-   const liste=d.audios.map((a:{seed:number;audio:string})=>{const bytes=Uint8Array.from(atob(a.audio),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}));urls.current.push(url);return {url,nom:`Phrase signalée — prise ${a.seed}${a.seed===913?' (référence)':''}`};});
+   const liste=d.audios.map((a:{seed:number;audio:string;nom?:string})=>{const bytes=Uint8Array.from(atob(a.audio),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}));urls.current.push(url);return {url,nom:a.nom||`Phrase signalée — prise ${a.seed}${a.seed===913?' (référence)':''}`};});
    setAudios(a=>[...a,...liste]);setMessage('Les prises sont prêtes plus bas. Écoute chacune et vérifie « def lu ma ». Aucun changement de voix n’est appliqué automatiquement.');
   }catch(e){setMessage((e as Error).message);}finally{setOccupe(false);}
  }
