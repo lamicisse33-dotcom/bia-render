@@ -3166,7 +3166,7 @@ export default function Home() {
 
 
 
-  const askBia = useCallback(async (question: string, parole = false, tourDonne?: number, suggestionsTranscription?: string[]) => {
+  const askBia = useCallback(async (question: string, parole = false, tourDonne?: number, suggestionsTranscription?: string[], dejaInscrit = false) => {
     /* Le sens de sa phrase, demandé pendant qu'on prépare la réponse et
        attendu juste avant qu'elle ouvre la bouche. Voir plus bas. */
     const clean = question.trim();
@@ -3245,7 +3245,7 @@ export default function Home() {
     const monTour = tourDonne ?? ouvrirUnTour();
     busyRef.current = true;
     setSaisie("");
-    setHistory((items) => [...items, { role: "user", text: clean }]);
+    if(!dejaInscrit)setHistory((items) => [...items, { role: "user", text: clean }]);
     /* Ce qu'il vient de dire, gardé tant qu'elle réfléchit : s'il continue
        sa phrase pendant ce temps, le guetteur le recollera devant la suite
        au lieu de la laisser répondre à la moitié. Une question tapée n'a
@@ -3319,6 +3319,7 @@ export default function Home() {
           message: clean,
           anticipationId:anticipee?.id,voixAnticipee:anticipee?.voice,
           parole,
+          continuationBriques:dejaInscrit,
           suggestionsTranscription,
           persona,
           /* Une fenêtre qui saute par paliers, pas qui glisse : c'est ce
@@ -5148,6 +5149,58 @@ export default function Home() {
         // A nonverbal breath can accompany transcription; no filler words.
         void soufflerEnAttendant(jeton);
 
+        // The first complete audio is already on the device. Start it while
+        // the final ASR segment is still running; subsequent bricks append.
+        const abortBriques=new AbortController();
+        const debutBriques=Date.now(),finParoleBriques=bornesRef.current.parole||debutBriques;
+        let premierBrique=true,attendBrique=false,briquesTerminees=false,finSonBrique=0;
+        const ditesBriques:string[]=[];
+        const actifBriques=()=>!abortBriques.signal.aborted&&estLeTour(monTour)&&estCetEnregistrement(idEnr)&&!carteOuverteRef.current;
+        const mesureBriques=(etape:string,ms:number,extra:Record<string,number>={})=>{
+          void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'briques',etape,ms,...extra}),keepalive:true}).catch(()=>{});
+        };
+        const taireBriques=()=>{attendBrique=false;if(estLeTour(monTour))taireLeSouffle();};
+        const lectureBriques=!busyRef.current&&!motsRattrapesRef.current&&captureProgressiveValide?progressive?.commencerBriques({
+          signal:abortBriques.signal,
+          jouer:async b=>{
+            if(!actifBriques()||b.voice!==voixChatterboxBia()||!essaiChatterboxActif())return false;
+            if(premierBrique){await finirAttente(b.langue,false);if(!actifBriques())return false;couperSon();}
+            if(!await attendreSonTour(actifBriques,()=>porteRef.current))return false;
+            taireBriques();
+            const exact=await prisesValidees.api.lire(b.texte,b.langue,b.voice).catch(()=>null);
+            if(!actifBriques())return false;
+            const ms=await jouerEtAnimer(exact||octetsDeBase64(b.audio),false,{actuel:actifBriques,exact:!!exact,commence:()=>{
+              ditesBriques.push(b.texte);
+              if(premierBrique){premierBrique=false;mesureBriques('premier_son',Date.now()-finParoleBriques,{micro_ms:Date.now()-debutBriques});}
+              else if(finSonBrique)mesureBriques('blanc',Date.now()-finSonBrique);
+            }});
+            finSonBrique=Date.now();
+            if(actifBriques()){setMode('thinking');setFace('pensive');}
+            return ms>0&&actifBriques();
+          },
+          attente:()=>{
+            attendBrique=true;
+            // Only a real, approved take in this voice. Missing takes remain
+            // silent; never synthesize "hmm" or replay the rejected short clips.
+            const souffle=souffleDe('reflexion');
+            if(voixChatterboxBia()!=='female'||!souffle?.fichiers.length)return;
+            const fichier=fichierDe(souffle,dernierSouffle.current);
+            void (async()=>{
+              try{
+                const octets=cacheSons.current.get(fichier)||await octetsDuRepertoire(fichier);
+                if(!octets||!attendBrique||!actifBriques()||sourceRef.current)return;
+                const ctx=await reveillerLeSon(),audio=await ctx.decodeAudioData(octets.slice(0));
+                if(audio.duration<1.2||audio.duration>2.5||!attendBrique||!actifBriques()||sourceRef.current)return;
+                cacheSons.current.set(fichier,octets);dernierSouffle.current=fichier;
+                const source=ctx.createBufferSource();source.buffer=audio;source.connect(ctx.destination);souffleDattenteRef.current=source;
+                source.onended=()=>{if(souffleDattenteRef.current===source)souffleDattenteRef.current=null;};
+                source.start();mesureBriques('reflexion',0);
+              }catch{}
+            })();
+          },taire:taireBriques,mesure:()=>{},
+        }):null;
+        if(lectureBriques){busyRef.current=true;fluxVoixRef.current.add(abortBriques);}
+
         try {
           // Use a deposit only after every chunk has been acknowledged.
           // Otherwise send the complete recording now, without a 1.5 s wait.
@@ -5162,7 +5215,6 @@ export default function Home() {
           let resultatProgressif:Awaited<ReturnType<NonNullable<typeof progressive>['resultat']>>=null;
           if(progressive){try{await fermetureProgressive;if(!captureProgressiveValide)throw Error('Capture non confirmée');resultatProgressif=await progressive.resultat();}catch{await progressive.annuler();}}
           if(resultatProgressif){
-            if(resultatProgressif.anticipationId)anticipationPretRef.current={id:resultatProgressif.anticipationId,texte:resultatProgressif.texte,voice:voixChatterboxBia()};
             void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'ecoute_progressive',...resultatProgressif.progressive}),keepalive:true}).catch(()=>{});
             r=Response.json(resultatProgressif);
           }else if(Date.now()-ouverture>25000){
@@ -5214,6 +5266,22 @@ export default function Home() {
           // Lexical proximity alone cannot decide whether a sentence is unclear.
           // Let the conversation model interpret it with the actual history.
           dernierDitRef.current = dit;
+          if(lectureBriques){
+            await progressive!.terminerBriques(dit);
+            const lecture=await lectureBriques.fin;
+            if(!actifBriques())return;
+            const reponse=ditesBriques.join(' ');
+            const fil:Message[]=[...historyRef.current,{role:'user',text:dit},...(reponse?[{role:'bia' as const,text:reponse}]:[])];
+            historyRef.current=fil;setHistory(fil);
+            langueRef.current=estWolof(dit)?'wo':'fr';langueDuFil.current=langueRef.current;
+            busyRef.current=false;briquesTerminees=true;fluxVoixRef.current.delete(abortBriques);taireBriques();
+            if(lecture.normal&&dit){await askBia(dit,true,monTour,d.suggestions_ecriture,true);}
+            else {progressive!.livrerBriques(profilRef.current,ditesBriques.length);stopMouth(reponse);}
+            return;
+          }
+          // No first brick was ready when the microphone closed: retain the
+          // ordinary chat path and release speculative work immediately.
+          await progressive?.terminerBriques(dit);
           if (dit) {
             langueRef.current = estWolof(dit) ? "wo" : "fr";
             langueDuFil.current = langueRef.current;
@@ -5338,6 +5406,12 @@ export default function Home() {
           if (!estCetEnregistrement(idEnr) || !estLeTour(monTour)) return;
           await finirAttente(langueRef.current, false);
           if (estLeTour(monTour)) setMode("error");
+        } finally {
+          if(lectureBriques&&!briquesTerminees){
+            abortBriques.abort();void progressive?.annuler();
+            if(estLeTour(monTour)){busyRef.current=false;couperSon();}
+          }
+          fluxVoixRef.current.delete(abortBriques);
         }
       };
 
@@ -5357,7 +5431,7 @@ export default function Home() {
          connexion mobile de Dakar. Plus long laisserait un plus gros reste à
          monter au moment précis où il se tait — et c'est ce reste, et lui
          seul, qu'il attend. */
-      if(essaiChatterboxActif()&&personaRef.current!=="rara"&&!apprend.current&&!correctionDevoirRef.current&&!chantierMalDit.current&&localStorage.getItem("bia-anticipation")!=="non"){
+      if(essaiChatterboxActif()&&personaRef.current!=="rara"&&!apprend.current&&!correctionDevoirRef.current&&!chantierMalDit.current&&!attendLeNomRef.current&&!motsRattrapesRef.current&&localStorage.getItem("bia-anticipation")!=="non"){
         progressive=await brancherAnticipation({ctx:ctxMicro,flux,code:codeRef.current,tour:tourDeParole,history:fenetreDuFil(historyRef.current),resume:resumeRef.current,voice:voixChatterboxBia(),persona:personaRef.current,langue:()=>langueDuFil.current,parle:()=>aParle,actuel:()=>estCetEnregistrement(idEnr)});
       }
       if(!estCetEnregistrement(idEnr)){await progressive?.annuler();return;}
@@ -5367,7 +5441,7 @@ export default function Home() {
     } catch {
       setMode("error");
     }
-  }, [arreterEnregistrement, askBia, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour, nouvelEnregistrement, estCetEnregistrement]);
+  }, [arreterEnregistrement, askBia, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour, nouvelEnregistrement, estCetEnregistrement,taireLeSouffle,couperSon,jouerEtAnimer,prisesValidees.api,octetsDuRepertoire,reveillerLeSon,stopMouth]);
 
   /* L'attente a besoin de rouvrir le micro pour recevoir le prénom, mais elle
      est définie avant `ecouter`. Ce renvoi évite d'avoir à réordonner tout le

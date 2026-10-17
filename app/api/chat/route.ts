@@ -781,7 +781,7 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
-type Corps={anticipationId?:string;voixAnticipee?:string;parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
+type Corps={continuationBriques?:boolean;anticipationId?:string;voixAnticipee?:string;parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
   /* Ancien choix visuel conservé pour les clients existants ; le nom reste BIA. */
   persona?:string;
   /* ── L'APPRENTISSAGE À LA VOIX ──────────────────────────────────────────
@@ -2695,6 +2695,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const limiteGroq = Date.now() + (effortConversation(question, Boolean(body.apprend)) === "low" ? 12_000 : 20_000);
     const messagesDuTour = (o:{avecOutil:boolean}) => {
       const outils=[
+        body.continuationBriques?"La dernière réponse de l'historique est le début déjà prononcé de ta réponse à ce même tour. Poursuis seulement les points restants et traite les corrections tardives et les actions demandées. Ne répète pas ce début, ne salue pas de nouveau.":"",
         "Les commandes d'écran se placent en fin de réponse, sans être prononcées.",
         SOCLE_RELATIONS,
         "VITRINE : [[voir:clé]] seulement pour un sujet présent dans la vitrine fournie et demandé par la personne. N’invente aucune clé ni aucun média.",

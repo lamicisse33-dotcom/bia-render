@@ -1,3 +1,4 @@
+import {noterBriques} from '@/lib/briques-etat';
 import {noterEcouteProgressive} from '@/lib/anticipation-etat';
 import {noterEcouteLongue} from '@/lib/ecoute-longue-etat';
 import {noterFocusLocuteur} from "@/lib/focus-locuteur-etat";
@@ -31,6 +32,7 @@ export async function POST(requete: Request) {
         }));
       }
     }
+    else if (corps && corps.type === "briques") noterBriques(corps);
     else if (corps && corps.type === "ecoute_progressive") noterEcouteProgressive(corps);
     else if (corps && corps.type === "ecoute_longue") noterEcouteLongue(corps);
     else if (corps && corps.type === "focus_locuteur") noterFocusLocuteur(corps);

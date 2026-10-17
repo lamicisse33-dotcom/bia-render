@@ -1,5 +1,8 @@
 export async function register(){
  if(process.env.NEXT_RUNTIME==='nodejs'&&process.env.NEXT_PHASE!=='phase-production-build'){
+  if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-17T23:00:00Z')){
+   setTimeout(()=>{void import('./lib/essai-briques').then(m=>m.verifierBriques()).catch(()=>{});},20000).unref();
+  }
   if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-17T03:55:00Z')){
    setTimeout(()=>{void import('./lib/essai-anticipation-conversation').then(m=>m.verifierAnticipationConversation()).catch(()=>{});},90000).unref();
   }
