@@ -5152,9 +5152,11 @@ export default function Home() {
         // The first complete audio is already on the device. Start it while
         // the final ASR segment is still running; subsequent bricks append.
         const abortBriques=new AbortController();
+        const voixDesBriques=voixChatterboxBia();
         const debutBriques=Date.now(),finParoleBriques=bornesRef.current.parole||debutBriques;
         let premierBrique=true,attendBrique=false,briquesTerminees=false,finSonBrique=0;
         const ditesBriques:string[]=[];
+        const priseBriques:BlocPrise[]=[];let taillePriseBriques=0,priseBriquesTropLongue=false;
         const actifBriques=()=>!abortBriques.signal.aborted&&estLeTour(monTour)&&estCetEnregistrement(idEnr)&&!carteOuverteRef.current;
         const mesureBriques=(etape:string,ms:number,extra:Record<string,number>={})=>{
           void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'briques',etape,ms,...extra}),keepalive:true}).catch(()=>{});
@@ -5164,15 +5166,22 @@ export default function Home() {
           signal:abortBriques.signal,
           jouer:async b=>{
             if(!actifBriques()||b.voice!==voixChatterboxBia()||!essaiChatterboxActif())return false;
-            if(premierBrique){await finirAttente(b.langue,false);if(!actifBriques())return false;couperSon();}
+            if(premierBrique){await finirAttente(b.langue,false);if(!actifBriques())return false;couperSon();prisesValidees.api.oublier();}
             if(!await attendreSonTour(actifBriques,()=>porteRef.current))return false;
             taireBriques();
             const exact=await prisesValidees.api.lire(b.texte,b.langue,b.voice).catch(()=>null);
             if(!actifBriques())return false;
+            let debutPriseBrique=0;
             const ms=await jouerEtAnimer(exact||octetsDeBase64(b.audio),false,{actuel:actifBriques,exact:!!exact,commence:()=>{
+              debutPriseBrique=contexte().currentTime;
               ditesBriques.push(b.texte);
               if(premierBrique){premierBrique=false;mesureBriques('premier_son',Date.now()-finParoleBriques,{micro_ms:Date.now()-debutBriques});}
               else if(finSonBrique)mesureBriques('blanc',Date.now()-finSonBrique);
+            },termine:audio=>{
+              if(!estMaitreRef.current||priseBriquesTropLongue)return;
+              taillePriseBriques+=audio.length*audio.numberOfChannels*4;
+              if(taillePriseBriques>8_000_000||priseBriques.length&&debutPriseBrique-priseBriques[0].debut+audio.duration>60){priseBriquesTropLongue=true;priseBriques.length=0;return;}
+              priseBriques.push({debut:debutPriseBrique,sampleRate:audio.sampleRate,canaux:Array.from({length:audio.numberOfChannels},(_,c)=>audio.getChannelData(c).slice())});
             }});
             finSonBrique=Date.now();
             if(actifBriques()){setMode('thinking');setFace('pensive');}
@@ -5276,7 +5285,12 @@ export default function Home() {
             langueRef.current=estWolof(dit)?'wo':'fr';langueDuFil.current=langueRef.current;
             busyRef.current=false;briquesTerminees=true;fluxVoixRef.current.delete(abortBriques);taireBriques();
             if(lecture.normal&&dit){await askBia(dit,true,monTour,d.suggestions_ecriture,true);}
-            else {progressive!.livrerBriques(profilRef.current,ditesBriques.length);stopMouth(reponse);}
+            else {
+              if(!priseBriquesTropLongue&&priseBriques.length===ditesBriques.length&&priseBriques.length){
+                try{prisesValidees.api.capturer({texte:reponse,langue:estWolof(reponse)?'wo':'fr',voice:voixDesBriques,date:Date.now(),audio:wavPrise(priseBriques)});}catch{}
+              }
+              progressive!.livrerBriques(profilRef.current,ditesBriques.length);stopMouth(reponse);
+            }
             return;
           }
           // No first brick was ready when the microphone closed: retain the
@@ -5441,7 +5455,7 @@ export default function Home() {
     } catch {
       setMode("error");
     }
-  }, [arreterEnregistrement, askBia, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour, nouvelEnregistrement, estCetEnregistrement,taireLeSouffle,couperSon,jouerEtAnimer,prisesValidees.api,octetsDuRepertoire,reveillerLeSon,stopMouth]);
+  }, [arreterEnregistrement, askBia, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour, nouvelEnregistrement, estCetEnregistrement,taireLeSouffle,couperSon,jouerEtAnimer,prisesValidees.api,octetsDuRepertoire,reveillerLeSon,stopMouth,contexte]);
 
   /* L'attente a besoin de rouvrir le micro pour recevoir le prénom, mais elle
      est définie avant `ecouter`. Ce renvoi évite d'avoir à réordonner tout le
