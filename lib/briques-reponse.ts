@@ -8,7 +8,7 @@ import {contexteInstructions} from './instructions-apprentissage';
 import {detecterLangue} from './langue';
 import {assemblerSonsCourants} from './assembler-sons-courants';
 import {POST as synthetiser} from '../app/api/chatterbox-test/bia/route';
-import {contexteAnticipation,empreinteAnticipation,normaliserAnticipation,eligibleAnticipation} from './anticipation-core';
+import {contexteAnticipation,empreinteAnticipation,normaliserAnticipation,eligibleBriques} from './anticipation-core';
 import {gpuAnticipation} from './anticipation-gpu';
 import {etatBriques} from './briques-etat';
 import type {BriqueAudio} from './briques-file';
@@ -18,7 +18,7 @@ type Session={id:string;owner:string;tour:string;history:ReturnType<typeof conte
 const g=globalThis as typeof globalThis&{biaBriques?:Map<string,Session>};
 const sessions=g.biaBriques??=new Map<string,Session>();
 const nettoyer=()=>{for(const [id,s] of sessions)if(s.expire<Date.now()&&!s.occupe)sessions.delete(id);if(sessions.size>=32)for(const [id,s] of sessions){if(s.fermee&&!s.occupe)sessions.delete(id);if(sessions.size<32)break;}};
-function resultat(s:Session,brique?:BriqueAudio,normal=false){return {id:s.id,brique,termine:s.fermee,normal};}
+function resultat(s:Session,brique?:BriqueAudio,normal=false){return {id:s.id,brique,termine:s.fermee,normal,continuer:!!brique&&!s.fermee&&s.briques.length<5&&s.appels<10&&s.dernier.length-s.traite.length>=35};}
 
 /** A brick is committed only when both the complete text and complete audio exist. */
 export async function preparerBrique(body:any,code:string,maitre:boolean,signal:AbortSignal){
@@ -26,7 +26,7 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
   let s:Session|undefined;
   if(body.id){s=sessions.get(String(body.id));if(!s||s.owner!==owner)throw Error('Session inconnue');}
   else {
-    if(!eligibleAnticipation(texte)||!Array.isArray(body.history)||!['female','male'].includes(body.voice)||body.apprend||! /^[a-zA-Z0-9_-]{8,80}$/.test(String(body.tour||'')))return null;
+    if(!eligibleBriques(texte)||!Array.isArray(body.history)||!['female','male'].includes(body.voice)||body.apprend||! /^[a-zA-Z0-9_-]{8,80}$/.test(String(body.tour||'')))return null;
     if(sessions.size>=32||[...sessions.values()].filter(x=>x.owner===owner&&!x.fermee).length>=4)return null;
     const v=verifierCode(code,false);if(!v.ok)return null;
     s={id:randomUUID(),owner,tour:body.tour,history:contexteAnticipation(body.history.map((m:any)=>({...m,role:m.role==='bia'?'assistant':m.role}))),resume:String(body.resume||'').slice(0,6000),voice:body.voice,maitre,expire:Date.now()+240000,traite:'',dernier:'',briques:[],occupe:false,fermee:false,appels:0};
@@ -42,13 +42,13 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
   }
   if(s.occupe)throw Error('Préparation en cours');
   if(s.fermee)return resultat(s);
-  // Never rewrite a committed prefix. ASR revisions, actions and unusual turns
-  // go through ordinary chat after any already spoken brick has completed.
-  if(texte.length>6000||!texte.startsWith(s.traite)||!eligibleAnticipation(texte)){
+  // Audio already committed is immutable. A revised final transcription is
+  // explained in the next brick; actual action requests retain normal routing.
+  if(!eligibleBriques(texte)||(!final&&!texte.startsWith(s.traite))){
     if(final)s.fermee=true;
     return resultat(s,undefined,final);
   }
-  if(!final&&(s.briques.length>=5||s.appels>=10||texte.length-s.dernier.length<35))return resultat(s);
+  if(!final&&(s.briques.length>=5||s.appels>=10||texte.length-s.traite.length<35))return resultat(s);
   if(final&&texte===s.traite){if(!verifierCode(code,true).ok)return resultat(s,undefined,true);s.fermee=true;etatBriques.finalisees++;return resultat(s);}
   s.occupe=true;s.appels++;s.dernier=texte;
   let etape='contexte';
@@ -65,7 +65,7 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
     const d=JSON.parse(contenuAnthropic(data));
     if(d.eligible!==true){if(final)s.fermee=true;return resultat(s,undefined,final);}
     const traite=normaliserAnticipation(d.traite),reply=String(d.reply||'').trim();
-    if(!texte.startsWith(traite)||!traite.startsWith(s.traite)||traite.length<=s.traite.length||reply.length<4||reply.length>(final?400:220)||/\[\[|\]\]/.test(reply)||(final&&traite!==texte))throw Error('Brique invalide');
+    if(!texte.startsWith(traite)||(!final&&(!traite.startsWith(s.traite)||traite.length<=s.traite.length))||reply.length<4||reply.length>(final?400:220)||/\[\[|\]\]/.test(reply)||(final&&traite!==texte))throw Error('Brique invalide');
     etape='audio';const langue=detecterLangue(reply,detecterLangue(texte,'wo')) as 'wo'|'fr';
     const clips:ArrayBuffer[]=[];let parties=1,empreinte:string|undefined;
     for(let partie=0;partie<parties;partie++){
