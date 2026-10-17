@@ -8,7 +8,7 @@ export function reglagesSonnet(model:string){
 export function corpsAnthropic(body:Record<string,any>){
  if(body.model!==MODELE_SONNET)return body;
  const {temperature,top_p,top_k,...reste}=body;
- return {...reste,...reglagesSonnet(body.model)};
+ return {...reste,...reglagesSonnet(body.model),output_config:{effort:"low",...body.output_config}};
 }
 export function contenuAnthropic(data:any):string{return (data.content||[]).filter((b:any)=>b.type==="text").map((b:any)=>String(b.text||"")).join("").trim();}
 export function messagesAnthropic(messages:Array<{role:string;content:string}>,cacherOutils=true){
