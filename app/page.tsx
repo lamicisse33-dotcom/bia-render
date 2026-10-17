@@ -1035,6 +1035,7 @@ export default function Home() {
      continuation ou nouvelle phrase, voir lib/sa-propre-voix.ts — puis
      ouvre. Nulle quand personne ne parle. RÈGLE 4 : la valeur de départ est
      « pas de porte », donc elle parle, comme avant. */
+  const dernierSignalParoleRef = useRef({quand:0,delai:1500});
   const porteRef = useRef<{ attendre: Promise<void>; ouvrir: () => void; depuis: number } | null>(null);
   const filRef = useRef<HTMLDivElement | null>(null);
   const champRef = useRef<HTMLInputElement | null>(null);
@@ -1744,11 +1745,45 @@ export default function Home() {
     }).catch(() => {});
   }, []);
 
+  // This check survives React's thinking/speaking transitions and runs again
+  // after downloads/decoding, immediately before committing audible playback.
+  const autoriserLaVoix = useCallback(async (actuel:()=>boolean) => {
+    const debut=Date.now();let retenue=false;
+    const silencieux=()=>{
+      if(!conversationRef.current)return true;
+      const microOuvert=enregistreurRef.current?.state==='recording';
+      const analyse=analyseRef.current;
+      // Do not mistake BIA's own audio for the user. Barge-in handles that case.
+      if(analyse&&!sourceRef.current&&!sourcesRef.current.size&&!voixDuTelephoneRef.current&&sonDelleRef.current===0){
+        try{
+          const signal=new Uint8Array(analyse.frequencyBinCount),spectre=new Uint8Array(analyse.frequencyBinCount);
+          analyse.getByteTimeDomainData(signal);analyse.getByteFrequencyData(spectre);
+          let pic=0;for(const v of signal)pic=Math.max(pic,Math.abs(v-128));
+          if(pic>(seuilRef.current||8)&&partVocale(spectre,analyse.context.sampleRate)>=0.2){
+            dernierSignalParoleRef.current={quand:Date.now(),delai:1500};
+          }
+        }catch{ return false; }
+      }
+      const signal=dernierSignalParoleRef.current;
+      const libre=!microOuvert&&(!signal.quand||Date.now()-signal.quand>=signal.delai);
+      if(!libre)retenue=true;
+      return libre;
+    };
+    const accord=await attendreSonTour(actuel,()=>{
+      if(porteRef.current)retenue=true;
+      return porteRef.current;
+    },silencieux);
+    if(retenue)void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'protection_parole',etape:accord?'retenue':'annulee',ms:Date.now()-debut}),keepalive:true}).catch(()=>{});
+    return accord;
+  },[]);
+
   /* `estLaReponse` : voir envoyerLeTour(). Cette fonction joue AUSSI des
      accusés de réception et des transitions, qui sortent du haut-parleur
      AVANT la réponse. Les compter comme « première syllabe » ferait croire à
      un tour de deux secondes là où il en a duré neuf. */
   const jouerEtAnimer = useCallback(async (octets: ArrayBuffer, estLaReponse = false, garde?: {actuel:()=>boolean;commence?:()=>void;exact?:boolean;termine?:(audio:AudioBuffer)=>void}) => {
+    const tourAudio=numeroDuTourRef.current;
+    const actif=()=>numeroDuTourRef.current===tourAudio&&(!garde||garde.actuel());
     /* Le haut-parleur d'abord, le son ensuite. Voir reveillerLeSon(). */
     const ctx = await reveillerLeSon();
     return new Promise<number>((fini) => {
@@ -1760,8 +1795,8 @@ export default function Home() {
       if (secours) clearTimeout(secours);
       fini(ms);
     };
-    ctx.decodeAudioData(octets.slice(0)).then((brut) => {
-      if(garde&&!garde.actuel()){rendre(0);return;}
+    ctx.decodeAudioData(octets.slice(0)).then(async (brut) => {
+      if(!await autoriserLaVoix(actif)){rendre(0);return;}
       /* POSÉE, PAS PRESSÉE. Lamine, le 11 septembre 2026 : « ralentir de
          30 % la vitesse de sa voix, elle est trop agressive ». Le modèle de
          voix n'a AUCUN réglage de vitesse — vérifié dans sa documentation —
@@ -1818,7 +1853,7 @@ export default function Home() {
       animationRef.current = requestAnimationFrame(suivre);
     }).catch(() => rendre(0));
     });
-  }, [reveillerLeSon, envoyerLeTour]);
+  }, [reveillerLeSon, envoyerLeTour, autoriserLaVoix]);
 
   /* La voix du navigateur : béquille, gardée pour le cas où Oolel ne répond
      pas. Elle ne sait pas dire le wolof, d'où la réécriture phonétique — et
@@ -1868,6 +1903,7 @@ export default function Home() {
      idle_timeout dans main.py) avant d'en renvoyer un. */
   const dernierReveilMoteur = useRef(0);
   const parlerAvecLeTelephone = useCallback((answer: string) => new Promise<void>((fini) => {
+    const tourTelephone=numeroDuTourRef.current;
     if (essaiChatterboxActif()) {
       setPanne("KHALAM Voice n’a pas produit de son. Réessaie l’essai vocal.");
       stopMouth(answer); fini(); return;
@@ -1930,7 +1966,8 @@ export default function Home() {
     /* Safari/iOS peut charger la liste des voix après le premier getVoices().
        On attend brièvement voiceschanged si aucune bonne voix féminine
        française n'est encore visible. */
-    const choisirEtParler = (voices: SpeechSynthesisVoice[]) => {
+    const choisirEtParler = async (voices: SpeechSynthesisVoice[]) => {
+      if(!await autoriserLaVoix(()=>numeroDuTourRef.current===tourTelephone)){fini();return;}
       const wolof = voices.find((v) => v.lang.toLowerCase().startsWith("wo"));
       const french = choisirVoixFrancaiseFeminine(voices);
 
@@ -1987,7 +2024,7 @@ export default function Home() {
     };
     synth.addEventListener("voiceschanged", lancerAvecVoixChargees, { once: true });
     attenteVoix = setTimeout(lancerAvecVoixChargees, 1200);
-  }), [bouche, stopMouth, setPanne]);
+  }), [bouche, stopMouth, setPanne, autoriserLaVoix]);
 
   /* ── Les sons qui ne s'écrivent pas ───────────────────────────────────
 
@@ -2000,6 +2037,7 @@ export default function Home() {
      `onended` ne vient jamais et tout ce qui suit reste bloqué. La réponse
      entière restait alors coincée derrière un rire qu'on n'entendait pas. */
   const jouerSonAvecVisages = useCallback(async (octets: ArrayBuffer, visages: Array<[string, number]>) => {
+    const tourSon=numeroDuTourRef.current;
     /* LE RIRE PASSE PAR ICI, ET C'EST LUI QUI A RÉVÉLÉ LE DÉFAUT. Un rire
        part du cache, sans attendre le réseau : c'est le son le plus rapide de
        toute l'application, donc le premier à partir avant que le haut-parleur
@@ -2032,7 +2070,8 @@ export default function Home() {
         if (couperLesVisages) for (const m of minuteriesVisages) clearTimeout(m);
         fini();
       };
-      ctx.decodeAudioData(octets.slice(0)).then((mémoire) => {
+      ctx.decodeAudioData(octets.slice(0)).then(async (mémoire) => {
+        if(!await autoriserLaVoix(()=>numeroDuTourRef.current===tourSon)){rendre(true);return;}
         const source = ctx.createBufferSource();
         source.buffer = mémoire;
         source.connect(ctx.destination);
@@ -2062,7 +2101,7 @@ export default function Home() {
         secours = setTimeout(() => rendre(), Math.max(mémoire.duration * 1000, arc) + 1000);
       }).catch(() => rendre(true));
     });
-  }, [reveillerLeSon]);
+  }, [reveillerLeSon, autoriserLaVoix]);
 
   /* ── LE SOUFFLE QUI COUVRE LE TEMPS DE RÉFLEXION ──────────────────────
 
@@ -2123,6 +2162,7 @@ export default function Home() {
       const memoire = await ctx.decodeAudioData(octets.slice(0));
       if (attenteRef.current !== jeton || stopAttenteRef.current) return;
       if (sourceRef.current) return;
+      if(!await autoriserLaVoix(()=>attenteRef.current===jeton&&!stopAttenteRef.current&&!sourceRef.current))return;
       const source = ctx.createBufferSource();
       source.buffer = memoire;
       source.connect(ctx.destination);
@@ -2132,7 +2172,7 @@ export default function Home() {
       };
       source.start();
     } catch { /* un souffle qui ne part pas ne casse rien */ }
-  }, [reveillerLeSon]);
+  }, [reveillerLeSon, autoriserLaVoix]);
 
   /* Elle se met à parler : le souffle s'arrête, il a fini son travail. */
   const taireLeSouffle = useCallback(() => {
@@ -2323,8 +2363,8 @@ export default function Home() {
       const ctx = contexte();
       let rendu = false;
       const rendre = (fin = 0) => { if (!rendu) { rendu = true; fini(fin); } };
-      ctx.decodeAudioData(octets.slice(0)).then((brut) => {
-        if (attenteRef.current !== jeton) return rendre();
+      ctx.decodeAudioData(octets.slice(0)).then(async (brut) => {
+        if(!await autoriserLaVoix(()=>attenteRef.current===jeton&&!stopAttenteRef.current))return rendre();
         const mémoire = ralentir(ctx, sansSilence(ctx, brut), vitesseAudioBia(octets));
         const { valeurs, pic, pas } = enveloppeDe(mémoire);
         const source = ctx.createBufferSource();
@@ -2366,7 +2406,7 @@ export default function Home() {
         // Filet : si le son ne sort pas, on ne reste pas bloqué.
         setTimeout(() => rendre(fin), (fin - ctx.currentTime) * 1000 + 1200);
       }).catch(() => rendre());
-    }), [contexte]);
+    }), [contexte, autoriserLaVoix]);
 
   /* Une parole entière : ses morceaux programmés bout à bout sur l'horloge du
      son, sans couture — la même technique que pour la réponse. */
@@ -2605,7 +2645,6 @@ export default function Home() {
     window.speechSynthesis?.cancel();
     couperSon();
     if (emotion) await jouerSouffle(emotion);
-    setMode("speaking");
     const octetsDits = await octetsDuRepertoire(adresse);
     /* Le son est en main : le reste est du décodage et du démarrage. Sans
        cette borne, les quarante millisecondes qui suivent ne tombaient dans
@@ -2629,7 +2668,7 @@ export default function Home() {
        mot, une fois le son fabriqué. */
     const tourAuDepart = numeroDuTourRef.current;
     const actuel = () => numeroDuTourRef.current === tourAuDepart;
-    const peutParler = () => attendreSonTour(actuel, () => porteRef.current);
+    const peutParler = () => autoriserLaVoix(actuel);
     if (suite && ou === "réponse") setMode("thinking");
     const prendreLaParole = async () => {
       /* ── SAUF QUAND ELLE A DÉJÀ COMMENCÉ ─────────────────────────────
@@ -2995,6 +3034,7 @@ export default function Home() {
         // le ferait démarrer en retard et tout décaler.
         const debut = Math.max(ctx.currentTime + 0.06, quand);
         if (quand > 0) coutures.push(Math.round((debut - quand) * 1000));
+        setMode("speaking");
         source.start(debut);
         if(estMaitreRef.current&&essaiChatterboxActif()&&!suite&&personaRef.current!=="rara"&&!priseTropLongue){
           if(debut-(priseBlocs[0]?.debut??debut)+mémoire.duration>60){priseTropLongue=true;priseBlocs.length=0;}
@@ -3053,7 +3093,6 @@ export default function Home() {
         }
         animationRef.current = requestAnimationFrame(suivre);
       };
-      setMode("speaking");
       animationRef.current = requestAnimationFrame(suivre);
 
       for (let i = 0; i < total; i++) {
@@ -3161,7 +3200,7 @@ export default function Home() {
       if (ou === "apprentissage" || locale || essaiChatterboxActif()) { stopMouth(answer); return; }
       await parlerAvecLeTelephone(answer);
     }
-  }, [contexte, reveillerLeSon, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth, jouerEtAnimer, lireAudioMemoire, prisesValidees.api]);
+  }, [contexte, reveillerLeSon, couperSon, finirAttente, jouerSouffle, noterAttente, parlerAvecLeTelephone, stopMouth, jouerEtAnimer, lireAudioMemoire, prisesValidees.api, autoriserLaVoix]);
 
 
 
@@ -4769,6 +4808,7 @@ export default function Home() {
         if(candidateVocale){try{analysePeriodique.getByteTimeDomainData(tamponPeriodique);hauteurCandidate=hauteurDeVoix(tamponPeriodique,ctxMicro.sampleRate);voixPeriodique=hauteurCandidate>=HAUTEUR_MINIMALE;}catch{}}
         focusLocuteurRef.current?.observer(candidateVocale,voixPeriodique);
         const uneVoix=candidateVocale&&(focusLocuteurRef.current?.autoriser()??true);
+        if(candidateVocale)dernierSignalParoleRef.current={quand:Date.now(),delai:silenceQuiSuffit(debutParole?Date.now()-debutParole:0,coupesTropTotRef.current)};
         seuilRef.current = bruit.seuil();
 
         if (uneVoix) {
@@ -5167,7 +5207,7 @@ export default function Home() {
           jouer:async b=>{
             if(!actifBriques()||b.voice!==voixChatterboxBia()||!essaiChatterboxActif())return false;
             if(premierBrique){await finirAttente(b.langue,false);if(!actifBriques())return false;couperSon();prisesValidees.api.oublier();}
-            if(!await attendreSonTour(actifBriques,()=>porteRef.current))return false;
+            if(!await autoriserLaVoix(actifBriques))return false;
             taireBriques();
             const exact=await prisesValidees.api.lire(b.texte,b.langue,b.voice).catch(()=>null);
             if(!actifBriques())return false;
@@ -5200,6 +5240,7 @@ export default function Home() {
                 if(!octets||!attendBrique||!actifBriques()||sourceRef.current)return;
                 const ctx=await reveillerLeSon(),audio=await ctx.decodeAudioData(octets.slice(0));
                 if(audio.duration<1.2||audio.duration>2.5||!attendBrique||!actifBriques()||sourceRef.current)return;
+                if(!await autoriserLaVoix(()=>attendBrique&&actifBriques()&&!sourceRef.current))return;
                 cacheSons.current.set(fichier,octets);dernierSouffle.current=fichier;
                 const source=ctx.createBufferSource();source.buffer=audio;source.connect(ctx.destination);souffleDattenteRef.current=source;
                 source.onended=()=>{if(souffleDattenteRef.current===source)souffleDattenteRef.current=null;};
@@ -5449,13 +5490,15 @@ export default function Home() {
         progressive=await brancherAnticipation({ctx:ctxMicro,flux,code:codeRef.current,tour:tourDeParole,history:fenetreDuFil(historyRef.current),resume:resumeRef.current,voice:voixChatterboxBia(),persona:personaRef.current,langue:()=>langueDuFil.current,parle:()=>aParle,actuel:()=>estCetEnregistrement(idEnr)});
       }
       if(!estCetEnregistrement(idEnr)){await progressive?.annuler();return;}
+      const etapeCapture=progressive?'branchee':!essaiChatterboxActif()?'voix_incompatible':localStorage.getItem('bia-anticipation')==='non'?'desactivee':personaRef.current==='rara'||apprend.current||correctionDevoirRef.current||chantierMalDit.current||attendLeNomRef.current||motsRattrapesRef.current?'contexte_exclu':'indisponible';
+      void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'capture_progressive',etape:etapeCapture}),keepalive:true}).catch(()=>{});
       enregistreur.start(400);
       setMode("listening");
       setFace("ecoute");
     } catch {
       setMode("error");
     }
-  }, [arreterEnregistrement, askBia, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour, nouvelEnregistrement, estCetEnregistrement,taireLeSouffle,couperSon,jouerEtAnimer,prisesValidees.api,octetsDuRepertoire,reveillerLeSon,stopMouth,contexte]);
+  }, [arreterEnregistrement, askBia, finirAttente, direSonTeutFait, parlerAvecLeTelephone, jouerSouffle, ouvrirUnTour, estLeTour, nouvelEnregistrement, estCetEnregistrement,taireLeSouffle,couperSon,jouerEtAnimer,prisesValidees.api,octetsDuRepertoire,reveillerLeSon,stopMouth,contexte,autoriserLaVoix]);
 
   /* L'attente a besoin de rouvrir le micro pour recevoir le prénom, mais elle
      est définie avant `ecouter`. Ce renvoi évite d'avoir à réordonner tout le
@@ -6158,7 +6201,7 @@ export default function Home() {
     let tuDepuis = 0;
 
     const guet = setInterval(() => {
-      if (porteDuGuet && Date.now() - porteDuGuet.depuis >= PORTE_AU_PLUS) {
+      if (porteDuGuet && Date.now() - porteDuGuet.depuis >= PORTE_AU_PLUS && tuDepuis>=silenceQuiSuffit(7000,coupesTropTotRef.current) && !finEnCours) {
         const porte = porteDuGuet; porteDuGuet = null;
         if (porteRef.current === porte) porteRef.current = null;
         ilParle = false; revisionParole++; porte.ouvrir();
@@ -6192,6 +6235,7 @@ export default function Home() {
       estUneVoix=estUneVoix&&(focusLocuteurRef.current?.interruption()??true);
       const interruption = detecter(creux > barre, estUneVoix, TOUR_DE_VEILLE);
       if (creux > barre && estUneVoix) {
+        dernierSignalParoleRef.current={quand:Date.now(),delai:silenceQuiSuffit(7000,coupesTropTotRef.current)};
         revisionParole += 1;
         vu.tours_au_dessus += 1;
         tuDepuis = 0;

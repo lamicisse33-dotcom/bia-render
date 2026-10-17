@@ -56,6 +56,7 @@ const makeSpeak=new Function('env',`with(env){${compile('const speak = '+arrow+'
 function environment(fetchPromise) {
   let played=0, decoded=0, processed=0;
   const env={
+    prisesValidees:{api:{lire:async()=>null,oublier(){},capturer(){}}},estMaitreRef:{current:false},audioAnticipeRef:{current:null},
     lireAudioMemoire:async()=>undefined,sonPourTexte:()=>undefined,sonsCourantsRef:{current:[]},cacheSons:{current:new Map()},
     ouvrirRepliques,carteOuverteRef:{current:false},numeroDuTourRef:{current:1},porteRef:{current:null},
     personaRef:{current:'female'},codeRef:{current:'test'},bornesRef:{current:{}},langueRef:{current:'fr'},
@@ -72,6 +73,7 @@ function environment(fetchPromise) {
   };
   env.fetchVoixBia=(url,opt)=>env.fetch(url,opt);env.vitesseAudioBia=()=>1;
   env.reveillerLeSon=async()=>Object.assign(env.contexte(),{state:"running"});
+  env.autoriserLaVoix=actuel=>attendreSonTour(actuel,()=>env.porteRef.current);
   return {env,played:()=>played,decoded:()=>decoded,processed:()=>processed};
 }
 test('interrupting during TTS download discards the actual late audio response', async () => {

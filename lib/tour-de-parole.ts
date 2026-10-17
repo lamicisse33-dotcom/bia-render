@@ -14,11 +14,18 @@ export function creerDetectionInterruption(pendantLaReflexion = false) {
 export async function attendreSonTour(
   actuel: () => boolean,
   porte: () => { attendre: Promise<void> } | null,
+  silencieux: () => boolean = () => true,
+  pause: () => Promise<void> = () => new Promise(r => setTimeout(r, 60)),
 ): Promise<boolean> {
   while (actuel()) {
     const p = porte();
-    if (!p) return true;
-    await p.attendre;
+    if (!p && silencieux()) return actuel();
+    // Polling also lets an obsolete turn leave a gate whose owner disappeared.
+    if (p) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try { await Promise.race([p.attendre, new Promise<void>(r => { timer = setTimeout(r, 60); })]); }
+      finally { if (timer) clearTimeout(timer); }
+    } else await pause();
   }
   return false;
 }
