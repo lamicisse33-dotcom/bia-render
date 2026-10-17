@@ -65,6 +65,26 @@ function server(answer){
 }
 const question='En allant au marché je suis passé chez le cordonnier pour refaire mes chaussures.';
 const body={texte:question,tour:'test-briques-123',history:[{role:'bia',text:'Bonjour papa.'}],resume:'',voice:'female',persona:'bia'};
+test('opening addresses are spoken only on the first brick and reset for a new answer',async()=>{
+ const replies=['Oui papa, tes chaussures sont réparées.','D’accord papa, le coiffeur suivait le match.','Oui, papa ! Tu as obtenu le prix habituel.'];
+ const s=server(c=>({eligible:true,reply:replies[c.briques_verrouillees.length],traite:c.texte_integral})),signal=new AbortController().signal;
+ const first=await s.preparerBrique(body,'owner',true,signal),locked=JSON.stringify(first.brique);
+ const suite=question+' Ensuite je suis passé chez le coiffeur pour me coiffer.';
+ const second=await s.preparerBrique({id:first.id,texte:suite},'owner',true,signal);
+ const third=await s.preparerBrique({id:first.id,texte:suite+' Puis le chargeur coûtait trois mille francs.',final:true},'owner',true,signal);
+ assert.deepEqual(s.syntheses.map(x=>x.texte),[replies[0],'le coiffeur suivait le match.','Tu as obtenu le prix habituel.']);
+ assert.equal(second.brique.texte,s.syntheses[1].texte);assert.equal(third.brique.texte,s.syntheses[2].texte);
+ assert.equal(JSON.stringify(first.brique),locked);assert.equal(s.models.length,3,'no extra model request');
+ const next=await s.preparerBrique({...body,tour:'test-new-answer'},'owner',true,signal);
+ assert.equal(next.brique.texte,replies[0]);
+});
+test('continuation cleanup preserves substantive speech, quotations and learned Wolof',()=>{
+ const {enchainerBrique}=load('lib/briques-prompt.ts');
+ for(const text of ['Oui papa, tes chaussures sont réparées.','D’accord papa ! Tu as bien négocié.','Bien sûr papa : le coiffeur suivait le match.']){
+  assert.equal(enchainerBrique(text,0),text);assert(!/papa/i.test(enchainerBrique(text,1)));
+ }
+ for(const text of ['Le commerçant a dit « Oui papa ».','Oui, le chargeur coûtait trois mille francs.','Papa est allé au marché.','Jërëjëf, ba beneen yoon.'])assert.equal(enchainerBrique(text,1),text);
+});
 test('server keeps locked audio, appends late corrections, charges once and persists only delivered speech',async()=>{
  const s=server(),signal=new AbortController().signal;
  const first=await s.preparerBrique(body,'owner',true,signal);assert(first.brique);const locked=JSON.stringify(first.brique);assert.equal(s.quota(),0);
