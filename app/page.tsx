@@ -4936,6 +4936,7 @@ export default function Home() {
         );
       };
       enregistreur.onstop = async () => {
+        const finMicroBriques=Date.now();
         void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'micro_capture',cause:causeArret,duree_ms:Date.now()-ouverture,parole_ms:debutParole?dernierSon-debutParole:0,silence_ms:dernierSon?Date.now()-dernierSon:0,pic:picMicro,mesures:mesuresMicro,vocales:mesuresVocales,plat:analyseurMort,actuel:estCetEnregistrement(idEnr),contexte:ctxMicro.state}),keepalive:true}).catch(()=>{});
         fermetureProgressive=progressive?.fermerCapture().catch(()=>{captureProgressiveValide=false;})||null;
 
@@ -5213,7 +5214,7 @@ export default function Home() {
         // Neither depends on the final ASR; subsequent bricks only append.
         const abortBriques=new AbortController();
         const voixDesBriques=voixChatterboxBia(),apparenceDesBriques=personaRef.current;
-        const debutBriques=Date.now(),finParoleBriques=bornesRef.current.parole||debutBriques;
+        const debutBriques=finMicroBriques,finParoleBriques=bornesRef.current.parole||debutBriques;
         let premierBrique=true,attendBrique=false,briquesTerminees=false,finSonBrique=0;
         const ditesBriques:string[]=[];
         const priseBriques:BlocPrise[]=[];let taillePriseBriques=0,priseBriquesTropLongue=false;
