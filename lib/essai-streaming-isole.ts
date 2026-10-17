@@ -1,10 +1,14 @@
 import {createHash} from 'node:crypto';
 import {reunirWav} from './essai-transport-voix';
-const g=globalThis as typeof globalThis&{biaStreamingIsole?:{rapport:any;travail?:Promise<void>;navigateur:any[]}};
+const g=globalThis as typeof globalThis&{biaStreamingIsole?:{rapport:any;travail?:Promise<void>;navigateur:any[];erreurs?:any[]}};
 const etat=g.biaStreamingIsole??={rapport:null,navigateur:[]};
-export const resumeStreamingIsole=()=>({reference:'441951c3c93f',conversation_modifiee:false,serveur:etat.rapport,navigateur:etat.navigateur});
+export const resumeStreamingIsole=()=>({reference:'441951c3c93f',conversation_modifiee:false,serveur:etat.rapport,navigateur:etat.navigateur,erreurs:etat.erreurs||[]});
 export function noterEssaiStreaming(d:any){
  if(!d||!['complet','stream'].includes(d.mode)||!['fr','wo'].includes(d.langue))return false;
+ if(d.type==='erreur'){
+  if(!['activation_audio','verification_code','demande_voix','decodage_audio','lecture_audio'].includes(d.etape)||!['interrompu','acces_refuse_ou_reseau','son_bloque','audio_non_decode','lecture_incomplete'].includes(d.code))return false;
+  etat.erreurs??=[];etat.erreurs.push({mode:d.mode,langue:d.langue,etape:d.etape,code:d.code,date:new Date().toISOString()});etat.erreurs=etat.erreurs.slice(-12);return true;
+ }
  const propre:any={mode:d.mode,langue:d.langue,date:new Date().toISOString()};
  for(const k of ['premier_audio_ms','demarrage_programme_ms','reception_complete_ms','trou_max_ms','paquets','parties']){
   if(typeof d[k]!=='number'||!Number.isFinite(d[k])||d[k]<0||d[k]>300000)return false;propre[k]=Math.round(d[k]);
