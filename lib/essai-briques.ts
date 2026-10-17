@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 /** Bounded real-model/audio smoke check; never stored as a user's conversation. */
 export async function verifierBriques(){
  if(etatBriques.essai||!process.env.BIA_CODE_MAITRE)return;
- const essai=etatBriques.essai={statut:'en_cours',synthetique:true,apparence:'rara',revision:'pause-et-briques-courtes-v4'} as Record<string,unknown>;
+ const essai=etatBriques.essai={statut:'en_cours',synthetique:true,apparence:'rara',revision:'audio-une-preparation-v5'} as Record<string,unknown>;
  const code=process.env.BIA_CODE_MAITRE;
  const texte='Ce matin, en allant au marché, je suis passé chez le cordonnier pour faire réparer mes chaussures. Ensuite je suis passé chez le coiffeur.';
  try{
