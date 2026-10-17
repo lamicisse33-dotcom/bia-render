@@ -3,6 +3,7 @@ import {NextRequest} from 'next/server';
 import {verifierCode} from './codes';
 import {fetchAnthropic,messagesAnthropic,contenuAnthropic,MODELE_SONNET} from './cerveau-anthropic';
 import {messagesConversation} from './conversation-groq';
+import {messagesBriques} from './briques-prompt';
 import {contexteMemoireCommune} from './memoire-organisee';
 import {contexteInstructions} from './instructions-apprentissage';
 import {detecterLangue} from './langue';
@@ -21,7 +22,8 @@ const nettoyer=()=>{for(const [id,s] of sessions)if(s.expire<Date.now()&&!s.occu
 function resultat(s:Session,brique?:BriqueAudio,normal=false){return {id:s.id,brique,termine:s.fermee,normal,continuer:!!brique&&!s.fermee&&s.briques.length<5&&s.appels<10&&s.dernier.length-s.traite.length>=35};}
 
 /** A brick is committed only when both the complete text and complete audio exist. */
-export async function preparerBrique(body:any,code:string,maitre:boolean,signal:AbortSignal){
+export async function preparerBrique(body:any,code:string,maitre:boolean,signal:AbortSignal,diagnostic?:'classique'|'chauffe'){
+  const diagnosticAncien=diagnostic==='classique';
   nettoyer();const owner=empreinteAnticipation(code),texte=normaliserAnticipation(body.texte),final=body.final===true;
   let s:Session|undefined;
   if(body.id){s=sessions.get(String(body.id));if(!s||s.owner!==owner)throw Error('Session inconnue');}
@@ -52,21 +54,31 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
   if(final&&texte===s.traite){if(!verifierCode(code,true).ok)return resultat(s,undefined,true);s.fermee=true;etatBriques.finalisees++;return resultat(s);}
   s.occupe=true;s.appels++;s.dernier=texte;
   let etape='contexte';const debutPreparation=Date.now();
+  const mesure={profil:diagnosticAncien?'classique':'concis',synthetique:s.tour.startsWith('diagnostic-'),contexte_ms:0,modele_ms:0,audio_ms:0,total_ms:0,entree_signes:0,sortie_signes:0,parties:0,eligible:false};
   try {
     const [memoire,instructions]=await Promise.all([contexteMemoireCommune(texte,s.history,6500),maitre?contexteInstructions():Promise.resolve('')]);
-    const messages=messagesConversation({question:texte,history:s.history,resume:s.resume,maitre,fiches:memoire,instructions,rapide:true});
-    messages.push({role:'system',content:`RÉPONSE ORALE PAR BRIQUES VERROUILLÉES. Aucun outil ni action ni écriture de mémoire. Les briques précédentes seront prononcées dans l'ordre et ne peuvent plus être modifiées. Réponds uniquement au prochain point achevé et utile du récit. Une phrase naturelle courte, maximum 180 caractères (${final?'deux phrases, maximum 360 caractères pour terminer':'aucune question, aucun conseil sensible ni conclusion globale prématurée'}). Ne commente pas chaque détail, ne répète pas une brique et n'annonce pas une suite. Respecte les formulations apprises et la langue de la personne. Une correction tardive se traite MAINTENANT, sans nier que la brique précédente a été dite. Ne confirme pas une actualité sportive non vérifiée : tu peux réagir au récit sans certifier le résultat. Si action, recherche, urgence, instruction de mémorisation/correction de devoir, ou demande incompatible, eligible=false. Si le point est inachevé, eligible=false. Ne produis ni balise, ni indication de scène, ni « hmm » écrit. ${final?'La personne a fini : traite tous les éléments restants importants et les corrections, sans répéter les briques précédentes. traite doit être exactement le texte intégral.':'La personne parle encore : traite doit être un PRÉFIXE EXACT du texte intégral, se terminant à la fin du point auquel cette brique répond, et dépasser le préfixe déjà traité. Aucun mot des points suivants ne doit être inclus.'} Retourne eligible, reply et traite.`});
-    messages.push({role:'user',content:JSON.stringify({texte_integral:texte,prefixe_deja_traite:s.traite,briques_verrouillees:s.briques.map(b=>b.texte),fin_de_parole:final})});
-    etape='modele';
-    const schema={type:'object',properties:{eligible:{type:'boolean'},reply:{type:'string'},traite:{type:'string'}},required:['eligible','reply','traite'],additionalProperties:false};
+    const messages=diagnosticAncien?messagesConversation({question:texte,history:s.history,resume:s.resume,maitre,fiches:memoire,instructions,rapide:true}):messagesBriques({history:s.history,resume:s.resume,maitre,memoire,instructions});
+    messages.push({role:'system',content:`RÉPONSE ORALE PAR BRIQUES VERROUILLÉES. Aucun outil ni action ni écriture de mémoire. Les briques précédentes seront prononcées dans l'ordre et ne peuvent plus être modifiées. Réponds uniquement au prochain point achevé et utile du récit. Une phrase naturelle complète de 8 à 18 mots environ, maximum 180 caractères. ${final?'Traite un point à la fois, puis les prochaines briques traiteront les autres.':'Aucune question, aucun conseil sensible ni conclusion globale prématurée.'} Ne commente pas chaque détail, ne répète pas une brique et n'annonce pas une suite. Respecte les formulations apprises et la langue de la personne. Une correction tardive se traite MAINTENANT, sans nier que la brique précédente a été dite. Ne confirme pas une actualité sportive non vérifiée : tu peux réagir au récit sans certifier le résultat. Si action, recherche, urgence, instruction de mémorisation/correction de devoir, ou demande incompatible, eligible=false. Si le point est inachevé, eligible=false. Ne produis ni balise, ni indication de scène, ni « hmm » écrit. traite doit être un PRÉFIXE EXACT du texte intégral, jusqu'au point auquel cette brique répond. ${final?'La personne a fini : traite le prochain point restant ou la correction, sans répéter les briques précédentes. Si tout est traité, traite est exactement le texte intégral. Si la transcription finale a révisé le préfixe déjà traité, réponds à cette précision et utilise le texte intégral comme traite.':'La personne parle encore : traite doit dépasser le préfixe déjà traité. Aucun mot des points suivants ne doit être inclus.'} Retourne eligible, reply et traite.`});
+    const mots=texte.split(' ');
+    if(!diagnosticAncien)messages.push({role:'system',content:'FORMAT COMPACT : traite est le NUMÉRO du dernier mot traité (entier), choisi dans les positions fournies, et non le texte du préfixe. Si tout est traité, utilise le numéro du dernier mot. Ne recompte pas les mots, lis leur numéro. Le serveur reconstitue le préfixe exact. Les autres règles sur les préfixes restent applicables.'});
+    messages.push({role:'user',content:JSON.stringify({texte_integral:texte,prefixe_deja_traite:s.traite,briques_verrouillees:s.briques.map(b=>b.texte),fin_de_parole:final,...(!diagnosticAncien?{positions:mots.map((mot,i)=>[i+1,mot])}:{})})});
+    mesure.contexte_ms=Date.now()-debutPreparation;mesure.entree_signes=messages.reduce((n,m)=>n+m.content.length,0);
+    etape='modele';const debutModele=Date.now();
+    const schema={type:'object',properties:{eligible:{type:'boolean'},reply:{type:'string'},traite:{type:diagnosticAncien?'string':'integer'}},required:['eligible','reply','traite'],additionalProperties:false};
     if((process.env.BIA_LLM_PROVIDER||'anthropic')!=='anthropic')throw Error('Fournisseur incompatible');
     const r=await fetchAnthropic((process.env.ANTHROPIC_BASE_URL||'https://api.anthropic.com')+'/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01'},body:JSON.stringify({model:process.env.BIA_LLM_MODEL||MODELE_SONNET,max_tokens:3000,output_config:{format:{type:'json_schema',schema}},...messagesAnthropic(messages)}),signal},Date.now()+15000);
     if(!r.ok)throw Error('Modèle indisponible');const data=await r.json();if(data.stop_reason==='max_tokens')throw Error('JSON incomplet');
+    mesure.modele_ms=Date.now()-debutModele;mesure.sortie_signes=contenuAnthropic(data).length;
     const d=JSON.parse(contenuAnthropic(data));
-    if(d.eligible!==true){if(final)s.fermee=true;return resultat(s,undefined,final);}
-    const traite=normaliserAnticipation(d.traite),reply=String(d.reply||'').trim();
-    if(!texte.startsWith(traite)||(!final&&(!traite.startsWith(s.traite)||traite.length<=s.traite.length))||reply.length<4||reply.length>(final?400:220)||/\[\[|\]\]/.test(reply)||(final&&traite!==texte))throw Error('Brique invalide');
-    etape='audio';const langue=detecterLangue(reply,detecterLangue(texte,'wo')) as 'wo'|'fr';
+    if(d.eligible!==true){if(final||diagnostic)s.fermee=true;return {...resultat(s,undefined,final),mesure};}
+    if(!diagnosticAncien&&(!Number.isInteger(d.traite)||d.traite<1||d.traite>mots.length))throw Error('Brique invalide');
+    const traite=diagnosticAncien?normaliserAnticipation(d.traite):mots.slice(0,d.traite).join(' '),reply=String(d.reply||'').trim();
+    if(!texte.startsWith(traite)||((!final||texte.startsWith(s.traite))&&(!traite.startsWith(s.traite)||traite.length<=s.traite.length))||reply.length<4||reply.length>220||/\[\[|\]\]/.test(reply)||(final&&!texte.startsWith(s.traite)&&traite!==texte))throw Error('Brique invalide');
+    mesure.eligible=true;
+    // Internal startup comparison only: do not synthesize or charge a spoken
+    // turn for the old prompt. The public route cannot enable this argument.
+    if(diagnostic){s.fermee=true;return {...resultat(s),mesure};}
+    etape='audio';const debutAudio=Date.now();const langue=detecterLangue(reply,detecterLangue(texte,'wo')) as 'wo'|'fr';
     const clips:ArrayBuffer[]=[];let parties=1,empreinte:string|undefined;
     for(let partie=0;partie<parties;partie++){
       signal.throwIfAborted();
@@ -74,13 +86,15 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
       const a=await response.json();if(!response.ok||!a.audio||a.voice!==s.voice||a.partie!==partie||!Number.isInteger(a.parties)||a.parties<1||a.parties>8||(empreinte&&a.empreinte!==empreinte))throw Error('Audio incomplet');
       parties=a.parties;empreinte=a.empreinte;clips.push(Uint8Array.from(Buffer.from(a.audio,'base64')).buffer);
     }
+    mesure.audio_ms=Date.now()-debutAudio;mesure.parties=parties;
     signal.throwIfAborted();if(s.fermee)throw Error('Session annulée');
     const audio=Buffer.from(assemblerSonsCourants(clips,30).wav).toString('base64');
-    if(final&&!verifierCode(code,true).ok){s.fermee=true;return resultat(s,undefined,true);}
+    const termine=final&&traite===texte;
+    if(termine&&!verifierCode(code,true).ok){s.fermee=true;return resultat(s,undefined,true);}
     const brique=Object.freeze({numero:s.briques.length,texte:reply,audio,langue,voice:s.voice});
     s.briques.push(brique);s.traite=traite;etatBriques.preparees++;
-    if(final){s.fermee=true;etatBriques.finalisees++;}
-    return resultat(s,brique);
+    if(termine){s.fermee=true;etatBriques.finalisees++;}
+    return {...resultat(s,brique),mesure};
   } catch(e){etatBriques.erreurs++;const message=e instanceof Error?e.message:'';etatBriques.dernier_echec={etape,annule:signal.aborted,motif:['Audio incomplet','Brique invalide','JSON incomplet','Modèle indisponible','Session annulée'].includes(message)?message:'autre',ms:Date.now()-debutPreparation,quand:new Date().toISOString()};if(signal.aborted){s.fermee=true;if(!s.briques.length)sessions.delete(s.id);}throw e;}
-  finally{s.occupe=false;}
+  finally{mesure.total_ms=Date.now()-debutPreparation;etatBriques.fabrications??=[];etatBriques.fabrications=[...etatBriques.fabrications.slice(-19),{...mesure,final,quand:new Date().toISOString()}];s.occupe=false;}
 }

@@ -50,8 +50,11 @@ function server(answer){
   if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
   if(id==='./cerveau-anthropic')return {MODELE_SONNET:'test',messagesAnthropic:messages=>({messages}),contenuAnthropic:d=>d.text,fetchAnthropic:async(u,init)=>{
    const request=JSON.parse(init.body),context=JSON.parse(request.messages.at(-1).content);models.push(context);
-   return Response.json({text:JSON.stringify(answer?answer(context):{eligible:true,reply:context.fin_de_parole?'Tu as finalement payé trois mille francs.':'Tu as profité de ta sortie pour faire réparer tes chaussures.',traite:context.texte_integral})});
+   const result=answer?answer(context):{eligible:true,reply:context.fin_de_parole?'Tu as finalement payé trois mille francs.':'Tu as profité de ta sortie pour faire réparer tes chaussures.',traite:context.texte_integral};
+   if(request.output_config.format.schema.properties.traite.type==='integer'&&typeof result.traite==='string')result.traite=result.traite.split(' ').length;
+   return Response.json({text:JSON.stringify(result)});
   }};
+  if(id==='./briques-prompt')return load('lib/briques-prompt.ts');
   if(id==='./conversation-groq')return {messagesConversation:o=>[{role:'system',content:JSON.stringify(o)}]};
   if(id==='./memoire-organisee')return {contexteMemoireCommune:async()=>''};if(id==='./instructions-apprentissage')return {contexteInstructions:async()=>''};
   if(id==='./langue')return {detecterLangue:()=> 'fr'};if(id==='./assembler-sons-courants')return {assemblerSonsCourants:()=>({wav:new ArrayBuffer(1200)})};
@@ -194,4 +197,37 @@ test('departure telemetry separates ready, still running, and absent preparation
  delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts');
  a.noterBriques({etape:'depart',ms:0,pretes:2,en_cours:1});a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:1});a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:0});
  assert.deepEqual(a.resumeBriques().departs,{prete:1,en_fabrication:1,sans_preparation:1});
+});
+
+test('compact word positions reject invalid boundaries before synthesis and keep exact Unicode words',async()=>{
+ for(const index of [-1,0,1.5,999]){
+  const s=server(c=>({eligible:true,reply:'Une réponse complète.',traite:index}));
+  await assert.rejects(s.preparerBrique(body,'owner',true,new AbortController().signal),/invalide/);assert.equal(s.syntheses.length,0);
+ }
+ const texte='Je suis passé chez le cordonnier. Puis je suis passé chez le coiffeur pour me faire couper les cheveux.';
+ const s=server(c=>({eligible:true,reply:'Tu as fait réparer tes chaussures.',traite:6}));
+ const r=await s.preparerBrique({...body,texte},'owner',true,new AbortController().signal);assert(r.brique);assert(r.continuer);
+ assert.deepEqual(s.models[0].positions[5],[6,'cordonnier.']);
+});
+test('final points are synthesized one at a time and charged only after the last point',async()=>{
+ const a=question,b=a+' Ensuite je suis allé chez le coiffeur.',c=b+' Puis le chargeur coûtait trois mille francs.';
+ const s=server(ctx=>({eligible:true,reply:'Une phrase complète sur le prochain point.',traite:!ctx.prefixe_deja_traite?a:ctx.prefixe_deja_traite===a?b:c})),signal=new AbortController().signal;
+ const first=await s.preparerBrique({...body,texte:c},'owner',true,signal);const locked=JSON.stringify(first.brique);
+ const next=await s.preparerBrique({id:first.id,texte:c,final:true},'owner',true,signal);assert(!next.termine);assert.equal(next.brique.numero,1);assert.equal(s.quota(),0);
+ const last=await s.preparerBrique({id:first.id,texte:c,final:true},'owner',true,signal);assert(last.termine);assert.equal(last.brique.numero,2);assert.equal(s.quota(),1);assert.equal(JSON.stringify(first.brique),locked);
+});
+test('a queued short transcript can start its first complete answer without an abandoned draft and continue while playing',async()=>{
+ const original=globalThis.fetch,firstReady=deferred(),secondReady=deferred(),played=[];let calls=0;
+ globalThis.fetch=async(_u,init)=>{const b=JSON.parse(init.body);assert(b.final);const n=calls++;await(n===0?firstReady:secondReady).promise;return Response.json({preparation:{id:'session',brique:brick(n),termine:n===1}});};
+ try{
+  const p=load('lib/briques-client.ts',()=>fileApi).creerProducteurBriques({...body,code:'owner',actuel:()=>true});p.arreterEcoute();
+  const reading=p.commencer({signal:new AbortController().signal,jouer:async b=>{played.push(b.numero);return true;},attente(){},taire(){},mesure(){}},true);assert(reading);
+  const finish=p.terminer(question);firstReady.resolve();await tick();assert.deepEqual(played,[0]);assert.equal(calls,2);
+  secondReady.resolve();await finish;assert.deepEqual(played,[0,1]);assert.equal((await reading.fin).normal,false);
+ }finally{globalThis.fetch=original;}
+});
+test('focused prompt preserves complete teaching instructions and exact memory without duplicating the question',()=>{
+ const {messagesBriques}=load('lib/briques-prompt.ts');const instructions='Règle précise du maître. '.repeat(400),memoire='BIA-SPO-001 : formulation wolof exactement validée.';
+ const m=messagesBriques({maitre:true,instructions,memoire,resume:'Un contexte donné.',history:[{role:'user',content:'Une question précédente.'}]});
+ assert(m.some(x=>x.content.endsWith(instructions)));assert(m.some(x=>x.content.includes(memoire)));assert.equal(m.filter(x=>x.role==='user').length,1);assert(m[0].content.includes('papa'));assert(m[0].content.includes('Ton nom est Bia'));
 });

@@ -14,7 +14,7 @@ export async function brancherAnticipation(o:{ctx:AudioContext;flux:MediaStream;
  return {
  livrerBriques:briques.livree,
  etatBriques:briques.etat,
- commencerBriques:briques.commencer,
+ commencerBriques:(options:Parameters<typeof briques.commencer>[0])=>briques.commencer(options,pipeline.segmentsCommences>0),
  terminerBriques:briques.terminer,
  async fermerCapture(){if(fin)return;fin=true;briques.arreterEcoute();await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Capture non confirmée')),800);accuseFin=()=>{clearTimeout(timer);resolve();};node?.port.postMessage('fin');}).finally(detacher);},
  async resultat(){return pipeline.finir();},
