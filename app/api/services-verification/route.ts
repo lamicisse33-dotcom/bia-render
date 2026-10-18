@@ -14,6 +14,12 @@ export async function POST(r:Request){
   // the exercises workflow could not start its 50th attempt. Same credential,
   // fixed owner-supplied excerpts, no public trigger or source edits.
   const body=await r.json().catch(()=>({}));
+  if(body.briques===true){
+   const {verifierBriques}=await import('@/lib/essai-briques');
+   const {resumeBriques}=await import('@/lib/briques-etat');
+   await verifierBriques();
+   return NextResponse.json({verifie:resumeBriques().essai?.statut==='confirme',briques:resumeBriques().essai});
+  }
   if(body.produits===true||(a.length>0&&a.length===b.length&&timingSafeEqual(a,b)&&Object.keys(body).length===0&&Date.now()<Date.parse('2026-10-13T20:00:00Z'))){
    const {verifierProduits}=await import('@/lib/essai-produits');
    return NextResponse.json({verifie:true,produits:await verifierProduits()});
