@@ -1,0 +1,83 @@
+name: Read-only verification of latest Supabase lessons
+on:
+  push:
+    branches: ['audit/verify-supabase-lessons-20261018']
+    paths: ['.github/workflows/readonly-supabase-lessons-20261018.yml']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      BIA_CODE_MAITRE: ${{ secrets.BIA_CODE_MAITRE }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_TABLE_LEXIQUE: ${{ secrets.SUPABASE_TABLE_LEXIQUE }}
+    steps:
+      - shell: bash
+        run: |
+          python3 -u - <<'PY'
+          import os,json,urllib.request,urllib.parse,datetime,re,collections
+          def get(url,headers=None):
+           with urllib.request.urlopen(urllib.request.Request(url,headers=headers or {}),timeout=90) as r:return json.load(r)
+          expected=[f"KHALAM-CV-{topic}-{i:03d}" for topic,n in [("PASSWORD",10),("SECURITE",10),("RESEAUX",12)] for i in range(1,n+1)]
+          out={"checked_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),"read_only":True}
+          try:
+           state=get("https://app.khalam.app/api/etat?verifier_devoirs=1")
+           out["live_application"]={k:state.get(k) for k in ["version","lexique","lecture_devoirs","acces_devoirs","memoire_organisee"]}
+          except Exception as e:out["live_application_error"]=type(e).__name__
+          master=os.environ.get("BIA_CODE_MAITRE","")
+          base=(os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
+          key=os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or ""
+          out["available_access"]={"master_code":bool(master),"supabase_url":bool(base),"supabase_service_key":bool(key)}
+          records=None
+          if master:
+           try:
+            data=get("https://app.khalam.app/api/apprentissage/devoir",{"x-bia-code":master,"cache-control":"no-cache"})
+            records=data.get("devoirs",[])
+            out["source"]="authenticated_BIA_read_of_Supabase";out["incomplete_lessons"]=data.get("incomplets")
+           except Exception as e:out["authenticated_read_error"]={"type":type(e).__name__,"status":getattr(e,"code",None)}
+          if records is None and base and key:
+           try:
+            rows=[];offset=0
+            while True:
+             query=urllib.parse.urlencode({"select":"*","application":"eq.bia-apprentissage-v1","auteur":"eq.maitre-devoir","order":"id.desc","limit":"500","offset":str(offset)})
+             page=get(base+"/rest/v1/"+urllib.parse.quote(os.environ.get("SUPABASE_TABLE_LEXIQUE") or "khalam_lexique")+"?"+query,{"apikey":key,"Authorization":"Bearer "+key})
+             assert isinstance(page,list)
+             rows.extend(page)
+             if len(page)<500:break
+             offset+=len(page);assert offset<100000
+            groups=collections.defaultdict(list);seen=set()
+            for row in rows:
+             try:b=json.loads(row["proposee"])
+             except Exception:continue
+             if b.get("type")!="devoir" or b.get("version")!=2:continue
+             k=(b.get("id"),b.get("index"))
+             if k in seen:continue
+             seen.add(k);groups[b["id"]].append(b)
+            records=[];incomplete=0
+            for ident,blocks in groups.items():
+             blocks.sort(key=lambda b:b["index"]);n=blocks[0]["total"]
+             complete=len(blocks)==n and set(b["index"] for b in blocks)==set(range(n)) and all(b["total"]==n for b in blocks)
+             if not complete:incomplete+=1
+             text="\n".join(b["texte"] for b in blocks)
+             records.append({"id":ident,"texte":text,"date":max(b.get("date","") for b in blocks),"date_validation":max(b.get("date_validation","") for b in blocks),"valide":complete and all(b.get("statut")=="validé" and b.get("date_validation") for b in blocks),"complete":complete,"blocks":len(blocks),"expected_blocks":n})
+            out.update(source="direct_read_Supabase",incomplete_lessons=incomplete,stored_blocks=len(seen),versions=len(rows))
+           except Exception as e:out["supabase_read_error"]={"type":type(e).__name__,"status":getattr(e,"code",None)}
+          if records is not None:
+           records.sort(key=lambda d:str(d.get("date_validation") or d.get("date") or ""),reverse=True)
+           summaries=[]
+           for d in records[:20]:
+            text=d.get("texte","");lines=[x.strip() for x in text.splitlines() if x.strip()]
+            summaries.append({"id":d.get("id"),"title":str(d.get("titre") or (lines[0] if lines else ""))[:220],"date":d.get("date"),"date_validation":d.get("date_validation"),"validated":d.get("valide"),"complete":d.get("complete"),"blocks":d.get("blocks"),"expected_blocks":d.get("expected_blocks"),"matched_recent_identifiers":[i for i in expected if i.lower() in text.lower()]})
+           text="\n".join(d.get("texte","") for d in records)
+           out["stored_lessons"]=len(records);out["recent_lessons"]=summaries
+           out["recent_expected_identifiers_found"]=[i for i in expected if i.lower() in text.lower()]
+           out["recent_expected_identifiers_not_found"]=[i for i in expected if i.lower() not in text.lower()]
+           out["content_read_confirmed"]=True
+          else:out["content_read_confirmed"]=False
+          print("SUPABASE_LESSON_AUDIT",json.dumps(out,ensure_ascii=False),flush=True)
+          
+          PY
