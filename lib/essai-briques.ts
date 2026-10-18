@@ -3,8 +3,9 @@ import {etatBriques} from './briques-etat';
 import {createHash} from 'node:crypto';
 /** Bounded real-model/audio smoke check; never stored as a user's conversation. */
 export async function verifierBriques(){
- if(etatBriques.essai||!process.env.BIA_CODE_MAITRE)return;
- const essai=etatBriques.essai={statut:'en_cours',synthetique:true,apparence:'rara',revision:'audio-une-preparation-v6-texte-avance'} as Record<string,unknown>;
+ const precedent=etatBriques.essai;
+ if(!process.env.BIA_CODE_MAITRE||precedent&&(precedent.statut!=='erreur'||Number(precedent.tentatives||1)>=2))return;
+ const essai=etatBriques.essai={tentatives:precedent?Number(precedent.tentatives||1)+1:1,statut:'en_cours',synthetique:true,apparence:'rara',revision:'audio-une-preparation-v6-texte-avance'} as Record<string,unknown>;
  const code=process.env.BIA_CODE_MAITRE;
  const texte='Ce matin, en allant au marché, je suis passé chez le cordonnier pour faire réparer mes chaussures. Ensuite je suis passé chez le coiffeur.';
  try{
@@ -43,5 +44,5 @@ export async function verifierBriques(){
   essai.premiere_inchangee=empreinte===createHash('sha256').update(a.brique.audio).digest('hex');
   essai.suite_audio_octets=octets;
   essai.statut=octets>0&&b?.termine&&!b.normal&&essai.premiere_inchangee?'confirme':'suite_non_confirmee';
- }catch{essai.statut='erreur';}finally{essai.termine=new Date().toISOString();}
+ }catch(e){essai.statut='erreur';const message=e instanceof Error?e.message:'';essai.motif=['Instructions Supabase inaccessibles','Index commun en actualisation','Catalogue absent','Lecture mémoire indisponible','Modèle indisponible','JSON incomplet','Brique invalide','Audio incomplet'].includes(message)?message:'contexte_ou_generation_indisponible';}finally{essai.termine=new Date().toISOString();}
 }

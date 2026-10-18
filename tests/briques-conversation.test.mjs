@@ -314,3 +314,17 @@ test('a failed look-ahead falls back to the ordinary model request without losin
  const last=await s.preparerBrique({id:first.id,texte:combined,final:true},'owner',true,new AbortController().signal);
  assert(last.termine);assert.equal(last.brique.numero,1);assert.equal(s.models.length,3);assert.equal(s.syntheses.length,2);assert.equal(s.quota(),1);
 });
+
+
+test('a transient startup failure permits one authenticated diagnostic retry, then stops',async()=>{
+ const previous=process.env.BIA_CODE_MAITRE;process.env.BIA_CODE_MAITRE='test-only';let calls=0;const state={};
+ try{
+  const api=load('lib/essai-briques.ts',id=>{
+   if(id==='./briques-reponse')return {preparerBrique:async()=>{calls++;throw Error('Instructions Supabase inaccessibles');}};
+   if(id==='./briques-etat')return {etatBriques:state};if(id==='node:crypto')return crypto;throw Error(id);
+  });
+  await api.verifierBriques();assert.equal(state.essai.tentatives,1);assert.equal(state.essai.motif,'Instructions Supabase inaccessibles');
+  await api.verifierBriques();assert.equal(state.essai.tentatives,2);await api.verifierBriques();assert.equal(calls,2);
+  state.essai={statut:'confirme',tentatives:1};await api.verifierBriques();assert.equal(calls,2);
+ }finally{if(previous===undefined)delete process.env.BIA_CODE_MAITRE;else process.env.BIA_CODE_MAITRE=previous;}
+});
