@@ -20,14 +20,13 @@ export async function verifierBriques(){
   (essai.comparaison as Record<string,unknown>).apres=a&&'mesure'in a?a.mesure:null;
   if(!a?.brique){essai.statut='premiere_non_confirmee';return;}
   const empreinte=createHash('sha256').update(a.brique.audio).digest('hex');essai.premier_audio_octets=Buffer.from(a.brique.audio,'base64').length;
-  if(a.continuer){
-   const suite=await preparerBrique({id:a.id,texte},code,true,AbortSignal.timeout(35000));
-   essai.point_suivant_prepare_sans_nouveaux_mots=!!suite?.brique;
-  }
+  // Leave the coiffeur point pending so the final phase has at least two
+  // distinct points, exercising text look-ahead rather than only synthesis.
+  essai.points_en_attente_avant_fin=Boolean(a.continuer);
   const fin=Date.now();
   const texteFinal=texte+' Je suis ensuite allé au marché pour acheter un chargeur. Le vendeur demandait quinze mille francs. Je me corrige : après discussion, il me l’a vendu à trois mille francs.';
   let b:Awaited<ReturnType<typeof preparerBrique>>=null,octets=0;
-  const delais:number[]=[];const mesures:unknown[]=[];
+  const delais:number[]=[];const mesures:Array<{modele_anticipe?:boolean;modele_ms?:number;modele_attente_ms?:number}>=[];
   for(let i=0;i<8;i++){
    const depart=Date.now();
    b=await preparerBrique({id:a.id,texte:texteFinal,final:true},code,true,AbortSignal.timeout(35000));
@@ -38,6 +37,8 @@ export async function verifierBriques(){
   }
   essai.suite_briques_ms=delais;
   essai.mesures_suite=mesures;
+  essai.anticipation_texte_utilisee=mesures.some(m=>m.modele_anticipe);
+  essai.modele_attente_evitee_ms=mesures.filter(m=>m.modele_anticipe).reduce((n,m)=>n+Math.max(0,(m.modele_ms||0)-(m.modele_attente_ms||0)),0);
   essai.suite_preparation_ms=Date.now()-fin;
   essai.premiere_inchangee=empreinte===createHash('sha256').update(a.brique.audio).digest('hex');
   essai.suite_audio_octets=octets;
