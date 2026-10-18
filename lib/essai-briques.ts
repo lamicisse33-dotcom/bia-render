@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 /** Bounded real-model/audio smoke check; never stored as a user's conversation. */
 export async function verifierBriques(){
  if(etatBriques.essai||!process.env.BIA_CODE_MAITRE)return;
- const essai=etatBriques.essai={statut:'en_cours',synthetique:true,apparence:'rara',revision:'audio-une-preparation-v5'} as Record<string,unknown>;
+ const essai=etatBriques.essai={statut:'en_cours',synthetique:true,apparence:'rara',revision:'audio-une-preparation-v6-texte-avance'} as Record<string,unknown>;
  const code=process.env.BIA_CODE_MAITRE;
  const texte='Ce matin, en allant au marché, je suis passé chez le cordonnier pour faire réparer mes chaussures. Ensuite je suis passé chez le coiffeur.';
  try{
@@ -27,15 +27,17 @@ export async function verifierBriques(){
   const fin=Date.now();
   const texteFinal=texte+' Je suis ensuite allé au marché pour acheter un chargeur. Le vendeur demandait quinze mille francs. Je me corrige : après discussion, il me l’a vendu à trois mille francs.';
   let b:Awaited<ReturnType<typeof preparerBrique>>=null,octets=0;
-  const delais:number[]=[];
+  const delais:number[]=[];const mesures:unknown[]=[];
   for(let i=0;i<8;i++){
    const depart=Date.now();
    b=await preparerBrique({id:a.id,texte:texteFinal,final:true},code,true,AbortSignal.timeout(35000));
    delais.push(Date.now()-depart);
+   if(b&&'mesure'in b)mesures.push(b.mesure);
    if(b?.brique)octets+=Buffer.from(b.brique.audio,'base64').length;
    if(!b||b.termine||b.normal||!b.brique)break;
   }
   essai.suite_briques_ms=delais;
+  essai.mesures_suite=mesures;
   essai.suite_preparation_ms=Date.now()-fin;
   essai.premiere_inchangee=empreinte===createHash('sha256').update(a.brique.audio).digest('hex');
   essai.suite_audio_octets=octets;

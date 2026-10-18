@@ -38,7 +38,7 @@ test('interrupting a waiting queue immediately releases it and prevents future b
  await tick();abort.abort();f.ajouter(brick(1));assert.equal(await done,'Brique 0');assert.deepEqual(played,[0]);
 });
 
-function server(answer){
+function server(answer,options={}){
  delete globalThis.biaBriques;const models=[],syntheses=[],state={},saved=[];let quota=0;
  const core=load('lib/anticipation-core.ts',()=>crypto);
  const api=load('lib/briques-reponse.ts',id=>{
@@ -50,7 +50,7 @@ function server(answer){
   if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
   if(id==='./cerveau-anthropic')return {MODELE_SONNET:'test',messagesAnthropic:messages=>({messages}),contenuAnthropic:d=>d.text,fetchAnthropic:async(u,init)=>{
    const request=JSON.parse(init.body),context=JSON.parse(request.messages.at(-1).content);models.push(context);
-   const result=answer?answer(context):{eligible:true,reply:context.fin_de_parole?'Tu as finalement payé trois mille francs.':'Tu as profité de ta sortie pour faire réparer tes chaussures.',traite:context.texte_integral};
+   const result=answer?await answer(context,init.signal):{eligible:true,reply:context.fin_de_parole?'Tu as finalement payé trois mille francs.':'Tu as profité de ta sortie pour faire réparer tes chaussures.',traite:context.texte_integral};
    if(request.output_config.format.schema.properties.traite.type==='integer'&&typeof result.traite==='string')result.traite=result.traite.split(' ').length;
    return Response.json({text:JSON.stringify(result)});
   }};
@@ -59,7 +59,7 @@ function server(answer){
   if(id==='./conversation-groq')return {messagesConversation:o=>[{role:'system',content:JSON.stringify(o)}]};
   if(id==='./memoire-organisee')return {contexteMemoireCommune:async()=>''};if(id==='./instructions-apprentissage')return {contexteInstructions:async()=>''};
   if(id==='./langue')return {detecterLangue:()=> 'fr'};if(id==='./assembler-sons-courants')return {assemblerSonsCourants:()=>({wav:new ArrayBuffer(1200)})};
-  if(id.includes('chatterbox-test'))return {POST:async req=>{const body=await req.json();syntheses.push(body);return new Response(JSON.stringify({type:'morceau',audio:Buffer.alloc(1200).toString('base64'),partie:0,parties:1,empreinte:'stable',voice:'female'})+'\n'+JSON.stringify({type:'fin'})+'\n');}};
+  if(id.includes('chatterbox-test'))return {POST:async req=>{const body=await req.json();syntheses.push(body);if(options.synthese)await options.synthese(body,syntheses.length-1,req.signal);return new Response(JSON.stringify({type:'morceau',audio:Buffer.alloc(1200).toString('base64'),partie:0,parties:1,empreinte:'stable',voice:'female'})+'\n'+JSON.stringify({type:'fin'})+'\n');}};
   throw Error(id);
  });return {...api,models,syntheses,saved,quota:()=>quota};
 }
@@ -266,4 +266,51 @@ test('cancelling continuous brick audio releases the reader without returning a 
  const {lireAudioBrique}=load('lib/briques-audio.ts'),abort=new AbortController();let cancelled=false;
  const response=new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode(JSON.stringify({type:'morceau',partie:0,parties:2,empreinte:'stable',voice:'female',audio:'AAAA'})+'\n'));},cancel(){cancelled=true;}}));
  const result=lireAudioBrique(response,'female',abort.signal);await tick();abort.abort();await assert.rejects(result);assert(cancelled);
+});
+
+
+test('the next final text is ready during current audio, reused exactly once, and never synthesized early',async()=>{
+ const audio=deferred(),nextText=deferred(),events=[];
+ const combined=question+' Ensuite je suis allé chez le coiffeur.';
+ const s=server(async c=>{
+  events.push('model'+c.briques_verrouillees.length);
+  if(c.briques_verrouillees.length===1)await nextText.promise;
+  return {eligible:true,reply:c.briques_verrouillees.length?'D’accord papa, tu es ensuite allé chez le coiffeur.':'Oui papa, tes chaussures sont réparées.',traite:c.briques_verrouillees.length?combined:question};
+ },{synthese:async(_b,n)=>{events.push('audio'+n);if(n===0)await audio.promise;}});
+ const firstPending=s.preparerBrique({...body,texte:combined,final:true},'owner',true,new AbortController().signal);
+ await tick();assert(events.includes('model1'),'next model must run before first audio completes');
+ assert.equal(s.syntheses.length,1,'no speculative audio');assert.equal(s.saved.length,0);assert.equal(s.quota(),0);
+ nextText.resolve();await tick();audio.resolve();const first=await firstPending;
+ assert.equal(first.brique.numero,0);assert(!first.termine);
+ const second=await s.preparerBrique({id:first.id,texte:combined,final:true},'owner',true,new AbortController().signal);
+ assert.equal(second.mesure.modele_anticipe,true);assert.equal(s.models.length,2,'prefetch must replace the next model call');
+ assert.equal(second.brique.numero,1);assert.equal(second.brique.texte,'tu es ensuite allé chez le coiffeur.');assert(second.termine);assert.equal(s.quota(),1);
+});
+test('a revised final transcript aborts a pending look-ahead and uses the correction instead',async()=>{
+ const pending=deferred();let pendingSignal;
+ const combined=question+' Ensuite je suis allé chez le coiffeur.';
+ const correction='Finalement le cordonnier était fermé et je suis rentré chez moi.';
+ const s=server(async(c,signal)=>{
+  if(c.prefixe_deja_traite&&c.texte_integral===combined){pendingSignal=signal;await pending.promise;}
+  return {eligible:true,reply:c.texte_integral===correction?'Tu précises que le cordonnier était fermé.':'Tes chaussures sont réparées.',traite:c.prefixe_deja_traite?c.texte_integral:question};
+ });
+ const first=await s.preparerBrique({...body,texte:combined,final:true},'owner',true,new AbortController().signal);await tick();
+ const last=await s.preparerBrique({id:first.id,texte:correction,final:true},'owner',true,new AbortController().signal);
+ assert(pendingSignal.aborted);assert.equal(last.mesure.modele_anticipe,false);assert.equal(last.brique.texte,'Tu précises que le cordonnier était fermé.');
+ pending.resolve();await tick();assert.equal(s.syntheses.length,2,'discarded draft cannot produce audio');
+});
+test('cancelling a session aborts its pending next text and prevents any later audio',async()=>{
+ let pendingSignal;const pending=deferred();const combined=question+' Ensuite je suis allé chez le coiffeur.';
+ const s=server(async(c,signal)=>{if(c.prefixe_deja_traite){pendingSignal=signal;await pending.promise;}return {eligible:true,reply:'Tes chaussures sont réparées.',traite:c.prefixe_deja_traite?combined:question};});
+ const first=await s.preparerBrique({...body,texte:combined,final:true},'owner',true,new AbortController().signal);await tick();
+ const next=s.preparerBrique({id:first.id,texte:combined,final:true},'owner',true,new AbortController().signal);await tick();
+ await s.preparerBrique({id:first.id,action:'annuler'},'owner',true,new AbortController().signal);
+ assert(pendingSignal.aborted);pending.resolve();await assert.rejects(next,/annulée/);assert.equal(s.syntheses.length,1);assert.equal(s.quota(),0);
+});
+test('a failed look-ahead falls back to the ordinary model request without losing a point',async()=>{
+ let failed=false;const combined=question+' Ensuite je suis allé chez le coiffeur.';
+ const s=server(c=>{if(c.prefixe_deja_traite&&!failed){failed=true;throw Error('temporary model failure');}return {eligible:true,reply:'Une phrase complète sur ce point.',traite:c.prefixe_deja_traite?combined:question};});
+ const first=await s.preparerBrique({...body,texte:combined,final:true},'owner',true,new AbortController().signal);
+ const last=await s.preparerBrique({id:first.id,texte:combined,final:true},'owner',true,new AbortController().signal);
+ assert(last.termine);assert.equal(last.brique.numero,1);assert.equal(s.models.length,3);assert.equal(s.syntheses.length,2);assert.equal(s.quota(),1);
 });
