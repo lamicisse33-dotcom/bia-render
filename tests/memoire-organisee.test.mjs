@@ -13,3 +13,42 @@ test('anonymous access cannot search or reorganize private memory',async()=>{let
 
 test('identical translations merge across directions with both sources retained; drafts stay excluded',()=>{const entries=[{id:'a',famille:'lexique_partage',source:'a',actif:true,texte:JSON.stringify({source:'enfant',corrigee:'xale',langue_source:'fr'})},{id:'b',famille:'lexique_partage',source:'b',actif:true,texte:JSON.stringify({source:'xale',corrigee:'enfant',langue_source:'wo'})},{id:'c',famille:'fiches',source:'c',actif:false,texte:'draft'}];const result=fusion.fusionnerMemoire(entries);assert.equal(result.length,1);assert.equal(result[0].origine,'a | b');assert.match(result[0].texte,/Français : enfant/)});
 test('conversation queries the common index without another Supabase read',async()=>{const context=await service.contexteMemoireCommune('Khalam',[]);assert.match(context,/MÉMOIRE COMMUNE/);assert.match(context,/Khalam/);assert.equal(service.resumeMemoireOrganisee().dernier_acces.lecture,'index commun en mémoire')});
+
+
+test('an invalidated RAM index reloads current lessons and corrections without storage writes',async()=>{
+ const previous=globalThis.biaRevisionMemoire;globalThis.biaRevisionMemoire=2;let reads=0,writeAttempts=0;
+ const catalogue={version:1,elements:[
+  {id:'fiches:stable',famille:'fiches',source:'fiche',actif:true,texte:JSON.stringify({titre:'Khalam',texte:'Information Khalam conservée.'})},
+  {id:'corrections:old',famille:'corrections',source:'old',actif:true,texte:JSON.stringify({source:'voiture',corrigee:'ancienne correction'})},
+  {id:'devoirs:current',famille:'devoirs',source:'old',actif:true,texte:'Ancienne formulation du devoir.'},
+ ]};
+ const refreshed={...deps,
+  './audio-memoire-stockage':{lireObjetMemoire:async()=>{reads++;return Response.json(catalogue);},assurerMemoire:async()=>{writeAttempts++;assert.fail('no storage mutation');},ecrireObjetMemoire:async()=>{writeAttempts++;assert.fail('no storage mutation');}},
+  './fiches-connaissances-core':{indexerFiches:docs=>docs,selectionnerFiches:docs=>({passages:docs,texte:docs.map(d=>d.texte).join(' ')})},
+  './lexique':{lexiqueConfig:{table:'test'},lectureLexique:()=>({motif:''}),toutes:async()=>[{source:'voiture',corrigee:'Correction exacte récente.',application:'bia'}]},
+  './devoirs-apprentissage':{devoirsALire:async()=>({devoirs:[{id:'current',texte:'Nouvelle formulation validée.'},{id:'old',texte:'Version inactive à ne pas lire.'}]})},
+ };
+ try{
+  const api=load('lib/memoire-organisee.ts',refreshed);
+  const [a,b]=await Promise.all([api.contexteMemoireCommune('voiture',[]),api.contexteMemoireCommune('devoir',[])]);
+  for(const text of [a,b]){assert.match(text,/Correction exacte récente/);assert.match(text,/Nouvelle formulation validée/);assert.match(text,/Information Khalam conservée/);assert.doesNotMatch(text,/ancienne correction|Ancienne formulation|Version inactive/);}
+  assert.equal(reads,1,'concurrent requests share a single reload');assert.equal(writeAttempts,0);
+  await api.contexteMemoireCommune('voiture',[]);assert.equal(reads,1,'ordinary turns stay in RAM');
+  assert.equal(api.resumeMemoireOrganisee().index_lecture_seule.statut,'disponible');
+ }finally{if(previous===undefined)delete globalThis.biaRevisionMemoire;else globalThis.biaRevisionMemoire=previous;}
+});
+test('a correction arriving during reload is never certified as current; the next read can retry',async()=>{
+ const previous=globalThis.biaRevisionMemoire;globalThis.biaRevisionMemoire=2;let changed=false;
+ try{
+  const api=load('lib/memoire-organisee.ts',{...deps,'./audio-memoire-stockage':{lireObjetMemoire:async()=>Response.json({version:1,elements:[]})},'./lexique':{...deps['./lexique'],toutes:async()=>{if(!changed){changed=true;globalThis.biaRevisionMemoire++;}return [{source:'voiture',corrigee:'Correction actuelle.',application:'bia'}];}}});
+  await assert.rejects(api.contexteMemoireCommune('voiture',[]),/actualisation/);
+  assert.match(await api.contexteMemoireCommune('voiture',[]),/Correction actuelle/);
+ }finally{if(previous===undefined)delete globalThis.biaRevisionMemoire;else globalThis.biaRevisionMemoire=previous;}
+});
+test('an incomplete correction read cannot silently serve the stale catalogue',async()=>{
+ const previous=globalThis.biaRevisionMemoire;globalThis.biaRevisionMemoire=2;
+ try{
+  const api=load('lib/memoire-organisee.ts',{...deps,'./audio-memoire-stockage':{lireObjetMemoire:async()=>Response.json({version:1,elements:[]})},'./lexique':{...deps['./lexique'],lectureLexique:()=>({motif:'indisponible'})}});
+  await assert.rejects(api.contexteMemoireCommune('voiture',[]),/complète du lexique/);
+ }finally{if(previous===undefined)delete globalThis.biaRevisionMemoire;else globalThis.biaRevisionMemoire=previous;}
+});
