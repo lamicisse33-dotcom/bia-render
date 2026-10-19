@@ -22,7 +22,7 @@ export function creerProducteurBriques(o:{code:string;tour:string;history:unknow
   progresser(texte:string){dernier=texte;lancer();},
   arreterEcoute(){ecoute=false;},
   etat(){return {pretes:file.pretes,en_cours:!!enCours};},
-  commencer(options:{signal:AbortSignal;jouer:(b:BriqueAudio)=>Promise<boolean>;attente:()=>void;taire:()=>void;mesure:(gap:number)=>void},transcriptionEnCours=false){
+  commencer(options:{signal:AbortSignal;jouer:(b:BriqueAudio)=>Promise<boolean>;attente:(ms:number)=>void;taire:()=>void;mesure:(gap:number)=>void},transcriptionEnCours=false){
    if(commence||annule||(!file.pretes&&!enCours&&!transcriptionEnCours))return null;
    commence=true;
    const arreter=()=>{annule=true;abort.abort();file.annuler();liberer();};

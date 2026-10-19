@@ -13,7 +13,7 @@ export function creerFileBriques() {
     get pretes(){return briques.length;},
     fermer(){close=true;reveiller?.();},
     annuler(){cancel=true;reveiller?.();},
-    async lire(o:{signal:AbortSignal;jouer:(b:BriqueAudio)=>Promise<boolean>;attente:()=>void;taire:()=>void;mesure:(gap:number)=>void;delai?:number}) {
+    async lire(o:{signal:AbortSignal;jouer:(b:BriqueAudio)=>Promise<boolean>;attente:(ms:number)=>void;taire:()=>void;mesure:(gap:number)=>void;delai?:number}) {
       if(lecture)throw Error('Lecture déjà commencée');lecture=true;
       const dits:string[]=[];let index=0,reflexions=0,delaiDepasse=false;
       const interrompre=()=>{cancel=true;o.taire();reveiller?.();};
@@ -30,7 +30,7 @@ export function creerFileBriques() {
           await new Promise<void>(resolve=>{
             let rendu=false;
             const finir=()=>{if(rendu)return;rendu=true;clearTimeout(timer);clearTimeout(limite);reveiller=undefined;resolve();};
-            const timer=setTimeout(()=>{if(!cancel&&!o.signal.aborted&&index>0&&reflexions<2){reflexions++;o.attente();}},o.delai??1400);
+            const timer=setTimeout(()=>{if(!cancel&&!o.signal.aborted&&index>0&&reflexions<2){reflexions++;o.attente(Date.now()-debut);}},o.delai??1400);
             const limite=setTimeout(()=>{cancel=true;delaiDepasse=true;finir();},45000);
             reveiller=finir;
             if(cancel||close||o.signal.aborted)finir();

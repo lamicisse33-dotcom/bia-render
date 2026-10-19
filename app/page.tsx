@@ -2131,12 +2131,17 @@ export default function Home() {
        — il ne part QUE si le tour est encore le sien ;
        — il ne part QUE si rien d'autre ne sort du haut-parleur, sinon il se
          superposerait à sa réponse ;
-       — et il attend 600 ms. Une réponse qui vient du répertoire arrive en
+       — et il attend 800 ms. Une réponse qui vient du répertoire arrive en
          moins que ça : elle ne doit pas être précédée d'un « mmm » de
          réflexion alors qu'il n'y a eu aucune réflexion. */
   const souffleDattenteRef = useRef<AudioBufferSourceNode | null>(null);
   const soufflerEnAttendant = useCallback(async (jeton: object) => {
-    if (essaiChatterboxActif() || piperWebActif()) return;
+    if (piperWebActif()) return;
+    if (personaRef.current === 'rara' || voixChatterboxBia() !== 'female') return;
+    const debutAttente = Date.now();
+    const actuel = () => attenteRef.current === jeton && !stopAttenteRef.current
+      && personaRef.current !== 'rara' && voixChatterboxBia() === 'female'
+      && !carteOuverteRef.current && !sourceRef.current && !souffleDattenteRef.current;
     if (carteOuverteRef.current) return;
     const souffle = souffleDe("reflexion");
     if (!souffle) return;
@@ -2144,9 +2149,9 @@ export default function Home() {
        cette ligne, chaque tour partirait chercher un son qui n'existe pas —
        un aller-retour au serveur par question, pour un 404. */
     if (!souffle.fichiers.length) return;
-    await new Promise((suite) => setTimeout(suite, 600));
-    if (attenteRef.current !== jeton || stopAttenteRef.current) return;
-    if (sourceRef.current) return;      // elle parle déjà : on se tait
+    await new Promise((suite) => setTimeout(suite, 800));
+    if (!actuel()) return;
+    if (sourceRef.current || souffleDattenteRef.current) return;      // elle parle déjà : on se tait
     const fichier = fichierDe(souffle, dernierSouffle.current);
     let octets = cacheSons.current.get(fichier);
     if (!octets) {
@@ -2158,14 +2163,15 @@ export default function Home() {
       } catch { return; }
     }
     dernierSouffle.current = fichier;
-    if (attenteRef.current !== jeton || stopAttenteRef.current) return;
-    if (sourceRef.current) return;
+    if (!actuel()) return;
+    if (sourceRef.current || souffleDattenteRef.current) return;
     try {
       const ctx = await reveillerLeSon();
       const memoire = await ctx.decodeAudioData(octets.slice(0));
-      if (attenteRef.current !== jeton || stopAttenteRef.current) return;
-      if (sourceRef.current) return;
-      if(!await autoriserLaVoix(()=>attenteRef.current===jeton&&!stopAttenteRef.current&&!sourceRef.current))return;
+      if (memoire.duration < 1.2 || memoire.duration > 2.5) return;
+      if (!actuel()) return;
+      if (sourceRef.current || souffleDattenteRef.current) return;
+      if(!await autoriserLaVoix(actuel) || !actuel())return;
       const source = ctx.createBufferSource();
       source.buffer = memoire;
       source.connect(ctx.destination);
@@ -2174,6 +2180,7 @@ export default function Home() {
         if (souffleDattenteRef.current === source) souffleDattenteRef.current = null;
       };
       source.start();
+      void fetch('/api/mesure', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'briques',etape:'reflexion',phase:'initiale',ms:Date.now()-debutAttente,duree_ms:Math.round(memoire.duration*1000)}),keepalive:true}).catch(()=>{});
     } catch { /* un souffle qui ne part pas ne casse rien */ }
   }, [reveillerLeSon, autoriserLaVoix]);
 
@@ -2190,6 +2197,8 @@ export default function Home() {
      coup au lieu d'être annoncée puis jouée. Si le fichier n'est pas encore
      déposé, on ne fait rien — le visage rit en silence, comme avant. */
   const jouerSouffle = useCallback(async (emotion: string, sansPrelude = false) => {
+    // Les mmm couvrent une attente réelle, jamais un préambule qui retient la réponse.
+    if (emotion === 'reflexion') return;
     if (essaiChatterboxActif() || piperWebActif()) return;
     /* Carte ouverte : pas de rire, pas de soupir, rien. Une seule voix quand
        on conduit — la meme regle que speak() et direSonTeutFait(). */
@@ -5262,7 +5271,7 @@ export default function Home() {
             if(actifBriques()){setMode('thinking');setFace('pensive');}
             return ms>0&&actifBriques();
           },
-          attente:()=>{
+          attente:(attenteMs)=>{
             attendBrique=true;
             // Only a real, approved take in this voice. Missing takes remain
             // silent; never synthesize "hmm" or replay the rejected short clips.
@@ -5279,7 +5288,7 @@ export default function Home() {
                 cacheSons.current.set(fichier,octets);dernierSouffle.current=fichier;
                 const source=ctx.createBufferSource();source.buffer=audio;source.connect(ctx.destination);souffleDattenteRef.current=source;
                 source.onended=()=>{if(souffleDattenteRef.current===source)souffleDattenteRef.current=null;};
-                source.start();mesureBriques('reflexion',0);
+                source.start();mesureBriques('reflexion',attenteMs,{duree_ms:Math.round(audio.duration*1000)});
               }catch{}
             })();
           },taire:taireBriques,mesure:()=>{},

@@ -1,7 +1,7 @@
 const g=globalThis as typeof globalThis&{biaBriquesEtat?:any};
 const etat=g.biaBriquesEtat??={sessions:0,preparees:0,finalisees:0,erreurs:0,lectures:0,dernier_premier_son_ms:null,dernier_depuis_micro_ms:null,dernier_blanc_ms:null,blanc_max_ms:0,reflexions:0,dernier_echec:null};
 export const etatBriques=etat;
-export const resumeBriques=()=>({mode:'briques_verrouillees',revision:'audio-une-preparation-v6-texte-avance',premier_segment_apres_ms:4000,pause_transcription_ms:500,...etat,son_reflexion:'prise_naturelle_manquante'});
+export const resumeBriques=()=>({mode:'briques_verrouillees',revision:'audio-une-preparation-v6-texte-avance',premier_segment_apres_ms:4000,pause_transcription_ms:500,...etat,son_reflexion:'prises_naturelles_20261019',reflexion_seuil_initial_ms:800,reflexion_seuil_suite_ms:1400});
 export function noterBriques(d:Record<string,unknown>){
   const ms=Number(d.ms);if(!Number.isFinite(ms)||ms<0||ms>180000)return;
   if(typeof d.tour==='string'&&/^[a-zA-Z0-9_-]{8,80}$/.test(d.tour)&&['depart','lecture_demandee','debut_brique','fin_brique','transcrit','fin_preparation','fin_chaine','annulation'].includes(String(d.etape))){
@@ -22,5 +22,9 @@ export function noterBriques(d:Record<string,unknown>){
   }
   if(d.etape==='premier_son'){etat.lectures++;etat.dernier_premier_son_ms=ms;const micro=Number(d.micro_ms);if(Number.isFinite(micro)&&micro>=0&&micro<=180000)etat.dernier_depuis_micro_ms=micro;}
   if(d.etape==='blanc'){etat.dernier_blanc_ms=ms;etat.blanc_max_ms=Math.max(etat.blanc_max_ms,ms);}
-  if(d.etape==='reflexion')etat.reflexions++;
+  if(d.etape==='reflexion'){
+    etat.reflexions++;
+    const duree=Number(d.duree_ms);
+    if(Number.isFinite(duree)&&duree>=1200&&duree<=2500)etat.derniere_reflexion={phase:d.phase==='initiale'?'initiale':'suite',attente_ms:ms,duree_ms:Math.round(duree),quand:new Date().toISOString()};
+  }
 }

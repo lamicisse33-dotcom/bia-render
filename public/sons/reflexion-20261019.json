@@ -1,0 +1,33 @@
+{
+  "source": "em.wav",
+  "source_duree_s": 16,
+  "source_sha256": "f18c396bba0a56c48d654180826c1249e626eb6c7a6fb3a2b9dc2d183a4ed878",
+  "traitement": "Découpe, moyenne des canaux en mono, gain 0,85, fondus de 12/25 ms ; vitesse et hauteur inchangées. Pas de silence ajouté pour allonger les prises.",
+  "prises": [
+    {
+      "fichier": "/sons/reflexion-naturelle-20261019-1.mp3",
+      "source_debut_s": 1.72,
+      "source_fin_s": 3.65,
+      "duree_decoupee_ms": 1930,
+      "duree_mp3_ms": 1959,
+      "octets": 23918,
+      "sha256": "33d788ace2819a63eb8d687fe6797faf76e3184d0c85bfb2005b1ac97223cf7c",
+      "duree_decodee_ms": 1930,
+      "pic_decode": 0.8049,
+      "rms_decode": 0.1287
+    },
+    {
+      "fichier": "/sons/reflexion-naturelle-20261019-2.mp3",
+      "source_debut_s": 9.36,
+      "source_fin_s": 11.32,
+      "duree_decoupee_ms": 1960,
+      "duree_mp3_ms": 2011,
+      "octets": 24545,
+      "sha256": "bed58877074a3a59518c305b1519ef98dc2a3a53bf4c13a624f7044cc68b56fd",
+      "duree_decodee_ms": 1960,
+      "pic_decode": 0.5803,
+      "rms_decode": 0.0953
+    }
+  ],
+  "usage": "Attente réelle après fin de parole ; coupure prioritaire dès réponse prête ; jamais en préambule obligatoire."
+}
