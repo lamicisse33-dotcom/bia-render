@@ -29,7 +29,7 @@ function authorized(request: NextRequest) {
     const wanted = Buffer.from(expected, "utf8");
     if (actual.length === wanted.length && timingSafeEqual(actual, wanted)) return true;
   }
-  return verifierCode(request.headers.get("x-bia-code")).ok;
+  return verifierCode(request.headers.get("x-bia-code"), false).ok;
 }
 
 export async function POST(request: NextRequest) {
