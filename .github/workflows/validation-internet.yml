@@ -20,5 +20,4 @@ jobs:
           cp tests/actions-internet.mjs /tmp/bia-internet-tests/tests/
           echo '{"type":"commonjs"}' > /tmp/bia-internet-tests/package.json
           node /tmp/bia-internet-tests/tests/actions-internet.mjs
-      - run: node --test tests/speecht5-web.test.mjs
       - run: npm run build

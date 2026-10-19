@@ -68,9 +68,7 @@ import { fenetreDuFil } from "@/lib/fenetre-du-fil";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
 import { lireLeRire } from "@/lib/rires";
-import {piperWebActif,fetchVoixBia,preparerPiperWeb,etatPiperWeb,vitessePiperWeb,mesurerPiperWeb} from "@/lib/voix-web";
-import {preparerPiperWeb as preparerPiperSeul} from "@/lib/piper-web";
-import {speecht5WebActif,preparerSpeechT5} from "@/lib/speecht5-web";
+import {piperWebActif,fetchVoixBia,preparerPiperWeb,etatPiperWeb,vitessePiperWeb,mesurerPiperWeb} from "@/lib/piper-web";
 import { choixVoixBia, choisirVoixBia, essaiChatterboxActif, routeVoixBia, voixChatterboxBia, type ChoixVoixBia } from "@/lib/chatterbox-essai";
 import { reveiller } from "@/lib/reveil-du-son";
 import { frapper, arreterFrappe, sonnerFini } from "@/lib/frappe";
@@ -471,13 +469,11 @@ export default function Home() {
   /* Quand la reponse ne vient pas du modele, on le dit a l ecran. Sans ce
      temoin, une panne du moteur ressemblait a une reponse ordinaire. */
   const [panne, setPanne] = useState("");
-  const [speechDisponible,setSpeechDisponible]=useState(false);
-  useEffect(()=>{void fetch("/api/speecht5-web/installation").then(r=>r.json()).then(d=>setSpeechDisponible(d.ready===true)).catch(()=>{});},[]);
   const [choixVoix, setChoixVoix] = useState<ChoixVoixBia>("piper");
   const essaiChatterbox = choixVoix === "male" || choixVoix === "female";
   const [etatSecours,setEtatSecours]=useState("");
   const [prepareSecours,setPrepareSecours]=useState(false);
-  useEffect(()=>{const change=(e:Event)=>setEtatSecours((e as CustomEvent<string>).detail||etatPiperWeb());window.addEventListener("bia-piper-web",change);return()=>window.removeEventListener("bia-piper-web",change);},[]);
+  useEffect(()=>{const change=()=>setEtatSecours(etatPiperWeb());window.addEventListener("bia-piper-web",change);return()=>window.removeEventListener("bia-piper-web",change);},[]);
   const [erreurChoixVoix, setErreurChoixVoix] = useState("");
   useEffect(() => { setChoixVoix(choixVoixBia()); }, []);
   const [voixLocalePresente, setVoixLocalePresente] = useState(false);
@@ -598,7 +594,7 @@ export default function Home() {
   useEffect(() => {
     let actif = true;
     const synchroniser = () => {
-      if (essaiChatterboxActif() || speecht5WebActif()) { setDebit(1); return; }
+      if (essaiChatterboxActif()) { setDebit(1); return; }
       if(piperWebActif()){debitNatifRef.current=vitessePiperWeb();setDebit(debitNatifRef.current);return;}
       const voix = voixAvecDebitNatif();
       if (voix?.getSpeed) {
@@ -615,7 +611,7 @@ export default function Home() {
     return () => { actif = false; window.removeEventListener("focus", synchroniser); document.removeEventListener("visibilitychange", visible); };
   }, [persona]);
   const changerDebit = (valeur: number) => {
-    if (essaiChatterboxActif() || speecht5WebActif()) return;
+    if (essaiChatterboxActif()) return;
     setDebit(valeur); debitNatifRef.current = valeur; setErreurDebit("");
     if(piperWebActif()){try{localStorage.setItem("bia-piper-web-speed",String(valeur));}catch{}return;}
     const voix = voixAvecDebitNatif();
@@ -627,7 +623,7 @@ export default function Home() {
     }
   };
   const vitesseAudioBia = (octets: ArrayBuffer) => {
-    if (essaiChatterboxActif() || speecht5WebActif()) return 1;
+    if (essaiChatterboxActif()) return 1;
     const source = rythmesAudioBia.get(octets);
     if(piperWebActif())return source?debitNatifRef.current/source:1;
     return voixLocaleBiaDisponible(personaRef.current) && source
@@ -7541,13 +7537,9 @@ export default function Home() {
 
   async function appliquerChoixVoix(choix: ChoixVoixBia) {
     setErreurChoixVoix("");
-    if(choix==="speecht5-web"){
-      taire();setPrepareSecours(true);
-      try{await preparerSpeechT5(codeRef.current);}catch(e){setErreurChoixVoix(String(e instanceof Error?e.message:e));return;}finally{setPrepareSecours(false);}
-    }
     if(choix==="piper-web"){
       taire();setPrepareSecours(true);
-      try{await preparerPiperSeul(codeRef.current);}catch(e){setErreurChoixVoix(String(e instanceof Error?e.message:e));return;}finally{setPrepareSecours(false);}
+      try{await preparerPiperWeb(codeRef.current);}catch(e){setErreurChoixVoix(String(e instanceof Error?e.message:e));return;}finally{setPrepareSecours(false);}
     }
     if (!choisirVoixBia(choix)) {
       setErreurChoixVoix("Le choix n’a pas pu être enregistré sur ce téléphone.");
@@ -7598,19 +7590,17 @@ export default function Home() {
           {([
             ["male", "Homme — KHALAM Voice"],
             ["female", "Femme — KHALAM Voice"],
-            ["speecht5-web", "SpeechT5 wolof/français — essai dans le navigateur"],
             ["piper-web", "Khalam V2 (Piper) — secours dans le navigateur"],
             ["piper", "Piper — test installé sur le téléphone"],
           ] as const).map(([valeur, label]) => (
             <label key={valeur} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 48, cursor: "pointer" }}>
               <input type="radio" name="bia-voix" value={valeur} checked={choixVoix === valeur}
-                disabled={prepareSecours||(valeur==="speecht5-web"&&!speechDisponible)} onChange={() => {void appliquerChoixVoix(valeur);}} style={{ accentColor: "#d4af37", width: 20, height: 20 }} />
+                disabled={prepareSecours} onChange={() => {void appliquerChoixVoix(valeur);}} style={{ accentColor: "#d4af37", width: 20, height: 20 }} />
               <span>{label}</span>
             </label>
           ))}
         </fieldset>
         <p className="papier-note">Ton choix est mémorisé dans ce navigateur. Khalam V2 fonctionne sur cet appareil et reste indépendant du serveur Khalam Voice. Le premier téléchargement fait 77 Mo.</p>
-        <p className="papier-note">SpeechT5 est une voix expérimentale. Le premier téléchargement fait environ 266 Mo et peut prendre plusieurs minutes. Tu peux revenir à Khalam Voice ou Piper à tout moment.</p>
         {etatSecours && <p className="papier-note" role="status">{etatSecours}</p>}
         <a className="papier-lien" href="/voix/secours">Choisir et écouter une voix féminine Piper →</a>
         {erreurChoixVoix && <p className="panne" role="alert">{erreurChoixVoix}</p>}
@@ -7618,26 +7608,26 @@ export default function Home() {
           onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
         {panne && <p className="panne" role="alert">{panne}</p>}
         <p className="papier-note" role="status" data-bia-voice-status>
-          {choixVoix === "speecht5-web" ? "SpeechT5 · voix expérimentale dans ce navigateur" : choixVoix === "piper-web" ? "Khalam V2 · voix de femme · moteur dans ce navigateur" : essaiChatterbox ? `KHALAM Voice · voix ${choixVoix === "female" ? "de femme" : "d’homme"} · serveur de test` : voixLocalePresente
+          {choixVoix === "piper-web" ? "Khalam V2 · voix de femme · moteur dans ce navigateur" : essaiChatterbox ? `KHALAM Voice · voix ${choixVoix === "female" ? "de femme" : "d’homme"} · serveur de test` : voixLocalePresente
             ? `Voix locale ${epoqueVoixLocaleBia()} — moteur installé sur cet iPhone`
             : "Piper absent de cette fenêtre — ouvre BIA installée sur le téléphone"}
         </p>
-        {!essaiChatterbox && !piperWebActif() && !voixLocalePresente && (
+        {!essaiChatterbox && !voixLocalePresente && (
           <p className="papier-note">Pour tester la nouvelle voix, ouvre BIA installée sur l&apos;iPhone. Safari et l&apos;ancienne icône web n&apos;ont pas ce moteur.</p>
         )}
         <p className="papier-note">
-          {essaiChatterbox || choixVoix === "speecht5-web" ? "Vitesse d’origine du moteur pour cet essai." : <>Si elle parle trop vite, ralentis-la. Sa voix ne change pas — elle
+          {essaiChatterbox ? "Vitesse d’origine du moteur pour cet essai." : <>Si elle parle trop vite, ralentis-la. Sa voix ne change pas — elle
           prend seulement son temps. C&apos;est pour toi seul, sur ce téléphone.</>}
         </p>
         <div className="papier-debit" role="group" aria-label="Réglage de la vitesse">
-          <span>Elle parle&nbsp;: <b>{essaiChatterbox || choixVoix === "speecht5-web" ? "Vitesse d’origine" : mot}</b> — {debit.toFixed(2)} ×</span>
+          <span>Elle parle&nbsp;: <b>{essaiChatterbox ? "Vitesse d’origine" : mot}</b> — {debit.toFixed(2)} ×</span>
           <input type="range" min={voixLocalePresente ? 0.7 : 0.6} max={voixLocalePresente ? 1.2 : 1} step={0.05} value={debit}
-            disabled={essaiChatterbox || speecht5WebActif()}
+            disabled={essaiChatterbox}
             aria-label="Vitesse de la voix"
             onChange={(e) => changerDebit(Number(e.target.value))} />
           <span className="papier-debit-bornes"><i>Plus lentement</i><i>Plus vite</i></span>
         </div>
-        {voixLocalePresente && choixVoix !== "piper-web" && choixVoix !== "speecht5-web" && <button type="button" className="papier-lien" onClick={() => { void voixAvecDebitNatif()?.settings?.().catch(() => setErreurDebit("Impossible d’ouvrir l’écoute.")); }}>Écouter et régler la voix locale →</button>}
+        {voixLocalePresente && choixVoix !== "piper-web" && <button type="button" className="papier-lien" onClick={() => { void voixAvecDebitNatif()?.settings?.().catch(() => setErreurDebit("Impossible d’ouvrir l’écoute.")); }}>Écouter et régler la voix locale →</button>}
 
         {erreurDebit && <p className="papier-note" role="alert">{erreurDebit}</p>}
 
@@ -7950,7 +7940,7 @@ export default function Home() {
   /* ── ONBOARDING VOIX ────────────────────────────────────────────────────
      Affiché une seule fois, au premier lancement, si aucune belle voix
      française féminine n'est trouvée sur l'appareil. */
-  if (choixVoix === "piper" && onboarding.besoin && onboarding.verifie) {
+  if (!essaiChatterbox && choixVoix !== "piper-web" && onboarding.besoin && onboarding.verifie) {
     return <OnboardingVoix onTermine={() => onboarding.passer()} />;
   }
 
