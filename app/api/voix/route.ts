@@ -35,7 +35,7 @@ function cleDeVoix(texte: string, langue: string, body: { ou?: string; exaggerat
    sans attendre que toute la réponse soit synthétisée. */
 export async function POST(request: NextRequest) {
   try {
-    const verdict = verifierCode(request.headers.get("x-bia-code"));
+    const verdict = verifierCode(request.headers.get("x-bia-code"), false);
     if (!verdict.ok) return NextResponse.json({ erreur: "code" }, { status: 401 });
 
     const body = await request.json() as {
