@@ -118,7 +118,7 @@ export async function GET(request: Request) {
      leçons : les NOMBRES sur le mur ouvert, jamais les phrases. Sans son
      code, `repertoire_rate` ne contient que des totaux. */
   if(new URL(request.url).searchParams.get("verifier_devoirs")==="1"){try{await devoirsALire();}catch{ /* The failure is counted, no lesson text leaves here. */ }}
-  const verdict = verifierCode(request.headers.get("x-bia-code"));
+  const verdict = verifierCode(request.headers.get("x-bia-code"), false);
   const maitre = verdict.ok && verdict.maitre;
   if(new URL(request.url).searchParams.get('verifier_biba')==='1')try{await lireCorrectionsBiba();}catch{}
   if(new URL(request.url).searchParams.get("verifier_acces_devoirs")==="1"){
