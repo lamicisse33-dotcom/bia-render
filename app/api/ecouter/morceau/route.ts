@@ -17,7 +17,7 @@ import { cleValide, poserMorceau } from "@/lib/morceaux-de-parole";
 
 export async function POST(request: NextRequest) {
   try {
-    const verdict = verifierCode(request.headers.get("x-bia-code"));
+    const verdict = verifierCode(request.headers.get("x-bia-code"), false);
     if (!verdict.ok) return NextResponse.json({ erreur: "code" }, { status: 401 });
 
     const form = await request.formData();
