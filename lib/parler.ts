@@ -1,6 +1,6 @@
 "use client";
 
-import {fetchVoixBia,piperWebActif,mesurerPiperWeb} from "./voix-web";
+import {fetchVoixBia,piperWebActif,mesurerPiperWeb} from "./piper-web";
 import { useCallback, useRef, useState } from "react";
 import { ralentir, vitesseChoisie } from "@/lib/ralentir";
 import { essaiChatterboxActif, routeVoixBia, voixChatterboxBia } from "@/lib/chatterbox-essai";
