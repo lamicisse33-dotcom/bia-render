@@ -7610,7 +7610,7 @@ export default function Home() {
           ))}
         </fieldset>
         <p className="papier-note">Ton choix est mémorisé dans ce navigateur. Khalam V2 fonctionne sur cet appareil et reste indépendant du serveur Khalam Voice. Le premier téléchargement fait 77 Mo.</p>
-        <p className="papier-note">SpeechT5 est une voix expérimentale. Sa préparation peut prendre plusieurs minutes au premier téléchargement. Tu peux revenir à Khalam Voice ou Piper à tout moment.</p>
+        <p className="papier-note">SpeechT5 est une voix expérimentale. Le premier téléchargement fait environ 266 Mo et peut prendre plusieurs minutes. Tu peux revenir à Khalam Voice ou Piper à tout moment.</p>
         {etatSecours && <p className="papier-note" role="status">{etatSecours}</p>}
         <a className="papier-lien" href="/voix/secours">Choisir et écouter une voix féminine Piper →</a>
         {erreurChoixVoix && <p className="panne" role="alert">{erreurChoixVoix}</p>}
@@ -7626,18 +7626,18 @@ export default function Home() {
           <p className="papier-note">Pour tester la nouvelle voix, ouvre BIA installée sur l&apos;iPhone. Safari et l&apos;ancienne icône web n&apos;ont pas ce moteur.</p>
         )}
         <p className="papier-note">
-          {essaiChatterbox ? "Vitesse d’origine du moteur pour cet essai." : <>Si elle parle trop vite, ralentis-la. Sa voix ne change pas — elle
+          {essaiChatterbox || choixVoix === "speecht5-web" ? "Vitesse d’origine du moteur pour cet essai." : <>Si elle parle trop vite, ralentis-la. Sa voix ne change pas — elle
           prend seulement son temps. C&apos;est pour toi seul, sur ce téléphone.</>}
         </p>
         <div className="papier-debit" role="group" aria-label="Réglage de la vitesse">
-          <span>Elle parle&nbsp;: <b>{essaiChatterbox ? "Vitesse d’origine" : mot}</b> — {debit.toFixed(2)} ×</span>
+          <span>Elle parle&nbsp;: <b>{essaiChatterbox || choixVoix === "speecht5-web" ? "Vitesse d’origine" : mot}</b> — {debit.toFixed(2)} ×</span>
           <input type="range" min={voixLocalePresente ? 0.7 : 0.6} max={voixLocalePresente ? 1.2 : 1} step={0.05} value={debit}
             disabled={essaiChatterbox || speecht5WebActif()}
             aria-label="Vitesse de la voix"
             onChange={(e) => changerDebit(Number(e.target.value))} />
           <span className="papier-debit-bornes"><i>Plus lentement</i><i>Plus vite</i></span>
         </div>
-        {voixLocalePresente && choixVoix !== "piper-web" && <button type="button" className="papier-lien" onClick={() => { void voixAvecDebitNatif()?.settings?.().catch(() => setErreurDebit("Impossible d’ouvrir l’écoute.")); }}>Écouter et régler la voix locale →</button>}
+        {voixLocalePresente && choixVoix !== "piper-web" && choixVoix !== "speecht5-web" && <button type="button" className="papier-lien" onClick={() => { void voixAvecDebitNatif()?.settings?.().catch(() => setErreurDebit("Impossible d’ouvrir l’écoute.")); }}>Écouter et régler la voix locale →</button>}
 
         {erreurDebit && <p className="papier-note" role="alert">{erreurDebit}</p>}
 
@@ -7950,7 +7950,7 @@ export default function Home() {
   /* ── ONBOARDING VOIX ────────────────────────────────────────────────────
      Affiché une seule fois, au premier lancement, si aucune belle voix
      française féminine n'est trouvée sur l'appareil. */
-  if (!essaiChatterbox && choixVoix !== "piper-web" && onboarding.besoin && onboarding.verifie) {
+  if (choixVoix === "piper" && onboarding.besoin && onboarding.verifie) {
     return <OnboardingVoix onTermine={() => onboarding.passer()} />;
   }
 
