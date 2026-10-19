@@ -64,7 +64,10 @@ function contientTerme(texte: string, termes: string[]): boolean {
   });
 }
 function demandeExpliciteWeb(q: string): boolean {
-  return /(?:^|[.!?]\s*)(?:s il te plait\s+)?(?:cherche|recherche|va voir|regarde|verifie|va|chercher|recherches)\b[^.!?]*\b(?:internet|google|en ligne)\b/.test(q)
+  // Les demandes orales commencent souvent par « Bia, peux-tu… ».
+  q = q.replace(/^(?:bia[, ]+|papa[, ]+)/, "").replace(/^(?:(?:est ce que )?(?:tu peux|tu pourrais|peux tu|pourrais tu)|s il te plait)[, ]+/, "");
+  if (/^(?:fais|faire|effectue|lance) (?:moi )?une recherche (?:sur|en ligne|internet)\b/.test(q)) return true;
+  return /(?:^|[.!?]\s*)(?:s il te plait\s+)?(?:cherche|recherche|va voir|regarde|regarder|verifie|verifier|va|chercher|recherches)\b[^.!?]*\b(?:internet|google|en ligne)\b/.test(q)
     || /\b(?:seetal|seet|gestul)\b[^.!?]*\b(?:internet|google)\b/.test(q);
 }
 function sujetWeb(q: string): boolean {
@@ -74,7 +77,7 @@ function sujetWeb(q: string): boolean {
 }
 /** Only current requests and explicit follow-ups can request web. Pass user turns only. */
 export function besoinDInternet(question: string, fil: string[] = []): boolean {
-  const q = sansAccent(question).replace(/[’']/g, " ").replace(/\s+/g, " ").trim();
+  const q = sansAccent(question).replace(/[’'-]/g, " ").replace(/\s+/g, " ").trim();
   if (!q) return false;
   if (demandeExpliciteWeb(q)) return true;
   if (contientTerme(q, JAMAIS)) return false;
@@ -83,6 +86,13 @@ export function besoinDInternet(question: string, fil: string[] = []): boolean {
   if (!/^(?:et\s+)?(?:hier|demain|aujourd hui|ce matin|ce soir|a dakar|au senegal)(?:\s*[?!.])?$/.test(q)) return false;
   const avant = sansAccent(fil.slice(-1).join(" ")).replace(/[’']/g, " ");
   return sujetWeb(avant) || demandeExpliciteWeb(avant);
+}
+
+/** L'absence d'outil sur un tour banal n'est pas une désactivation du service. */
+export function consigneDisponibiliteRecherche(active: boolean): string {
+  return active
+    ? "RECHERCHE INTERNET ACTIVÉE DANS L’APPLICATION : tu peux consulter le web quand la demande le nécessite. Si l’on te demande si tu as accès à Internet, réponds oui. L’absence d’outil sur un simple échange signifie seulement qu’aucune recherche n’est nécessaire pour ce tour ; ne dis pas que ta recherche Internet est désactivée. Ne prétends avoir vérifié une information que si tu as reçu des résultats pour cette demande."
+    : "RECHERCHE INTERNET NON CONFIGURÉE POUR CE FOURNISSEUR : ne prétends pas pouvoir lancer une recherche générale ni avoir vérifié des informations en ligne.";
 }
 
 /** Vrai si la recherche est autorisée sur ce serveur. Éteinte par défaut. */
@@ -121,7 +131,8 @@ export const CONSIGNE_RECHERCHE = `
 TU PEUX ALLER VOIR SUR INTERNET
 Cette question porte sur quelque chose qui change — l'actualité, un prix, un
 résultat, une date récente. Tu as le droit de chercher en ligne avant de
-répondre. Sers-t'en si ta réponse serait autrement une devinette ; ne t'en
+répondre. Si la personne demande explicitement une recherche, effectue-la
+avant de répondre. Sers-t'en si ta réponse serait autrement une devinette ; ne t'en
 sers pas si tu sais déjà, ou si la question n'en a pas besoin.
 
 CHERCHE D'ABORD ICI. Quand la question porte sur le Sénégal — un prix, une

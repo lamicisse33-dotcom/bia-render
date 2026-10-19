@@ -45,7 +45,7 @@ import { noterFil, noterModele } from "@/lib/depense";
 
 import { FIL_AU_PLUS } from "@/lib/fenetre-du-fil";
 import { noterEmotion, noterAmorceEnvoyee, noterAmorceRefusee, noterRefusAvecAmorce, amorceRefusee, amorcePermise, avecSaBalise, EMOTIONS } from "@/lib/emotions-vues";
-import { noterRecherche, CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive } from "@/lib/recherche";
+import { noterRecherche, CONSIGNE_RECHERCHE, OUTIL_RECHERCHE, besoinDInternet, rechercheActive, consigneDisponibiliteRecherche } from "@/lib/recherche";
 import { BUDGET_DE_REFLEXION, PLAFOND_AVEC_REFLEXION, meriteReflexion, noterReflexion } from "@/lib/reflechir";
 import { consigneDeSesGestes, gestesDe } from "@/lib/ses-gestes";
 import { noterRate } from "@/lib/rates-du-repertoire";
@@ -2380,6 +2380,11 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     choixIntegre=choixPrepare;
     if(instructionsDuTour)variable+="\n"+instructionsDuTour;
     if(body.apprentissageTest)variable+="\nTEST PÉDAGOGIQUE : réponds à la question avec les connaissances et les corrections mémorisées. Ne transforme pas la question en leçon, ne la répète pas comme exercice et ne propose aucun enregistrement.";
+    // État réel, également inclus dans la clé de cache : une ancienne réponse
+    // annonçant Internet désactivé ne doit pas survivre à son activation.
+    variable += "\n" + consigneDisponibiliteRecherche(
+      webConfigure(question) || (!gemini && !local && !cerebras && rechercheActive()),
+    );
     const consigneSignee="conversation-appel-unique-v1\n"+(choixIntegre?.consigne||"")+"fiches-connectees-v1\n"+fichesDuTour+bibaDuTour+(produitsDuTour?"produits-connectes-v1\n"+produitsDuTour:"")+maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
     const reutilisable=!body.suggestionsTranscription?.length&&!dependDuContexte(question)&&!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
