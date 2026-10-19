@@ -45,7 +45,7 @@ function hasTestKey(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!hasTestKey(request) && !verifierCode(request.headers.get("x-bia-code")).ok) {
+  if (!hasTestKey(request) && !verifierCode(request.headers.get("x-bia-code"), false).ok) {
     return NextResponse.json({ error: "Saisis ton code d’accès BIA pour lancer l’essai." }, { status: 401 });
   }
   const c = configuration();

@@ -19,7 +19,7 @@ export async function POST(request:NextRequest){
  const secret=process.env.CHATTERBOX_TEST_KEY||"";
  const supplied=request.headers.get("x-chatterbox-test-key")||"";
  const internal=Boolean(secret&&supplied&&Buffer.byteLength(secret)===Buffer.byteLength(supplied)&&timingSafeEqual(Buffer.from(secret),Buffer.from(supplied)));
- const verdict=verifierCode(request.headers.get("x-bia-code"));
+ const verdict=verifierCode(request.headers.get("x-bia-code"), false);
  if(!internal&&!verdict.ok)return NextResponse.json({error:"Code d’accès refusé"},{status:401});
  const body=await request.json().catch(()=>null);
  const partie=Number(body?.partie??0);
