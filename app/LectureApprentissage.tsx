@@ -1,6 +1,7 @@
 "use client";
 import {LecteurAudioContinu} from "@/lib/lecteur-audio-continu";
 import {sansSilence} from "@/lib/bords-audio";
+import {lireSpeechT5} from "@/lib/speecht5-web";
 import {lirePiperWeb,mesurerPiperWeb} from "@/lib/piper-web";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {routerApprentissage,type TypeApprentissage} from "@/lib/routage-apprentissage";
@@ -14,7 +15,7 @@ import type {DevoirALire} from "@/lib/lecture-devoirs-core";
 import type {PassageCorrige} from '@/lib/correction-apprentissage-core';
 import {morceauxLecture} from "@/lib/lecture-morceaux";
 
-export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false,obtenirAudio}:{obtenirAudio:()=>AudioContext;edition?:boolean;code:string;voice:"piper"|"piper-web"|"female"|"male";
+export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false,obtenirAudio}:{obtenirAudio:()=>AudioContext;edition?:boolean;code:string;voice:"piper"|"piper-web"|"speecht5-web"|"female"|"male";
  demande:{texte:string;nonce:number;auto:boolean;source?:"memoire"};onStart:()=>void;onClose:()=>void}){
  const [curseur,setCurseur]=useState(0);
  const [fenetreLecture,setFenetreLecture]=useState(0);
@@ -80,6 +81,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   let preparation:{original:string;langue:string;texte:string}|null=null;
   let secoursComplet=true;
   const demander=async(text:string,partie:number,signal:AbortSignal,empreinte?:string,langue=settings.current.langue)=>{
+   if(settings.current.voice==="speecht5-web")return lireSpeechT5(text,partie,settings.current.code,signal);
    signal=AbortSignal.any([signal,AbortSignal.timeout(settings.current.voice==="piper-web"?45000:12000)]);
    if(settings.current.voice==="piper"||settings.current.voice==="piper-web"){
     if(settings.current.voice==="piper"&&!piperLocaleDisponible())throw Error("Ouvre BIA installée sur le téléphone pour utiliser Piper.");
@@ -105,7 +107,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    }catch(error){cleanup();if(!signal.aborted)secoursComplet=true;throw error;}
   };
   async function* packets(value:{text:string;first:MorceauVoix;langue:"fr"|"wo"},signal:AbortSignal){
-   try{yield* morceauxLecture(value.first,(part,empreinte)=>demander(value.text,part,signal,empreinte,value.langue),signal,(settings.current.voice!=="piper"&&settings.current.voice!=="piper-web"));}
+   try{yield* morceauxLecture(value.first,(part,empreinte)=>demander(value.text,part,signal,empreinte,value.langue),signal,(settings.current.voice!=="piper"&&settings.current.voice!=="piper-web"&&settings.current.voice!=="speecht5-web"));}
    catch(error){if(!signal.aborted)secoursComplet=true;throw error;}
   }
   const jouer=async(value:unknown,signal:AbortSignal,plage?:PlageLecture)=>{

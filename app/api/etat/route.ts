@@ -32,6 +32,7 @@ import {resumeFichesConnaissances,inventaireFiches} from "@/lib/fiches-connaissa
 import {resumeEssaiProduits} from "@/lib/essai-produits";
 import {resumeLatenceConversation} from "@/lib/essai-latence-conversation";
 import {resumeEssaiMemoire} from "@/lib/essai-memoire-maitre";
+import {resumeSpeechT5} from "@/lib/speecht5-etat";
 import {resumeRecherche} from "@/lib/recherche";
 import {resumeFonctionsBase} from "@/lib/essai-fonctions-base";
 import {resumeEssaiComprehension} from "@/lib/essai-comprehension";
@@ -207,6 +208,7 @@ export async function GET(request: Request) {
     acces_devoirs:resumeAccesDevoirs(),
     lecture_devoirs: resumeLectureDevoirs(),
     recherche_web:resumeRecherche(),
+    speecht5_web:resumeSpeechT5(),
     fonctions_base:resumeFonctionsBase(),
     produits_ddskin:resumeEssaiProduits(),
     fiches_connaissances:resumeFichesConnaissances(),
