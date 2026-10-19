@@ -3,7 +3,7 @@ import {transportConversation} from '@/lib/transport-conversation';
 import {brancherAnticipation} from "@/lib/anticipation-client";
 import {ecouterLongue} from "@/lib/ecoute-longue";
 import {envoyerEcoute} from "@/lib/envoi-ecoute";
-import {verifierAcces} from '@/lib/acces-client';
+import {verifierAcces,restaurerAccesMemorise} from '@/lib/acces-client';
 import {sansSilence} from "@/lib/bords-audio";
 import {usePriseValidee} from "@/lib/use-prise-validee";
 import {wavPrise,ordreValiderPrise,type BlocPrise} from "@/lib/prise-validee-core";
@@ -494,6 +494,8 @@ export default function Home() {
   const [codeErreur, setCodeErreur] = useState("");
   const [verificationCode, setVerificationCode] = useState(false);
   const verificationCodeRef = useRef(false);
+  const [restaurationAcces,setRestaurationAcces]=useState<'verification'|'indisponible'|'terminee'>('verification');
+  const restaurationAccesRef=useRef(0);
   const [moteurs, setMoteurs] = useState<{ voix: string; ecoute: string } | null>(null);
   const [tenue, setTenue] = useState<string>("nouvelle");
   /* ── RARA, LE DEUXIÈME PERSONNAGE ───────────────────────────────────────
@@ -1328,10 +1330,33 @@ export default function Home() {
     mesuresRef.current = lireMesures();
   }, []);
 
-  // Préremplir le champ, mais toujours afficher la porte et vérifier le code.
+  // Restore remembered access before displaying any password field.
+  const retablirAcces=useCallback(async()=>{
+    const tentative=++restaurationAccesRef.current;
+    setRestaurationAcces('verification');
+    const acces=await restaurerAccesMemorise();
+    if(tentative!==restaurationAccesRef.current)return;
+    if(acces.etat==='valide'){
+      setEstMaitre(acces.maitre);estMaitreRef.current=acces.maitre;
+      setCode(acces.code);setCodeErreur('');setRestaurationAcces('terminee');
+    }else if(acces.etat==='indisponible'){
+      setCodeErreur(acces.message);setRestaurationAcces('indisponible');
+    }else{
+      if(acces.etat==='refuse')setCodeErreur(acces.message);
+      setRestaurationAcces('terminee');
+    }
+  },[]);
+  useEffect(()=>{
+    const url=new URL(window.location.href);
+    if(url.searchParams.has('changer-code')){
+      url.searchParams.delete('changer-code');window.history.replaceState(null,'',url.toString());
+      setRestaurationAcces('terminee');
+    }else void retablirAcces();
+    return()=>{restaurationAccesRef.current++;};
+  },[retablirAcces]);
+
   useEffect(() => {
     try {
-      const g = localStorage.getItem("bia-code"); if (g) setCodeSaisi(g);
       /* Les verdicts déjà posés sur cet appareil : le compte doit être juste
          dès l'ouverture, sinon le premier appui paraît remettre à zéro. */
       setCompteVerdicts(compterVerdicts(lireVerdicts()));
@@ -7853,8 +7878,21 @@ export default function Home() {
       setEstMaitre(v.maitre);estMaitreRef.current=v.maitre;
       setCode(propre);setCodeSaisi("");
     }catch(e){
-      setCodeErreur(e instanceof Error&&e.name==='Error'?e.message:'Connexion indisponible. Réessaie dans un instant.');
+      setCodeErreur(e instanceof Error?e.message:'Connexion indisponible. Réessaie dans un instant.');
     }finally{verificationCodeRef.current=false;setVerificationCode(false);}
+  }
+
+  if (!code && restaurationAcces!=='terminee') {
+    return (
+      <main className="bia-presence" data-mode="ready">
+        <div className="portrait" aria-hidden="true" data-tenue={tenue} data-persona={persona}><div className="avatar" data-face="yeux_ouverts" /></div>
+        <section className="porte" aria-busy={restaurationAcces==='verification'}>
+          <p className="porte-titre">BIA</p>
+          <p className="porte-texte" role="status">{restaurationAcces==='verification'?'Vérification de ton accès…':codeErreur}</p>
+          {restaurationAcces==='indisponible'?<button type="button" onClick={()=>void retablirAcces()}>Réessayer</button>:null}
+        </section>
+      </main>
+    );
   }
 
   if (!code) {
@@ -7908,7 +7946,7 @@ export default function Home() {
 
   return (
     <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
-      <a href="/" aria-label="Changer de code d’accès" style={{position:'absolute',top:'max(12px, env(safe-area-inset-top))',left:12,zIndex:8,color:'#d4af37',background:'#101014dd',borderRadius:18,padding:'10px 14px',textDecoration:'none'}}>Code d’accès</a>
+      <a href="/?changer-code=1" aria-label="Changer de code d’accès" style={{position:'absolute',top:'max(12px, env(safe-area-inset-top))',left:12,zIndex:8,color:'#d4af37',background:'#101014dd',borderRadius:18,padding:'10px 14px',textDecoration:'none'}}>Code d’accès</a>
       <div className={eclipse ? "portrait eclipse" : rallume ? "portrait rallume" : "portrait"}
         aria-hidden="true" data-tenue={tenue} data-persona={persona}>
         {/* ── DEUX COUCHES, POUR QUE LE VISAGE NE SAUTE PLUS ─────────────
