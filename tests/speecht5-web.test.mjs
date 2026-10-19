@@ -52,3 +52,10 @@ test('shared voice adapter delegates existing engines byte for byte',async()=>{
 test('typographic apostrophes retain the word using the supported straight apostrophe',()=>{
  const config={vocab:{'▁':3,d:4,"'":5,a:6},eos:2};assert.deepEqual(globalThis.BiaSpeechT5Core.encode('d’a',config),[3,4,5,6,2]);
 });
+test('actual onboarding condition reserves phone installation for the native Piper choice',()=>{
+ const source=fs.readFileSync('app/page.tsx','utf8'),ast=ts.createSourceFile('page.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let condition;
+ function visit(n){if(ts.isIfStatement(n)&&ts.isBlock(n.thenStatement)){const first=n.thenStatement.statements[0];if(first&&ts.isReturnStatement(first)&&first.expression&&ts.isJsxSelfClosingElement(first.expression)&&first.expression.tagName.getText(ast)==='OnboardingVoix')condition=n.expression.getText(ast);}ts.forEachChild(n,visit);}
+ visit(ast);assert(condition,'the real onboarding decision must be located');const decide=new Function('choixVoix','essaiChatterbox','onboarding','return '+condition);
+ for(const choice of ['piper','piper-web','speecht5-web','male','female'])assert.equal(decide(choice,['male','female'].includes(choice),{besoin:true,verifie:true}),choice==='piper',choice);
+ assert.equal(decide('piper',false,{besoin:false,verifie:true}),false);
+});
