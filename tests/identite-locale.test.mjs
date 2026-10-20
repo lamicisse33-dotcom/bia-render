@@ -19,9 +19,10 @@ test('learning, corrections, stale text and real additional requests cannot use 
  assert.equal(identiteLocale('Noo tudd ?',sons,{...opt,correction:true}),null);
  assert.equal(identiteLocale('Noo tudd ?',sons.map(s=>({...s,texte:'Ancienne phrase'})),opt),null);
 });
-test('the actual ask callback cannot schedule a spoken waiting prefix',()=>{
+test('the actual ask callback gates the single verification clip through intent',()=>{
  const source=fs.readFileSync('app/page.tsx','utf8'),ast=ts.createSourceFile('page.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let callback;
  function visit(n){if(ts.isVariableDeclaration(n)&&n.name.getText(ast)==='askBia')callback=n.initializer.arguments[0];ts.forEachChild(n,visit);}visit(ast);assert(callback);
  const calls=[];function collect(n){if(ts.isCallExpression(n))calls.push(n.expression.getText(ast));ts.forEachChild(n,collect);}collect(callback);
- assert(!calls.includes('programmerReactionCourante'));assert(!calls.includes('reactionDisponible'));assert(calls.includes('identiteLocale'));assert(calls.includes('salutationLocale'));
+ assert(calls.includes('accuseDemandePertinent'));assert(calls.includes('programmerReactionCourante'));assert(!calls.includes('reactionDisponible'));assert(calls.includes('identiteLocale'));assert(calls.includes('salutationLocale'));
+ const predicate=load('accuse-demande').accuseDemandePertinent;for(const q of ["Comment tu t'appelles ?",'Bonjour','Noo tudd ?','Et ensuite ?'])assert.equal(predicate(q),false);
 });

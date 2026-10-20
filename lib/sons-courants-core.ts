@@ -13,7 +13,7 @@ const reactions=[
  {cle:'reaction-accord',fr:"D’accord.",wo:'Dacor.',usage:'reaction'},
  {cle:'reaction-ok-pose',fr:'OK… d’accord.',wo:'Waaw… Dacor.',usage:'reaction'},
  {cle:'reaction-tres-bien',fr:'Très bien.',wo:'Baax na.',usage:'reaction'},
- {cle:'reaction-voir',fr:'Je vais voir ça.',wo:'Waaw, maa ngi xool.',usage:'verification'},
+ {cle:'reaction-voir',fr:'D’accord, je vais voir ça.',wo:'Waaw, maa ngi xool.',usage:'verification'},
  {cle:'reaction-verifier',fr:'Laisse-moi vérifier.',wo:'Xaaral tuuti, maa ngi seet.',usage:'verification'},
 ] as const;
 export const PHRASES_COURANTES:PhraseCourante[]=[
