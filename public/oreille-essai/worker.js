@@ -66,7 +66,7 @@ self.onmessage=async({data:d})=>{
   const start=performance.now();const inputs=await model.processor(audio);
   if(model.model.sessions.model.inputNames.includes('attention_mask'))inputs.attention_mask=new Tensor('int64',new BigInt64Array(audio.length).fill(1n),[1,audio.length]);
   const tokens=await model.model.generate({...inputs,max_new_tokens:128,do_sample:false});
-  const result={text:model.processor.batch_decode(tokens,{skip_special_tokens:true})[0]};
+  const result={text:model.tokenizer.batch_decode(tokens,{skip_special_tokens:true})[0]};
   post('result',{id:d.id,text:result.text,ms:performance.now()-start,seconds:audio.length/16000,revision:manifest.revision});
  }catch(e){post('error',{id:d.id,message:e?.message||'L’essai n’a pas abouti.'});}
  finally{busy=false;}
