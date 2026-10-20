@@ -17,6 +17,7 @@ jobs:
       - run: node --test tests/briques-flux-continu.test.mjs tests/audio-400ms.test.mjs tests/ecoute-progressive-silence.test.mjs tests/reprise-progressive.test.mjs tests/briques-cycle.test.mjs tests/briques-conversation.test.mjs tests/anticipation-conversation.test.mjs tests/tour-de-parole.test.mjs tests/protection-parole.test.mjs tests/micro-cycle.test.mjs tests/focus-locuteur.test.mjs tests/vitesse-immediate.test.mjs
       - run: node --test --test-name-pattern="actual thinking gate|successive late questions" tests/lecture-devoirs.test.mjs
       - run: node --test tests/continuite-voix.test.mjs tests/lecture-bilingue.test.mjs
+      - run: node --test tests/reflexion-naturelle.test.mjs tests/salutations.test.mjs
       - run: |
           ./node_modules/.bin/tsc lib/flux-conversation.ts --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck --outDir /tmp/bia-stream-tests/lib
           mkdir -p /tmp/bia-stream-tests/tests
@@ -35,6 +36,9 @@ jobs:
       - run: npm install --prefix /tmp/bia-browser --no-audit --no-fund --ignore-scripts playwright@1.56.1
       - run: /tmp/bia-browser/node_modules/.bin/playwright install --with-deps chromium
       - run: node tests/audio-400ms-browser.mjs
+        env:
+          PLAYWRIGHT_MODULE: /tmp/bia-browser/node_modules/playwright/index.mjs
+      - run: node tests/sons-ouverture-browser.mjs
         env:
           PLAYWRIGHT_MODULE: /tmp/bia-browser/node_modules/playwright/index.mjs
 

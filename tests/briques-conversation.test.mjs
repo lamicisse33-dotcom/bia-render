@@ -45,6 +45,7 @@ function server(answer,options={}){
   if(id==='node:crypto')return crypto;if(id==='next/server')return {NextRequest:Request};
   if(id==='./codes')return {verifierCode:(code,compter)=>{if(compter)quota++;return {ok:true,maitre:true};}};
   if(id==='./souvenirs')return {garder:async d=>saved.push(d)};
+  if(id==='./salutations-dialogue')return load('lib/salutations-dialogue.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./anticipation-core')return core;
   if(id==='./briques-etat')return {etatBriques:state};
   if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
@@ -65,6 +66,11 @@ function server(answer,options={}){
 }
 const question='En allant au marché je suis passé chez le cordonnier pour refaire mes chaussures.';
 const body={texte:question,tour:'test-briques-123',history:[{role:'bia',text:'Bonjour papa.'}],resume:'',voice:'female',persona:'bia'};
+test('a chain of greetings cannot start paid brick generation before the local opening',async()=>{
+ const s=server(),signal=new AbortController().signal;
+ const r=await s.preparerBrique({...body,texte:'Bonjour bonjour salut comment allez-vous ?'},'owner',true,signal);
+ assert.equal(r,null);assert.equal(s.models.length,0);assert.equal(s.syntheses.length,0);
+});
 test('opening addresses are spoken only on the first brick and reset for a new answer',async()=>{
  const replies=['Oui papa, tes chaussures sont réparées.','D’accord papa, le coiffeur suivait le match.','Oui, papa ! Tu as obtenu le prix habituel.'];
  const s=server(c=>({eligible:true,reply:replies[c.briques_verrouillees.length],traite:c.texte_integral})),signal=new AbortController().signal;

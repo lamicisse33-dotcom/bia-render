@@ -16,6 +16,7 @@ import {origineReplique} from "@/lib/correction-devoir-core";
 import {devoirsALire} from "@/lib/devoirs-apprentissage";
 import {dialoguerAvecDevoirs,contexteMaitrises,choixDuTour,resoudreChoixDuTour} from "@/lib/dialogue-devoirs";
 import {reponseSalutation} from '@/lib/reponse-salutation';
+import {salutationReconnue} from '@/lib/salutations-dialogue';
 import {sansRelanceAutomatique} from "@/lib/dialogue-devoirs-core";
 import {CONSIGNE_COMPREHENSION,dependDuContexte} from "@/lib/comprehension-conversation";
 import {contexteInstructions} from "@/lib/instructions-apprentissage";
@@ -781,7 +782,7 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
-type Corps={continuationBriques?:boolean;anticipationId?:string;voixAnticipee?:string;parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
+type Corps={salutationOuverture?:boolean;continuationBriques?:boolean;anticipationId?:string;voixAnticipee?:string;parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
   /* Ancien choix visuel conservé pour les clients existants ; le nom reste BIA. */
   persona?:string;
   /* ── L'APPRENTISSAGE À LA VOIX ──────────────────────────────────────────
@@ -1136,7 +1137,8 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     /* Un seul point de vérité : les quatre usages de repertoireActif() plus
        bas passent tous par ici, pour que Rara ne puisse nulle part recevoir
        une phrase ou un son du répertoire de BIA. */
-    const repertoireUtilisable=()=>repertoireActif()&&!estRara&&!dependDuContexte(question);
+    const ouvertureSalutation=typeof body.salutationOuverture==='boolean'?body.salutationOuverture:!(body.history||[]).length&&!String(body.resume||'').trim();
+    const repertoireUtilisable=()=>repertoireActif()&&!estRara&&!dependDuContexte(question)&&!(!ouvertureSalutation&&salutationReconnue(question));
 
     /* ── CE QU'IL LUI ORDONNE, AVANT TOUT LE RESTE ─────────────────────────
 
@@ -1355,10 +1357,10 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       const horloge=reponseHorloge(question);if(horloge)return {corps:horloge};
     }
 
-    // A greeting always answers with a greeting, even when repeated. Do not
-    // let a previous lesson, filler or duplicate filter replace its meaning.
-    if(maitre.ok&&!estRara&&!body.apprend&&!body.malDit?.encours){
-      const salut=await reponseSalutation(question);if(salut)return {corps:salut};
+    // Owner: recorded greetings answer only at the opening, with either portrait.
+    // Later conversation retains its context instead of replaying an opening.
+    if(maitre.ok&&!body.apprend&&!body.correctionDevoir&&!body.malDit?.encours){
+      const salut=await reponseSalutation(question,ouvertureSalutation);if(salut)return {corps:salut};
     }
 
     // Existing browser sessions still send the obsolete repeated fallback.

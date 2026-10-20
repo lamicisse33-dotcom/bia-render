@@ -12,6 +12,14 @@ function callback(name,env){
   return new Function('env',`with(env){${ts.transpileModule('const run='+arrow,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText};return run;}`)(env);
 }
 const ref=current=>({current});
+test('the actual preloader warms both original takes with the default portrait and never synthesizes',async()=>{
+ let setup;
+ function visit(n){if(ts.isCallExpression(n)&&n.expression.getText(ast)==='useEffect'&&n.arguments[0]?.getText(ast).includes("etape:'reflexion_prechargee'"))setup=n.arguments[0].getText(ast);ts.forEachChild(n,visit);}visit(ast);assert(setup);
+ const cache=new Map(),calls=[],measures=[];
+ const env={code:'test',choixVoix:'female',personaRef:ref('rara'),piperWebActif:()=>false,voixChatterboxBia:()=> 'female',souffleDe:()=>({fichiers:['/take1.mp3','/take2.mp3']}),cacheSons:ref(cache),fetch:async(url,options)=>{calls.push(url);if(url==='/api/mesure'){measures.push(JSON.parse(options.body));return {ok:true};}return {ok:true,arrayBuffer:async()=>new ArrayBuffer(2400)};}};
+ const run=new Function('env',`with(env){return ${ts.transpileModule('const f='+setup,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText.replace(/^const f = /,'').replace(/;\s*$/,'')};}`)(env);
+ const cleanup=run();await new Promise(r=>setTimeout(r,0));assert.equal(cache.size,2);assert.deepEqual(calls,['/take1.mp3','/take2.mp3','/api/mesure']);assert.equal(measures[0].charges,2);assert.equal(measures[0].echecs,0);cleanup();
+});
 function fixture(){
   const timers=[],heard=[],measures=[],token={};
   const source={connect(){},start(){heard.push('mmm');},stop(){heard.push('stop');}};
@@ -37,9 +45,10 @@ test('a reply arriving during fetch or decode prevents a late mmm',async()=>{
     const p=f.start();f.timers[0].f();await Promise.resolve();await Promise.resolve();f.env.attenteRef.current=null;finish();await p;assert.deepEqual(f.heard,[]);
   }
 });
-test('the live speech gate can refuse a filler; other voices and map mode remain silent',async()=>{
+test('the default portrait uses the owner takes; the live speech gate, other voices and map remain respected',async()=>{
+  const rara=fixture();rara.env.personaRef.current='rara';const rp=rara.start();rara.timers[0].f();await rp;assert.deepEqual(rara.heard,['mmm']);
   const f=fixture();f.env.autoriserLaVoix=async()=>false;const p=f.start();f.timers[0].f();await p;assert.deepEqual(f.heard,[]);
-  for(const change of [e=>e.personaRef.current='rara',e=>e.voixChatterboxBia=()=> 'male',e=>e.carteOuverteRef.current=true,e=>e.piperWebActif=()=>true]){
+  for(const change of [e=>e.voixChatterboxBia=()=> 'male',e=>e.carteOuverteRef.current=true,e=>e.piperWebActif=()=>true]){
     const x=fixture();change(x.env);await x.start();assert.equal(x.timers.length,0);assert.deepEqual(x.heard,[]);
   }
 });
