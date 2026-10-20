@@ -275,18 +275,18 @@ test('obsolete clarifications never become model examples or change the requeste
  const r=await api.dialoguerAvecDevoirs('Ma copine ne répond plus à mes appels.',h,{index,choisir:async()=>({statut:'selection',id:'0:1'})});
  assert.equal(r.reply,index[0].repliques[1].wo);assert.equal(r.dialogue_memorise,true);
 });
-test('authenticated chat with the stuck history reaches the actual greeting repertoire',async()=>{
+test('a new session opening with restored history reaches the actual greeting repertoire',async()=>{
  const repertoire=load('lib/repertoire.ts',{'./lexique':{lexiqueConfig:{actif:false}},'./normaliser':normalisation,'./empreinte':load('lib/empreinte.ts'),'./nombres':{pourLaVoix:s=>s},'./repertoire-textes':textes,'./base-textes':load('lib/base-textes.ts'),'./services-textes':services,'./formes-neuves':load('lib/formes-neuves.ts',{'./formes-de-plus':load('lib/formes-de-plus.ts')}),'./a-refaire':load('lib/a-refaire.ts')});
  const source=fs.readFileSync('app/api/chat/route.ts','utf8'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);let fn;
  ast.forEachChild(n=>{if(ts.isFunctionDeclaration(n)&&n.name?.text==='repondre')fn=n.getText(ast);});
  const api=service(async()=>{throw Error('No selector call');},async()=>{throw Error('No lesson read');});
- const env={...produits,...horloge,...recherche,reponseIdentite:()=>null,...repertoire,...services,correctionCourantePour:async()=>undefined,sansRelanceAutomatique:core.sansRelanceAutomatique,dialoguerAvecDevoirs:api.dialoguerAvecDevoirs,
+ const env={...produits,...horloge,...recherche,...salutations,reponseIdentite:()=>null,...repertoire,...services,correctionCourantePour:async()=>undefined,sansRelanceAutomatique:core.sansRelanceAutomatique,dialoguerAvecDevoirs:api.dialoguerAvecDevoirs,
   corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected write')},verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,
   repertoireActif:()=>true,RELU_BLAGUES:false,noterRate(){},SONS_QUI_DISENT_AUTRE_CHOSE:new Set(),gesteDe:()=>null};
- env.reponseSalutation=q=>load('lib/reponse-salutation.ts',{'./salutations-dialogue':salutations,'./repertoire':repertoire,'./sons-courants':{lireCatalogueCourant:async()=>{const e=salutations.salutationReconnue(q),langue=repertoire.langueDe(q),p=await env.correctionCourantePour();return p?[{...p,cle:e.cle,langue,audio:{...p.audio,texte:p.texte}}]:[];}}}).reponseSalutation(q);
+ env.reponseSalutation=(q,ouverture)=>load('lib/reponse-salutation.ts',{'./salutations-dialogue':salutations,'./repertoire':repertoire,'./sons-courants':{lireCatalogueCourant:async()=>{const e=salutations.salutationReconnue(q),langue=repertoire.langueDe(q),p=await env.correctionCourantePour();return p?[{...p,cle:e.cle,langue,audio:{...p.audio,texte:p.texte}}]:[];}}}).reponseSalutation(q,ouverture);
  const run=new Function('env',`with(env){${compile(fn)}return repondre;}`)(env);
  for(const message of ['Salaamaleekum','Nanga def ?','Naka waa kër ga ?']){
-  const r=await run({message,history:[{role:'bia',text:'Vous vous êtes disputés ?'},{role:'user',text:'Nanga def ?'},{role:'bia',text:obsolete},{role:'bia',text:obsolete}]},'valid-test-code',null);
+  const r=await run({message,salutationOuverture:true,history:[{role:'bia',text:'Vous vous êtes disputés ?'},{role:'user',text:'Nanga def ?'},{role:'bia',text:obsolete},{role:'bia',text:obsolete}]},'valid-test-code',null);
   assert.equal(r.corps.source,'salutation mémorisée',message);assert.equal(r.corps.salutation,true);
   assert.equal(r.corps.reply,repertoire.trouverDansRepertoire(message).wolof);
   env.correctionCourantePour=async()=>({texte:'Réponse corrigée.',audio:{adresse:'https://test/corrige.mp3'}});
@@ -414,7 +414,7 @@ test('real chat route uses context memorisation before model and preserves maste
  const source=fs.readFileSync('app/api/chat/route.ts','utf8'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);let fn;
  ast.forEachChild(n=>{if(ts.isFunctionDeclaration(n)&&n.name?.text==='repondre')fn=n.getText(ast);});assert(fn);
  const lesson=load('lib/mode-apprentissage.ts');let master=true;const writes=[];
- const env={...produits,...horloge,...recherche,...lesson,reponseIdentite:()=>null,reponseSalutation:async()=>null,audioPourReponse:async()=>null,corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected source edit')},verifierCode:()=>({ok:true,maitre:master}),noterPassage(){},parleDeMemoire:()=>true,noterTentative(){},lexiqueConfig:{actif:true},langueDe:()=> 'wo',enregistrerPhraseMaitre:async p=>{writes.push(p)},dialoguerAvecDevoirs:async()=>({reply:'No master write'}),noterPanne(){},estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null};
+ const env={...produits,...horloge,...recherche,...salutations,...lesson,reponseIdentite:()=>null,reponseSalutation:async()=>null,audioPourReponse:async()=>null,corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected source edit')},verifierCode:()=>({ok:true,maitre:master}),noterPassage(){},parleDeMemoire:()=>true,noterTentative(){},lexiqueConfig:{actif:true},langueDe:()=> 'wo',enregistrerPhraseMaitre:async p=>{writes.push(p)},dialoguerAvecDevoirs:async()=>({reply:'No master write'}),noterPanne(){},estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null};
  const run=new Function('env',`with(env){${compile(fn)}return repondre;}`)(env);
  env.sansRelanceAutomatique=core.sansRelanceAutomatique;
  const body={message:'Mémorise ça',history:[{role:'user',text:'Ñu ngi fi.'},{role:'bia',text:'Je ne peux pas mémoriser.'}]};
