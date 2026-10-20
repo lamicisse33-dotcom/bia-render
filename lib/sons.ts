@@ -95,9 +95,9 @@ export const SOUFFLES: Souffle[] = [
      s'entendraient revenir en une conversation. */
   {
     emotion: "reflexion",
-    // Prises longues de em.wav, fourni par Lamine le 19 octobre 2026.
-    // Découpes de 1,93 et 1,96 s, sans étirement ni silence ajouté.
-    fichiers: ["/sons/reflexion-naturelle-20261019-1.mp3", "/sons/reflexion-naturelle-20261019-2.mp3"],
+    // Deux prises de MMM.mp3 fournies par Lamine le 20 octobre 2026.
+    // Conversion S3Gen avec la condition féminine de Khalam : 1,20 et 1,52 s.
+    fichiers: ["/sons/mmm-khalam-20261020-court.mp3", "/sons/mmm-khalam-20261020-long.mp3"],
     /* Le visage ne bouge pas : il est déjà pensif pendant qu'elle réfléchit,
        et c'est exactement l'expression qu'il faut. Une suite d'images ici ne
        ferait que contredire l'état où elle se trouve. */

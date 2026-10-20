@@ -12,7 +12,7 @@ function callback(name,env){
   return new Function('env',`with(env){${ts.transpileModule('const run='+arrow,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText};return run;}`)(env);
 }
 const ref=current=>({current});
-test('the actual preloader warms both original takes with the default portrait and never synthesizes',async()=>{
+test('the actual preloader warms both converted takes with the default portrait and never synthesizes',async()=>{
  let setup;
  function visit(n){if(ts.isCallExpression(n)&&n.expression.getText(ast)==='useEffect'&&n.arguments[0]?.getText(ast).includes("etape:'reflexion_prechargee'"))setup=n.arguments[0].getText(ast);ts.forEachChild(n,visit);}visit(ast);assert(setup);
  const cache=new Map(),calls=[],measures=[];
@@ -55,10 +55,10 @@ test('the default portrait uses the owner takes; the live speech gate, other voi
 test('a reflection emotion never adds a mandatory prelude before a ready reply',async()=>{
   await callback('jouerSouffle',{})('reflexion');
 });
-test('published takes match the measured cuts; the short rejected sounds are excluded',()=>{
-  const manifest=JSON.parse(fs.readFileSync('public/sons/reflexion-20261019.json','utf8'));
+test('published short and long takes match the exact owner cuts and verified Khalam conversion',()=>{
+  const manifest=JSON.parse(fs.readFileSync('public/sons/reflexion-khalam-20261020.json','utf8'));
   assert.equal(manifest.prises.length,2);
-  for(const p of manifest.prises){assert(p.duree_decoupee_ms>=1500&&p.duree_decoupee_ms<=2000);const bytes=fs.readFileSync('public'+p.fichier);assert.equal(bytes.length,p.octets);assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),p.sha256);}
+  for(const p of manifest.prises){assert([1200,1500].includes(p.duree_decoupee_ms));assert(p.duree_decodee_ms>=1200&&p.duree_decodee_ms<=1600);const bytes=fs.readFileSync('public'+p.fichier);assert.equal(bytes.length,p.octets);assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),p.sha256);}
 });
 
 test('reflection telemetry keeps measured waits separate from first response latency',()=>{
