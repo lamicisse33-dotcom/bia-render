@@ -13,6 +13,15 @@ const base=self.location.origin+'/oreille-essai-modele/';
 const hex=bytes=>[...new Uint8Array(bytes)].map(v=>v.toString(16).padStart(2,'0')).join('');
 const hash=async bytes=>hex(await crypto.subtle.digest('SHA-256',bytes));
 const post=(type,data={})=>self.postMessage({type,...data});
+async function readAsset(url){
+ for(let attempt=0;attempt<4;attempt++){
+  try{
+   const r=await fetch(url,{headers:{'x-bia-code':code},signal:AbortSignal.timeout(60000)});
+   if(r.status===429||r.status>=500)throw Error('Réseau momentanément indisponible.');
+   const bytes=await r.arrayBuffer();return new Response(bytes,{status:r.status,headers:r.headers});
+  }catch(e){if(attempt===3)throw Error('Le téléchargement a été interrompu. Vérifie la connexion et réessaie.');await new Promise(r=>setTimeout(r,1000*(attempt+1)));}
+ }
+}
 const buffers=new Map();
 const progressByFile=new Map();
 env.customCache={
@@ -23,7 +32,7 @@ env.customCache={
   if(buffers.has(name))return new Response(buffers.get(name));
   const whole=new Uint8Array(file.bytes);let offset=0;
   for(let i=0;i<file.parts.length;i++){
-   const part=file.parts[i];const r=await fetch('/api/oreille-essai?file='+encodeURIComponent(name)+'&part='+i,{headers:{'x-bia-code':code}});
+   const part=file.parts[i];const r=await readAsset('/api/oreille-essai?file='+encodeURIComponent(name)+'&part='+i);
    if(!r.ok)throw Error('Téléchargement de l’oreille impossible ('+r.status+').');
    const bytes=new Uint8Array(await r.arrayBuffer());
    if(bytes.length!==part.bytes||await hash(bytes)!==part.sha256)throw Error('Le fichier reçu est incomplet. Réessaie.');
@@ -37,7 +46,7 @@ env.customCache={
 async function prepare(credential){
  if(model)return;
  code=credential;
- const r=await fetch('/api/oreille-essai',{headers:{'x-bia-code':code}});
+ const r=await readAsset('/api/oreille-essai');
  if(r.status===401)throw Error('Ton code BIA est nécessaire pour préparer cet essai.');
  if(!r.ok)throw Error('L’oreille est momentanément indisponible.');
  const data=await r.json();if(!data.ready)throw Error('L’installation de l’oreille est encore en cours.');manifest=data.manifest;
