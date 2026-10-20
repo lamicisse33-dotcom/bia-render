@@ -44,7 +44,7 @@ export function genererSonsCourants(){
     await deposer(chemin(p),mp3,'audio/mpeg');
     const relu=await fetch(base()+chemin(p),{cache:'no-store',signal:AbortSignal.timeout(5000)});
     if(!relu.ok||sha(Buffer.from(await relu.arrayBuffer()).toString('base64'))!==sha(Buffer.from(mp3).toString('base64')))throw Error('relecture_audio');
-    const entree={...p,adresse:base()+chemin(p),secondes:Number(audio.secondes.toFixed(3)),octets:mp3.length,version:VERSION_SONS_COURANTS};
+    const entree={...p,adresse:base()+chemin(p),secondes:Number(audio.secondes.toFixed(3)),octets:mp3.length,version:VERSION_SONS_COURANTS,moteur:'khalam-voice' as const,checkpoint_sha256:p.langue==='fr'?'b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75':'8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f'};
     await deposer(manifesto,new TextEncoder().encode(JSON.stringify({version:VERSION_SONS_COURANTS,sons:[...sons,entree]})), 'application/json',true);
     sons.push(entree);
     crees++;
@@ -93,7 +93,7 @@ export function regenererSonCourant(cle:string,langue:'fr'|'wo',revision:number)
   await deposer(path,mp3,'audio/mpeg');
   const relu=await fetch(base()+path,{cache:'no-store',signal:AbortSignal.timeout(5000)});
   if(!relu.ok||sha(Buffer.from(await relu.arrayBuffer()).toString('base64'))!==sha(Buffer.from(mp3).toString('base64')))throw Error('relecture_audio');
-  const son:SonCourant={cle:p.cle,langue:p.langue,usage:p.usage,texte:p.texte,adresse:base()+path,secondes:Number(audio.secondes.toFixed(3)),octets:mp3.length,version:VERSION_SONS_COURANTS};
+  const son:SonCourant={cle:p.cle,langue:p.langue,usage:p.usage,texte:p.texte,adresse:base()+path,secondes:Number(audio.secondes.toFixed(3)),octets:mp3.length,version:VERSION_SONS_COURANTS,moteur:'khalam-voice',prise,checkpoint_sha256:p.langue==='fr'?'b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75':'8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f'};
   // If the text changed while the GPU was working, never publish stale audio.
   return enregistrerRevisionCourante(p,p.texte,son);
  })().finally(()=>generations.delete(id));generations.set(id,operation);return operation;

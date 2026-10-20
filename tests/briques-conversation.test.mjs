@@ -45,6 +45,7 @@ function server(answer,options={}){
   if(id==='node:crypto')return crypto;if(id==='next/server')return {NextRequest:Request};
   if(id==='./codes')return {verifierCode:(code,compter)=>{if(compter)quota++;return {ok:true,maitre:true};}};
   if(id==='./souvenirs')return {garder:async d=>saved.push(d)};
+  if(id==='./identite-core')return load('lib/identite-core.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./salutations-dialogue')return load('lib/salutations-dialogue.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./anticipation-core')return core;
   if(id==='./briques-etat')return {etatBriques:state};

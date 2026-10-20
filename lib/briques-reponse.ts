@@ -15,6 +15,7 @@ import {etatBriques} from './briques-etat';
 import type {BriqueAudio} from './briques-file';
 import {garder} from './souvenirs';
 import {salutationReconnue} from './salutations-dialogue';
+import {identiteReconnue} from './identite-core';
 
 type Session={id:string;owner:string;tour:string;history:ReturnType<typeof contexteAnticipation>;resume:string;voice:'female'|'male';maitre:boolean;expire:number;traite:string;dernier:string;briques:BriqueAudio[];occupe:boolean;fermee:boolean;appels:number;livree?:boolean;suite?:SuiteTexte};
 const g=globalThis as typeof globalThis&{biaBriques?:Map<string,Session>};
@@ -71,7 +72,7 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
   let s:Session|undefined;
   if(body.id){s=sessions.get(String(body.id));if(!s||s.owner!==owner)throw Error('Session inconnue');}
   else {
-    if(!eligibleBriques(texte)||salutationReconnue(texte)||!Array.isArray(body.history)||!['female','male'].includes(body.voice)||body.apprend||! /^[a-zA-Z0-9_-]{8,80}$/.test(String(body.tour||'')))return null;
+    if(!eligibleBriques(texte)||salutationReconnue(texte)||identiteReconnue(texte)||!Array.isArray(body.history)||!['female','male'].includes(body.voice)||body.apprend||! /^[a-zA-Z0-9_-]{8,80}$/.test(String(body.tour||'')))return null;
     if(sessions.size>=32||[...sessions.values()].filter(x=>x.owner===owner&&!x.fermee).length>=4)return null;
     const v=verifierCode(code,false);if(!v.ok)return null;
     s={id:randomUUID(),owner,tour:body.tour,history:contexteAnticipation(body.history.map((m:any)=>({...m,role:m.role==='bia'?'assistant':m.role}))),resume:String(body.resume||'').slice(0,6000),voice:body.voice,maitre,expire:Date.now()+240000,traite:'',dernier:'',briques:[],occupe:false,fermee:false,appels:0};

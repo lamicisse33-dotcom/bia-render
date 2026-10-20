@@ -8,10 +8,9 @@ import {sansSilence} from "@/lib/bords-audio";
 import {usePriseValidee} from "@/lib/use-prise-validee";
 import {wavPrise,ordreValiderPrise,type BlocPrise} from "@/lib/prise-validee-core";
 import {useAudioMemoire} from "@/lib/use-audio-memoire";
-import {sonPourTexte,reactionDisponible,type SonCourant} from "@/lib/sons-courants-core";
-import {programmerReactionCourante} from "@/lib/reaction-courante";
+import {sonPourTexte,type SonCourant} from "@/lib/sons-courants-core";
 import {salutationLocale,lotSalutationsCourant} from '@/lib/salutation-locale';
-import {accusePertinent} from "@/lib/salutations-dialogue";
+import {identiteLocale} from "@/lib/identite-locale";
 import {piperLocaleDisponible} from "@/lib/voix-piper-locale";
 
 import { detecterLangue } from "@/lib/langue";
@@ -2694,7 +2693,7 @@ export default function Home() {
     setFace("yeux_ouverts");
   }, [finirAttente, couperSon, jouerSouffle, jouerEtAnimer, octetsDuRepertoire]);
 
-  const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse", suite = false, lecture?: {langue:"fr"|"wo";premierSon:()=>void;conserverTour?:boolean;sonCourant?:SonCourant;debutSalutation?:number}) => {
+  const speak = useCallback(async (answer: string, emotion?: string, ou = "réponse", suite = false, lecture?: {langue:"fr"|"wo";premierSon:()=>void;conserverTour?:boolean;sonCourant?:SonCourant;debutSalutation?:number;debutIdentite?:number}) => {
     /* La carte est ouverte : seul le guidage a le droit de parler. Voir la
        règle écrite près de `carteOuverteRef`. Ce qui arrive ici en retard —
        la fin d'une réponse, une phrase d'attente — meurt sans bruit. */
@@ -2756,12 +2755,14 @@ export default function Home() {
        quatre mots ne se juge pas, une réponse complète oui. */
     const langueDite = lecture?.langue ?? (estWolof(answer) ? "wo" : "fr");
     const salutationPrete=lecture?.debutSalutation!==undefined&&lecture.sonCourant?.usage==='salutation'&&essaiChatterboxActif()&&voixChatterboxBia()==='female';
+    const identitePrete=lecture?.debutIdentite!==undefined&&lecture.sonCourant?.usage==='identite'&&essaiChatterboxActif()&&voixChatterboxBia()==='female';
+    const reponseCourtePrete=salutationPrete||identitePrete;
     const capturerCache=(b:AudioBuffer)=>{
       if(!estMaitreRef.current||suite||!essaiChatterboxActif()||personaRef.current==="rara")return;
       try{prisesValidees.api.capturer({texte:answer.trim(),langue:langueDite,voice:voixChatterboxBia(),date:Date.now(),audio:wavPrise([{debut:0,sampleRate:b.sampleRate,canaux:Array.from({length:b.numberOfChannels},(_,c)=>b.getChannelData(c))}])});}catch{}
     };
     // A human-validated take has priority over regenerated or automatic audio.
-    if(!suite&&!salutationPrete&&essaiChatterboxActif()&&personaRef.current!=="rara"){
+    if(!suite&&!reponseCourtePrete&&essaiChatterboxActif()&&personaRef.current!=="rara"){
       try{
         const exact=await prisesValidees.api.lire(answer,langueDite,voixChatterboxBia());
         if(!actuel())return;
@@ -2780,13 +2781,13 @@ export default function Home() {
     }
     // Current female Khalam recordings only. Lessons keep their fresh source
     // pronunciation; an absent/unwarmed clip never delays ordinary synthesis.
-    if(!enLecon&&!suite&&(personaRef.current!=="rara"||salutationPrete)&&(lecture?.sonCourant||(!lecture&&essaiChatterboxActif()&&voixChatterboxBia()==="female"))){
+    if(!enLecon&&!suite&&(personaRef.current!=="rara"||reponseCourtePrete)&&(lecture?.sonCourant||(!lecture&&essaiChatterboxActif()&&voixChatterboxBia()==="female"))){
       const son=lecture?.sonCourant||sonPourTexte(sonsCourantsRef.current,answer,langueDite);
       const octets=son&&(cacheSons.current.get(son.adresse)||await octetsDuRepertoire(son.adresse).catch(()=>undefined));
       if(octets){
         await prendreLaParole();if(!await peutParler())return;
         const debut=performance.now();poserBorne(bornesRef.current,"enMain");
-        const duree=await jouerEtAnimer(octets,true,{actuel,exact:salutationPrete,termine:capturerCache,commence:()=>{lecture?.premierSon();void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"sons_courants",usage:"reponse",ms:performance.now()-debut,...(lecture?.debutSalutation!==undefined?{salutation_ms:performance.now()-lecture.debutSalutation,precharge:true,ouverture:true}:{})})}).catch(()=>{});}});
+        const duree=await jouerEtAnimer(octets,true,{actuel,exact:reponseCourtePrete,termine:capturerCache,commence:()=>{lecture?.premierSon();void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"sons_courants",usage:"reponse",ms:performance.now()-debut,...(lecture?.debutSalutation!==undefined?{salutation_ms:performance.now()-lecture.debutSalutation,precharge:true,ouverture:true}:lecture?.debutIdentite!==undefined?{identite_ms:performance.now()-lecture.debutIdentite,precharge:true}:{})})}).catch(()=>{});}});
         if(!actuel())return;
         if(duree>0){stopMouth(answer);return;}
       }
@@ -3368,19 +3369,8 @@ export default function Home() {
 
     }
 
-    const reaction=essaiChatterboxActif()&&voixChatterboxBia()==="female"&&personaRef.current!=="rara"&&!apprend.current&&!chantierMalDit.current&&!correctionDevoirRef.current&&accusePertinent(clean)
-      ? reactionDisponible(sonsCourantsRef.current.filter(s=>cacheSons.current.has(s.adresse)),langueRef.current,derniereReactionRef.current):undefined;
-    const annulerReaction=reaction?programmerReactionCourante({
-      actuel:()=>estLeTour(monTour)&&busyRef.current&&!carteOuverteRef.current,
-      arreter:()=>{if(estLeTour(monTour))couperSon();},
-      jouer:async actif=>{
-        const octets=cacheSons.current.get(reaction.adresse);if(!octets||!actif())return;
-        derniereReactionRef.current=reaction.cle;
-        const debut=performance.now();
-        await jouerEtAnimer(octets,false,{actuel:actif,commence:()=>{void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"sons_courants",usage:"reaction",ms:performance.now()-debut})}).catch(()=>{});}});
-        if(actif()){setMode("thinking");setFace("pensive");}
-      },
-    }):()=>{};
+    // No spoken acknowledgement is inserted before the actual answer.
+    const annulerReaction=()=>{};
 
     const requeteChat = new AbortController();
     fluxVoixRef.current.add(requeteChat);
@@ -3391,7 +3381,9 @@ export default function Home() {
       attenteChat = setTimeout(() => requeteChat.abort(), 12000);
     };
     try {
-      const salutLocal=codeRef.current&&accesSalutationsRef.current===codeRef.current&&essaiChatterboxActif()&&voixChatterboxBia()==='female'?salutationLocale(clean,sonsCourantsRef.current.filter(s=>cacheSons.current.has(s.adresse)),{apprend:apprend.current,correction:!!(chantierMalDit.current||correctionDevoirRef.current),persona:personaRef.current,ouverture:salutationOuverture}):null;
+      const optionsCourtes={apprend:apprend.current,correction:!!(chantierMalDit.current||correctionDevoirRef.current),persona:personaRef.current,ouverture:salutationOuverture};
+      const sonsPrets=sonsCourantsRef.current.filter(s=>cacheSons.current.has(s.adresse));
+      const salutLocal=codeRef.current&&accesSalutationsRef.current===codeRef.current&&essaiChatterboxActif()&&voixChatterboxBia()==='female'?(identiteLocale(clean,sonsPrets,optionsCourtes)||salutationLocale(clean,sonsPrets,optionsCourtes)):null;
       const response = salutLocal?new Response(JSON.stringify(salutLocal),{headers:{"content-type":"application/json"}}):await fetch("/api/chat", {
         method: "POST",
         signal: requeteChat.signal,
@@ -3853,11 +3845,11 @@ export default function Home() {
           if (data.rireApres) await jouerSouffle(data.rireApres);
         }
         catch { if (!estLeTour(monTour)) return; await speak(aDire, emotionRef.current, data.apprend ? "apprentissage" : "réponse", false,
-          data.son_courant ? {langue:data.son_courant.langue,premierSon:()=>{},sonCourant:data.son_courant,...((data as {salutation?:boolean}).salutation?{debutSalutation}:{})} : (data as {dialogue_memorise?:boolean}).dialogue_memorise ? {langue:(data as {langue?:"fr"|"wo"}).langue||"wo",premierSon:()=>{}} : undefined); }
+          data.son_courant ? {langue:data.son_courant.langue,premierSon:()=>{},sonCourant:data.son_courant,...((data as {identite?:boolean}).identite?{debutIdentite:debutSalutation}:(data as {salutation?:boolean}).salutation?{debutSalutation}:{})} : (data as {dialogue_memorise?:boolean}).dialogue_memorise ? {langue:(data as {langue?:"fr"|"wo"}).langue||"wo",premierSon:()=>{}} : undefined); }
       } else {
         if (!estLeTour(monTour)) return;
         await speak(aDire, emotionRef.current, data.apprend ? "apprentissage" : "réponse", false,
-          data.son_courant ? {langue:data.son_courant.langue,premierSon:()=>{},sonCourant:data.son_courant,...((data as {salutation?:boolean}).salutation?{debutSalutation}:{})} : (data as {dialogue_memorise?:boolean}).dialogue_memorise ? {langue:(data as {langue?:"fr"|"wo"}).langue||"wo",premierSon:()=>{}} : undefined);
+          data.son_courant ? {langue:data.son_courant.langue,premierSon:()=>{},sonCourant:data.son_courant,...((data as {identite?:boolean}).identite?{debutIdentite:debutSalutation}:(data as {salutation?:boolean}).salutation?{debutSalutation}:{})} : (data as {dialogue_memorise?:boolean}).dialogue_memorise ? {langue:(data as {langue?:"fr"|"wo"}).langue||"wo",premierSon:()=>{}} : undefined);
       }
     } catch {
       annulerReaction();
@@ -4168,7 +4160,7 @@ export default function Home() {
       const bilan={demandes:0,deja_la:0,chargees:0,ratees:0,ms:0,octets:0};const debut=Date.now();
       try{
         if(code)void verifierAcces(code).then(()=>{if(vivant)accesSalutationsRef.current=code;}).catch(()=>{if(vivant)accesSalutationsRef.current="";});
-        const [r,lot]=await Promise.all([fetch("/api/sons-courants",{cache:"no-store"}),fetch("/salutations-ouverture-v1.json",{cache:"force-cache"}).then(r=>r.ok?r.json():null).catch(()=>null)]);
+        const [r,lot]=await Promise.all([fetch("/api/sons-courants",{cache:"no-store"}),fetch("/reponses-courtes-khalam-v2.json",{cache:"force-cache"}).then(r=>r.ok?r.json():null).catch(()=>null)]);
         if(!r.ok)throw Error("Catalogue indisponible");
         const d=await r.json() as {sons:SonCourant[];attendus:number};if(!vivant)return;
         sonsCourantsRef.current=d.sons;
@@ -4176,7 +4168,7 @@ export default function Home() {
           if(cacheSons.current.has(entree.son.adresse))continue;
           try{const bytes=octetsDeBase64(entree.audio);if(bytes.byteLength>1000)cacheSons.current.set(entree.son.adresse,bytes);}catch{}
         }
-        const ordre=[...d.sons].sort((a,b)=>Number(b.usage==="salutation")-Number(a.usage==="salutation"));let prochain=0;
+        const ordre=[...d.sons].sort((a,b)=>Number(b.usage==="salutation"||b.usage==="identite")-Number(a.usage==="salutation"||a.usage==="identite"));let prochain=0;
         await Promise.all(Array.from({length:4},async()=>{
           while(vivant&&prochain<ordre.length){const son=ordre[prochain++];bilan.demandes++;
             if(cacheSons.current.has(son.adresse)){bilan.deja_la++;continue;}

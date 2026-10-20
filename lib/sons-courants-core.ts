@@ -2,9 +2,9 @@ import {REPERTOIRE} from './repertoire-textes';
 import {NOUVELLES} from './base-textes';
 import {SALUTATIONS} from './services-textes';
 export const VERSION_SONS_COURANTS='khalam-female-8320-b123-v1';
-export type SonCourant={cle:string;langue:'fr'|'wo';texte:string;usage:'salutation'|'reaction'|'verification';adresse:string;secondes:number;octets:number;version:string};
+export type SonCourant={cle:string;langue:'fr'|'wo';texte:string;usage:'salutation'|'reaction'|'verification'|'identite';adresse:string;secondes:number;octets:number;version:string;moteur?:'khalam-voice';checkpoint_sha256?:string;prise?:string};
 export type PhraseCourante=Omit<SonCourant,'adresse'|'secondes'|'octets'|'version'>;
-const c=new Set([...SALUTATIONS,'bienvenue','merci','de-rien','pardon','au-revoir','bonne-nuit','bonne-journee','a-demain']);
+const c=new Set([...SALUTATIONS,'ton-nom','bienvenue','merci','de-rien','pardon','au-revoir','bonne-nuit','bonne-journee','a-demain']);
 const entrees=[...REPERTOIRE,...NOUVELLES.filter(e=>!REPERTOIRE.some(r=>r.cle===e.cle))].filter(e=>c.has(e.cle));
 // Wolof reactions reuse words/phrases already present in the reviewed repertoire.
 // A longer acknowledgement is spoken naturally, never slowed by the player.
@@ -17,7 +17,7 @@ const reactions=[
  {cle:'reaction-verifier',fr:'Laisse-moi vérifier.',wo:'Xaaral tuuti, maa ngi seet.',usage:'verification'},
 ] as const;
 export const PHRASES_COURANTES:PhraseCourante[]=[
- ...entrees.flatMap(e=>(['wo','fr'] as const).map(langue=>({cle:e.cle,langue,texte:langue==='wo'?e.wolof:e.francais,usage:'salutation' as const}))),
+ ...entrees.flatMap(e=>(['wo','fr'] as const).map(langue=>({cle:e.cle,langue,texte:langue==='wo'?e.wolof:e.francais,usage:e.cle==='ton-nom'?'identite' as const:'salutation' as const}))),
  ...reactions.flatMap(e=>(['wo','fr'] as const).map(langue=>({cle:e.cle,langue,texte:e[langue],usage:e.usage}))),
 ];
 const identique=(s:string)=>s.normalize('NFC').trim().toLowerCase().replace(/[’‘]/g,"'").replace(/\s+/g,' ');

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import ts from 'typescript';
 const compile=s=>ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 function load(path,deps={}){const m={exports:{}};new Function('require','module','exports',compile(fs.readFileSync(path,'utf8')))(n=>{assert(n in deps,n);return deps[n];},m,m.exports);return m.exports;}
-const identite=load('lib/identite-bia.ts',{'./normaliser':load('lib/normaliser.ts'),'./repertoire-textes':load('lib/repertoire-textes.ts')});
+const identite=load('lib/identite-bia.ts',{'./identite-core':load('lib/identite-core.ts',{'./normaliser':load('lib/normaliser.ts'),'./repertoire-textes':load('lib/repertoire-textes.ts')}),'./repertoire-textes':load('lib/repertoire-textes.ts')});
 test('name questions receive the existing Bia wording in the question language',()=>{
  for(const q of ["Comment tu t'appelles ?",'Comment t’appelles-tu ?','Bonjour Bia, quel est ton nom ?','Rara, comment tu t’appelles ?','Comment vous appelez-vous ?'])assert.equal(identite.reponseIdentite(q).reply,"Je m'appelle BIA.");
  for(const q of ['Noo tudd ?','Naka la tudd ?','Sa tur mooy lan ?'])assert.equal(identite.reponseIdentite(q).reply,'Sama tur mooy BIA.');
