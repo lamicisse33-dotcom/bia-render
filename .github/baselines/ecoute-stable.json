@@ -2,8 +2,8 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "3d01842584fa307c0eb24ed10ab0b176549300af815968b8bd8e2a8f6fb956fe",
-    "lib/micro.ts": "aafc23254d52d4b13a1dca38dd678bab86c4e70da77231c13acf1d0133e2ef2d",
+    "app/page.tsx": "fc7a3e5999dbf5648056b70f0a263614db88fdb658c39119487d0d930ffd6ecf",
+    "lib/micro.ts": "225f42ffbe4c66c4c61c97d7ae6376506d94d4b8e3348582e67d7fae30b9f2ce",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "ad34b135d0d3589badf6161afd07df8dce927de633ea9ffc215a07dd26c47f19",
     "lib/transport-conversation.ts": "ac8d95016a165bc00abfad385cc2f5c87278775854dfbddbcfbbe4b308e607ce",
@@ -28,5 +28,13 @@
   "baseline_prerequis_20261020": {
     "commit": "31af16cacf89cb8fe2b139220b153db539575964",
     "verification": "Every original protected file was read at this exact commit and its Git blob SHA verified before hashing. This prerequisite commit changes only this manifest, acknowledging existing authorized drift before the audio change."
+  },
+  "migration_audio_400ms_20261020": {
+    "authorized": "Lamine explicitly requests observed Toftal settings: exactly 400 ms silence, 100 ms blocks, incremental playback. Fixed endpoint overrides older adaptive waiting instructions.",
+    "baseline": "31af16cacf89cb8fe2b139220b153db539575964; sauvegarde/avant-audio-400ms-20261020",
+    "scope": "Only app/page.tsx and lib/micro.ts change among protected product paths. Every other protected hash remains the exact pre-migration value. Audio streaming changes are in the existing isolated brick route and client.",
+    "verification": "106 focused behavior tests passed locally: actual capture 399/400 ms, resumed speech, 44.1/48 kHz capture, full two-minute sample coverage, ordered/voice/fingerprint checks, aborts, interrupted stream without automatic replay. Full build and Chromium check run in CI; no physical-microphone or human Wolof quality validation is claimed.",
+    "metrics": "reglages_rapidite: 400/400/400. briques_conversation: capture_pcm_ms=100, morceau_enregistrement_ms=100, pause_transcription_ms=400, livraison_audio=progressive_ndjson. Existing counters retain their previous meanings.",
+    "transport": "Progressive HTTP NDJSON reuses BIA authentication and routes. Toftal private backend and WebSocket engine are not accessible; no provider, production GPU, voice selection, learned text or pronunciation settings are changed."
   }
 }

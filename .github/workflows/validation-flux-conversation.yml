@@ -14,7 +14,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: 22, cache: npm}
       - run: npm ci
-      - run: node --test tests/ecoute-progressive-silence.test.mjs tests/reprise-progressive.test.mjs tests/briques-cycle.test.mjs tests/briques-conversation.test.mjs tests/anticipation-conversation.test.mjs tests/tour-de-parole.test.mjs tests/protection-parole.test.mjs tests/micro-cycle.test.mjs tests/focus-locuteur.test.mjs tests/vitesse-immediate.test.mjs
+      - run: node --test tests/audio-400ms.test.mjs tests/ecoute-progressive-silence.test.mjs tests/reprise-progressive.test.mjs tests/briques-cycle.test.mjs tests/briques-conversation.test.mjs tests/anticipation-conversation.test.mjs tests/tour-de-parole.test.mjs tests/protection-parole.test.mjs tests/micro-cycle.test.mjs tests/focus-locuteur.test.mjs tests/vitesse-immediate.test.mjs
       - run: node --test --test-name-pattern="actual thinking gate|successive late questions" tests/lecture-devoirs.test.mjs
       - run: |
           ./node_modules/.bin/tsc lib/flux-conversation.ts --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck --outDir /tmp/bia-stream-tests/lib
@@ -23,3 +23,17 @@ jobs:
           echo '{"type":"module"}' > /tmp/bia-stream-tests/package.json
           node /tmp/bia-stream-tests/tests/flux-conversation.mjs
       - run: npm run build
+  audio_browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - run: npm install --prefix /tmp/bia-browser --no-audit --no-fund --ignore-scripts playwright@1.56.1
+      - run: /tmp/bia-browser/node_modules/.bin/playwright install --with-deps chromium
+      - run: node tests/audio-400ms-browser.mjs
+        env:
+          PLAYWRIGHT_MODULE: /tmp/bia-browser/node_modules/playwright/index.mjs
+

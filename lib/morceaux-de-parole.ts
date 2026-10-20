@@ -73,7 +73,9 @@ const DUREE_DE_VIE = 60_000;
 /** Le même plafond que l'ancien chemin : vingt mégaoctets. */
 const OCTETS_AU_PLUS = 20 * 1024 * 1024;
 /** Au-delà, ce n'est plus une phrase, c'est une inondation. */
-const MORCEAUX_AU_PLUS = 400;
+// 100 ms pieces: retain the former 160-second envelope (including final flush)
+// so two-minute speech does not fall back after only forty seconds.
+const MORCEAUX_AU_PLUS = 1600;
 const DEPOTS_AU_PLUS = 40;
 
 function balayer() {
@@ -286,3 +288,4 @@ export function resumeDepots() {
   balayer();
   return { en_cours: depots.size };
 }
+
