@@ -1,3 +1,4 @@
+import {resumeOreilleEssai} from '@/lib/oreille-essai-etat';
 import {resumeMicro} from '@/lib/micro-etat';
 import {resumeProtectionParole} from '@/lib/protection-parole-etat';
 import {resumeReprises} from '@/lib/reprise-etat';
@@ -329,6 +330,7 @@ export async function GET(request: Request) {
        d'entre eux pour un texte vide. Voir lib/ecoute.ts. */
     oreille_soynade: resumeOreilleSoynade(),
     oreille_locale: resumeOreilleLocale(),
+    oreille_essai: resumeOreilleEssai(),
     preparation_ecoute: resumePreparationEcoute(),
     emotions: resumeEmotions(),
     /* CE QUE ÇA COÛTE, COMPTÉ ET NON DEVINÉ. Les signes réellement envoyés à

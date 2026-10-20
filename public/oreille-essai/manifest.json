@@ -1,0 +1,224 @@
+{
+  "revision": "moonshine-wolof-best-9137-20261020",
+  "engine": "moonshine",
+  "checkpoint_step": 9137,
+  "checkpoint_epoch": 4,
+  "validation_WER": 0.4114285714285714,
+  "selected_by_default": false,
+  "total_bytes": 113425934,
+  "files": {
+    "config.json": {
+      "bytes": 886,
+      "sha256": "1f2a16a8c21d861ae5c4507f279ba043c8a260ad7751e6aaa81067b90eb8526d",
+      "parts": [
+        {
+          "bytes": 886,
+          "sha256": "1f2a16a8c21d861ae5c4507f279ba043c8a260ad7751e6aaa81067b90eb8526d",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/config.json/0.bin"
+        }
+      ]
+    },
+    "generation_config.json": {
+      "bytes": 184,
+      "sha256": "5e02d86c641c4b591381eb5deeae2412a9efa4f018dc64f28d691f663d9a5a80",
+      "parts": [
+        {
+          "bytes": 184,
+          "sha256": "5e02d86c641c4b591381eb5deeae2412a9efa4f018dc64f28d691f663d9a5a80",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/generation_config.json/0.bin"
+        }
+      ]
+    },
+    "onnx/decoder_model_merged.onnx": {
+      "bytes": 78563921,
+      "sha256": "cccbead6e8041c8a20aab95d732d6cdb42103bc61ce05c8534e38a431042fdbd",
+      "parts": [
+        {
+          "bytes": 4194304,
+          "sha256": "e1f32099f4a843466e60cf8e0c5d9b80b75942ce12acd642ad87a196939c6d0e",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/0.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "df2c54d5ddb9dbca12d850f488ad2bacc90571da2768cc1f93be69c39efdf9eb",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/1.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "86fe12024e5e7417a5bbd093d5d55c5964856c169f41929fe54d1d93c4c7fb33",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/2.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "b9ab9204c329495cd6d5883bccbea4be2f8c4b688d0070e8063e5b594cd81e47",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/3.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "fdb5e00af78a93e4edaf9fc84e7ea4a42e422d0dc4c0d2a5d14d9dcb668dcad7",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/4.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "b52ed25ad6cdb12109a03520335a4c97f2e6049d3eea18dceda4d0ea7a65906c",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/5.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "ee4e6e2a326f00d56ff5a268a4796ed72e34f49311fe8fb01dc0a312f841ed5d",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/6.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "1882d680662baa98d8b949d7efb0a2bac019dad4f703e9bacf2b5ce879752115",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/7.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "f39fb7010707faf5f4603c6f41d36438a7f8350a5f4343e7b23aa8680aab85b9",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/8.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "1f80114ab8f610bff58827896cf8b2a7778c5bea08d4ccd5e9142aa50127f706",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/9.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "6013130e02f64866fbdeb396b9ca2255e19f9c206990c8c510908740bb299658",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/10.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "bb045f5350b0e554b2a3d656bfb321b97bbdbf1164fe0dfd30d3e2522b9cd8cd",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/11.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "b81b586464febe88dd12b31ce00c545675ef7ac95edd19ab8aa9a4cd7700d625",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/12.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "76f08a4d97aa467e3ca16fdd2224ae6d9075ee5679bbf6aec3c8afdf28cf7f19",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/13.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "fd8305f6c58f088fab470ef41c12d5b92dd6315fac87f0aa5f9072ab84c43953",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/14.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "61c09a4bc495eb0296259612b7ef787b53e7ff5f7518d56c13a501cf7c5e4ad4",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/15.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "de06895462120af26a1b2ae0d40726ac276ad1a282c749096d91f3b61ca63e86",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/16.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "9ab7aae48d83e7e46ae60ee621a6a6d3defb7b2c0ecae3ffa87307dbb1355e41",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/17.bin"
+        },
+        {
+          "bytes": 3066449,
+          "sha256": "9bbe864efe09fbeeb3472982510df55916c9accd69bc4d7b32bf12ef54ed6fa0",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/decoder_model_merged.onnx/18.bin"
+        }
+      ]
+    },
+    "onnx/encoder_model.onnx": {
+      "bytes": 30962847,
+      "sha256": "275bf3ec3807bdf1530aa3e05cfcf38bcf2282a9dea6339665c343c108716681",
+      "parts": [
+        {
+          "bytes": 4194304,
+          "sha256": "b6bdd02b69cb57f14ec0b1fe6508d3dd7433db96c65c1af691efd86f12eda66f",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/encoder_model.onnx/0.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "03ddc3910fc437c4e9a2942253346f69d35e882784e7fa56485ea49799d0384a",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/encoder_model.onnx/1.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "74bcfc2d2d750e22bd877a9171dff1e86fb55d352b31950e55d92202d953ed0a",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/encoder_model.onnx/2.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "3d26c3f6bc7ffd94b29f05b08cc08d2ecc7f8f69a89a2ccd587882c322c8f339",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/encoder_model.onnx/3.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "979b16531ced2ae1c2bb26b87d53576c2e762af110ddac2bc952c0e9afca2c2a",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/encoder_model.onnx/4.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "95d3ea87c3c9ee84fc42c36fd2867b86613f7f8afa34aaa0cc97d7090479c8c6",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/encoder_model.onnx/5.bin"
+        },
+        {
+          "bytes": 4194304,
+          "sha256": "133171e68f8adf717d8dc11148891080ca478099925cdc78081ee030f59d95e5",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/encoder_model.onnx/6.bin"
+        },
+        {
+          "bytes": 1602719,
+          "sha256": "66ce72b57ff6e9652c5c4570a340f60f53bd413a746256066dbba12630638b31",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/onnx/encoder_model.onnx/7.bin"
+        }
+      ]
+    },
+    "preprocessor_config.json": {
+      "bytes": 215,
+      "sha256": "99272fe8ccfab114b68b478681ea47ee3a1ce62bb788cb92dd6e4f69fb1f1da2",
+      "parts": [
+        {
+          "bytes": 215,
+          "sha256": "99272fe8ccfab114b68b478681ea47ee3a1ce62bb788cb92dd6e4f69fb1f1da2",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/preprocessor_config.json/0.bin"
+        }
+      ]
+    },
+    "special_tokens_map.json": {
+      "bytes": 277,
+      "sha256": "f4af69e80d9727610da74de2c24f1df3541a9ff65acd678f1a12b38add3a73da",
+      "parts": [
+        {
+          "bytes": 277,
+          "sha256": "f4af69e80d9727610da74de2c24f1df3541a9ff65acd678f1a12b38add3a73da",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/special_tokens_map.json/0.bin"
+        }
+      ]
+    },
+    "tokenizer.json": {
+      "bytes": 3761751,
+      "sha256": "ad3a2ceb0e84e4da57451d86fa337f8116dcff5f5d106434f8aa0b0de89718b9",
+      "parts": [
+        {
+          "bytes": 3761751,
+          "sha256": "ad3a2ceb0e84e4da57451d86fa337f8116dcff5f5d106434f8aa0b0de89718b9",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/tokenizer.json/0.bin"
+        }
+      ]
+    },
+    "tokenizer_config.json": {
+      "bytes": 135853,
+      "sha256": "ff34822405c93faca1b3feeeed3d635499b1565c4dceb01362d68d92414f2c56",
+      "parts": [
+        {
+          "bytes": 135853,
+          "sha256": "ff34822405c93faca1b3feeeed3d635499b1565c4dceb01362d68d92414f2c56",
+          "path": "modeles/oreilles-essai/moonshine-wolof-best-9137-20261020/tokenizer_config.json/0.bin"
+        }
+      ]
+    }
+  }
+}
