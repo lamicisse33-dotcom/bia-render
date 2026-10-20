@@ -17,7 +17,7 @@ jobs:
       - run: node --test tests/briques-flux-continu.test.mjs tests/audio-400ms.test.mjs tests/ecoute-progressive-silence.test.mjs tests/reprise-progressive.test.mjs tests/briques-cycle.test.mjs tests/briques-conversation.test.mjs tests/anticipation-conversation.test.mjs tests/tour-de-parole.test.mjs tests/protection-parole.test.mjs tests/micro-cycle.test.mjs tests/focus-locuteur.test.mjs tests/vitesse-immediate.test.mjs
       - run: node --test --test-name-pattern="actual thinking gate|successive late questions" tests/lecture-devoirs.test.mjs
       - run: node --test tests/continuite-voix.test.mjs tests/lecture-bilingue.test.mjs
-      - run: node --test tests/reflexion-naturelle.test.mjs tests/salutations.test.mjs tests/dialogue-devoirs.test.mjs
+      - run: node --test tests/reflexion-naturelle.test.mjs tests/salutations.test.mjs tests/dialogue-devoirs.test.mjs tests/conversation-groq.test.mjs
       - run: |
           ./node_modules/.bin/tsc lib/flux-conversation.ts --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck --outDir /tmp/bia-stream-tests/lib
           mkdir -p /tmp/bia-stream-tests/tests
