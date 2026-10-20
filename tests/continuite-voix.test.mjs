@@ -21,7 +21,7 @@ test('bounded cache expires, isolates voices and evicts least recently used audi
 });
 function route(){
  let plans=0,calls=0;const gate=delay(),count={flux:0,clips:0,cache:0,erreurs:0};
- const r=load('app/api/chatterbox-test/bia/route.ts',{'@/lib/prise-voix':load('lib/prise-voix.ts',{'node:crypto':crypto}),
+ const r=load('app/api/chatterbox-test/bia/route.ts',{'@/lib/anticipation-gpu':{gpuAnticipation:()=>assert.fail('ordinary continuous voice must not enter the opt-in brick queue')},'@/lib/prise-voix':load('lib/prise-voix.ts',{'node:crypto':crypto}),
  '@/lib/passages-khalam':{preparerPassagesKhalam:async()=>{plans++;return [{texte:'Dañu bëgg ma def',langue:'wo'},{texte:'lu ma bëggul.',langue:'wo'}];}},
  '@/lib/langue':{detecterLangue:()=> 'wo'},'next/server':{NextRequest:Request,NextResponse:{json:Response.json}},'node:crypto':crypto,
  '@/lib/codes':{verifierCode:()=>({ok:true})},'../route':{POST:async req=>{calls++;const body=await req.json();if(calls===2)await gate.promise;return Response.json({status:'COMPLETED',output:{voice:'female',audio_base64:body.input.text,generation_ms:2,duration_seconds:1}});}},

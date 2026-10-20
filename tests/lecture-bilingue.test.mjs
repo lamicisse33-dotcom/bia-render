@@ -84,7 +84,7 @@ test('lesson 21 keeps the underlined Wolof words between French borrowings', () 
 function route() {
   let parts = [{texte: 'Bul jël', langue: 'wo'}, {texte: 'suspicion', langue: 'fr'}];
   let calls = 0;const inputs=[];
-  const {POST} = load('app/api/chatterbox-test/bia/route.ts', {'@/lib/prise-voix':load('lib/prise-voix.ts',{'node:crypto':crypto}),
+  const {POST} = load('app/api/chatterbox-test/bia/route.ts', {'@/lib/anticipation-gpu':{gpuAnticipation:()=>assert.fail('ordinary bilingual reading must not enter the opt-in brick queue')},'@/lib/prise-voix':load('lib/prise-voix.ts',{'node:crypto':crypto}),
     '@/lib/cache-voix-dialogue':load('lib/cache-voix-dialogue.ts'),'@/lib/continuite-voix-etat':{continuiteVoix:{}},
     '@/lib/passages-khalam': {preparerPassagesKhalam: async () => parts},
     '@/lib/langue': {detecterLangue: () => 'wo'},
