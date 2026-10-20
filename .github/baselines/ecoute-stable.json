@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "5f0a452433c3e33a5e3175033a8ff6469fe42ca15c929b4d0bc371854e989583",
+    "app/page.tsx": "7fc76f9587b27c251c417873fd9d72461a1602a9052e026770bfbfab8b944146",
     "lib/micro.ts": "225f42ffbe4c66c4c61c97d7ae6376506d94d4b8e3348582e67d7fae30b9f2ce",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "ad34b135d0d3589badf6161afd07df8dce927de633ea9ffc215a07dd26c47f19",
@@ -67,5 +67,13 @@
     "behavior": "No automatic verbal acknowledgement in askBia. The exact name answer may use its current warmed recording on any turn, both portraits, without model or synthesis. Greeting remains opening-only. Existing natural MMM files and interruption guards retained.",
     "recordings": "Regenerate through the existing Khalam female synthesis route; strict expected checkpoint checks retained. Each successful regeneration writes an immutable correction revision and unique audio URL, with engine/checkpoint provenance. Old takes remain archived; current corrected texts are preserved.",
     "verification": "Behavioral tests exercise actual playback callbacks for identity/greeting and name matching. Actual generation, download hashes, live identity/greeting diagnostics and Chromium decoding are required before reporting completion. Human voice similarity remains for owner listening."
+  },
+  "migration_accuse_demande_20261020": {
+    "authorized": "Lamine clarifies: say D’accord, je vais voir ça for a concrete question or search, not ordinary discussion, greetings or name questions. Keep MMM separate; he will supply two new recordings.",
+    "hash_before": "5f0a452433c3e33a5e3175033a8ff6469fe42ca15c929b4d0bc371854e989583",
+    "hash_after": "7fc76f9587b27c251c417873fd9d72461a1602a9052e026770bfbfab8b944146",
+    "scope": "Only app/page.tsx changes among protected paths. Existing microphone, continuous bricks, actual speech gate and voice selection unchanged.",
+    "behavior": "One exact warmed reaction-voir recording generated through Khalam Voice, intent-gated after transcription, only while actual work remains pending. The timer is cancelled when the reply arrives or the turn changes. Name and opening greeting continue through their direct warmed replies. MMM files unchanged until the new owner takes arrive.",
+    "verification": "Classifier cases for requests, search, personal discussion, greetings and name. Actual scheduling cancellation and player tests retained. Regenerated audio is downloaded and verified before preloading. No human listening claim."
   }
 }

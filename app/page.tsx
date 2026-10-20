@@ -11,6 +11,8 @@ import {useAudioMemoire} from "@/lib/use-audio-memoire";
 import {sonPourTexte,type SonCourant} from "@/lib/sons-courants-core";
 import {salutationLocale,lotSalutationsCourant} from '@/lib/salutation-locale';
 import {identiteLocale} from "@/lib/identite-locale";
+import {accuseDemandePertinent} from "@/lib/accuse-demande";
+import {programmerReactionCourante} from "@/lib/reaction-courante";
 import {piperLocaleDisponible} from "@/lib/voix-piper-locale";
 
 import { detecterLangue } from "@/lib/langue";
@@ -3369,8 +3371,20 @@ export default function Home() {
 
     }
 
-    // No spoken acknowledgement is inserted before the actual answer.
-    const annulerReaction=()=>{};
+    // A concrete question/search may acknowledge the work once. Ordinary
+    // discussion, greetings and name questions stay direct and never use it.
+    const reaction=codeRef.current&&essaiChatterboxActif()&&voixChatterboxBia()==="female"&&!apprend.current&&!chantierMalDit.current&&!correctionDevoirRef.current&&accuseDemandePertinent(clean)
+      ?sonsCourantsRef.current.find(s=>s.cle==='reaction-voir'&&s.langue===langueRef.current&&s.moteur==='khalam-voice'&&cacheSons.current.has(s.adresse)):undefined;
+    const annulerReaction=reaction?programmerReactionCourante({
+      actuel:()=>estLeTour(monTour)&&busyRef.current&&!carteOuverteRef.current,
+      arreter:()=>{if(estLeTour(monTour))couperSon();},
+      jouer:async actif=>{
+        const octets=cacheSons.current.get(reaction.adresse);if(!octets||!actif())return;
+        const debut=performance.now();
+        await jouerEtAnimer(octets,false,{actuel:actif,exact:true,commence:()=>{void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"sons_courants",usage:"reaction",verification:true,ms:performance.now()-debut})}).catch(()=>{});}});
+        if(actif()){setMode("thinking");setFace("pensive");}
+      },
+    }):()=>{};
 
     const requeteChat = new AbortController();
     fluxVoixRef.current.add(requeteChat);
