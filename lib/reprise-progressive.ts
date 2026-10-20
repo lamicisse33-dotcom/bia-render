@@ -26,7 +26,7 @@ export function creerRepriseProgressive(envoyer:(f:FormData)=>Promise<Response>,
    if(!commence&&!parle){buffer=buffer.slice(-16000);return;}
    if(parle){commence=true;voix=true;silence=0;}else silence+=pcm.length;
    if(echantillons+buffer.length>16000*125){erreur=Error('Reprise trop longue');return;}
-   if(voix&&silence>=8000&&buffer.length>=16000*1.25)envoyerBuffer();
+   if(voix&&silence>=6400&&buffer.length>=16000*.7)envoyerBuffer();
    else if(voix&&buffer.length>=16000*4){
     let fin=16000*3.75,best=Infinity;
     for(let i=16000*3;i<16000*3.75;i+=320){let energie=0;for(let j=i;j<i+320;j++)energie+=buffer[j]*buffer[j];if(energie<best){best=energie;fin=i+160;}}
@@ -69,3 +69,4 @@ export async function brancherReprise(o:{ctx:AudioContext;flux:MediaStream;code:
   };
  }catch{annuler();return null;}
 }
+

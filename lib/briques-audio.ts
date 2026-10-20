@@ -1,6 +1,6 @@
 /** Collect one immutable complete brick from the existing continuous voice
  * route. One pronunciation snapshot serves every part; EOS is mandatory. */
-export async function lireAudioBrique(response:Response,voice:'female'|'male',signal:AbortSignal){
+export async function lireAudioBrique(response:Response,voice:'female'|'male',signal:AbortSignal,morceau?:(d:{audio:string;partie:number;parties:number;empreinte:string;voice:string})=>void){
  if(!response.ok||!response.body)throw Error('Audio incomplet');
  const reader=response.body.getReader(),decoder=new TextDecoder(),clips:ArrayBuffer[]=[];
  let buffer='',total=0,empreinte='',fin=false,preparation_ms=0,generation_ms=0,fabrication_ms=0,cache_parties=0;
@@ -14,6 +14,7 @@ export async function lireAudioBrique(response:Response,voice:'female'|'male',si
   if(total!==d.parties||empreinte!==d.empreinte||clips.length>=total)throw Error('Audio incomplet');
   if(d.audio_en_cache)cache_parties++;else generation_ms+=Number(d.generation_ms)||0;fabrication_ms+=Number(d.fabrication_ms)||0;
   clips.push(Uint8Array.from(Buffer.from(d.audio,'base64')).buffer);
+  morceau?.({audio:d.audio,partie:d.partie,parties:d.parties,empreinte:d.empreinte,voice:d.voice});
  };
  try{
   signal.throwIfAborted();
@@ -22,3 +23,4 @@ export async function lireAudioBrique(response:Response,voice:'female'|'male',si
   return {clips,parties:total,preparation_ms,generation_ms,fabrication_ms,cache_parties};
  }finally{signal.removeEventListener('abort',annuler);void reader.cancel().catch(()=>{});}
 }
+

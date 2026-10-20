@@ -15,7 +15,7 @@ export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,i
  if(parle){paroleDansBuffer=true;finParole=buffer.length;}
  // Use the endpointing wait for ASR/LLM work, without granting playback.
  // Keep all samples; a new segment may contain a resumed sentence.
- if(paroleDansBuffer&&silence>=8000&&buffer.length>=16000*1.25){const part=buffer;buffer=new Float32Array(0);silence=0;paroleDansBuffer=false;finParole=0;segment(part);return;}
+ if(paroleDansBuffer&&silence>=6400&&buffer.length>=16000*.7){const part=buffer;buffer=new Float32Array(0);silence=0;paroleDansBuffer=false;finParole=0;segment(part);return;}
  // Give the first completed thought to the producer while speech continues.
  // Keep every sample and a little look-ahead around the quietest cut.
  if(paroleDansBuffer&&buffer.length>=16000*4){let end=16000*3.75,best=Infinity;for(let i=16000*3;i<16000*3.75;i+=320){let e=0;for(let j=i;j<i+320;j++)e+=buffer[j]*buffer[j];if(e<best){best=e;end=i+160;}}const part=buffer.slice(0,end);buffer=buffer.slice(end);finParole=Math.max(0,finParole-end);paroleDansBuffer=finParole>0;segment(part);}
@@ -27,3 +27,4 @@ export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,i
  async abandonner(){clos=true;buffer=new Float32Array(0);await chaine;},
  };
 }
+

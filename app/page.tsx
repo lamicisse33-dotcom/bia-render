@@ -1039,7 +1039,7 @@ export default function Home() {
      continuation ou nouvelle phrase, voir lib/sa-propre-voix.ts — puis
      ouvre. Nulle quand personne ne parle. RÈGLE 4 : la valeur de départ est
      « pas de porte », donc elle parle, comme avant. */
-  const dernierSignalParoleRef = useRef({quand:0,delai:1500});
+  const dernierSignalParoleRef = useRef({quand:0,delai:silenceQuiSuffit(0)});
   const porteRef = useRef<{ attendre: Promise<void>; ouvrir: () => void; depuis: number } | null>(null);
   const filRef = useRef<HTMLDivElement | null>(null);
   const champRef = useRef<HTMLInputElement | null>(null);
@@ -4902,7 +4902,7 @@ export default function Home() {
              l'impression qu'elle suit. */
           setEntendParler(false);
           const assez = silenceQuiSuffit(dernierSon - debutParole, coupesTropTotRef.current);
-          if (Date.now() - dernierSon > assez) {
+          if (Date.now() - dernierSon >= assez) {
             /* LA BORNE QUE PERSONNE NE COMPTAIT. `dernierSon` est l'instant
                où il a vraiment fini de parler ; le micro, lui, ne se ferme
                qu'une seconde et demie plus tard. Cette attente-là est à nous,
@@ -4951,7 +4951,7 @@ export default function Home() {
 
       /* ── CHAQUE MORCEAU PART DÈS QU'IL EXISTE ────────────────────────────
 
-         L'enregistreur rend un morceau toutes les 400 ms. On le garde — le
+         L'enregistreur rend un morceau toutes les 100 ms. On le garde — le
          repli en a besoin, et « mémorise » aussi — ET on le monte tout de
          suite. Quand Lamine se tait, il ne reste que le dernier à monter.
 
@@ -5278,19 +5278,32 @@ export default function Home() {
             taireBriques();
             const exact=apparenceDesBriques==='rara'?null:await prisesValidees.api.lire(b.texte,b.langue,b.voice).catch(()=>null);
             if(!actifBriques())return false;
-            let debutPriseBrique=0;
-            const ms=await jouerEtAnimer(exact||octetsDeBase64(b.audio),false,{actuel:actifBriques,exact:!!exact,commence:()=>{
+            let debutPriseBrique=0,premierePortion=true;
+            const jouerPortion=(octets:ArrayBuffer,fidele=false)=>jouerEtAnimer(octets,false,{actuel:actifBriques,exact:fidele,commence:()=>{
+              if(!premierePortion)return;premierePortion=false;
               debutPriseBrique=contexte().currentTime;
               ditesBriques.push(b.texte);
               mesureBriques('debut_brique',Date.now()-debutBriques,{numero:b.numero});
               if(premierBrique){premierBrique=false;mesureBriques('premier_son',Date.now()-finParoleBriques,{micro_ms:Date.now()-debutBriques});}
               else if(finSonBrique)mesureBriques('blanc',Date.now()-finSonBrique);
             },termine:audio=>{
-              if(apparenceDesBriques==='rara'||!estMaitreRef.current||priseBriquesTropLongue)return;
+              // Partial streamed audio is never saved as a validated full take.
+              if(b.flux||apparenceDesBriques==='rara'||!estMaitreRef.current||priseBriquesTropLongue)return;
               taillePriseBriques+=audio.length*audio.numberOfChannels*4;
               if(taillePriseBriques>8_000_000||priseBriques.length&&debutPriseBrique-priseBriques[0].debut+audio.duration>60){priseBriquesTropLongue=true;priseBriques.length=0;return;}
               priseBriques.push({debut:debutPriseBrique,sampleRate:audio.sampleRate,canaux:Array.from({length:audio.numberOfChannels},(_,c)=>audio.getChannelData(c).slice())});
             }});
+            let ms=0;
+            if(b.flux&&exact){
+              ms=await jouerPortion(exact,true);
+              for await(const _audio of b.flux){if(!actifBriques())return false;}
+            }else if(b.flux){
+              for await(const audio of b.flux){
+                if(!actifBriques())return false;
+                const duree=await jouerPortion(octetsDeBase64(audio),true);
+                if(duree<=0)throw Error('Audio interrompu');ms+=duree;
+              }
+            }else ms=await jouerPortion(exact||octetsDeBase64(b.audio),!!exact);
             finSonBrique=Date.now();
             mesureBriques('fin_brique',Date.now()-debutBriques,{numero:b.numero,actuel:Number(actifBriques())});
             if(actifBriques()){setMode('thinking');setFace('pensive');}
@@ -5547,17 +5560,15 @@ export default function Home() {
          coupure du micro) se posent entre les deux : remettre à zéro plus
          tard les effacerait. */
       bornesRef.current = tourVide("parole");
-      /* ── QUATRE CENTS MILLISECONDES, ET POURQUOI CE CHIFFRE ──────────────
+      /* ── CENT MILLISECONDES, COMME LE PROFIL VOCAL OBSERVÉ ─────────────
 
          `start()` sans argument ne rend qu'un seul morceau, à la fin — c'est
          ce qui nous coûtait la seconde et demie. Avec un découpage, on en
-         reçoit un toutes les 400 ms.
+         reçoit un toutes les 100 ms.
 
-         Plus court ferait plus de requêtes pour rien : sur une phrase de
-         quatre secondes, 200 ms en feraient vingt au lieu de dix, sur une
-         connexion mobile de Dakar. Plus long laisserait un plus gros reste à
-         monter au moment précis où il se tait — et c'est ce reste, et lui
-         seul, qu'il attend. */
+         Le 20 octobre, Lamine choisit les blocs de 100 ms observés chez
+         Toftal. Le serveur conserve une enveloppe de 160 secondes et le
+         plafond de 20 Mo ; le repli complet reste disponible. */
       const exclusionCapture=exclusionAnticipation({persona:personaRef.current,voixCompatible:essaiChatterboxActif(),desactivee:localStorage.getItem('bia-anticipation')==='non',apprentissage:apprend.current,correctionDevoir:!!correctionDevoirRef.current,correctionListe:chantierMalDit.current,prenom:attendLeNomRef.current,reprise:!!motsRattrapesRef.current});
       if(!exclusionCapture){
         progressive=await brancherAnticipation({ctx:ctxMicro,flux,code:codeRef.current,tour:tourDeParole,history:fenetreDuFil(historyRef.current),resume:resumeRef.current,voice:voixChatterboxBia(),persona:personaRef.current,langue:()=>langueDuFil.current,parle:()=>aParle&&Date.now()-dernierSon<240,actuel:()=>estCetEnregistrement(idEnr)});
@@ -5565,7 +5576,7 @@ export default function Home() {
       if(!estCetEnregistrement(idEnr)){await progressive?.annuler();return;}
       const etapeCapture=progressive?'branchee':['voix_incompatible','desactivee'].includes(exclusionCapture)?exclusionCapture:exclusionCapture?'contexte_exclu':'indisponible';
       void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'capture_progressive',etape:etapeCapture,motif:exclusionCapture,apparence:personaRef.current}),keepalive:true}).catch(()=>{});
-      enregistreur.start(400);aDemarre=true;
+      enregistreur.start(100);aDemarre=true;
       setMode("listening");
       setFace("ecoute");
     } catch {
@@ -6151,7 +6162,7 @@ export default function Home() {
             method: "POST", headers: { "x-bia-code": codeRef.current }, body: f, signal: AbortSignal.timeout(8000),
           }).catch(() => { /* un morceau perdu ne coûte qu'une reprise de plus */ }));
         };
-        guetteur.start(400);
+        guetteur.start(100);
       } catch { guetteur = null; }
     }
 
@@ -6192,7 +6203,7 @@ export default function Home() {
         void repriseProgressive.then(c=>c?.annuler());repriseProgressive=null;
       }
       /* On réclame le morceau en cours — sinon il dort dans le navigateur
-         jusqu'au prochain tour de 400 ms, et c'est justement celui-là qui
+         jusqu'au prochain tour de 100 ms, et c'est justement celui-là qui
          porte ses mots. Puis on laisse les envois se poser. */
       try { if (guetteur.state === "recording") guetteur.requestData(); } catch { }
       await new Promise((r) => setTimeout(r, FLUX_DU_GUETTEUR));
@@ -9174,5 +9185,6 @@ function PapierRepertoire({ code }: { code: string | null }) {
     </p>
   );
 }
+
 
 

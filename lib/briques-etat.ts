@@ -1,7 +1,7 @@
 const g=globalThis as typeof globalThis&{biaBriquesEtat?:any};
 const etat=g.biaBriquesEtat??={sessions:0,preparees:0,finalisees:0,erreurs:0,lectures:0,dernier_premier_son_ms:null,dernier_depuis_micro_ms:null,dernier_blanc_ms:null,blanc_max_ms:0,reflexions:0,dernier_echec:null};
 export const etatBriques=etat;
-export const resumeBriques=()=>({mode:'briques_verrouillees',revision:'audio-une-preparation-v6-texte-avance',premier_segment_apres_ms:4000,pause_transcription_ms:500,...etat,son_reflexion:'prises_naturelles_20261019',reflexion_seuil_initial_ms:800,reflexion_seuil_suite_ms:1400});
+export const resumeBriques=()=>({mode:'briques_texte_verrouillees_audio_progressif',revision:'audio-400ms-capture-100ms-v1',premier_segment_apres_ms:4000,pause_transcription_ms:400,capture_pcm_ms:100,morceau_enregistrement_ms:100,livraison_audio:'progressive_ndjson',...etat,son_reflexion:'prises_naturelles_20261019',reflexion_seuil_initial_ms:800,reflexion_seuil_suite_ms:1400});
 export function noterBriques(d:Record<string,unknown>){
   const ms=Number(d.ms);if(!Number.isFinite(ms)||ms<0||ms>180000)return;
   if(typeof d.tour==='string'&&/^[a-zA-Z0-9_-]{8,80}$/.test(d.tour)&&['depart','lecture_demandee','debut_brique','fin_brique','transcrit','fin_preparation','fin_chaine','annulation'].includes(String(d.etape))){
@@ -28,3 +28,4 @@ export function noterBriques(d:Record<string,unknown>){
     if(Number.isFinite(duree)&&duree>=1200&&duree<=2500)etat.derniere_reflexion={phase:d.phase==='initiale'?'initiale':'suite',attente_ms:ms,duree_ms:Math.round(duree),quand:new Date().toISOString()};
   }
 }
+

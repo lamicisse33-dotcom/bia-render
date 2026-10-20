@@ -65,7 +65,7 @@ function anticiperSuite(s:Session,texte:string,courante:TexteBrique,signal:Abort
 }
 
 /** A brick is committed only when both the complete text and complete audio exist. */
-export async function preparerBrique(body:any,code:string,maitre:boolean,signal:AbortSignal,diagnostic?:'classique'|'chauffe'){
+export async function preparerBrique(body:any,code:string,maitre:boolean,signal:AbortSignal,diagnostic?:'classique'|'chauffe',flux?:{debut:(b:Omit<BriqueAudio,'audio'>)=>void;morceau:(d:{audio:string;partie:number;parties:number;empreinte:string;voice:string})=>void}){
   const diagnosticAncien=diagnostic==='classique';
   nettoyer();const owner=empreinteAnticipation(code),texte=normaliserAnticipation(body.texte),final=body.final===true;
   let s:Session|undefined;
@@ -119,20 +119,25 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
     // Internal startup comparison only: do not synthesize or charge a spoken
     // turn for the old prompt. The public route cannot enable this argument.
     if(diagnostic){s.fermee=true;return {...resultat(s),mesure};}
+    const termine=final&&traite===texte;
+    // A streamed final answer must reserve its single turn before any audio
+    // leaves the server, rather than checking quota after it was already heard.
+    let quotaReserve=false;
+    if(flux&&termine){if(!verifierCode(code,true).ok){s.fermee=true;return resultat(s,undefined,true);}quotaReserve=true;}
     etape='audio';const debutAudio=Date.now();const langue=detecterLangue(reply,detecterLangue(texte,'wo')) as 'wo'|'fr';
     if(final&&traite!==texte&&s.appels<8)anticiperSuite(s,texte,courante,signal);
     const audioComplet=await gpuAnticipation(async()=>{
       signal.throwIfAborted();
       const response=await synthetiser(new NextRequest('https://app.khalam.app/api/chatterbox-test/bia',{method:'POST',headers:{'content-type':'application/json','x-bia-code':code},body:JSON.stringify({texte:reply,langue,voice:s!.voice,lecture_fidele:true,continu:true}),signal}));
-      return lireAudioBrique(response,s!.voice,signal);
+      if(response.ok)flux?.debut({numero:s!.briques.length,texte:reply,langue,voice:s!.voice});
+      return lireAudioBrique(response,s!.voice,signal,flux?.morceau);
     },final?1:0);
     const {clips,parties}=audioComplet;
     mesure.audio_ms=Date.now()-debutAudio;mesure.parties=parties;
     mesure.preparation_voix_ms=audioComplet.preparation_ms;mesure.generation_voix_ms=audioComplet.generation_ms;mesure.fabrication_voix_ms=audioComplet.fabrication_ms;mesure.cache_parties=audioComplet.cache_parties;
     signal.throwIfAborted();if(s.fermee)throw Error('Session annulée');
     const audio=Buffer.from(assemblerSonsCourants(clips,30).wav).toString('base64');
-    const termine=final&&traite===texte;
-    if(termine&&!verifierCode(code,true).ok){s.fermee=true;return resultat(s,undefined,true);}
+    if(termine&&!quotaReserve&&!verifierCode(code,true).ok){s.fermee=true;return resultat(s,undefined,true);}
     const brique=Object.freeze({numero:s.briques.length,texte:reply,audio,langue,voice:s.voice});
     s.briques.push(brique);s.traite=traite;etatBriques.preparees++;
     if(termine){oublierSuite(s);s.fermee=true;etatBriques.finalisees++;}
@@ -140,3 +145,4 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
   } catch(e){oublierSuite(s);etatBriques.erreurs++;const message=e instanceof Error?e.message:'';etatBriques.dernier_echec={etape,annule:signal.aborted,motif:['Audio incomplet','Brique invalide','JSON incomplet','Modèle indisponible','Session annulée'].includes(message)?message:'autre',ms:Date.now()-debutPreparation,quand:new Date().toISOString()};if(signal.aborted){s.fermee=true;if(!s.briques.length)sessions.delete(s.id);}throw e;}
   finally{mesure.total_ms=Date.now()-debutPreparation;etatBriques.fabrications??=[];etatBriques.fabrications=[...etatBriques.fabrications.slice(-19),{...mesure,final,quand:new Date().toISOString()}];s.occupe=false;}
 }
+

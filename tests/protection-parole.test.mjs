@@ -22,13 +22,13 @@ function environment(){
  env.autoriserLaVoix=makeGate(env);
  return {env,ctx,events,now:v=>now=v,speech:v=>speech=v,plays:()=>plays};
 }
-test('an open recorder holds ready audio beyond 30 seconds; a short breath cannot release it',{timeout:2000},async()=>{
+test('an open recorder still holds audio; after closure renewed speech restarts the full 400 ms guard',{timeout:2000},async()=>{
  const x=environment();x.env.enregistreurRef.current={state:'recording'};let finished=false;
  const pending=x.env.autoriserLaVoix(()=>true).then(v=>{finished=true;return v;});
  x.now(55000);await sleep(80);assert.equal(finished,false);
  x.env.enregistreurRef.current=null;x.speech(true);await sleep(80);assert.equal(finished,false);
- x.speech(false);x.now(55600);await sleep(80);assert.equal(finished,false);
- x.now(57000);assert.equal(await pending,true);assert.equal(x.events.at(-1).etape,'retenue');
+ x.speech(false);x.now(55399);await sleep(80);assert.equal(finished,false);
+ x.now(55400);assert.equal(await pending,true);assert.equal(x.events.at(-1).etape,'retenue');
 });
 test('disappearing React gate cannot release audio while speech continues',{timeout:2000},async()=>{
  const x=environment(),gate=deferred();x.env.porteRef.current={attendre:gate.promise};let finished=false;
@@ -53,3 +53,4 @@ test('actual low-level playback drops a decoded clip when its turn was cancelled
  await Promise.resolve();x.env.numeroDuTourRef.current++;decode.resolve({duration:.01});
  assert.equal(await pending,0);assert.equal(x.plays(),0);
 });
+
