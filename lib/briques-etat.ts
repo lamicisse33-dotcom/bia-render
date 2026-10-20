@@ -4,6 +4,10 @@ export const etatBriques=etat;
 export const resumeBriques=()=>({mode:'briques_texte_verrouillees_audio_progressif',revision:'stream-continu-priorite-ecoute-v1',premier_segment_apres_ms:4000,pause_transcription_ms:400,capture_pcm_ms:100,morceau_enregistrement_ms:100,livraison_audio:'progressive_ndjson',anticipation_texte:'pendant_parole_et_fin',ordonnancement_audio:'par_morceau_ecoute_prioritaire',...etat,son_reflexion:'prises_naturelles_20261019',reflexion_seuil_initial_ms:800,reflexion_seuil_suite_ms:1400});
 export function noterBriques(d:Record<string,unknown>){
   const ms=Number(d.ms);if(!Number.isFinite(ms)||ms<0||ms>180000)return;
+  if(d.etape==='reflexion_prechargee'){
+    const charges=Number(d.charges),echecs=Number(d.echecs);
+    if(Number.isInteger(charges)&&charges>=0&&charges<=2&&Number.isInteger(echecs)&&echecs>=0&&echecs<=2)etat.reflexion_prechargee={charges,echecs,quand:new Date().toISOString()};
+  }
   if(typeof d.tour==='string'&&/^[a-zA-Z0-9_-]{8,80}$/.test(d.tour)&&['depart','lecture_demandee','debut_brique','fin_brique','transcrit','fin_preparation','fin_chaine','annulation'].includes(String(d.etape))){
     const details:Record<string,number>={};
     for(const cle of ['numero','nombre','pretes','en_cours','actuel','repli','tour_actuel','capture_actuelle']){

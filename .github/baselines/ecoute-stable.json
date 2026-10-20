@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "fc7a3e5999dbf5648056b70f0a263614db88fdb658c39119487d0d930ffd6ecf",
+    "app/page.tsx": "647e21e4d01b252f004596091bd79334a36e028e2467090ef94f37b3f2fbcc49",
     "lib/micro.ts": "225f42ffbe4c66c4c61c97d7ae6376506d94d4b8e3348582e67d7fae30b9f2ce",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "ad34b135d0d3589badf6161afd07df8dce927de633ea9ffc215a07dd26c47f19",
@@ -46,5 +46,16 @@
     "changes": "Remove the outer whole-brick queue lock. ASR priority 2 can run between voice clips, without concurrent scheduled GPU work. Drop cancelled queued work. Prepare one next text during current synthesis in both speaking and final phases; reuse only matching transcript, processed prefix, brick index and phase. Never synthesize a stale look-ahead.",
     "measurements": "Add file_gpu wait/execution counters; retain all existing counters. Existing authenticated bounded synthetic brick diagnostic now measures first server clip and actual interleaved ASR on a fixed public WAV, with diagnostic corpus writes disabled. Server samples are not microphone/browser onset or human Wolof-quality proof.",
     "verification": "111 focused behavior tests and two actual watcher callback tests passed locally before publication, including actual continuous route ASR interleaving, no concurrent compute, clip order/fingerprint/voice/EOS, queued abort, during-speech text lookahead and final-phase invalidation. Full build and Chromium CI required. Real browser latency after publication remains to be read."
+  },
+  "migration_sons_ouverture_20261020": {
+    "authorized": "Lamine explicitly asks to use the natural mmm recordings he supplied and instant recorded greetings only at the first conversation exchange. The appearance Rara must not disable these selected-female-voice recordings.",
+    "baseline": "35b00c192aba93d3df154f02cec53beb4cda14a5; owner-validated restoration f9bf26e9963353cca8a0db8fc1f49468b0956e70 retained.",
+    "scope": "Only app/page.tsx changes among protected files. No microphone thresholds, ASR, GPU/model/voice selection, TTS synthesis route, lessons or pronunciation edits. Existing continuous immutable-brick streaming is preserved.",
+    "hash_before": "fc7a3e5999dbf5648056b70f0a263614db88fdb658c39119487d0d930ffd6ecf",
+    "hash_after": "647e21e4d01b252f004596091bd79334a36e028e2467090ef94f37b3f2fbcc49",
+    "mmm": "Exact em.wav cuts already committed: 1930 and 1960 ms, original published SHA256 verified. Warm both files after code entry and permit them for Rara with the selected female voice. Retain 800 ms real-wait threshold, duration bounds, speech/cancellation gates and immediate stop before the ready answer. Other voices/Piper remain excluded.",
+    "greetings": "One first-exchange token per page session/profile, reset for a new conversation; mic pauses do not reset it. Pure greetings use the current-catalogue-matched warmed exact clip before any private-take lookup or synthesis, including Rara. Server fallback applies the same explicit opening token, with history/resume inference for old clients. A greeting plus a real request keeps normal conversation. Pure greeting chains do not start paid brick generation.",
+    "preload": "Six unchanged opening recordings in salutations-ouverture-v1.json, about 126 KB instead of the existing 632 KB batch. Reuse is conditional on matching the live catalogue text/address/version; updated owner edits cannot be restored from stale shipped audio.",
+    "measurement": "Existing counters preserved. Add reflection preload counts and opening greeting count. Chromium exercises actual playback and mmm callbacks using the original MP3s, with no physical microphone or human-listening claim. Read live assets, catalogue and authenticated greeting diagnostic after deployment before reporting publication."
   }
 }

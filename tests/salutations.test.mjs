@@ -16,10 +16,11 @@ test('acknowledgements need an explicit action, never social speech, distress or
  for(const q of ['','Bonjour','Bonsoir','Nanga def','Merci','Au revoir','Je suis triste','Mon père est mort','Non','D’accord','Combien coûte un sac de riz ?','Pourquoi tu répètes ?'])assert.equal(salut.accusePertinent(q),false,q);
  for(const q of ['Cherche une pharmacie','Vérifie cette information','Lis ce document','Calcule 12 fois 6'])assert.equal(salut.accusePertinent(q),true,q);
 });
-test('repeated greetings keep the exact corrected phrase and its matching recording',async()=>{
+test('the opening keeps the exact corrected phrase; later turns cannot replay the automatic greeting',async()=>{
  let reads=0;const audio={cle:'salut',langue:'fr',texte:'Bonjour. Comment vas-tu ?',adresse:'https://audio.test/bonjour.mp3'};
  const api=load('lib/reponse-salutation.ts',{'./salutations-dialogue':salut,'./repertoire':{langueDe:()=> 'fr'},'./sons-courants':{lireCatalogueCourant:async()=>{reads++;return [{...audio,revision:2,audio}];}}});
- for(let i=0;i<3;i++){const r=await api.reponseSalutation('Bonjour');assert.equal(r.reply,audio.texte);assert.deepEqual(r.son_courant,audio);assert.equal(r.salutation,true);}
+ const r=await api.reponseSalutation('Bonjour',true);assert.equal(r.reply,audio.texte);assert.deepEqual(r.son_courant,audio);assert.equal(r.salutation,true);
+ for(let i=0;i<3;i++)assert.equal(await api.reponseSalutation('Bonjour',false),null);
  assert.equal(reads,1);assert.equal(await api.reponseSalutation('Bonjour, ma copine ne répond plus'),null);
 });
 test('audio from an older correction is never attached to a newer greeting',async()=>{
@@ -30,14 +31,16 @@ const courants=load('lib/sons-courants-core.ts',{'./repertoire-textes':textes,'.
 const local=load('lib/salutation-locale.ts',{'./salutations-dialogue':salut,'./langue':load('lib/langue.ts'),'./sons-courants-core':courants});
 test('local greeting uses current corrected recording in either language, never a filler',()=>{
  const sons=courants.PHRASES_COURANTES.map(s=>({...s,version:courants.VERSION_SONS_COURANTS,adresse:'/audio/'+s.cle+'/'+s.langue,octets:2000,secondes:2}));
- const options={apprend:false,correction:false,persona:'bia'};
+ const options={apprend:false,correction:false,persona:'bia',ouverture:true};
  for(const [q,langue] of [['Bonjour','fr'],['Coucou','fr'],['Ça va ?','fr'],['Bonsoir','fr'],['Salut, comment vas-tu ?','fr'],['Nanga def ?','wo'],['Naka nga def ?','wo'],['Nangudeef','wo']]){
   const r=local.salutationLocale(q,sons,options);assert(r,q);assert.equal(r.langue,langue,q);assert.equal(r.reply,r.son_courant.texte);assert.equal(r.son_courant.usage,'salutation');
  }
  for(const q of ['Bonjour, je suis triste','Nanga def, je veux un conseil','D’accord'])assert.equal(local.salutationLocale(q,sons,options),null);
  assert.equal(local.salutationLocale('Bonjour',sons,{...options,apprend:true}),null);
  assert.equal(local.salutationLocale('Bonjour',sons,{...options,correction:true}),null);
- assert.equal(local.salutationLocale('Bonjour',sons,{...options,persona:'rara'}),null);
+ assert(local.salutationLocale('Bonjour',sons,{...options,persona:'rara'}));
+ assert.equal(local.salutationLocale('Bonjour',sons,{...options,persona:'rara',ouverture:false}),null);
+ assert.equal(local.salutationLocale('Bonjour',sons,{apprend:false,correction:false,persona:'bia'}),null);
  assert.equal(local.salutationLocale('Bonjour',sons.map(s=>({...s,version:'ancien'})),options),null);
 });
 test('the shipped audio batch cannot restore an old edited greeting',()=>{
