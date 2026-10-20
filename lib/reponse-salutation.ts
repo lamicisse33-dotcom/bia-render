@@ -22,8 +22,9 @@ export async function reponseSalutation(question:string,ouverture=true){
  etat.tours++;etat.derniere_cle=e.cle;etat.dernier_ms=Date.now()-debut;
  return {reply,langue,emotion:e.emotion||'douce',salutation:true,salutation_ouverture:true,cle_salutation:e.cle,source:'salutation mémorisée',...(audio?{son_courant:audio}:{})};
 }
-let diagnostic:Promise<unknown>|undefined;
-export function verifierSalutations(){return diagnostic??=(async()=>{
+let diagnostic:ReturnType<typeof executerDiagnostic>|undefined;
+export function verifierSalutations(){return diagnostic??=executerDiagnostic();}
+async function executerDiagnostic(){
  const {POST}=await import('../app/api/chat/route');
  const {NextRequest}=await import('next/server');
  const questions=['Bonjour','Bonsoir','Nanga def ?','Bia, bonjour !','Salut, comment vas-tu ?','Naka nga def ?','Bonjour'];
@@ -36,4 +37,4 @@ export function verifierSalutations(){return diagnostic??=(async()=>{
  }
  const bilan={date:new Date().toISOString(),total:resultats.length,salutations:resultats.filter(r=>r.salutation).length,reactions_inappropriees:resultats.filter(r=>r.reaction).length,audios_disponibles:resultats.filter(r=>r.audio_disponible).length,lecture_navigateur_mesuree:false,resultats};
  etat.diagnostic=bilan;return bilan;
-})();}
+}
