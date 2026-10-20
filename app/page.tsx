@@ -7947,7 +7947,6 @@ export default function Home() {
   return (
     <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
       <a href="/?changer-code=1" aria-label="Changer de code d’accès" style={{position:'absolute',top:'max(12px, env(safe-area-inset-top))',left:12,zIndex:8,color:'#d4af37',background:'#101014dd',borderRadius:18,padding:'10px 14px',textDecoration:'none'}}>Code d’accès</a>
-      <a href="/essai-oreilles" aria-label="Essayer une autre oreille sans modifier BIA" style={{position:'absolute',top:'calc(max(12px, env(safe-area-inset-top)) + 48px)',left:12,zIndex:8,color:'#d4af37',background:'#101014dd',borderRadius:18,padding:'10px 14px',textDecoration:'none'}}>Oreille d’essai</a>
       <div className={eclipse ? "portrait eclipse" : rallume ? "portrait rallume" : "portrait"}
         aria-hidden="true" data-tenue={tenue} data-persona={persona}>
         {/* ── DEUX COUCHES, POUR QUE LE VISAGE NE SAUTE PLUS ─────────────
