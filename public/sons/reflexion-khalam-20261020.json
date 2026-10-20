@@ -1,0 +1,47 @@
+{
+  "source": "MMM.mp3",
+  "source_sha256": "77fb831e3694287beff262f06a1c55dd2970862306331e21d0e0c4c94b6848bd",
+  "source_duree_s": 4.8,
+  "traitement": "Découpe mono 24 kHz, conversion audio ChatterboxVC/S3Gen avec la condition féminine actuellement utilisée par Khalam Voice. Gain x2 et fondus 6/12 ms, encodage MP3 96 kb/s. Aucun étirement, changement manuel de hauteur ni silence ajouté.",
+  "conversion": {
+    "ok": true,
+    "method": "ChatterboxVC S3Gen audio-to-audio",
+    "device": "cpu",
+    "production_reconfigured": false,
+    "female_reference_id": "female-fr-demo-20261006",
+    "female_condition_sha256": "1c887622e66751816d26d796936da25a70862ebd277f0b80f1173e5f945559b7",
+    "s3gen_sha256": "45f08f7a6acfc588a755e92f07763cf71135784d655900dfff37fd8c9a0e2278",
+    "seconds": 45.989790532010375
+  },
+  "prises": [
+    {
+      "fichier": "/sons/mmm-khalam-20261020-court.mp3",
+      "variante": "court",
+      "source_debut_s": 0.1,
+      "source_fin_s": 1.3,
+      "duree_decoupee_ms": 1200,
+      "duree_decodee_ms": 1200,
+      "octets": 15309,
+      "sha256": "79cbf761185f069f12cdb63d677cfd1c197d5f47a0cf07df4a1deeed9e812f6c",
+      "conversion_wav_sha256": "119e8ef486ffbff4144e7d40bcbe4ef2dce7a25b34f6524942129f053c8537ba",
+      "source_wav_sha256": "99a67c3d5f7759458c5aee469404204860dcc3b51b7e01d0694183f0da54de82",
+      "pic_decode": 0.43342,
+      "rms_decode": 0.12104
+    },
+    {
+      "fichier": "/sons/mmm-khalam-20261020-long.mp3",
+      "variante": "long",
+      "source_debut_s": 2.78,
+      "source_fin_s": 4.28,
+      "duree_decoupee_ms": 1500,
+      "duree_decodee_ms": 1520,
+      "octets": 19341,
+      "sha256": "25f1b74daf0b8a25d6d69daed6a47a921f4ff7bf1d3a139159a5302cc68250a5",
+      "conversion_wav_sha256": "946b6c0554a47d2ff9bacf67122db72e796976491621e96a2f10dbb52feb8125",
+      "source_wav_sha256": "3af5f32ecdc8a92e6232c581dda1953d2d1764cd15f937b5061fecf6542f4604",
+      "pic_decode": 0.66686,
+      "rms_decode": 0.13958
+    }
+  ],
+  "usage": "Réflexion non verbale pendant une attente réelle ; arrêt prioritaire avant la réponse ou une reprise de parole. Distinct du clip verbal reaction-voir."
+}

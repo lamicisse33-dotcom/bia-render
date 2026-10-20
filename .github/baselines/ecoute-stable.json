@@ -75,5 +75,18 @@
     "scope": "Only app/page.tsx changes among protected paths. Existing microphone, continuous bricks, actual speech gate and voice selection unchanged.",
     "behavior": "One exact warmed reaction-voir recording generated through Khalam Voice, intent-gated after transcription, only while actual work remains pending. The timer is cancelled when the reply arrives or the turn changes. Name and opening greeting continue through their direct warmed replies. MMM files unchanged until the new owner takes arrive.",
     "verification": "Classifier cases for requests, search, personal discussion, greetings and name. Actual scheduling cancellation and player tests retained. Regenerated audio is downloaded and verified before preloading. No human listening claim."
+  },
+  "migration_mmm_convertis_20261020": {
+    "authorized": "Lamine supplies MMM.mp3 with one short and one long nonverbal reflection and explicitly requests cutting and conversion with Khalam Voice.",
+    "scope": "No protected file changes. Replace only the reflection take URLs; retain old assets as rollback. Microphone, actual voice selection, continuous bricks, wait thresholds and cancellation unchanged.",
+    "source_sha256": "77fb831e3694287beff262f06a1c55dd2970862306331e21d0e0c4c94b6848bd",
+    "conversion": "Actual isolated CPU ChatterboxVC/S3Gen conversion using deployed S3Gen weights and the exact current female condition. No production process, GPU or settings change. No written hmm synthesis.",
+    "female_condition_sha256": "1c887622e66751816d26d796936da25a70862ebd277f0b80f1173e5f945559b7",
+    "s3gen_sha256": "45f08f7a6acfc588a755e92f07763cf71135784d655900dfff37fd8c9a0e2278",
+    "durations_ms": [
+      1200,
+      1520
+    ],
+    "verification": "Converter completed, original/converted WAV and final MP3 hashes verified, actual browser decode/play/stop tests required. Human listening and perceived timbre remain for owner validation."
   }
 }
