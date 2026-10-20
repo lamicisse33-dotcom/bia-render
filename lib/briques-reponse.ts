@@ -11,7 +11,6 @@ import {detecterLangue} from './langue';
 import {assemblerSonsCourants} from './assembler-sons-courants';
 import {POST as synthetiser} from '../app/api/chatterbox-test/bia/route';
 import {contexteAnticipation,empreinteAnticipation,normaliserAnticipation,eligibleBriques} from './anticipation-core';
-import {gpuAnticipation} from './anticipation-gpu';
 import {etatBriques} from './briques-etat';
 import type {BriqueAudio} from './briques-file';
 import {garder} from './souvenirs';
@@ -24,7 +23,7 @@ function resultat(s:Session,brique?:BriqueAudio,normal=false){return {id:s.id,br
 
 type VueTexte=Pick<Session,'history'|'resume'|'traite'>&{briques:Array<Pick<BriqueAudio,'texte'>>};
 type TexteBrique={traite:string;reply:string};
-type SuiteTexte={texte:string;prefixe:string;numero:number;abort:AbortController;resultat:Promise<{texte:TexteBrique|null;mesure:MesureTexte}|null>};
+type SuiteTexte={texte:string;prefixe:string;numero:number;final:boolean;abort:AbortController;resultat:Promise<{texte:TexteBrique|null;mesure:MesureTexte}|null>};
 type MesureTexte={contexte_ms:number;modele_ms:number;entree_signes:number;sortie_signes:number};
 async function preparerTexte(s:VueTexte,texte:string,final:boolean,maitre:boolean,signal:AbortSignal,mesure:MesureTexte,diagnosticAncien=false){
  signal.throwIfAborted();const debutPreparation=Date.now();
@@ -52,16 +51,16 @@ async function preparerTexte(s:VueTexte,texte:string,final:boolean,maitre:boolea
     return {traite,reply};
 }
 function oublierSuite(s:Session){s.suite?.abort.abort();s.suite=undefined;}
-function anticiperSuite(s:Session,texte:string,courante:TexteBrique,signal:AbortSignal){
+function anticiperSuite(s:Session,texte:string,courante:TexteBrique,final:boolean,signal:AbortSignal){
  oublierSuite(s);
- // One text-only look-ahead for an unchanged final transcript. No speculative
+ // One text-only look-ahead for an unchanged transcript and phase. No speculative
  // audio, memory write or quota charge; locked audio is still committed below.
  const abort=new AbortController();
  const suivant:VueTexte={history:s.history,resume:s.resume,traite:courante.traite,briques:[...s.briques,{texte:courante.reply}]};
  const mesure:MesureTexte={contexte_ms:0,modele_ms:0,entree_signes:0,sortie_signes:0};
- const resultat=preparerTexte(suivant,texte,true,s.maitre,AbortSignal.any([abort.signal,signal,AbortSignal.timeout(15000)]),mesure)
+ const resultat=preparerTexte(suivant,texte,final,s.maitre,AbortSignal.any([abort.signal,signal,AbortSignal.timeout(15000)]),mesure)
   .then(texte=>({texte,mesure})).catch(()=>null);
- s.suite={texte,prefixe:courante.traite,numero:s.briques.length+1,abort,resultat};
+ s.suite={texte,prefixe:courante.traite,numero:s.briques.length+1,final,abort,resultat};
 }
 
 /** A brick is committed only when both the complete text and complete audio exist. */
@@ -101,7 +100,7 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
   try {
     signal.throwIfAborted();
     const suite=s.suite;
-    const compatible=!diagnostic&&final&&suite?.texte===texte&&suite.prefixe===s.traite&&suite.numero===s.briques.length;
+    const compatible=!diagnostic&&suite?.final===final&&suite.texte===texte&&suite.prefixe===s.traite&&suite.numero===s.briques.length;
     let courante:TexteBrique|null;const attenteModele=Date.now();
     etape='modele';
     if(suite&&compatible){
@@ -125,13 +124,13 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
     let quotaReserve=false;
     if(flux&&termine){if(!verifierCode(code,true).ok){s.fermee=true;return resultat(s,undefined,true);}quotaReserve=true;}
     etape='audio';const debutAudio=Date.now();const langue=detecterLangue(reply,detecterLangue(texte,'wo')) as 'wo'|'fr';
-    if(final&&traite!==texte&&s.appels<8)anticiperSuite(s,texte,courante,signal);
-    const audioComplet=await gpuAnticipation(async()=>{
+    if(traite!==texte&&s.appels<(final?8:10)&&s.briques.length<(final?8:4))anticiperSuite(s,texte,courante,final,signal);
+    const audioComplet=await (async()=>{
       signal.throwIfAborted();
-      const response=await synthetiser(new NextRequest('https://app.khalam.app/api/chatterbox-test/bia',{method:'POST',headers:{'content-type':'application/json','x-bia-code':code},body:JSON.stringify({texte:reply,langue,voice:s!.voice,lecture_fidele:true,continu:true}),signal}));
+      const response=await synthetiser(new NextRequest('https://app.khalam.app/api/chatterbox-test/bia',{method:'POST',headers:{'content-type':'application/json','x-bia-code':code},body:JSON.stringify({texte:reply,langue,voice:s!.voice,lecture_fidele:true,continu:true,brique:true,final}),signal}));
       if(response.ok)flux?.debut({numero:s!.briques.length,texte:reply,langue,voice:s!.voice});
       return lireAudioBrique(response,s!.voice,signal,flux?.morceau);
-    },final?1:0);
+    })();
     const {clips,parties}=audioComplet;
     mesure.audio_ms=Date.now()-debutAudio;mesure.parties=parties;
     mesure.preparation_voix_ms=audioComplet.preparation_ms;mesure.generation_voix_ms=audioComplet.generation_ms;mesure.fabrication_voix_ms=audioComplet.fabrication_ms;mesure.cache_parties=audioComplet.cache_parties;

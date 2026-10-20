@@ -1,4 +1,5 @@
 import {grainePriseVoix} from "@/lib/prise-voix";
+import {gpuAnticipation} from "@/lib/anticipation-gpu";
 import {continuiteVoix} from "@/lib/continuite-voix-etat";
 import {CacheVoixDialogue} from "@/lib/cache-voix-dialogue";
 import { preparerPassagesKhalam } from "@/lib/passages-khalam";
@@ -153,16 +154,20 @@ export async function POST(request: NextRequest) {
         const emit=(x:unknown)=>controller.enqueue(encoder.encode(JSON.stringify(x)+"\n"));
         try{
           for(let i=0;i<parts.length;i++){
-            if(annule||request.signal.aborted)return;
-            const r=await rendrePartie(i),d=await r.json();
-            if(annule||request.signal.aborted)return;
+            if(annule||request.signal.aborted){if(!annule)controller.close();return;}
+            // The brick producer must not hold an outer queue lock while this
+            // stream drains. Let priority ASR pass after each complete clip.
+            const r=await (body.brique===true
+              ?gpuAnticipation(()=>rendrePartie(i),body.final===true?1:0,{signal:request.signal,type:'audio'})
+              :rendrePartie(i)),d=await r.json();
+            if(annule||request.signal.aborted){if(!annule)controller.close();return;}
             if(!r.ok||!d.audio)throw Error(d.error||"La voix n’a pas terminé la phrase.");
             continuiteVoix.clips++;if(d.audio_en_cache)continuiteVoix.cache++;
             if(i===0)continuiteVoix.premier_morceau_ms=Date.now()-debutFlux;
             emit({type:"morceau",...d});
           }
           emit({type:"fin"});controller.close();
-        }catch(e){continuiteVoix.erreurs++;if(!annule&&!request.signal.aborted){emit({type:"erreur",error:e instanceof Error?e.message:"Flux vocal interrompu."});controller.close();}}
+        }catch(e){continuiteVoix.erreurs++;if(!annule){if(!request.signal.aborted)emit({type:"erreur",error:e instanceof Error?e.message:"Flux vocal interrompu."});controller.close();}}
       },cancel(){annule=true;}
     });
     return new Response(stream,{headers:{"content-type":"application/x-ndjson; charset=utf-8","cache-control":"no-store, no-transform","x-accel-buffering":"no"}});

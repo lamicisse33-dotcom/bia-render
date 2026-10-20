@@ -269,7 +269,7 @@ test('cancelling continuous brick audio releases the reader without returning a 
 });
 
 
-test('the next final text is ready during current audio, reused exactly once, and never synthesized early',async()=>{
+for(const final of [false,true])test(`next text is ready during current audio, reused once and never synthesized early (final=${final})`,async()=>{
  const audio=deferred(),nextText=deferred(),events=[];
  const combined=question+' Ensuite je suis allé chez le coiffeur.';
  const s=server(async c=>{
@@ -277,14 +277,21 @@ test('the next final text is ready during current audio, reused exactly once, an
   if(c.briques_verrouillees.length===1)await nextText.promise;
   return {eligible:true,reply:c.briques_verrouillees.length?'D’accord papa, tu es ensuite allé chez le coiffeur.':'Oui papa, tes chaussures sont réparées.',traite:c.briques_verrouillees.length?combined:question};
  },{synthese:async(_b,n)=>{events.push('audio'+n);if(n===0)await audio.promise;}});
- const firstPending=s.preparerBrique({...body,texte:combined,final:true},'owner',true,new AbortController().signal);
+ const firstPending=s.preparerBrique({...body,texte:combined,final},'owner',true,new AbortController().signal);
  await tick();assert(events.includes('model1'),'next model must run before first audio completes');
  assert.equal(s.syntheses.length,1,'no speculative audio');assert.equal(s.saved.length,0);assert.equal(s.quota(),0);
  nextText.resolve();await tick();audio.resolve();const first=await firstPending;
  assert.equal(first.brique.numero,0);assert(!first.termine);
- const second=await s.preparerBrique({id:first.id,texte:combined,final:true},'owner',true,new AbortController().signal);
+ const second=await s.preparerBrique({id:first.id,texte:combined,final},'owner',true,new AbortController().signal);
  assert.equal(second.mesure.modele_anticipe,true);assert.equal(s.models.length,2,'prefetch must replace the next model call');
- assert.equal(second.brique.numero,1);assert.equal(second.brique.texte,'tu es ensuite allé chez le coiffeur.');assert(second.termine);assert.equal(s.quota(),1);
+ assert.equal(second.brique.numero,1);assert.equal(second.brique.texte,'tu es ensuite allé chez le coiffeur.');assert.equal(second.termine,final);assert.equal(s.quota(),final?1:0);
+});
+test('finalization does not reuse text prefetched under the still-speaking rules',async()=>{
+ const combined=question+' Ensuite je suis allé chez le coiffeur.';
+ const s=server(c=>({eligible:true,reply:c.fin_de_parole?'La phrase finale prend en compte la fin.':'Une réponse sans conclusion prématurée.',traite:c.prefixe_deja_traite?combined:question}));
+ const first=await s.preparerBrique({...body,texte:combined},'owner',true,new AbortController().signal);await tick();
+ const next=await s.preparerBrique({id:first.id,texte:combined,final:true},'owner',true,new AbortController().signal);
+ assert.equal(next.mesure.modele_anticipe,false);assert.equal(next.brique.texte,'La phrase finale prend en compte la fin.');assert.equal(s.syntheses.length,2);
 });
 test('a revised final transcript aborts a pending look-ahead and uses the correction instead',async()=>{
  const pending=deferred();let pendingSignal;
@@ -328,3 +335,4 @@ test('a transient startup failure permits one authenticated diagnostic retry, th
   state.essai={statut:'confirme',tentatives:1};await api.verifierBriques();assert.equal(calls,2);
  }finally{if(previous===undefined)delete process.env.BIA_CODE_MAITRE;else process.env.BIA_CODE_MAITRE=previous;}
 });
+
