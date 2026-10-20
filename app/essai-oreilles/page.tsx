@@ -62,6 +62,15 @@ export default function EssaiOreilles(){
   <p style={{marginTop:30,letterSpacing:'.12em',fontSize:12}}>ESPACE D’ESSAI</p><h1 style={{fontSize:'clamp(30px,6vw,44px)',lineHeight:1.15}}>Essayer une oreille</h1>
   <p style={{lineHeight:1.7}}>Choisis Moonshine, puis enregistre une phrase en wolof ou en français. Tu pourras lire exactement ce qu’il a compris.</p>
   <p style={{lineHeight:1.7,padding:16,border:'1px solid #bfd0c3',borderRadius:12}}>La sélection concerne cet essai uniquement. L’oreille des conversations, la voix et tous les réglages actuels de BIA restent en place.</p>
+  <section aria-label="Essais Didi sur le Mac" style={{margin:'24px 0',padding:20,border:'1px solid #bfd0c3',borderRadius:12}}>
+   <h2 style={{fontSize:22,marginTop:0}}>Les deux oreilles entraînées sur Didi</h2>
+   <p style={{lineHeight:1.7}}>Sur le Mac où les modèles ont été sauvegardés, ouvre un essai séparé. Tu pourras enregistrer une phrase ou choisir un fichier audio. Les deux modèles restent expérimentaux et peuvent faire beaucoup d’erreurs.</p>
+   <div style={{display:'flex',flexWrap:'wrap',gap:12}}>
+    <a href="http://127.0.0.1:8795/?modele=moonshine" target="_blank" rel="noopener noreferrer" style={{...button,display:'inline-block',textDecoration:'none',margin:0}}>Essayer Moonshine Didi sur ce Mac</a>
+    <a href="http://127.0.0.1:8795/?modele=zipformer" target="_blank" rel="noopener noreferrer" style={{...button,display:'inline-block',textDecoration:'none',margin:0}}>Essayer Zipformer Didi sur ce Mac</a>
+   </div>
+   <p style={{fontSize:14,lineHeight:1.7,marginBottom:0}}>Ces essais locaux nécessitent le Mac et son lanceur « BIA-Essai-Didi-deux-oreilles ». Ils ne changent pas l’oreille utilisée dans tes conversations. L’essai Moonshine ci-dessous conserve le modèle précédent.</p>
+  </section>
   <label htmlFor="trial-code" style={{display:'block',margin:'24px 0 8px'}}>Ton code BIA</label>
   <input id="trial-code" type="password" autoComplete="off" value={code} disabled={busy||recording} onChange={e=>{setCode(e.target.value);setReady(false);releaseWorker();}} style={{...input,width:'100%'}}/>
   <label htmlFor="trial-engine" style={{display:'block',margin:'20px 0 8px'}}>Oreille à essayer</label>
