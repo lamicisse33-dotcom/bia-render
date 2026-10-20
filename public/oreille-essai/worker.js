@@ -1,5 +1,5 @@
 /* The trial owns this worker. It never intercepts BIA requests or changes storage/settings. */
-import {pipeline,env} from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.web.min.js';
+import {pipeline,env} from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js';
 env.allowRemoteModels=false;
 env.allowLocalModels=true;
 env.useBrowserCache=false;
