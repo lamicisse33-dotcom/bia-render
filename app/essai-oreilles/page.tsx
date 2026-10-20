@@ -9,7 +9,7 @@ const moteurs = [
 
 export default function EssaiOreilles() {
   return (
-    <main lang="fr" style={{ minHeight: "100dvh", overflowY: "auto", background: "#f5f3ec", color: "#183b32", padding: "48px 24px", fontFamily: "system-ui, sans-serif" }}>
+    <main lang="fr" style={{ height: "100dvh", overflowY: "auto", background: "#f5f3ec", color: "#183b32", padding: "48px 24px", fontFamily: "system-ui, sans-serif" }}>
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
         <Link href="/" style={{ color: "#226b51" }}>← Revenir à BIA</Link>
         <p style={{ marginTop: 36, letterSpacing: ".12em", fontSize: 13 }}>ESPACE D’ESSAI</p>
