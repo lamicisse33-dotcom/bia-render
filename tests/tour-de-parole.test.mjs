@@ -86,6 +86,16 @@ for(const persona of ['bia','rara'])test(`opening greeting plays the warmed exac
  let commence=0;await makeSpeak(env)('Bonjour !',undefined,'réponse',false,{langue:'fr',debutSalutation:performance.now(),premierSon:()=>commence++,sonCourant:{usage:'salutation',adresse:'/bonjour.mp3'}});
  assert.deepEqual(heard,['bonjour']);assert.equal(commence,1);assert.equal(measures[0].ouverture,true);assert.equal(measures[0].precharge,true);
 });
+for(const persona of ['bia','rara'])test(`name answer plays the warmed exact recording without synthesis or a private-take lookup (${persona})`,async()=>{
+ const {env}=environment(Promise.resolve());const measures=[],heard=[],octets=new ArrayBuffer(2400);
+ env.personaRef.current=persona;
+ env.prisesValidees.api.lire=()=>assert.fail('a warmed identity must not wait for private storage');
+ env.octetsDuRepertoire=()=>assert.fail('already warmed');env.cacheSons.current.set('/nom.mp3',octets);
+ env.fetch=async(url,opt)=>{assert.equal(url,'/api/mesure');measures.push(JSON.parse(opt.body));return {ok:true};};
+ env.jouerEtAnimer=async(b,reply,garde)=>{assert.equal(b,octets);assert(reply);assert.equal(garde.exact,true);garde.commence();heard.push('nom');return 1000;};
+ let commence=0;await makeSpeak(env)("Je m'appelle BIA.",undefined,'réponse',false,{langue:'fr',debutIdentite:performance.now(),premierSon:()=>commence++,sonCourant:{usage:'identite',adresse:'/nom.mp3'}});
+ assert.deepEqual(heard,['nom']);assert.equal(commence,1);assert.equal(measures[0].ouverture,undefined);assert.equal(typeof measures[0].identite_ms,'number');assert.equal(measures[0].precharge,true);
+});
 test('interrupting during TTS download discards the actual late audio response', async () => {
   const audio=deferred();const {env,played,decoded}=environment(audio.promise);
   const pending=makeSpeak(env)('Bonjour');

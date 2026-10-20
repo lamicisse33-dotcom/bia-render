@@ -17,7 +17,7 @@ export function lotSalutationsCourant(sons:SonCourant[],lot:unknown):Array<{son:
  return ((lot as {sons:unknown[]}).sons).flatMap(row=>{
   if(!row||typeof row!=='object')return [];const r=row as {son?:SonCourant;audio?:unknown};
   if(typeof r.audio!=='string'||!r.son)return [];
-  const courant=sons.find(s=>s.usage==='salutation'&&s.version===VERSION_SONS_COURANTS&&s.cle===r.son!.cle&&s.langue===r.son!.langue&&s.texte===r.son!.texte&&s.adresse===r.son!.adresse);
+  const courant=sons.find(s=>(s.usage==='salutation'||s.usage==='identite')&&s.version===VERSION_SONS_COURANTS&&s.cle===r.son!.cle&&s.langue===r.son!.langue&&s.texte===r.son!.texte&&s.adresse===r.son!.adresse);
   return courant?[{son:courant,audio:r.audio}]:[];
  });
 }
