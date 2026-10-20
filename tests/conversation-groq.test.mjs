@@ -84,7 +84,12 @@ test('a refusal must reach contextual conversation, not a fixed echo',async()=>{
  assert(dependDuContexte('Déedéet, bëgguma.'));assert(dependDuContexte('Waaw.'));
  assert(!dependDuContexte('Bonjour'));
  const route=fs.readFileSync('app/api/chat/route.ts','utf8');
- assert(route.includes('const repertoireUtilisable=()=>repertoireActif()&&!estRara&&!dependDuContexte(question);'));
+ const ast=ts.createSourceFile('route.ts',route,ts.ScriptTarget.Latest,true);let predicate;
+ function visit(n){if(ts.isVariableDeclaration(n)&&n.name.getText(ast)==='repertoireUtilisable')predicate=n.initializer.getText(ast);ts.forEachChild(n,visit);}visit(ast);assert(predicate);
+ const js=ts.transpileModule(predicate,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+ const allowed=(question,ouvertureSalutation)=>new Function('env',`with(env){return (${js.trim().replace(/;$/,'')});}`)({repertoireActif:()=>true,estRara:false,dependDuContexte,question,ouvertureSalutation,salutationReconnue:q=>q==='Bonjour'})();
+ for(const q of ['Déedéet, bëgguma.','Waaw.'])for(const ouverture of [true,false])assert.equal(allowed(q,ouverture),false);
+ assert.equal(allowed('Bonjour',true),true);assert.equal(allowed('Bonjour',false),false);
 });
 
 
