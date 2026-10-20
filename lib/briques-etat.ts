@@ -1,7 +1,7 @@
 const g=globalThis as typeof globalThis&{biaBriquesEtat?:any};
 const etat=g.biaBriquesEtat??={sessions:0,preparees:0,finalisees:0,erreurs:0,lectures:0,dernier_premier_son_ms:null,dernier_depuis_micro_ms:null,dernier_blanc_ms:null,blanc_max_ms:0,reflexions:0,dernier_echec:null};
 export const etatBriques=etat;
-export const resumeBriques=()=>({mode:'briques_texte_verrouillees_audio_progressif',revision:'audio-400ms-capture-100ms-v1',premier_segment_apres_ms:4000,pause_transcription_ms:400,capture_pcm_ms:100,morceau_enregistrement_ms:100,livraison_audio:'progressive_ndjson',...etat,son_reflexion:'prises_naturelles_20261019',reflexion_seuil_initial_ms:800,reflexion_seuil_suite_ms:1400});
+export const resumeBriques=()=>({mode:'briques_texte_verrouillees_audio_progressif',revision:'stream-continu-priorite-ecoute-v1',premier_segment_apres_ms:4000,pause_transcription_ms:400,capture_pcm_ms:100,morceau_enregistrement_ms:100,livraison_audio:'progressive_ndjson',anticipation_texte:'pendant_parole_et_fin',ordonnancement_audio:'par_morceau_ecoute_prioritaire',...etat,son_reflexion:'prises_naturelles_20261019',reflexion_seuil_initial_ms:800,reflexion_seuil_suite_ms:1400});
 export function noterBriques(d:Record<string,unknown>){
   const ms=Number(d.ms);if(!Number.isFinite(ms)||ms<0||ms>180000)return;
   if(typeof d.tour==='string'&&/^[a-zA-Z0-9_-]{8,80}$/.test(d.tour)&&['depart','lecture_demandee','debut_brique','fin_brique','transcrit','fin_preparation','fin_chaine','annulation'].includes(String(d.etape))){

@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 export async function verifierBriques(){
  const precedent=etatBriques.essai;
  if(!process.env.BIA_CODE_MAITRE||precedent&&(precedent.statut!=='erreur'||Number(precedent.tentatives||1)>=2))return;
- const essai=etatBriques.essai={tentatives:precedent?Number(precedent.tentatives||1)+1:1,statut:'en_cours',synthetique:true,apparence:'rara',revision:'audio-une-preparation-v6-texte-avance'} as Record<string,unknown>;
+ const essai=etatBriques.essai={tentatives:precedent?Number(precedent.tentatives||1)+1:1,statut:'en_cours',synthetique:true,apparence:'rara',revision:'stream-continu-priorite-ecoute-v1',lecture_navigateur_mesuree:false} as Record<string,unknown>;
  const code=process.env.BIA_CODE_MAITRE;
  const texte='Ce matin, en allant au marché, je suis passé chez le cordonnier pour faire réparer mes chaussures. Ensuite je suis passé chez le coiffeur.';
  try{
@@ -15,9 +15,22 @@ export async function verifierBriques(){
   essai.chauffe=chauffe&&'mesure'in chauffe?chauffe.mesure:null;
   const avant=await preparerBrique({texte,tour:'diagnostic-comparaison-avant',history:[],resume:'',voice:'female',persona:'rara'},code,true,AbortSignal.timeout(35000),'classique');
   essai.comparaison={echantillons:1,ordre:'classique_puis_concis',avant:avant&&'mesure'in avant?avant.mesure:null};
-  const debut=Date.now();
-  const a=await preparerBrique({texte,tour:'diagnostic-briques-20261017',history:[],resume:'',voice:'female',persona:'rara'},code,true,AbortSignal.timeout(35000));
-  essai.premiere_preparation_ms=Date.now()-debut;
+  // An existing public WAV fixture exercises the real queued recognizer while
+  // the first voice clip is computing. Diagnostic mode forbids corpus writes.
+  const [{readFile},{NextRequest},{POST:transcrire}]=await Promise.all([import('node:fs/promises'),import('next/server'),import('../app/api/anticipation/segment/route')]);
+  const controle=await readFile(process.cwd()+'/public/essai/format-wav16.wav');
+  let intercalee:Promise<Record<string,unknown>>|undefined;
+  const sonderEcoute=()=>{
+   if(intercalee)return;
+   const depart=Date.now(),form=new FormData();form.set('audio',new Blob([new Uint8Array(controle)],{type:'audio/wav'}),'controle.wav');form.set('indice_langue','fr');form.set('diagnostic','1');
+   intercalee=(async()=>{try{const r=await transcrire(new NextRequest('https://app.khalam.app/api/anticipation/segment',{method:'POST',headers:{'x-bia-code':code},body:form,signal:AbortSignal.timeout(20000)}));const d=await r.json();return {statut:r.status,confirmee:r.ok&&!d.panne&&!d.transcription_rejetee&&typeof d.texte==='string',ms:Date.now()-depart};}catch{return {confirmee:false,ms:Date.now()-depart};}})();
+  };
+  const debutBrique=Date.now();
+  let premierAudio:number|null=null;
+  const a=await preparerBrique({texte,tour:'diagnostic-briques-20261017',history:[],resume:'',voice:'female',persona:'rara'},code,true,AbortSignal.timeout(35000),undefined,{debut:sonderEcoute,morceau:()=>{premierAudio??=Date.now()-debutBrique;}});
+  essai.premier_morceau_serveur_ms=premierAudio;
+  essai.premiere_preparation_ms=Date.now()-debutBrique;
+  essai.sonde_ecoute_intercalee=intercalee?await intercalee:{confirmee:false,motif:'aucune_brique'};
   (essai.comparaison as Record<string,unknown>).apres=a&&'mesure'in a?a.mesure:null;
   if(!a?.brique){essai.statut='premiere_non_confirmee';return;}
   const empreinte=createHash('sha256').update(a.brique.audio).digest('hex');essai.premier_audio_octets=Buffer.from(a.brique.audio,'base64').length;
@@ -27,16 +40,19 @@ export async function verifierBriques(){
   const fin=Date.now();
   const texteFinal=texte+' Je suis ensuite allé au marché pour acheter un chargeur. Le vendeur demandait quinze mille francs. Je me corrige : après discussion, il me l’a vendu à trois mille francs.';
   let b:Awaited<ReturnType<typeof preparerBrique>>=null,octets=0;
-  const delais:number[]=[];const mesures:Array<{modele_anticipe?:boolean;modele_ms?:number;modele_attente_ms?:number}>=[];
+  const delais:number[]=[],premiers:Array<number|null>=[];const mesures:Array<{modele_anticipe?:boolean;modele_ms?:number;modele_attente_ms?:number}>=[];
   for(let i=0;i<8;i++){
    const depart=Date.now();
-   b=await preparerBrique({id:a.id,texte:texteFinal,final:true},code,true,AbortSignal.timeout(35000));
+   let premier:number|null=null;
+   b=await preparerBrique({id:a.id,texte:texteFinal,final:true},code,true,AbortSignal.timeout(35000),undefined,{debut:()=>{},morceau:()=>{premier??=Date.now()-depart;}});
+   premiers.push(premier);
    delais.push(Date.now()-depart);
    if(b&&'mesure'in b)mesures.push(b.mesure);
    if(b?.brique)octets+=Buffer.from(b.brique.audio,'base64').length;
    if(!b||b.termine||b.normal||!b.brique)break;
   }
   essai.suite_briques_ms=delais;
+  essai.suite_premiers_morceaux_serveur_ms=premiers;
   essai.mesures_suite=mesures;
   essai.anticipation_texte_utilisee=mesures.some(m=>m.modele_anticipe);
   essai.modele_attente_evitee_ms=mesures.filter(m=>m.modele_anticipe).reduce((n,m)=>n+Math.max(0,(m.modele_ms||0)-(m.modele_attente_ms||0)),0);

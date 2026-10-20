@@ -9,7 +9,7 @@
     "lib/transport-conversation.ts": "ac8d95016a165bc00abfad385cc2f5c87278775854dfbddbcfbbe4b308e607ce",
     "app/api/ecouter/route.ts": "b7984b36ed31bec85f18d86630f73c1bfc78bd79ff511bd286a9e2b0710417a5",
     "app/api/ecouter/anticiper/route.ts": "56867d683f1b63e0f57803de17426e4417b717122c8043d3132fa617982f153d",
-    "app/api/chatterbox-test/bia/route.ts": "8a0dc61a745dc638e3fca0cf942efaa0bbbdb88c5b0757c850633228729ed39a",
+    "app/api/chatterbox-test/bia/route.ts": "63035dfc3fea98386ae568e2266e6de41b462472927460795f8fb3b9896fe634",
     "app/api/chatterbox-test/bia/stream/route.ts": "a56bd54d4f51272835f915b0be257c4a936ec9aaca069e1b3f5c661bc0e03b7f",
     "lib/passages-khalam.ts": "0d7231c37a44692889bd2a2ee90a66240302efb0a6114430144255cb7474ccd7"
   },
@@ -36,5 +36,15 @@
     "verification": "106 focused behavior tests passed locally: actual capture 399/400 ms, resumed speech, 44.1/48 kHz capture, full two-minute sample coverage, ordered/voice/fingerprint checks, aborts, interrupted stream without automatic replay. Full build and Chromium check run in CI; no physical-microphone or human Wolof quality validation is claimed.",
     "metrics": "reglages_rapidite: 400/400/400. briques_conversation: capture_pcm_ms=100, morceau_enregistrement_ms=100, pause_transcription_ms=400, livraison_audio=progressive_ndjson. Existing counters retain their previous meanings.",
     "transport": "Progressive HTTP NDJSON reuses BIA authentication and routes. Toftal private backend and WebSocket engine are not accessible; no provider, production GPU, voice selection, learned text or pronunciation settings are changed."
+  },
+  "migration_stream_continu_20261020": {
+    "authorized": "Lamine requests lower latency while retaining continuous streaming in small immutable bricks. Compare the owner-validated f9bf26e9963353cca8a0db8fc1f49468b0956e70; keep that restoration point intact.",
+    "before": "Three ordinary post-400ms browser onsets 7521/7749/12620 ms. One progressive turn 12453 ms from original last speech: ASR 2737 ms after stop, first audio ready at 9407 ms, actual playback at 12033 ms, with 2622 ms held during resumed speech processing. These are different utterances from the historical ready-brick samples, not a controlled before/after.",
+    "scope": "Only app/api/chatterbox-test/bia/route.ts changes among protected paths. Its opt-in internal brick stream yields the GPU queue between complete clips; pronunciation plan, exact text, selected checkpoint/voice, splitter, ordinary synthesis and microphone/playback guards are unchanged. app/page.tsx and lib/micro.ts remain byte-identical.",
+    "hash_before": "8a0dc61a745dc638e3fca0cf942efaa0bbbdb88c5b0757c850633228729ed39a",
+    "hash_after": "63035dfc3fea98386ae568e2266e6de41b462472927460795f8fb3b9896fe634",
+    "changes": "Remove the outer whole-brick queue lock. ASR priority 2 can run between voice clips, without concurrent scheduled GPU work. Drop cancelled queued work. Prepare one next text during current synthesis in both speaking and final phases; reuse only matching transcript, processed prefix, brick index and phase. Never synthesize a stale look-ahead.",
+    "measurements": "Add file_gpu wait/execution counters; retain all existing counters. Existing authenticated bounded synthetic brick diagnostic now measures first server clip and actual interleaved ASR on a fixed public WAV, with diagnostic corpus writes disabled. Server samples are not microphone/browser onset or human Wolof-quality proof.",
+    "verification": "111 focused behavior tests and two actual watcher callback tests passed locally before publication, including actual continuous route ASR interleaving, no concurrent compute, clip order/fingerprint/voice/EOS, queued abort, during-speech text lookahead and final-phase invalidation. Full build and Chromium CI required. Real browser latency after publication remains to be read."
   }
 }
