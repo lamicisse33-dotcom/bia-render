@@ -1,5 +1,5 @@
 /* The trial owns this worker. It never intercepts BIA requests or changes storage/settings. */
-import {pipeline,env} from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js';
+import {pipeline,env,Tensor} from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js';
 env.allowRemoteModels=false;
 env.allowLocalModels=true;
 env.useBrowserCache=false;
@@ -51,6 +51,8 @@ async function prepare(credential){
  if(!r.ok)throw Error('L’oreille est momentanément indisponible.');
  const data=await r.json();if(!data.ready)throw Error('L’installation de l’oreille est encore en cours.');manifest=data.manifest;
  model=await pipeline('automatic-speech-recognition',base,{device:'wasm',dtype:'fp32',local_files_only:true});
+ // Optimum's verified encoder requires the audio mask; this single-clip trial has no padding.
+ if(model.model.sessions.model.inputNames.includes('attention_mask'))model.model.forward_params=[...new Set([...model.model.forward_params,'attention_mask'])];
  buffers.clear();post('ready',{revision:manifest.revision});
 }
 self.onmessage=async({data:d})=>{
@@ -61,7 +63,10 @@ self.onmessage=async({data:d})=>{
   if(d.kind==='prepare'){post('prepared',{id:d.id});return;}
   if(d.kind!=='transcribe')throw Error('Demande inconnue.');
   const audio=new Float32Array(d.audio);if(!audio.length||audio.length>30*16000||!audio.every(Number.isFinite))throw Error('Choisis un audio de 30 secondes maximum.');
-  const start=performance.now();const result=await model(audio,{max_new_tokens:128,do_sample:false});
+  const start=performance.now();const inputs=await model.processor(audio);
+  if(model.model.sessions.model.inputNames.includes('attention_mask'))inputs.attention_mask=new Tensor('int64',new BigInt64Array(audio.length).fill(1n),[1,audio.length]);
+  const tokens=await model.model.generate({...inputs,max_new_tokens:128,do_sample:false});
+  const result={text:model.processor.batch_decode(tokens,{skip_special_tokens:true})[0]};
   post('result',{id:d.id,text:result.text,ms:performance.now()-start,seconds:audio.length/16000,revision:manifest.revision});
  }catch(e){post('error',{id:d.id,message:e?.message||'L’essai n’a pas abouti.'});}
  finally{busy=false;}
