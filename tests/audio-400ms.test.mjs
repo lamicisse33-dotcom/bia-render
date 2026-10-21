@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 const compile=s=>ts.transpileModule(s,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
-function load(path,imports={}){const m={exports:{}};new Function('require','module','exports',compile(fs.readFileSync(path,'utf8')))(id=>{assert(id in imports,id);return imports[id];},m,m.exports);return m.exports;}
+function load(path,imports={}){const m={exports:{}};new Function('require','module','exports',compile(fs.readFileSync(path,'utf8')))(id=>{if(id==='./rapidite-core')return load('lib/rapidite-core.ts');assert(id in imports,id);return imports[id];},m,m.exports);return m.exports;}
 const tick=()=>new Promise(r=>setTimeout(r,0));
 
 for(const rate of [44100,48000])for(const name of ['capture','reprise'])test(`${name} worklet emits 100 ms PCM at ${rate} Hz without losing or duplicating samples`,()=>{

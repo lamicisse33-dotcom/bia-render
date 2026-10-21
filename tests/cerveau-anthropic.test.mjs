@@ -75,3 +75,11 @@ test('stable tool text gets a cache breakpoint before changing lesson options wi
  assert.equal(apres.system.filter(b=>b.cache_control).length,3);
  assert(apres.system.filter(b=>b.cache_control).every(b=>b.cache_control.ttl==='1h'));
 });
+
+
+test('Haiku uses low effort, no assistant prefill or unsupported sampling while preserving schemas and exact text',()=>{
+ const api=load(async()=>Response.json({}));
+ const messages=[{role:'user',content:'Kan moo la ko bëgg may ?'}],format={type:'json_schema',schema:{type:'object'}};
+ const body=api.corpsAnthropic({model:api.MODELE_HAIKU,messages,max_tokens:3000,temperature:0,top_p:.1,thinking:{type:'enabled'},output_config:{format}});
+ assert.equal(body.temperature,undefined);assert.equal(body.top_p,undefined);assert.deepEqual(body.thinking,{type:'disabled'});assert.equal(body.output_config.effort,'low');assert.equal(body.output_config.format,format);assert.equal(body.messages,messages);assert.equal(body.max_tokens,3000);
+});

@@ -67,6 +67,8 @@
 
 /** Une borne du tour, telle que le téléphone la pose. */
 export type Bornes = {
+  /** A resumed utterance may restart recognition/model work within this measurement. */
+  reprises?: number;
   voie: "parole" | "ecrit";
   parole: number;
   micro: number;

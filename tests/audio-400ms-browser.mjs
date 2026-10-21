@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import ts from 'typescript';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const compiled=path=>ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
-const file=compiled('lib/briques-file.ts'),client=compiled('lib/briques-client.ts');
+const file=compiled('lib/briques-file.ts'),client=compiled('lib/briques-client.ts'),rapidite=compiled('lib/rapidite-core.ts');
 function wav(){const n=3600,b=Buffer.alloc(44+n*2);b.write('RIFF');b.writeUInt32LE(b.length-8,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(24000,24);b.writeUInt32LE(48000,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(n*2,40);for(let i=0;i<n;i++)b.writeInt16LE(Math.round(Math.sin(i/24000*Math.PI*2*440)*2000),44+i*2);return b.toString('base64');}
 const audio=wav(),timers=new Set();
 const server=http.createServer(async(req,res)=>{
@@ -29,9 +29,9 @@ let browser;
 try{
  browser=await chromium.launch({headless:true,args:['--no-sandbox','--autoplay-policy=no-user-gesture-required','--disable-background-timer-throttling']});
  const page=await browser.newPage();await page.goto(`http://127.0.0.1:${server.address().port}`);
- const result=await page.evaluate(async({file,client})=>{
+ const result=await page.evaluate(async({file,client,rapidite})=>{
   function module(code,imports={}){const m={exports:{}};new Function('require','module','exports',code)(id=>imports[id],m,m.exports);return m.exports;}
-  const api=module(client,{'./briques-file':module(file)}),ctx=new AudioContext({sampleRate:48000});await ctx.resume();
+  const api=module(client,{'./briques-file':module(file),'./rapidite-core':module(rapidite)}),ctx=new AudioContext({sampleRate:48000});await ctx.resume();
   await ctx.audioWorklet.addModule('/anticipation/capture.js');
   const node=new AudioWorkletNode(ctx,'bia-anticipation'),osc=ctx.createOscillator(),mute=ctx.createGain();mute.gain.value=0;
   osc.connect(node);node.connect(mute);mute.connect(ctx.destination);
@@ -50,7 +50,7 @@ try{
   }},true);
   await p.terminer('Je souhaite vérifier la lecture progressive de ma réponse.');await reading.fin;
   const out={capture:{sampleRate:ctx.sampleRate,chunks},playback:starts};await ctx.close();return out;
- },{file,client});
+ },{file,client,rapidite});
  assert(result.capture.chunks.length>=4);assert(result.capture.chunks.every(x=>x.length===1600));
  assert.equal(result.playback.length,2);assert(result.playback[0].ms<700,JSON.stringify(result.playback));assert(result.playback[1].ms>=800);
  console.log('BIA_AUDIO_BROWSER_VERIFIED '+JSON.stringify({synthetic:true,physical_microphone:false,human_listening:false,...result}));

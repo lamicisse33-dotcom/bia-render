@@ -1,4 +1,5 @@
 import {noterRelecture} from "@/lib/relecture-etat";
+import {noterTourRapidite,noterPremierSonRapidite} from '@/lib/rapidite-etat';
 import {noterMicro} from '@/lib/micro-etat';
 import {noterReprise} from '@/lib/reprise-etat';
 import {noterProtectionParole} from '@/lib/protection-parole-etat';
@@ -40,7 +41,7 @@ export async function POST(requete: Request) {
     else if (corps && ["protection_parole","capture_progressive"].includes(corps.type)) noterProtectionParole(corps);
     else if (corps && corps.type === "micro_capture") noterMicro(corps);
     else if (corps && corps.type === "reprise_reflexion") noterReprise(corps);
-    else if (corps && corps.type === "briques") noterBriques(corps);
+    else if (corps && corps.type === "briques") {noterBriques(corps);noterPremierSonRapidite(corps);}
     else if (corps && corps.type === "ecoute_progressive") noterEcouteProgressive(corps);
     else if (corps && corps.type === "ecoute_longue") noterEcouteLongue(corps);
     else if (corps && corps.type === "focus_locuteur") noterFocusLocuteur(corps);
@@ -49,7 +50,7 @@ export async function POST(requete: Request) {
     else if (corps && corps.type === "sons_courants") noterSonCourant(corps);
     else if (corps && corps.type === "lecture_devoirs") noterLectureDevoirs(corps);
     else if (corps && corps.type === "lecture") noterLecture(corps);
-    else if (corps && corps.type === "tour") noterTour(corps);
+    else if (corps && corps.type === "tour") {noterTour(corps);noterTourRapidite(corps);}
     else if (corps && corps.type === "coupure") noterCoupure(corps);
     else if (corps && corps.type === "guet") noterGuet(corps);
     else if (corps && corps.type === "veille") noterVeille(corps);

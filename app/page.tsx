@@ -1,4 +1,6 @@
 "use client";
+import {profilRapiditeNavigateur,entetesRapidite} from '@/lib/rapidite-core';
+import EssaiRapiditeBadge from '@/app/essai-rapidite/badge';
 import {maintenirEcranEveille} from '@/lib/veille-native';
 import {creerRelectureMedia,relireMorceaux} from '@/lib/relecture-media';
 import {SILENCE_MEDIA} from '@/lib/silence-media';
@@ -1708,7 +1710,7 @@ export default function Home() {
     void fetch("/api/mesure", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: "tour", ...tour }),
+      body: JSON.stringify({ type: "tour", ...tour, profil_rapidite:profilRapiditeNavigateur(), reprises:bornes.reprises||0 }),
     }).catch(() => {});
   }, []);
 
@@ -3347,7 +3349,7 @@ export default function Home() {
       const response = salutLocal?new Response(JSON.stringify(salutLocal),{headers:{"content-type":"application/json"}}):await fetch("/api/chat", {
         method: "POST",
         signal: requeteChat.signal,
-        headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+        headers: { "content-type": "application/json", "x-bia-code": codeRef.current, ...entetesRapidite() },
         body: JSON.stringify({
           message: clean,
           anticipationId:anticipee?.id,voixAnticipee:anticipee?.voice,
@@ -5236,7 +5238,7 @@ export default function Home() {
         const priseBriques:BlocPrise[]=[];let taillePriseBriques=0,priseBriquesTropLongue=false;
         const actifBriques=()=>!abortBriques.signal.aborted&&personaRef.current===apparenceDesBriques&&estLeTour(monTour)&&estCetEnregistrement(idEnr)&&!carteOuverteRef.current;
         const mesureBriques=(etape:string,ms:number,extra:Record<string,number>={})=>{
-          void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'briques',tour:tourDeParole,etape,ms,...extra}),keepalive:true}).catch(()=>{});
+          void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'briques',tour:tourDeParole,etape,ms,...extra,profil_rapidite:profilRapiditeNavigateur(),reprises:bornesRef.current.reprises||0}),keepalive:true}).catch(()=>{});
         };
         const taireBriques=()=>{attendBrique=false;if(estLeTour(monTour))taireLeSouffle();};
         const stockBriques=progressive?.etatBriques();
@@ -5298,7 +5300,7 @@ export default function Home() {
           legere.append("depot_confirme", "1");
           const indice = forme.get("indice_langue");
           if (indice !== null) legere.append("indice_langue", String(indice));
-          const envoyer=(corps:FormData)=>fetch(progressive?"/api/anticipation/segment":"/api/ecouter",{method:"POST",headers:{"x-bia-code":codeRef.current},body:corps});
+          const envoyer=(corps:FormData)=>fetch(progressive?"/api/anticipation/segment":"/api/ecouter",{method:"POST",headers:{"x-bia-code":codeRef.current,...entetesRapidite()},body:corps});
           let r:Response;
           let resultatProgressif:Awaited<ReturnType<NonNullable<typeof progressive>['resultat']>>=null;
           if(progressive){try{await fermetureProgressive;if(!captureProgressiveValide)throw Error('Capture non confirmée');resultatProgressif=await progressive.resultat();}catch{await progressive.annuler();}}
@@ -6264,6 +6266,7 @@ export default function Home() {
         mesurerLaCoupure(continuation, mots, continuation ? "recollee" : suite.action === "ensuite" ? "reprise_tardive" : !mots.trim() ? "sans_mots" : "pas_de_debut", reprise);
         ilParle = false;
         if (suite.action === "recoller" || suite.action === "remplacer") {
+          bornesRef.current.reprises=(bornesRef.current.reprises||0)+1;
           ouvrirUnTour();
           busyRef.current = false;
           questionEnVolRef.current = "";
@@ -7939,6 +7942,7 @@ export default function Home() {
 
   return (
     <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
+      <EssaiRapiditeBadge actif={estMaitre} />
       <a href="/?changer-code=1" aria-label="Changer de code d’accès" style={{position:'absolute',top:'max(12px, env(safe-area-inset-top))',left:12,zIndex:8,color:'#d4af37',background:'#101014dd',borderRadius:18,padding:'10px 14px',textDecoration:'none'}}>Code d’accès</a>
       <div className={eclipse ? "portrait eclipse" : rallume ? "portrait rallume" : "portrait"}
         aria-hidden="true" data-tenue={tenue} data-persona={persona}>

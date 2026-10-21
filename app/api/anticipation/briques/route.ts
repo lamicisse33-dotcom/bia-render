@@ -1,10 +1,11 @@
 import {verifierCode} from '@/lib/codes';
+import {profilRapiditeAutorise} from '@/lib/rapidite-core';
 import {preparerBrique} from '@/lib/briques-reponse';
 export async function POST(r:Request){
  const code=r.headers.get('x-bia-code')||'',v=verifierCode(code,false);
  if(!v.ok)return new Response(null,{status:401});
  try{const text=await r.text();if(text.length>50000)return new Response(null,{status:413});
-  const body=JSON.parse(text);
+  const body={...JSON.parse(text),essaiRapidite:profilRapiditeAutorise(r.headers.get('x-bia-essai-rapidite'),v.maitre)};
   if(body.flux===true&&!body.action){
    const abort=new AbortController(),signal=AbortSignal.any([r.signal,abort.signal,AbortSignal.timeout(35000)]),encoder=new TextEncoder();
    const stream=new ReadableStream<Uint8Array>({

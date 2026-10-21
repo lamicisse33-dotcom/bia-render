@@ -1,3 +1,5 @@
+import {profilRapiditeAutorise,rapiditeOptimisee} from '@/lib/rapidite-core';
+import {prechargerPendantEcoute} from '@/lib/rapidite-precharger';
 import {transcriptionEnBoucle,noterBoucleTranscription} from "@/lib/transcription-en-boucle";
 import { detecterLangue } from "@/lib/langue";
 import {preparerEcoute} from "@/lib/preparer-ecoute";
@@ -12,6 +14,7 @@ export async function POST(request: NextRequest) {
     const verdict = verifierCode(request.headers.get("x-bia-code"), false);
     if (!verdict.ok) return NextResponse.json({ erreur: "code" }, { status: 401 });
 
+    if(rapiditeOptimisee(profilRapiditeAutorise(request.headers.get('x-bia-essai-rapidite'),verdict.maitre)))prechargerPendantEcoute();
     const form = await request.formData();
     const diagnostic=verdict.maitre&&form.get("diagnostic")==="1";
 

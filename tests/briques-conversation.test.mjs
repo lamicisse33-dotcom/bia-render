@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import ts from 'typescript';
 import crypto from 'node:crypto';
 function load(path,req=()=>{throw Error('Unexpected import')}){
- const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(req,m,m.exports);return m.exports;
+ const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(id=>id==='./rapidite-core'?load('lib/rapidite-core.ts'):id==='./rapidite-etat'?load('lib/rapidite-etat.ts'):req(id),m,m.exports);return m.exports;
 }
 const tick=()=>new Promise(r=>setTimeout(r,0));
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
@@ -51,7 +51,7 @@ function server(answer,options={}){
   if(id==='./briques-etat')return {etatBriques:state};
   if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
   if(id==='./cerveau-anthropic')return {MODELE_SONNET:'test',messagesAnthropic:messages=>({messages}),contenuAnthropic:d=>d.text,fetchAnthropic:async(u,init)=>{
-   const request=JSON.parse(init.body),context=JSON.parse(request.messages.at(-1).content);models.push(context);
+   const request=JSON.parse(init.body),context=JSON.parse(request.messages.at(-1).content);models.push(context);options.modele?.(request);
    const result=answer?await answer(context,init.signal):{eligible:true,reply:context.fin_de_parole?'Tu as finalement payé trois mille francs.':'Tu as profité de ta sortie pour faire réparer tes chaussures.',traite:context.texte_integral};
    if(request.output_config.format.schema.properties.traite.type==='integer'&&typeof result.traite==='string')result.traite=result.traite.split(' ').length;
    return Response.json({text:JSON.stringify(result)});
@@ -343,3 +343,12 @@ test('a transient startup failure permits one authenticated diagnostic retry, th
  }finally{if(previous===undefined)delete process.env.BIA_CODE_MAITRE;else process.env.BIA_CODE_MAITRE=previous;}
 });
 
+
+
+test('an experimental brick session uses Haiku and cannot be resumed under another profile',async()=>{
+ const modeles=[];const s=server(null,{modele:r=>modeles.push(r.model)}),signal=new AbortController().signal;
+ const first=await s.preparerBrique({...body,essaiRapidite:'haiku'},'owner',true,signal);assert(first?.brique);
+ assert.equal(modeles[0],'claude-haiku-5-5');
+ await assert.rejects(s.preparerBrique({id:first.id,texte:question,final:true,essaiRapidite:'sonnet'},'owner',true,signal),/Session inconnue/);
+ const fin=await s.preparerBrique({id:first.id,texte:question,final:true,essaiRapidite:'haiku'},'owner',true,signal);assert(fin.termine);
+});
