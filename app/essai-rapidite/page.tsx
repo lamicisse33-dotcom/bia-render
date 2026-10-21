@@ -5,7 +5,7 @@ export default function EssaiRapidite(){
  const [etat,setEtat]=useState<any>(null),[erreur,setErreur]=useState('');
  const actualiser=async()=>{try{const r=await fetch('/api/etat',{cache:'no-store'});if(!r.ok)throw Error('État indisponible');const d=await r.json();setEtat(d.essai_rapidite);}catch{setErreur('Les mesures ne sont pas disponibles pour le moment.');}};
  useEffect(()=>{void actualiser();},[]);
- return <main style={{maxWidth:760,margin:'0 auto',padding:'30px 22px 70px',color:'#f5f8f6',background:'#101614',minHeight:'100vh',fontFamily:'system-ui'}}>
+ return <main tabIndex={0} style={{maxWidth:760,margin:'0 auto',padding:'30px 22px 70px',color:'#f5f8f6',background:'#101614',height:'100dvh',overflowY:'auto',WebkitOverflowScrolling:'touch',fontFamily:'system-ui'}}>
   <a href='/' style={{color:'#a7dbc2'}}>← BIA habituelle</a><h1 style={{fontSize:30}}>Comparer la rapidité de BIA</h1>
   <p>Utilise ton code maître. Chaque bouton ouvre la vraie conversation, avec son microphone, sa mémoire et sa voix habituelle. Le mode d’essai reste limité à cette adresse ; quitter l’essai rétablit la référence.</p>
   <p>Compare les mêmes questions dans des conversations neuves et sur le même téléphone : une courte en français, une en wolof, puis un récit de 15 à 20 secondes. Vérifie aussi la compréhension, les mots prononcés et les reprises.</p>
