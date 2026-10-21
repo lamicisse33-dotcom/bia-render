@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import ts from 'typescript';
-const js=ts.transpileModule(fs.readFileSync('lib/fiches-connaissances-core.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
-const {selectionnerFiches,passagesFiches}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
+function load(path,deps={}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(n=>{assert(n in deps,n);return deps[n]},m,m.exports);return m.exports;}
+const {selectionnerFiches,passagesFiches}=load('lib/fiches-connaissances-core.ts',{'./dialogue-devoirs-core':load('lib/dialogue-devoirs-core.ts')});
 const archives=JSON.parse(fs.readFileSync('data/fiches-archives.json','utf8')).fiches.map(f=>({...f,historique:true}));
 const corpus=[{id:'khalam',titre:'KHALAM',origine:'data/khalam.md',texte:fs.readFileSync('data/khalam.md','utf8').split('## À COMPLÉTER')[0]},...archives];
 test('late source sections and archived facts remain retrievable without truncating a selected paragraph',()=>{

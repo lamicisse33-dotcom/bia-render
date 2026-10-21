@@ -1805,7 +1805,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     const contexteEnCours=Promise.all([
       chrono('khalam',()=>savoirKhalam()),chrono('produits',()=>savoirProduits()),chrono('vitrine',()=>catalogue()),
       Promise.all([
-      chrono('devoirs',()=>contexteDevoirs(question)).catch(()=>{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");return "";}),
+      chrono('devoirs',()=>contexteDevoirs(question,body.history)).catch(()=>{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");return "";}),
       maitre.ok&&maitre.maitre?chrono('instructions',()=>contexteInstructions()).catch(()=>{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");return "";}):Promise.resolve(""),
       maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?chrono('maitrises',()=>contexteMaitrises(question,body.history,3000)).catch(()=>""):Promise.resolve(""),
       chrono('fiches',()=>fichesPourConversation(question,body.history||[],3500)),

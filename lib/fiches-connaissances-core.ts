@@ -1,3 +1,4 @@
+import {referenceApprisePourTour} from './dialogue-devoirs-core';
 export type FicheConnaissance={id:string;titre:string;origine:string;texte:string;historique?:boolean};
 export type PassageFiche=FicheConnaissance&{passage:string;rang:number};
 const normal=(s:string)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[’']/g,' ').replace(/\bdd[ .-]*sking?\b/g,'dd skin').replace(/\b(?:apps?|applis)\b/g,'applications').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
@@ -31,6 +32,12 @@ export function selectionnerFiches(fiches:FicheConnaissance[],question:string,hi
   return {p,score};
  }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||Number(a.p.historique)-Number(b.p.historique)||a.p.rang-b.p.rang);
  let taille=0;const choisis:PassageFiche[]=[];
- for(const {p} of notes){const n=p.passage.length+p.titre.length+p.origine.length+120;if(n+taille>budget)continue;taille+=n;choisis.push(p);}
+ const tours=history.filter(t=>t.role==='user').map(t=>({role:'user',text:t.text??t.content??''}));
+ for(const {p} of notes){
+  const appris=/^(?:devoirs|lexique_partage|biba|anciennes_lecons):/.test(p.id)||p.id.startsWith('corrections:')&&/"demande"\s*:\s*"DEVOIR:/.test(p.passage);
+  const passage=appris?referenceApprisePourTour(p.passage,question,tours):p.passage;
+  if(!passage)continue;
+  const n=passage.length+p.titre.length+p.origine.length+120;if(n+taille>budget)continue;taille+=n;choisis.push(passage===p.passage?p:{...p,passage});
+ }
  return {passages:choisis,texte:choisis.map(p=>`[${p.id}:${p.rang}] ${p.titre}\nSource : ${p.origine}${p.historique?' — archive : projets et dates à interpréter à la date du document, sans les annoncer comme disponibles aujourd’hui.':''}\n${p.passage}`).join('\n\n'),total_passages:passages.length};
 }
