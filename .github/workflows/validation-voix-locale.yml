@@ -29,7 +29,7 @@ jobs:
 
       - name: Vérifier Claude et le dialogue mémorisé
         # Include the actual native body and zero-output warming regression.
-        run: node --test tests/latence-cache.test.mjs tests/cerveau-anthropic.test.mjs tests/dialogue-devoirs.test.mjs tests/acces-devoirs.test.mjs tests/transcription-contexte.test.mjs tests/correction-vocale.test.mjs tests/dialogue-rapide.test.mjs tests/audio-memoire.test.mjs tests/conversation-groq.test.mjs tests/memoire-transmise.test.mjs tests/lexique-partage.test.mjs tests/acces.test.mjs tests/salutations.test.mjs tests/envoi-ecoute.test.mjs tests/ecoute-langues.test.mjs
+        run: node --test tests/essai-gpt.test.mjs tests/latence-cache.test.mjs tests/cerveau-anthropic.test.mjs tests/dialogue-devoirs.test.mjs tests/acces-devoirs.test.mjs tests/transcription-contexte.test.mjs tests/correction-vocale.test.mjs tests/dialogue-rapide.test.mjs tests/audio-memoire.test.mjs tests/conversation-groq.test.mjs tests/memoire-transmise.test.mjs tests/lexique-partage.test.mjs tests/acces.test.mjs tests/salutations.test.mjs tests/envoi-ecoute.test.mjs tests/ecoute-langues.test.mjs
 
       - name: Compiler Next.js
         run: npm run build
