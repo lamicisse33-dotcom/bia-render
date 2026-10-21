@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import ts from 'typescript';
 import crypto from 'node:crypto';
 function load(path,req=()=>{throw Error('Unexpected import')}){
- const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(id=>id==='./rapidite-core'?load('lib/rapidite-core.ts'):id==='./rapidite-etat'?load('lib/rapidite-etat.ts'):req(id),m,m.exports);return m.exports;
+ const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(id=>id==='./comprehension-conversation'?load('lib/comprehension-conversation.ts'):id==='./rapidite-core'?load('lib/rapidite-core.ts'):id==='./rapidite-etat'?load('lib/rapidite-etat.ts'):req(id),m,m.exports);return m.exports;
 }
 const tick=()=>new Promise(r=>setTimeout(r,0));
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};

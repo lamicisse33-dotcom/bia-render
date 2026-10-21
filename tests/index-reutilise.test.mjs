@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
-function load(path){const m={exports:{}};const js=ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function('module','exports','process',js)(m,m.exports,{env:{}});return m.exports;}
+function load(path){const m={exports:{}};const js=ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function('module','exports','process','require',js)(m,m.exports,{env:{}},name=>{assert.equal(name,'./dialogue-devoirs-core');return load('lib/dialogue-devoirs-core.ts')});return m.exports;}
 const lexique=load('lib/lexique.ts');
 test('word reuse preserves exact results, limits, additions and deletion immediately',async()=>{
  await lexique.ajouterCorrection({source:'salutation',proposee:'Bonjour ma amie.',corrigee:'Bonjour mon amie.',auteur:'test'});

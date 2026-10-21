@@ -3,7 +3,7 @@ import {cleDialogue,chargerDialoguesRapides,chercherChoixRapide,garderChoixRapid
 import {fetchAnthropic,contenuAnthropic,MODELE_SONNET,reglagesSonnet} from "./cerveau-anthropic";
 import {appelerCerebras} from "./cerveau-cerebras";
 import {devoirsALire} from "./devoirs-apprentissage";
-import {CONSIGNE_MAITRISES,maitrisesPourConversation,invitationAConverser,chercherDialogues,chercherRepliques,contexteDialogue,indexerDevoirs,paquetSelection,resoudreSelection,normaliserDialogue,finDuSujet,demandeArgumentation,choixConversation,repliqueChoisie,type DialogueAppris,type TourDialogue} from "./dialogue-devoirs-core";
+import {CONSIGNE_MAITRISES,maitrisesPourConversation,invitationAConverser,chercherDialogues,chercherRepliques,contexteDialogue,indexerDevoirs,paquetSelection,resoudreSelection,normaliserDialogue,finDuSujet,demandeArgumentation,choixConversation,repliqueChoisie,montantDeLeconNonConfirme,type DialogueAppris,type TourDialogue} from "./dialogue-devoirs-core";
 import {detecterLangue} from "./langue";
 import {salutationAutonome} from "./salutations-dialogue";
 
@@ -27,6 +27,7 @@ export async function contexteMaitrises(question:string,historique:unknown,budge
  const carte={...maitrisesPourConversation(index,question,history,budget),references_lexique:[] as Array<{fr:string;wo:string}>};
  let taille=0;
  for(const c of chercherDialogues(indexCalcule?.index===index?indexCalcule.lexique:index.filter(d=>d.id.startsWith("lexique:")),question,history))for(const p of c.d.repliques){
+  if(montantDeLeconNonConfirme(p.fr,p.wo,question,history))continue;
   const n=p.fr.length+p.wo.length;if(taille+n>2500)continue;taille+=n;carte.references_lexique.push({fr:p.fr,wo:p.wo});
  }
  return CONSIGNE_MAITRISES+"\nDOMAINES VALIDÉS DISPONIBLES\n"+JSON.stringify(carte);
