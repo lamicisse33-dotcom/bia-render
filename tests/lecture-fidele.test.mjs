@@ -13,7 +13,7 @@ const {morceauxLecture}=load('lib/lecture-morceaux.ts');
 const preparation=load('lib/passages-khalam-core.ts',{
   './lexique-apprentissage-core':load('lib/lexique-apprentissage-core.ts'),
   './langue':load('lib/langue.ts'),
-  './texte-khalam-voix':{texteKhalamVoix:t=>t.trim()},
+  './texte-khalam-voix':load('lib/texte-khalam-voix.ts',{'./nombres':load('lib/nombres.ts',{'./adresses':load('lib/adresses.ts')})}),
   './lexique-apprentissage':{lireLecons:async()=>[],prononciationsApprises:async t=>t},
   './decoupage-voix-khalam':load('lib/decoupage-voix-khalam.ts'),
   './lecture-continue':lecture,
