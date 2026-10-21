@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "1ccd3db02d8d38eec04574e4d3ebfcbedd48a1d4651fcf08b8920c833f84def4",
+    "app/page.tsx": "8e13eefd95f08600dd5b4b4a82716400efe0417021b13ce1241c8cb73caa0c5f",
     "lib/micro.ts": "225f42ffbe4c66c4c61c97d7ae6376506d94d4b8e3348582e67d7fae30b9f2ce",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "ad34b135d0d3589badf6161afd07df8dce927de633ea9ffc215a07dd26c47f19",
@@ -95,5 +95,13 @@
     "hash_after": "1ccd3db02d8d38eec04574e4d3ebfcbedd48a1d4651fcf08b8920c833f84def4",
     "scope": "Only app/page.tsx changes among protected paths: before the intent-gated verification clip, invalidate the reflection token and synchronously stop its active source. No other listening, voice or streaming change.",
     "verification": "Actual callback test proves MMM stop and pending-token invalidation precede verbal playback; a cancelled callback does neither. Existing reply cancellation, speech guards and no-late-MMM tests retained."
+  },
+  "migration_mmm_courtes_20261021": {
+    "authorized": "Lamine reports MMM too frequent and loud; asks occasional MMM only for short utterances and lower volume.",
+    "hash_before": "1ccd3db02d8d38eec04574e4d3ebfcbedd48a1d4651fcf08b8920c833f84def4",
+    "hash_after": "8e13eefd95f08600dd5b4b4a82716400efe0417021b13ce1241c8cb73caa0c5f",
+    "scope": "Only app/page.tsx among protected paths. Preserve microphone/ASR, selected voice, production GPU, continuous brick preparation/order and real-speech/cancellation guards.",
+    "behavior": "Acoustic speech duration >0 and <=5 seconds; at most one eligible short utterance in three, 45-second minimum since actual MMM playback, only initial wait >=1200ms. No MMM between bricks. Dedicated GainNode 0.35 for MMM only; immutable voice assets and normal voice volume unchanged.",
+    "verification": "Executed actual callbacks for eligibility, cancellation, ready response, async decode/fetch races, silent inter-brick callback and dedicated gain. Chromium checks actual MP3 decoding, playback and stop; human listening remains unvalidated. Live briques_conversation.politique_reflexion exposes the exact published parameters."
   }
 }

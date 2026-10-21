@@ -9,7 +9,7 @@ const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const compile=s=>ts.transpileModule(s,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
 const page=fs.readFileSync('app/page.tsx','utf8'),ast=ts.createSourceFile('page.tsx',page,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),callbacks={};
 function visit(n){if(ts.isVariableDeclaration(n)&&['speak','jouerEtAnimer','soufflerEnAttendant','taireLeSouffle'].includes(n.name.getText(ast)))callbacks[n.name.getText(ast)]=compile('const run='+n.initializer.arguments[0].getText(ast));ts.forEachChild(n,visit);}visit(ast);
-const modules={};for(const name of ['repertoire-textes','base-textes','services-textes','normaliser','langue','salutations-dialogue','sons-courants-core','salutation-locale','identite-core','identite-locale','accuse-demande'])modules[name]=compile(fs.readFileSync('lib/'+name+'.ts','utf8'));
+const modules={};for(const name of ['repertoire-textes','base-textes','services-textes','normaliser','langue','salutations-dialogue','sons-courants-core','salutation-locale','identite-core','identite-locale','accuse-demande','reflexion-courte'])modules[name]=compile(fs.readFileSync('lib/'+name+'.ts','utf8'));
 const lot=JSON.parse(fs.readFileSync('public/reponses-courtes-khalam-v2.json','utf8'));
 for(const e of lot.sons){assert.equal(e.son.moteur,'khalam-voice');assert.equal(e.son.checkpoint_sha256,e.son.langue==='fr'?'b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75':'8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f');}
 const identity=lot.sons.find(x=>x.son.cle==='ton-nom'&&x.son.langue==='fr');assert(identity);
@@ -26,16 +26,17 @@ try{
   const {salutationLocale}=module('salutation-locale');
   const {identiteLocale}=module('identite-locale');
   const {accuseDemandePertinent}=module('accuse-demande');
+  const {REFLEXION_COURTE,choisirReflexionCourte}=module('reflexion-courte');
   const ref=current=>({current}),bytes=b64=>Uint8Array.from(atob(b64),c=>c.charCodeAt(0)).buffer;
   const ctx=new AudioContext({sampleRate:48000});await ctx.resume();
-  let phase='salutation',start=performance.now();const starts=[],stops=[],measures=[];
-  const wrapped={get currentTime(){return ctx.currentTime;},destination:ctx.destination,decodeAudioData:b=>ctx.decodeAudioData(b),createBufferSource:()=>{
+  let phase='salutation',start=performance.now();const starts=[],stops=[],measures=[],gains=[];
+  const wrapped={get currentTime(){return ctx.currentTime;},destination:ctx.destination,createGain:()=>{const g=ctx.createGain();gains.push(g);return g;},decodeAudioData:b=>ctx.decodeAudioData(b),createBufferSource:()=>{
    const source=ctx.createBufferSource(),realStart=source.start.bind(source),realStop=source.stop.bind(source);
    source.start=(...args)=>{starts.push({phase,ms:performance.now()-start,duration:source.buffer.duration});return realStart(...args);};
    source.stop=(...args)=>{stops.push(phase);return realStop(...args);};return source;
   }};
   const cache=new Map([[greeting.son.adresse,bytes(greeting.audio)],[identity.son.adresse,bytes(identity.audio)],...takes.map(t=>[t.path,bytes(t.audio)])]);
-  const env={window,Math,Date,performance,carteOuverteRef:ref(false),numeroDuTourRef:ref(1),personaRef:ref('rara'),codeRef:ref('fixture'),langueRef:ref('fr'),bornesRef:ref({}),sourceRef:ref(null),sourcesRef:ref(new Set()),animationRef:ref(null),segmentEnCoursRef:ref(false),sonDelleRef:ref(0),fluxVoixRef:ref(new Set()),tourRef:ref(null),ditsRef:ref([]),
+  const env={window,Math,Date,performance,REFLEXION_COURTE,choisirReflexionCourte,rythmeReflexionRef:ref({courtes:0,derniere:null}),carteOuverteRef:ref(false),numeroDuTourRef:ref(1),personaRef:ref('rara'),codeRef:ref('fixture'),langueRef:ref('fr'),bornesRef:ref({}),sourceRef:ref(null),sourcesRef:ref(new Set()),animationRef:ref(null),segmentEnCoursRef:ref(false),sonDelleRef:ref(0),fluxVoixRef:ref(new Set()),tourRef:ref(null),ditsRef:ref([]),
    estMaitreRef:ref(false),audioAnticipeRef:ref(null),prisesValidees:{api:{lire(){throw Error('unexpected private lookup');}}},
    cacheSons:ref(cache),sonsCourantsRef:ref([greeting.son]),choixVoixBia:()=> 'female',voixChatterboxBia:()=> 'female',essaiChatterboxActif:()=>true,piperWebActif:()=>false,estWolof:()=>false,
    autoriserLaVoix:async actuel=>actuel(),reveillerLeSon:async()=>wrapped,contexte:()=>wrapped,sonPourTexte:()=>undefined,
@@ -57,12 +58,19 @@ try{
   if(first!==2||starts.filter(s=>s.phase==='identite').length!==1)throw Error('identity did not play exactly once');
   for(const take of takes){
    phase='mmm';start=performance.now();const token={};env.attenteRef.current=token;env.stopAttenteRef.current=false;env.fichierDe=()=>take.path;
-   await callback('soufflerEnAttendant')(token);
+   env.rythmeReflexionRef.current={courtes:0,derniere:null};
+   const before=starts.length;
+   await callback('soufflerEnAttendant')(token,12000);
+   await callback('soufflerEnAttendant')(token,2400);
+   await callback('soufflerEnAttendant')(token,2400);
+   if(starts.length!==before)throw Error('long or non-selected short turn played a MMM');
+   await callback('soufflerEnAttendant')(token,2400);
    env.taireLeSouffle();
   }
-  const out={identity_start_ms:starts.find(s=>s.phase==='identite').ms,identity_reply:nom.reply,greeting_start_ms:starts[0].ms,greeting_duration:starts[0].duration,mmm:starts.filter(s=>s.phase==='mmm'),stopped:stops.includes('mmm'),opening_repeated:false,network_model_calls:0,measurements:measures.map(m=>({type:m.type,ouverture:m.ouverture,phase:m.phase}))};
+  if(gains.length!==takes.length||gains.some(g=>Math.abs(g.gain.value-.35)>.0001))throw Error('MMM gain differs from 35%');
+  const out={mmm_gain:gains.map(g=>g.gain.value),identity_start_ms:starts.find(s=>s.phase==='identite').ms,identity_reply:nom.reply,greeting_start_ms:starts[0].ms,greeting_duration:starts[0].duration,mmm:starts.filter(s=>s.phase==='mmm'),stopped:stops.includes('mmm'),opening_repeated:false,network_model_calls:0,measurements:measures.map(m=>({type:m.type,ouverture:m.ouverture,phase:m.phase}))};
   await ctx.close();return out;
  },{callbacks,modules,greeting,identity,takes});
- assert(result.greeting_start_ms<300,JSON.stringify(result));assert(result.identity_start_ms<300,JSON.stringify(result));assert.equal(result.mmm.length,takes.length);for(let i=0;i<takes.length;i++){assert(result.mmm[i].ms>=780&&result.mmm[i].ms<2000);assert(Math.abs(result.mmm[i].duration-takes[i].expected_seconds)<.03);}assert(result.stopped);
+ assert(result.greeting_start_ms<300,JSON.stringify(result));assert(result.identity_start_ms<300,JSON.stringify(result));assert.equal(result.mmm.length,takes.length);for(let i=0;i<takes.length;i++){assert(result.mmm[i].ms>=1180&&result.mmm[i].ms<2000);assert(Math.abs(result.mmm[i].duration-takes[i].expected_seconds)<.03);}assert(result.stopped);
  console.log('BIA_SONS_OUVERTURE_BROWSER_VERIFIED '+JSON.stringify({synthetic:true,physical_microphone:false,human_listening:false,...result}));
 }finally{if(browser)await browser.close();await new Promise(r=>server.close(r));}
