@@ -1,3 +1,4 @@
+import {resumeRelecture} from "@/lib/relecture-etat";
 import {resumeBouclesTranscription} from "@/lib/transcription-en-boucle";
 import {resumeCorrectionPrioritaire} from "@/lib/correction-prioritaire";
 import {resumeOreilleEssai} from '@/lib/oreille-essai-etat';
@@ -394,7 +395,8 @@ export async function GET(request: Request) {
        une coupure qu'il aurait dû faire. */
     guet: resumeGuets(),
     /* Le verrou d'écran (20 septembre) : tenu, refusé, relâché, secours. */
-    veille: resumeVeilles(),
+    veille: {...resumeVeilles(),gestion:"native-reprise-automatique-v1",secours_audio:false},
+    relecture:resumeRelecture(),
     /* Les sons du répertoire mis en main avant le premier mot (20 septembre). */
     prechauffage: resumePrechauffages(),
     ecarts_entre_les_tours: ecartsEntreLesTours(),

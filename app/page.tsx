@@ -1,4 +1,7 @@
 "use client";
+import {maintenirEcranEveille} from '@/lib/veille-native';
+import {creerRelectureMedia,relireMorceaux} from '@/lib/relecture-media';
+import {SILENCE_MEDIA} from '@/lib/silence-media';
 import {transportConversation} from '@/lib/transport-conversation';
 import {brancherAnticipation} from "@/lib/anticipation-client";
 import {ecouterLongue} from "@/lib/ecoute-longue";
@@ -101,7 +104,7 @@ import CarteVitrine, { chargerSujet } from "./vitrine";
 import CarteTrouve, { versEcran } from "./trouve";
 import type { Resultat } from "./trouve";
 import { contientUnGrosMot } from "@/lib/gestes-de-la-main";
-import { decrireLAppareil, lancerLeSecours, noterVeille } from "@/lib/veille";
+import { decrireLAppareil, noterVeille } from "@/lib/veille";
 import OnboardingVoix, { useOnboardingVoix } from "./onboarding-voix/OnboardingVoix";
 
 /* Un message peut porter le RENVOI vers un papier — son identifiant, pas son
@@ -1166,7 +1169,9 @@ export default function Home() {
      tour est encore le tour en cours. */
   const numeroDuTourRef = useRef(0);
   const fluxVoixRef = useRef(new Set<AbortController>());
+  const relectureRef=useRef<AbortController|null>(null);
   const ouvrirUnTour = useCallback(() => {
+    relectureRef.current?.abort();relectureRef.current=null;
     for (const flux of fluxVoixRef.current) flux.abort();
     fluxVoixRef.current.clear();
     return ++numeroDuTourRef.current;
@@ -1418,86 +1423,17 @@ export default function Home() {
      permanence est ce qui vide un téléphone le plus vite. C'est son choix, et
      il le sait — mais le verrou tombe dès qu'on quitte BIA, donc ça ne dure
      que le temps qu'on est avec elle. */
-  /* 20 septembre : il redemande la même chose, donc ça ne tenait pas chez
-     lui — et rien ne le comptait. Maintenant chaque issue est mesurée
-     (/api/etat → veille), et un secours prend le relais quand l'API manque
-     ou refuse. Voir lib/veille.ts. */
+  /* Le verrou natif est redemandé après relâchement et retour visible.
+     Aucun média silencieux ne concurrence sa voix. Les refus du système
+     restent visibles dans /api/etat → veille. */
   useEffect(() => {
-    type Verrou = { release: () => Promise<void>; released?: boolean; addEventListener?: (t: string, f: () => void) => void };
-    const api = (navigator as unknown as {
-      wakeLock?: { request: (t: string) => Promise<Verrou> };
-    }).wakeLock;
-    let verrou: Verrou | null = null;
-    let vivant = true;
-    let arreterLeSecours: (() => void) | null = null;
-    let secoursVoulu = !api;
-    if (!api) noterVeille("api_absente");
-    noterVeille("appareil", decrireLAppareil());
-
-    /* ── 21 SEPTEMBRE : « ÇA NE MARCHE TOUJOURS PAS » ───────────────────
-       Deux trous dans la version du 20. Le secours ne partait QUE sur un
-       toucher postérieur au refus : si le refus arrivait après le premier
-       toucher (il est asynchrone), il attendait un second toucher qui, dans
-       une conversation à la voix, ne vient jamais — refus 3, secours 2.
-       Et une fois parti, il n'était plus surveillé : une pause imposée par
-       le téléphone (micro qui s'ouvre, autre son) l'éteignait pour de bon.
-       Voir lancerLeSecours() dans lib/veille.ts pour la seconde moitié. */
-    const ceQueFaitBia = () => `${modeRef.current}${document.visibilityState !== "visible" ? " cachée" : ""}`;
-    const lancerSiPossible = () => {
-      if (!vivant || !secoursVoulu || arreterLeSecours) return;
-      /* Un geste a déjà eu lieu sur la page (activation collante) : la vidéo
-         peut partir tout de suite, sans attendre le toucher suivant. */
-      const dejaTouche = (navigator as unknown as { userActivation?: { hasBeenActive?: boolean } }).userActivation?.hasBeenActive;
-      if (!dejaTouche) return;
-      arreterLeSecours = lancerLeSecours(ceQueFaitBia);
-    };
-    const auGeste = () => {
-      if (!vivant) return;
-      if (secoursVoulu && !arreterLeSecours) arreterLeSecours = lancerLeSecours(ceQueFaitBia);
-      /* Et on redemande le verrou officiel sur le geste : certains
-         navigateurs ne l'accordent qu'avec une activation récente. S'il
-         passe, le secours s'arrête. */
-      if (api && secoursVoulu) void tenir();
-    };
-    window.addEventListener("pointerdown", auGeste, { passive: true });
-
-    const tenir = async () => {
-      if (!vivant || !api || document.visibilityState !== "visible") return;
-      if (verrou && !verrou.released) return;
-      try {
-        verrou = await api.request("screen");
-        noterVeille("tenu");
-        secoursVoulu = false;
-        if (arreterLeSecours) { arreterLeSecours(); arreterLeSecours = null; }
-        /* Le téléphone peut le relâcher de lui-même (batterie faible, écran
-           couvert). On le saura, et on redemandera au retour. */
-        verrou.addEventListener?.("release", () => {
-          if (!vivant) return;
-          noterVeille("relache");
-          /* Relâché sans qu'on quitte la page : on ne reste pas sans rien. */
-          if (document.visibilityState === "visible") { secoursVoulu = true; lancerSiPossible(); }
-        });
-      } catch (e) {
-        /* Refusé : NotAllowedError le plus souvent (mode économie d'énergie,
-           page cachée). On le dit, et le secours prend le relais — tout de
-           suite si un geste a déjà eu lieu, sinon au prochain toucher. */
-        noterVeille("refuse", String((e as Error)?.name || e));
-        secoursVoulu = true;
-        lancerSiPossible();
-      }
-    };
-    const auRetour = () => { if (document.visibilityState === "visible") void tenir(); };
-
-    void tenir();
-    document.addEventListener("visibilitychange", auRetour);
-    return () => {
-      vivant = false;
-      document.removeEventListener("visibilitychange", auRetour);
-      window.removeEventListener("pointerdown", auGeste);
-      void verrou?.release().catch(() => { });
-      arreterLeSecours?.();
-    };
-  }, []);
+    noterVeille("appareil",decrireLAppareil());
+    return maintenirEcranEveille({
+      api:(navigator as unknown as {wakeLock?:{request:(type:'screen')=>Promise<{release:()=>Promise<void>;released?:boolean;addEventListener?:(type:string,fn:()=>void)=>void}>}}).wakeLock,
+      visible:()=>document.visibilityState==='visible',noter:noterVeille,
+      ecouter:(event,fn)=>{const cible=event==='visibilitychange'?document:window;cible.addEventListener(event,fn);return()=>cible.removeEventListener(event,fn);}
+    });
+  },[]);
 
   /* ── LA MISE À JOUR D'ELLE-MÊME ──────────────────────────────────────────
 
@@ -1691,6 +1627,7 @@ export default function Home() {
   }, [contexte]);
 
   const couperSon = useCallback(() => {
+    relectureRef.current?.abort();relectureRef.current=null;
     /* Le souffle d'attente tombe avec le reste : s'il survivait à sa réponse,
        elle ferait « mmm » par-dessus sa propre phrase. */
     taireLeSoufflRef.current?.();
@@ -5797,6 +5734,31 @@ export default function Home() {
     // images de bouche, elles, sont remises par l'animation qui s'arrête.
     setFace((f) => (f === "pensive" ? "yeux_ouverts" : f));
   }, [couperSon, ouvrirUnTour, nouvelEnregistrement]);
+  const relireMessage = useCallback(async (texte:string) => {
+    fermerConversation();taire();setPanne("");
+    const porte=porteRef.current;porteRef.current=null;porte?.ouvrir();
+    const abort=new AbortController();relectureRef.current=abort;
+    const lecteur=creerRelectureMedia(new Audio(),abort.signal,SILENCE_MEDIA);
+    const actuel=()=>!abort.signal.aborted&&relectureRef.current===abort;
+    const mesurer=(etape:string)=>{void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'relecture',etape}),keepalive:true}).catch(()=>{});};
+    mesurer('demande');busyRef.current=true;setMode('thinking');
+    try{
+      const langue=estWolof(texte)?'wo':'fr',voice=voixChatterboxBia();
+      const jouer=async(bytes:ArrayBuffer)=>{if(!actuel())throw Error('Relecture annulée');await lecteur.jouer(bytes,vitesseAudioBia(bytes),()=>{if(actuel()){bouche(true);mesurer('lecture');}});};
+      const son=sonPourTexte(sonsCourantsRef.current,texte,langue);
+      const exacte=await prisesValidees.api.lire(texte,langue,voice);
+      if(!actuel())return;
+      if(exacte)await jouer(exacte);
+      else if(son&&voice==='female')await jouer(await octetsDuRepertoire(son.adresse));
+      else await relireMorceaux({signal:abort.signal,demander:async(partie,empreinte)=>{
+        const r=await fetchVoixBia(routeVoixBia(),{method:'POST',headers:{'content-type':'application/json','x-bia-code':codeRef.current},signal:AbortSignal.any([abort.signal,AbortSignal.timeout(piperWebActif()?45000:20000)]),body:JSON.stringify({texte,partie,empreinte,voice,langue,ou:'relecture',lecture_fidele:true})});
+        const d=await r.json();if(!r.ok)throw Error(d.error||'La voix est indisponible. Réessaie.');return d;
+      },jouer:async(b64,speed)=>jouer(octetsDeBase64(b64,speed))});
+      if(actuel())mesurer('fin');
+    }catch(e){if(actuel()){mesurer('erreur');setPanne(e instanceof Error?e.message:'Relecture indisponible');}}
+    finally{abort.abort();lecteur.fermer();if(relectureRef.current===abort){relectureRef.current=null;busyRef.current=false;stopMouth();}}
+  },[fermerConversation,taire,bouche,prisesValidees.api,octetsDuRepertoire,stopMouth]);
+  useEffect(()=>()=>{relectureRef.current?.abort();relectureRef.current=null;},[]);
   taireRef.current = taire;
   /* Même procédé que taireRef : le guetteur est posé une fois par état et ne
      doit pas être démonté quand askBia change d'identité — démonter le
@@ -8159,15 +8121,7 @@ export default function Home() {
                   ))}
                 </p>
                 {m.role === "bia" && m.text.trim() ? (
-                  <button type="button" aria-label="Réécouter cette réponse" onClick={() => {
-                    // A user gesture wakes browser audio. Replay the existing
-                    // text without a new chat request or an old microphone gate.
-                    fermerConversation(); taire();
-                    const porte = porteRef.current;
-                    porteRef.current = null; porte?.ouvrir();
-                    contexte(); setPanne("");
-                    void speak(m.text, undefined, "relecture");
-                  }}>🔊 Réécouter</button>
+                  <button type="button" aria-label="Réécouter cette réponse" onClick={() => void relireMessage(m.text)}>🔊 Réécouter</button>
                 ) : null}
                 {/* Ce qu'elle montre vient SOUS sa phrase, jamais à la place :
                     l'image complète la parole, elle ne la remplace pas. */}

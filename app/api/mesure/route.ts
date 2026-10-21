@@ -1,3 +1,4 @@
+import {noterRelecture} from "@/lib/relecture-etat";
 import {noterMicro} from '@/lib/micro-etat';
 import {noterReprise} from '@/lib/reprise-etat';
 import {noterProtectionParole} from '@/lib/protection-parole-etat';
@@ -20,6 +21,7 @@ import { noterCoupure, noterGuet, noterVue, noterLecture, noterTour, noterVeille
 export async function POST(requete: Request) {
   try {
     const corps = await requete.json();
+    if(corps?.type==="relecture"){noterRelecture(corps.etape);return NextResponse.json({ok:true});}
     /* TROIS mesures passent par ici : l'attente avant qu'elle parle, les
        coutures pendant qu'elle parle, et — depuis le 15 septembre 2026 — le
        tour complet bout à bout, des deux bouts qu'il ressent. Voir
