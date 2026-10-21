@@ -6,8 +6,8 @@ export function sansGuillemetsFrancais(texte:string):string {
 
 /** Presentation marks are silent; the displayed/stored text stays intact.
  * Keep Unicode letters (including Wolof), apostrophes and semantic punctuation. */
-export function sansMiseEnFormeVocale(texte:string):string {
- return sansGuillemetsFrancais(texte.normalize("NFC")
+export function sansMiseEnFormeVocale(texte:string,compter=false):string {
+ const rendu= sansGuillemetsFrancais(texte.normalize("NFC")
   .replace(/<https?:\/\/[^>]+>/giu," ")
   .replace(/!\[([^\]]*)\]\([^)]*\)/gu,"$1")
   .replace(/\[([^\]]+)\]\([^)]*\)/gu,"$1")
@@ -23,6 +23,8 @@ export function sansMiseEnFormeVocale(texte:string):string {
   .replace(/[•▪◦►▶✓✔★☆]/gu," ")
   .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu," ")
  ).replace(/\s+([,.])/gu,"$1");
+ if(compter){stats.appels++;if(rendu!==texte.normalize("NFC").trim())stats.nettoyages++;}
+ return rendu;
 }
 const g=globalThis as typeof globalThis&{biaTexteVoix?:{appels:number;nettoyages:number}};
 const stats=g.biaTexteVoix??={appels:0,nettoyages:0};
@@ -34,8 +36,7 @@ export function resumeTexteVoix(){return {revision:"symboles-muets-v1",...stats,
 
 /** Spoken rendering only: the transcript retains its original spelling/numbers. */
 export function texteKhalamVoix(texte: string): string {
-  let t = sansMiseEnFormeVocale(texte);
-  stats.appels++;if(t!==texte.normalize("NFC").trim())stats.nettoyages++;
+  let t = sansMiseEnFormeVocale(texte,true);
   // Resolve clocks before generic numbers; say leading-zero minutes naturally.
   t = t.replace(/\b([01]?\d|2[0-3])\s*[hH:]\s*([0-5]\d)\b/g, (_, h, m) =>
     `${enLettres(Number(h))} heure${Number(h) === 1 ? "" : "s"}${Number(m) ? ` ${enLettres(Number(m))}` : ""}`);
