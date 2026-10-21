@@ -68,6 +68,7 @@ import { finir as finirLeTour, poser as poserBorne, tourVide, type Bornes } from
 import { fenetreDuFil } from "@/lib/fenetre-du-fil";
 import type { Mesure, Voie } from "@/lib/chrono";
 import { fichierDe, souffleDe } from "@/lib/sons";
+import { REFLEXION_COURTE, choisirReflexionCourte, type RythmeReflexion } from "@/lib/reflexion-courte";
 import { lireLeRire } from "@/lib/rires";
 import {piperWebActif,fetchVoixBia,preparerPiperWeb,etatPiperWeb,vitessePiperWeb,mesurerPiperWeb} from "@/lib/piper-web";
 import { choixVoixBia, choisirVoixBia, essaiChatterboxActif, routeVoixBia, voixChatterboxBia, type ChoixVoixBia } from "@/lib/chatterbox-essai";
@@ -2152,30 +2153,33 @@ export default function Home() {
 
      ── ET IL S'EFFACE DEVANT ELLE ────────────────────────────────────────
 
-     Trois gardes, et chacune répare un défaut qu'on connaît :
+     Un MMM occasionnel (au plus une courte sur trois, espacé de 45 s),
+     à 35 % du volume, seulement avant la première réponse. Puis les gardes :
 
        — il ne part QUE si le tour est encore le sien ;
        — il ne part QUE si rien d'autre ne sort du haut-parleur, sinon il se
          superposerait à sa réponse ;
-       — et il attend 800 ms. Une réponse qui vient du répertoire arrive en
+       — et il attend 1 200 ms, uniquement pour les phrases courtes choisies. Une réponse qui vient du répertoire arrive en
          moins que ça : elle ne doit pas être précédée d'un « mmm » de
          réflexion alors qu'il n'y a eu aucune réflexion. */
   const souffleDattenteRef = useRef<AudioBufferSourceNode | null>(null);
-  const soufflerEnAttendant = useCallback(async (jeton: object) => {
+  const rythmeReflexionRef = useRef<RythmeReflexion>({courtes:0,derniere:null});
+  const soufflerEnAttendant = useCallback(async (jeton: object, dureeParoleMs: number) => {
     if (piperWebActif()) return;
     if (voixChatterboxBia() !== 'female') return;
     const debutAttente = Date.now();
     const actuel = () => attenteRef.current === jeton && !stopAttenteRef.current
       && voixChatterboxBia() === 'female'
       && !carteOuverteRef.current && !sourceRef.current && !souffleDattenteRef.current;
-    if (carteOuverteRef.current) return;
+    if (carteOuverteRef.current || !actuel()) return;
+    if (!choisirReflexionCourte(rythmeReflexionRef.current,dureeParoleMs,Date.now())) return;
     const souffle = souffleDe("reflexion");
     if (!souffle) return;
     /* Aucun fichier déclaré : on n'essaie même pas d'en chercher un. Sans
        cette ligne, chaque tour partirait chercher un son qui n'existe pas —
        un aller-retour au serveur par question, pour un 404. */
     if (!souffle.fichiers.length) return;
-    await new Promise((suite) => setTimeout(suite, 800));
+    await new Promise((suite) => setTimeout(suite, REFLEXION_COURTE.attente_ms));
     if (!actuel()) return;
     if (sourceRef.current || souffleDattenteRef.current) return;      // elle parle déjà : on se tait
     const fichier = fichierDe(souffle, dernierSouffle.current);
@@ -2200,13 +2204,16 @@ export default function Home() {
       if(!await autoriserLaVoix(actuel) || !actuel())return;
       const source = ctx.createBufferSource();
       source.buffer = memoire;
-      source.connect(ctx.destination);
+      const volume = ctx.createGain();
+      volume.gain.value = REFLEXION_COURTE.volume;
+      source.connect(volume); volume.connect(ctx.destination);
       souffleDattenteRef.current = source;
       source.onended = () => {
         if (souffleDattenteRef.current === source) souffleDattenteRef.current = null;
       };
       source.start();
-      void fetch('/api/mesure', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'briques',etape:'reflexion',phase:'initiale',ms:Date.now()-debutAttente,duree_ms:Math.round(memoire.duration*1000)}),keepalive:true}).catch(()=>{});
+      rythmeReflexionRef.current.derniere = Date.now();
+      void fetch('/api/mesure', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'briques',etape:'reflexion',phase:'initiale',ms:Date.now()-debutAttente,duree_ms:Math.round(memoire.duration*1000),parole_ms:dureeParoleMs,volume:REFLEXION_COURTE.volume}),keepalive:true}).catch(()=>{});
     } catch { /* un souffle qui ne part pas ne casse rien */ }
   }, [reveillerLeSon, autoriserLaVoix]);
 
@@ -5278,9 +5285,9 @@ export default function Home() {
         tTranscritRef.current = 0;
         tModeleRef.current = 0;
         langueRef.current = "wo";
-        // Wait for the transcription before selecting any spoken reaction.
-        // A nonverbal breath can accompany transcription; no filler words.
-        void soufflerEnAttendant(jeton);
+        // Only an occasional short utterance may get one initial quiet MMM.
+        // Use acoustic speech onset/end, never microphone-open idle time.
+        void soufflerEnAttendant(jeton,debutParole?dernierSon-debutParole:0);
 
         // Play the first locked audio, or keep its running preparation alive.
         // Neither depends on the final ASR; subsequent bricks only append.
@@ -5338,26 +5345,9 @@ export default function Home() {
             if(actifBriques()){setMode('thinking');setFace('pensive');}
             return ms>0&&actifBriques();
           },
-          attente:(attenteMs)=>{
+          attente:()=>{
+            // No MMM between streamed bricks, even during a longer gap.
             attendBrique=true;
-            // Only a real, approved take in this voice. Missing takes remain
-            // silent; never synthesize "hmm" or replay the rejected short clips.
-            const souffle=souffleDe('reflexion');
-            if(voixChatterboxBia()!=='female'||!souffle?.fichiers.length)return;
-            const fichier=fichierDe(souffle,dernierSouffle.current);
-            void (async()=>{
-              try{
-                const octets=cacheSons.current.get(fichier)||await octetsDuRepertoire(fichier);
-                if(!octets||!attendBrique||!actifBriques()||sourceRef.current)return;
-                const ctx=await reveillerLeSon(),audio=await ctx.decodeAudioData(octets.slice(0));
-                if(audio.duration<1.2||audio.duration>2.5||!attendBrique||!actifBriques()||sourceRef.current)return;
-                if(!await autoriserLaVoix(()=>attendBrique&&actifBriques()&&!sourceRef.current))return;
-                cacheSons.current.set(fichier,octets);dernierSouffle.current=fichier;
-                const source=ctx.createBufferSource();source.buffer=audio;source.connect(ctx.destination);souffleDattenteRef.current=source;
-                source.onended=()=>{if(souffleDattenteRef.current===source)souffleDattenteRef.current=null;};
-                source.start();mesureBriques('reflexion',attenteMs,{duree_ms:Math.round(audio.duration*1000)});
-              }catch{}
-            })();
           },taire:taireBriques,mesure:()=>{},
         }):null;
         if(lectureBriques){busyRef.current=true;fluxVoixRef.current.add(abortBriques);}

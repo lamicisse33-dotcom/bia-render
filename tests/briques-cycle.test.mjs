@@ -51,7 +51,8 @@ test('a first brick, a fabrication gap beyond the watchdog and the next brick re
  }finally{globalThis.fetch=original;}
 });
 test('cycle telemetry preserves turn, completion and cancellation reasons without conversation content',()=>{
- delete globalThis.biaBriquesEtat;const api=load('lib/briques-etat.ts');
+ delete globalThis.biaBriquesEtat;const api=load('lib/briques-etat.ts',()=>load('lib/reflexion-courte.ts'));
  for(const etape of ['depart','debut_brique','fin_brique','transcrit','fin_preparation','fin_chaine','annulation'])api.noterBriques({tour:'test-cycle-123',etape,ms:100,pretes:1,en_cours:1,capture_actuelle:0,tour_actuel:1,texte:'private'});
  const c=api.resumeBriques().cycle;assert.equal(c.derniers.length,7);assert.equal(c.comptes.fin_chaine,1);assert.equal(c.derniers.at(-1).capture_actuelle,0);assert.equal(c.derniers.at(-1).tour_actuel,1);assert(c.derniers.every(x=>!('texte'in x)));
 });
+

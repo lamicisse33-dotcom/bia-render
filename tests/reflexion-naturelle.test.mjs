@@ -12,6 +12,10 @@ function callback(name,env){
   return new Function('env',`with(env){${ts.transpileModule('const run='+arrow,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText};return run;}`)(env);
 }
 const ref=current=>({current});
+const policyModule={exports:{}};
+new Function('module','exports',ts.transpileModule(fs.readFileSync('lib/reflexion-courte.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText)(policyModule,policyModule.exports);
+const {REFLEXION_COURTE,choisirReflexionCourte}=policyModule.exports;
+
 test('the actual preloader warms both converted takes with the default portrait and never synthesizes',async()=>{
  let setup;
  function visit(n){if(ts.isCallExpression(n)&&n.expression.getText(ast)==='useEffect'&&n.arguments[0]?.getText(ast).includes("etape:'reflexion_prechargee'"))setup=n.arguments[0].getText(ast);ts.forEachChild(n,visit);}visit(ast);assert(setup);
@@ -23,12 +27,13 @@ test('the actual preloader warms both converted takes with the default portrait 
 function fixture(){
   const timers=[],heard=[],measures=[],token={};
   const source={connect(){},start(){heard.push('mmm');},stop(){heard.push('stop');}};
-  const env={piperWebActif:()=>false,personaRef:ref('bia'),voixChatterboxBia:()=> 'female',carteOuverteRef:ref(false),souffleDe:()=>({fichiers:['take']}),setTimeout:(f,ms)=>timers.push({f,ms}),attenteRef:ref(token),stopAttenteRef:ref(false),sourceRef:ref(null),souffleDattenteRef:ref(null),dernierSouffle:ref(null),fichierDe:()=> 'take',cacheSons:ref(new Map([['take',new ArrayBuffer(8)]])),autoriserLaVoix:async current=>current(),reveillerLeSon:async()=>({decodeAudioData:async()=>({duration:1.93}),createBufferSource:()=>source}),fetch:async(_url,init)=>{measures.push(JSON.parse(init.body));return {};}};
-  return {env,timers,heard,measures,token,source,start:()=>callback('soufflerEnAttendant',env)(token)};
+  const gain={gain:{value:1},connect(){}};
+  const env={REFLEXION_COURTE,choisirReflexionCourte,rythmeReflexionRef:ref({courtes:2,derniere:null}),piperWebActif:()=>false,personaRef:ref('bia'),voixChatterboxBia:()=> 'female',carteOuverteRef:ref(false),souffleDe:()=>({fichiers:['take']}),setTimeout:(f,ms)=>timers.push({f,ms}),attenteRef:ref(token),stopAttenteRef:ref(false),sourceRef:ref(null),souffleDattenteRef:ref(null),dernierSouffle:ref(null),fichierDe:()=> 'take',cacheSons:ref(new Map([['take',new ArrayBuffer(8)]])),autoriserLaVoix:async current=>current(),reveillerLeSon:async()=>({decodeAudioData:async()=>({duration:1.93}),createBufferSource:()=>source,createGain:()=>gain}),fetch:async(_url,init)=>{measures.push(JSON.parse(init.body));return {};}};
+  return {env,timers,heard,measures,token,source,gain,start:(duree=2400)=>callback('soufflerEnAttendant',env)(token,duree)};
 }
-test('a short turn gets one natural sound only after an actual 800 ms wait; the reply stops it synchronously',async()=>{
-  const f=fixture(),p=f.start();assert.deepEqual(f.heard,[]);assert.equal(f.timers[0].ms,800);
-  f.timers[0].f();await p;assert.deepEqual(f.heard,['mmm']);assert.equal(f.measures[0].phase,'initiale');assert.equal(f.measures[0].duree_ms,1930);
+test('a short turn gets one natural sound only after an actual 1200 ms wait; the reply stops it synchronously',async()=>{
+  const f=fixture(),p=f.start();assert.deepEqual(f.heard,[]);assert.equal(f.timers[0].ms,1200);
+  f.timers[0].f();await p;assert.deepEqual(f.heard,['mmm']);assert.equal(f.measures[0].phase,'initiale');assert.equal(f.measures[0].duree_ms,1930);assert.equal(f.gain.gain.value,.35);assert.equal(f.measures[0].volume,.35);
   callback('taireLeSouffle',f.env)();assert.deepEqual(f.heard,['mmm','stop']);assert.equal(f.env.souffleDattenteRef.current,null);
 });
 test('a prepared reply, cancellation, or new turn during the timer prevents any filler',async()=>{
@@ -62,8 +67,27 @@ test('published short and long takes match the exact owner cuts and verified Kha
 });
 
 test('reflection telemetry keeps measured waits separate from first response latency',()=>{
-  const m={exports:{}};new Function('module','exports',ts.transpileModule(fs.readFileSync('lib/briques-etat.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText)(m,m.exports);
+  const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync('lib/briques-etat.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText)(()=>policyModule.exports,m,m.exports);
   const before=m.exports.resumeBriques().lectures;
   m.exports.noterBriques({etape:'reflexion',phase:'initiale',ms:837,duree_ms:1930});
   const after=m.exports.resumeBriques();assert.equal(after.lectures,before);assert.equal(after.derniere_reflexion.attente_ms,837);assert.equal(after.derniere_reflexion.duree_ms,1930);
+});
+
+test('long, unknown, non-selected and recently served turns never start a timer or audio',async()=>{
+  for(const duree of [0,-1,NaN,Infinity,5001,15000,120000]){const f=fixture();await f.start(duree);assert.equal(f.timers.length,0);assert.deepEqual(f.heard,[]);}
+  const f=fixture();f.env.rythmeReflexionRef.current={courtes:0,derniere:null};
+  await f.start();await f.start();assert.equal(f.timers.length,0);
+  const p=f.start();f.timers[0].f();await p;assert.deepEqual(f.heard,['mmm']);
+  const recent=fixture();recent.env.rythmeReflexionRef.current.derniere=Date.now();await recent.start();assert.equal(recent.timers.length,0);
+});
+test('one in three eligible short turns at most, with 45 seconds since actual playback',()=>{
+  const e={courtes:0,derniere:null};
+  assert.deepEqual(Array.from({length:9},()=>choisirReflexionCourte(e,5000,100000)),[false,false,true,false,false,true,false,false,true]);
+  e.derniere=100000;e.courtes=2;assert.equal(choisirReflexionCourte(e,5000,144999),false);
+  e.courtes=2;assert.equal(choisirReflexionCourte(e,5000,145000),true);
+});
+test('the actual streaming waiting callback stays silent between bricks',()=>{
+ let found;
+ function visit(n){if(ts.isPropertyAssignment(n)&&n.name.getText(ast)==='attente'&&n.initializer.getText(ast).includes('No MMM between streamed bricks'))found=n.initializer.getText(ast);ts.forEachChild(n,visit);}visit(ast);assert(found);
+ const env={attendBrique:false};new Function('env',`with(env){(${found})();}`)(env);assert.equal(env.attendBrique,true);
 });

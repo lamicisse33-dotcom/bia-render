@@ -222,7 +222,7 @@ test('buying a charger in a story remains eligible, while instructions still ret
  const s=server(),r=await s.preparerBrique({...body,texte:question+' Je suis ensuite allé acheter un chargeur.'},'owner',true,new AbortController().signal);assert(r.brique);
 });
 test('departure telemetry separates ready, still running, and absent preparation',()=>{
- delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts');
+ delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts',()=>load('lib/reflexion-courte.ts'));
  a.noterBriques({etape:'depart',ms:0,pretes:2,en_cours:1});a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:1});a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:0});
  assert.deepEqual(a.resumeBriques().departs,{prete:1,en_fabrication:1,sans_preparation:1});
 });
