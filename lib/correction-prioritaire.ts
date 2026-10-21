@@ -32,7 +32,7 @@ export async function remplacerCorrectionValidee(e:Entree,r:RemplacementCorrecti
   const archive=await lireObjetMemoire(path);if(!archive||hash(await archive.text())!==hash(contenu))throw Error('Historique non confirmé : remplacement annulé');
   for(const ligne of changement){
    const cas=new URLSearchParams({id:'eq.'+ligne.id,source:'eq.'+ligne.source,corrigee:'eq.'+ligne.corrigee,proposee:ligne.proposee==null?'is.null':'eq.'+ligne.proposee});
-   const res=await fetch(base+'?'+cas,{method:'PATCH',headers:{...headers,Prefer:'return=representation'},body:JSON.stringify({corrigee:e.corrigee,proposee:ligne.proposee||r.ancienne}),signal:AbortSignal.timeout(8000)});
+   const res=await fetch(base+'?'+cas,{method:'PATCH',headers:{...headers,Prefer:'return=representation'},body:JSON.stringify({corrigee:e.corrigee,proposee:ligne.proposee||r.ancienne,langue:e.langue||ligne.langue||null}),signal:AbortSignal.timeout(8000)});
    if(!res.ok)throw Error('Remplacement refusé');const rows=await res.json();if(!Array.isArray(rows)||rows.length!==1||rows[0].corrigee!==e.corrigee)throw Error('Version modifiée simultanément : fais relire avant de valider');
   }
   const nouvelles:Entree[]=[{...e,proposee:r.ancienne}];
