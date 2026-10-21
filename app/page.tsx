@@ -8733,6 +8733,7 @@ export default function Home() {
                       body: JSON.stringify({
                         texte: quoi,
                         correctionDevoir: correctionDevoirRef.current,
+                        history: fenetreDuFil(historyRef.current),
                         extrait: extraitRef.current,
                         francais: sens?.francais || "",
                       }),

@@ -1,8 +1,9 @@
+import {origineCorrectionDepuisFil,type TourCorrection} from "./correction-prioritaire-core";
 import {ajouterCorrection, lexiqueConfig} from './lexique';
 /** Called only after master authentication. Acknowledgement requires read-back. */
-export async function enregistrerPhraseMaitre(phrase:string,langue:string){
+export async function enregistrerPhraseMaitre(phrase:string,langue:string,history?:TourCorrection[]){
  if(!lexiqueConfig.actif)throw Error('Mémoire persistante non configurée');
- await ajouterCorrection({source:phrase,corrigee:phrase,langue,auteur:'maitre-vocal',application:'bia'});
+ await ajouterCorrection({source:phrase,corrigee:phrase,langue,auteur:'maitre-vocal',application:'bia'},origineCorrectionDepuisFil(history,phrase));
  if(!await phraseMaitrePresente(phrase))throw Error('La relecture de la mémoire ne confirme pas la phrase');
 }
 export async function phraseMaitrePresente(phrase:string){

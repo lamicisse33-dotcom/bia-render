@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
       source, corrigee,
       proposee: String(body.proposee || "").slice(0, 1200) || null,
       langue: body.langue || null,
-      auteur: String(body.auteur || "").slice(0, 60) || null,
-    });
+      auteur: verdict.maitre ? "maitre-correction" : String(body.auteur || "").slice(0, 60) || null,
+    }, verdict.maitre && body.proposee ? {ancienne:String(body.proposee).slice(0,1200),source} : undefined);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("BIA — la correction n'a pas été gardée :", (err as Error).message);

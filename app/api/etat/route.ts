@@ -1,3 +1,4 @@
+import {resumeCorrectionPrioritaire} from "@/lib/correction-prioritaire";
 import {resumeOreilleEssai} from '@/lib/oreille-essai-etat';
 import {resumeFileAnticipation} from '@/lib/anticipation-gpu';
 import {resumeMicro} from '@/lib/micro-etat';
@@ -189,6 +190,7 @@ export async function GET(request: Request) {
     lexique_lecture: { ...lectureLexique(), mots_corriges: motsCorrigesCompte, ...(maitre ? { exemples: motsCorrigesExemples } : {}) },
     voix: voixConfig.fournisseur,
     ecoute: ecouteConfig.fournisseur,
+    corrections_prioritaires:resumeCorrectionPrioritaire(),
     corrections_devoirs:resumeCorrectionsDevoir(),
     continuite_voix:resumeContinuiteVoix(),
     rythme_conversation: resumeRythme(),
