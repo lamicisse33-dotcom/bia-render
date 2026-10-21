@@ -15,7 +15,7 @@ export function verifierCorrectionPrioritaire(){return g.biaEssaiCorrectionPrior
   const r=await fetch(base,{method:'POST',headers,body:JSON.stringify([{source,corrigee:avant,application,auteur},{source:avant,corrigee:avant,application,auteur}]),signal:AbortSignal.timeout(8000)});
   if(!r.ok)throw Error('fixture');
   await remplacerCorrectionValidee({source:apres,corrigee:apres,langue:'wo',application,auteur},{ancienne:avant,source});
-  const q=await fetch(base+'?select=source,corrigee&'+filtre,{headers,cache:'no-store',signal:AbortSignal.timeout(8000)});if(!q.ok)throw Error('relecture');const rows=await q.json();
+  const q=await fetch(base+'?select=source,corrigee&'+filtre,{headers,cache:'no-store',signal:AbortSignal.timeout(8000)});if(!q.ok)throw Error('relecture');const rows:Array<{source:string;corrigee:string}>=await q.json();
   bilan.anciennes_remplacees=[source,avant].every(s=>rows.some(r=>r.source===s&&r.corrigee===apres))&&!rows.some(r=>r.corrigee===avant);
   bilan.nouvelle_relue=rows.some(r=>r.source===apres&&r.corrigee===apres);
  }catch{ /* Only boolean proof, no secrets or owner's phrases. */ }

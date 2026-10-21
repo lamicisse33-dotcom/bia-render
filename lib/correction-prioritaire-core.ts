@@ -9,7 +9,16 @@ export function origineCorrectionDepuisFil(history:TourCorrection[]=[],phrase:st
   if(!/\b(?:corrig\p{L}*|mal (?:dit|parl\p{L}*|prononc\p{L}*)|il faut dire|tu dois dire|dis plutôt|la bonne phrase)\b/iu.test(t.texte))continue;
   // Do not mistake the final save command for the correction's start.
   if(/^(?:m[ée]morise|retiens|garde|enregistre)\b/iu.test(t.texte))continue;
-  if(!tours.slice(i).some(x=>x.texte===phrase||x.texte.endsWith(': '+phrase)))continue;
+  const fin=tours.findLastIndex((x,j)=>j>=i&&(x.texte===phrase||x.texte.endsWith(': '+phrase)));
+  if(fin<0)continue;
+  // Never reopen an older correction when a new topic or lesson follows it.
+  for(let j=i+1;j<fin;j++){
+   const x=tours[j];if(x.role!=='user')continue;
+   if(/\b(?:m[ée]morise|retiens|enregistre|garde ça)\b/iu.test(x.texte))return;
+   const controle=/^(?:bia[, ]*)?(?:r[ée]p[èée]te|redis|non|oui|c.est bon|très bien|corrig\p{L}*|il faut dire|tu dois dire|dis plutôt)\b/iu.test(x.texte);
+   const repeteExactement=tours[j+1]&&['bia','assistant'].includes(tours[j+1].role)&&tours[j+1].texte===x.texte;
+   if(!controle&&!repeteExactement&&x.texte!==phrase)return;
+  }
   let j=i-1;while(j>=0&&!['bia','assistant'].includes(tours[j].role))j--;
   if(j<0||!tours[j].texte||tours[j].texte===phrase)return;
   let k=j-1;while(k>=0&&tours[k].role!=='user')k--;

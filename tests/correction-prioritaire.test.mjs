@@ -12,6 +12,7 @@ test('an explicitly validated correction resolves the original answer and questi
  assert.equal(core.origineCorrectionDepuisFil([{role:'user',text:'Mémorise : '+after}],after),undefined);
  assert.equal(core.origineCorrectionDepuisFil([{role:'user',text:'Quel temps ?'},{role:'bia',text:'Il fait beau.'},{role:'user',text:'Répète : '+after},{role:'bia',text:after}],after),undefined);
  assert.equal(core.origineCorrectionDepuisFil(h,'Une autre phrase'),undefined);
+ assert.equal(core.origineCorrectionDepuisFil([...h,{role:'user',text:'Quel temps fait-il ?'},{role:'bia',text:'Il fait beau.'},{role:'user',text:'Répète : Une nouvelle leçon.'},{role:'bia',text:'Une nouvelle leçon.'},{role:'user',text:'Mémorise'}],'Une nouvelle leçon.'),undefined);
  assert.equal(core.entreeLexicaleSimple({application:'bia-apprentissage-v1'}),false);
  assert.equal(core.entreeLexicaleSimple({proposee:'{"version":2,"type":"devoir"}'}),false);
 });
