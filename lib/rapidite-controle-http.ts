@@ -30,16 +30,28 @@ export function verifierChaineRapidite(){return etat.travail??=(async()=>{
     const debutChat=Date.now(),response=await discuter(requete('/api/chat',{message:d.texte,history:[],parole:true,diffuse:true,apprentissageTest:true},profil));
     if(!response.ok||!response.body||!response.headers.get('content-type')?.includes('text/event-stream'))throw Error('conversation_indisponible');
     const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',texte='',fin=false,voix:Promise<void>|undefined;
+    const lancerVoix=(tete:string,langue='fr')=>{
+     c.premiere_phrase_ms??=Date.now()-debutChat;const debutVoix=Date.now();
+     voix=(async()=>{const r=await synthetiser(requete('/api/chatterbox-test/bia',{texte:tete,langue,voice:'female'}));const a=await r.json();if(!r.ok||!a.audio)throw Error('premier_audio_indisponible');c.voix_ms=Date.now()-debutVoix;c.premier_audio_depuis_envoi_ms=Date.now()-debut;c.audio_en_cache=!!a.audio_en_cache;c.fabrication_ms=a.fabrication_ms;c.audio_recu=true;})();
+     void voix.catch(()=>{});
+    };
     try{for(;;){const v=await reader.read();if(v.done)break;buffer+=decoder.decode(v.value,{stream:true});let i;
      while((i=buffer.indexOf('\n\n'))>=0){const packet=buffer.slice(0,i);buffer=buffer.slice(i+2);const nom=packet.match(/^event:\s*(.+)$/m)?.[1],raw=packet.match(/^data:\s*(.+)$/m)?.[1];if(!raw)continue;const ev=JSON.parse(raw);
       if(nom==='texte'){
        c.premier_texte_ms??=Date.now()-debutChat;texte+=ev.morceau||'';const tete=teteDeLaReponse(texte);
-       if(tete&&!voix){c.premiere_phrase_ms=Date.now()-debutChat;const debutVoix=Date.now();
-        voix=(async()=>{const r=await synthetiser(requete('/api/chatterbox-test/bia',{texte:tete,langue:'fr',voice:'female'}));const a=await r.json();if(!r.ok||!a.audio)throw Error('premier_audio_indisponible');c.voix_ms=Date.now()-debutVoix;c.premier_audio_depuis_envoi_ms=Date.now()-debut;c.audio_en_cache=!!a.audio_en_cache;c.fabrication_ms=a.fabrication_ms;c.audio_recu=true;})();
-        void voix.catch(()=>{});
+       if(tete&&!voix)lancerVoix(tete);
+      }
+      if(nom==='fin'){
+       fin=ev.statut===200&&!!ev.corps?.reply;c.texte_complet_ms=Date.now()-debutChat;
+       // A complete cached/learned answer legitimately has no text deltas.
+       // Consume the exact attached audio, or start its voice like the app.
+       if(fin&&!voix){
+        c.reponse_complete_sans_deltas=true;c.premier_texte_ms??=c.texte_complet_ms;c.premiere_phrase_ms??=c.texte_complet_ms;
+        const joint=ev.corps.audio_memorise?.base64||ev.corps.audio_anticipe?.base64;
+        if(typeof joint==='string'&&Buffer.from(joint,'base64').length>44){c.voix_ms=0;c.fabrication_ms=0;c.premier_audio_depuis_envoi_ms=Date.now()-debut;c.audio_en_cache=true;c.audio_joint=true;c.audio_recu=true;voix=Promise.resolve();}
+        else lancerVoix(teteDeLaReponse(ev.corps.reply)||ev.corps.reply,ev.corps.langue==='wo'?'wo':'fr');
        }
       }
-      if(nom==='fin'){fin=ev.statut===200&&!!ev.corps?.reply;c.texte_complet_ms=Date.now()-debutChat;}
      }
     }}finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
     if(!fin||!voix)throw Error('reponse_non_confirmee');await voix;c.ok=true;

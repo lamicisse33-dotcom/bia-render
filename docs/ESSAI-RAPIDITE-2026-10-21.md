@@ -91,3 +91,19 @@ Le propriétaire a ensuite répondu « OUI » à la demande explicite de publier
 ces modifications sur le dépôt public et de les déployer pour son essai.
 Cette autorisation couvre la publication de cette branche et le déploiement
 des trois modes ; aucune nouvelle sélection globale du cerveau n'est demandée.
+
+## Première publication et contrôle en ligne
+
+PR 89 fusionnée, version 161a34e1b913, déploiement Render
+dep-dbcgud3m8hqs738ri240 confirmé live. Les cinq contrôles GitHub
+sont réussis, dont les trois épreuves Chromium de lecture audio. La page
+/essai-rapidite et son lien vers la vraie conversation sont vérifiés.
+
+Premier rejeu HTTP : quatre chaînes ont reçu un premier audio. Deux autres
+ont rendu une réponse complète sans événement de texte progressif ; le
+diagnostic les marquait à tort comme incomplètes. Le lecteur réel de BIA
+sait déjà traiter ce cas. Le contrôle est corrigé pour consommer exactement
+l'audio joint quand il existe, sinon fabriquer la voix de la réponse complète.
+Deux nouveaux tests reproduisent ces deux chemins. Cette correction ne
+change aucun réglage ni parcours de conversation. Les mesures sur le
+téléphone restent nécessaires ; aucun gain global n'est encore annoncé.
