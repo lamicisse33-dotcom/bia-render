@@ -3380,6 +3380,8 @@ export default function Home() {
       arreter:()=>{if(estLeTour(monTour))couperSon();},
       jouer:async actif=>{
         const octets=cacheSons.current.get(reaction.adresse);if(!octets||!actif())return;
+        // Stop a sounding MMM and invalidate its pending fetch/decode first.
+        attenteRef.current=null;taireLeSouffle();
         const debut=performance.now();
         await jouerEtAnimer(octets,false,{actuel:actif,exact:true,commence:()=>{void fetch("/api/mesure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"sons_courants",usage:"reaction",verification:true,ms:performance.now()-debut})}).catch(()=>{});}});
         if(actif()){setMode("thinking");setFace("pensive");}
