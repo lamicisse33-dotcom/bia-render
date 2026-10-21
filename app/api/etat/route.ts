@@ -56,6 +56,7 @@ import {resumeLectureBilingue} from "@/lib/essai-lecture-bilingue";
 import {resumePrechauffageDialogue} from "@/lib/prechauffage-dialogue";
 import {resumePiperWeb} from "@/lib/piper-web-etat";
 import {resumeAnthropic,MODELE_SONNET} from "@/lib/cerveau-anthropic";
+import {resumeLatenceCache} from "@/lib/latence-cache-anthropic";
 import {resumeSecoursCerebras} from "@/lib/cerveau-cerebras";
 import {resumeAudioMemoire} from "@/lib/audio-memoire";
 import {sonsCourantsEtat} from "@/lib/sons-courants-etat";
@@ -245,6 +246,7 @@ export async function GET(request: Request) {
     cerveau_local: resumeCerveauLocal(),
     conversation: etatConversation(),
     anthropic: resumeAnthropic(),
+    latence_cache: resumeLatenceCache(),
     secours_modele: resumeSecoursCerebras(),
     derniere_limite_groq: resumeLimiteGroq(),
     modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "cerebras" ? (process.env.CEREBRAS_MODEL || "gpt-oss-120b") : (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase() === "local"

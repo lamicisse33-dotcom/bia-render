@@ -73,4 +73,5 @@ test('stable tool text gets a cache breakpoint before changing lesson options wi
  assert.deepEqual(apres.system.map(b=>b.text),avant.system.map(b=>b.text));assert.deepEqual(apres.messages,avant.messages);
  assert.equal(avant.system[2].cache_control,undefined);assert(apres.system[2].cache_control);assert.equal(apres.system[3].cache_control,undefined);
  assert.equal(apres.system.filter(b=>b.cache_control).length,3);
+ assert(apres.system.filter(b=>b.cache_control).every(b=>b.cache_control.ttl==='1h'));
 });
