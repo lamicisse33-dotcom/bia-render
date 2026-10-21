@@ -1,5 +1,11 @@
 export async function register(){
  if(process.env.NEXT_RUNTIME==='nodejs'&&process.env.NEXT_PHASE!=='phase-production-build'){
+  // Warm the exact stable native prefixes without generating a reply. Two
+  // bounded calls per process; no dependency in the user's conversation path.
+  if(process.env.RENDER_GIT_COMMIT){
+   setTimeout(()=>{void import('./lib/latence-cache-anthropic').then(m=>m.prechaufferContexteAnthropic()).catch(()=>{});},3000).unref();
+   if(Date.now()<Date.parse('2026-10-22T00:00:00Z'))setTimeout(()=>{void import('./lib/latence-cache-anthropic').then(m=>m.verifierLatenceCache()).then(()=>import('./lib/essai-cerveaux-rapides')).then(m=>m.comparerCerveaux()).catch(()=>{});},15000).unref();
+  }
   if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-17T23:00:00Z')){
    setTimeout(()=>{void import('./lib/essai-briques').then(m=>m.verifierBriques()).catch(()=>{});},20000).unref();
   }

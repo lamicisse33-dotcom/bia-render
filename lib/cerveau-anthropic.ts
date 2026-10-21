@@ -1,4 +1,7 @@
 export const MODELE_SONNET="claude-sonnet-5-5";
+// The native conversion is the body actually sent by chat and by bricks.
+// Keep the intended hour-long cache here too; the older chat body is replaced.
+export const CACHE_CONTEXTE_ANTHROPIC={type:"ephemeral",ttl:"1h"} as const;
 const g=globalThis as typeof globalThis & {biaAnthropic?:{appels:number;acceptes:number;erreurs:number;dernier_statut:number;dernier_ms:number;modele:string;derniere_erreur?:{quand:string;motif:string;statut:number;ms:number}}};
 const etat=g.biaAnthropic??={appels:0,acceptes:0,erreurs:0,dernier_statut:0,dernier_ms:0,modele:""};
 export function resumeAnthropic(){return {...etat,cle_presente:Boolean(process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY)};}
@@ -12,7 +15,7 @@ export function corpsAnthropic(body:Record<string,any>){
 }
 export function contenuAnthropic(data:any):string{return (data.content||[]).filter((b:any)=>b.type==="text").map((b:any)=>String(b.text||"")).join("").trim();}
 export function messagesAnthropic(messages:Array<{role:string;content:string}>,cacherOutils=true){
-  return {system:messages.filter(m=>m.role==="system").map((m,i)=>({type:"text",text:m.content,...((i===0||i===1&&m.content.startsWith('INSTRUCTIONS PÉDAGOGIQUES DU MAÎTRE AUTHENTIFIÉ')||cacherOutils&&i<=2&&m.content.startsWith("Les commandes d'écran se placent"))&&m.content.length>=2500?{cache_control:{type:"ephemeral"}}:{})})),messages:messages.filter(m=>m.role==="user"||m.role==="assistant")};
+  return {system:messages.filter(m=>m.role==="system").map((m,i)=>({type:"text",text:m.content,...((i===0||i===1&&m.content.startsWith('INSTRUCTIONS PÉDAGOGIQUES DU MAÎTRE AUTHENTIFIÉ')||cacherOutils&&i<=2&&m.content.startsWith("Les commandes d'écran se placent"))&&m.content.length>=2500?{cache_control:{...CACHE_CONTEXTE_ANTHROPIC}}:{})})),messages:messages.filter(m=>m.role==="user"||m.role==="assistant")};
 }
 export async function fetchAnthropic(url:string,init:RequestInit,fin=Date.now()+12_000){
  const body=corpsAnthropic(JSON.parse(String(init.body||"{}"))),debut=Date.now();etat.appels++;etat.modele=body.model;
