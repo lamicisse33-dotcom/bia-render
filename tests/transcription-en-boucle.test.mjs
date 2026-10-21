@@ -7,8 +7,8 @@ const guard=load('lib/transcription-en-boucle.ts'),c=guard.transcriptionEnBoucle
 const capture='Wii waaw ba ma wax a doon walla doon walla doon walla doon waa doon walla doon walla doon walla doon';
 test('the exact 21-word screenshot is rejected without guessing oui vas-y from its prefix',()=>{assert.equal(capture.split(/\s+/).length,21);assert.equal(c(capture),true);assert.equal(c('Oui, vas-y.'),false);assert.equal(c('Waaw, demal.'),false);});
 test('ordinary emphasis, stop commands, language switching and a real long sentence stay intact',()=>{
- for(const text of ['Stop stop stop !','Oui oui, vas-y.','Mais, mais, mais, je veux parler.', 'Dama bëgg wax wolof ak français, mais bu leer te naturel.', 'Il faut compter un deux trois quatre cinq six sept huit neuf dix avant de continuer.', 'Tu peux choisir ceci ou cela, rouge ou vert, grand ou petit, ici ou ailleurs, puis rentrer.'])assert.equal(c(text),false,text);
- assert(c('la même boucle '.repeat(12)));assert(c('a '.repeat(20)));
+ for(const text of ['Stop stop stop !','stop '.repeat(8),'Oui oui, vas-y.','Mais, mais, mais, je veux parler.', 'Dama bëgg wax wolof ak français, mais bu leer te naturel.', 'Il faut compter un deux trois quatre cinq six sept huit neuf dix avant de continuer.', 'Tu peux choisir ceci ou cela, rouge ou vert, grand ou petit, ici ou ailleurs, puis rentrer.'])assert.equal(c(text),false,text);
+ assert(c('la même boucle '.repeat(12)));assert(c('a '.repeat(30)));
 });
 test('a repetitive original is blocked by the actual route before any corpus write or response use',async()=>{
  let text=capture,saves=0,rejected=0;

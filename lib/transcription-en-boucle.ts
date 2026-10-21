@@ -2,7 +2,7 @@
  * Never keep a guessed prefix, infer a command, or rewrite it into consent. */
 export function transcriptionEnBoucle(texte:string):boolean{
  const mots=texte.normalize('NFC').toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu)||[];
- if(mots.length<8)return false;
+ if(mots.length<12)return false;
  for(let taille=1;taille<=8;taille++){
   const frequences=new Map<string,number>();
   for(let i=0;i+taille<=mots.length;i++){const cle=mots.slice(i,i+taille).join(' ');frequences.set(cle,(frequences.get(cle)||0)+1);}
@@ -14,8 +14,7 @@ export function transcriptionEnBoucle(texte:string):boolean{
     else{suite=0;i++;}
    }
    // Preserve ordinary emphasis, self-corrections and repeated stop commands.
-   if(taille===1){if(maxSuite>=8&&couverts/mots.length>=.6)return true;}
-   else if(occurrences>=5&&maxSuite>=3&&couverts>=12&&couverts/mots.length>=.55)return true;
+   if(taille>1&&occurrences>=5&&maxSuite>=3&&couverts>=12&&couverts/mots.length>=.55)return true;
    // Retain the older conservative rule for very long non-adjacent loops.
    if(mots.length>=24&&occurrences>=6&&couverts/mots.length>=.75)return true;
   }
