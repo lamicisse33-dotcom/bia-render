@@ -1212,7 +1212,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
         actif:Boolean(body.apprend), phrase:String(body.aRepeter||""), history:body.history}, async (phrase) => {
         try {
           if (!lexiqueConfig.actif) throw new Error("Mémoire persistante non configurée");
-          await enregistrerPhraseMaitre(phrase,langueDe(phrase));
+          await enregistrerPhraseMaitre(phrase,langueDe(phrase),body.history);
           noterTentative({dit:question,maitre:true,ordre:"retiens",en_main:true,
             signes_en_main:phrase.length,ecrit:true,motif:"rangée"});
         } catch (err) {
@@ -1238,7 +1238,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
              lib/instructions.ts : s'il dit « c'est bon », le texte qui a
              produit ce son EST le bon texte. */
           try{
-            await enregistrerPhraseMaitre(repete,langueDe(repete));
+            await enregistrerPhraseMaitre(repete,langueDe(repete),body.history);
             noterTentative({dit:question,maitre:true,ordre:ordre.quoi,en_main:true,
               signes_en_main:repete.length,ecrit:true,motif:"rangée"});
           }catch(err){
@@ -3296,7 +3296,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       }
       if(aGarder){
         try{
-          await enregistrerPhraseMaitre(aGarder,langueDe(aGarder));
+          await enregistrerPhraseMaitre(aGarder,langueDe(aGarder),body.history);
           noterTentative({dit:question,maitre:true,ordre:"retiens",en_main:true,
             signes_en_main:aGarder.length,ecrit:true,motif:"rangée par la balise"});
         }catch(err){

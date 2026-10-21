@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "8e13eefd95f08600dd5b4b4a82716400efe0417021b13ce1241c8cb73caa0c5f",
+    "app/page.tsx": "f8a8f485acdb28c7c9a208adb7033483022b60df8d4e8b1b74544dee3cba49cb",
     "lib/micro.ts": "225f42ffbe4c66c4c61c97d7ae6376506d94d4b8e3348582e67d7fae30b9f2ce",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "ad34b135d0d3589badf6161afd07df8dce927de633ea9ffc215a07dd26c47f19",
@@ -103,5 +103,13 @@
     "scope": "Only app/page.tsx among protected paths. Preserve microphone/ASR, selected voice, production GPU, continuous brick preparation/order and real-speech/cancellation guards.",
     "behavior": "Acoustic speech duration >0 and <=5 seconds; at most one eligible short utterance in three, 45-second minimum since actual MMM playback, only initial wait >=1200ms. No MMM between bricks. Dedicated GainNode 0.35 for MMM only; immutable voice assets and normal voice volume unchanged.",
     "verification": "Executed actual callbacks for eligibility, cancellation, ready response, async decode/fetch races, silent inter-brick callback and dedicated gain. Chromium checks actual MP3 decoding, playback and stop; human listening remains unvalidated. Live briques_conversation.politique_reflexion exposes the exact published parameters."
+  },
+  "migration_correction_prioritaire_20261021": {
+    "authorized": "Lamine requires the last explicitly validated correction to replace former versions in the lexicon/Supabase, including reusable corrected vocabulary.",
+    "hash_before": "8e13eefd95f08600dd5b4b4a82716400efe0417021b13ce1241c8cb73caa0c5f",
+    "hash_after": "f8a8f485acdb28c7c9a208adb7033483022b60df8d4e8b1b74544dee3cba49cb",
+    "scope": "Only app/page.tsx among protected paths: include recent thread in the existing master save button payload. No microphone, voice, model, streaming or GPU settings change.",
+    "behavior": "Explicit master correction plus save command identifies the former answer in recent thread. Archive exact old rows in private storage and verify before CAS updates. Replace all exact matching simple lexicon entries, preserve structured lesson sources on their existing provenance/CAS path and unrelated entries. Durable reread required before confirmation. Latest vocabulary correction precedes frequency of obsolete variants.",
+    "verification": "Behavioral tests cover actual writer, duplicate replacement, persistent archive, failed archive, concurrent edit and failed reread, plus command/context mapping and latest-word precedence. Authenticated isolated Supabase diagnostic required before announcing completion; no physical microphone or human pronunciation claim."
   }
 }

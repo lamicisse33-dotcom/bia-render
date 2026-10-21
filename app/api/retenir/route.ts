@@ -73,12 +73,14 @@ export async function POST(request: NextRequest) {
   if (non) return non;
 
   let correctionDevoir:unknown;
+  let history:Array<{role:string;text?:string}>|undefined;
   let texte = "";
   let extrait = "";
   let francais = "";
   try {
-    const corps = await request.json() as { texte?: string; extrait?: string; francais?: string; correctionDevoir?:unknown };
+    const corps = await request.json() as { texte?: string; extrait?: string; francais?: string; correctionDevoir?:unknown; history?:Array<{role:string;text?:string}> };
     correctionDevoir=corps.correctionDevoir;
+    history=Array.isArray(corps.history)?corps.history.slice(-40):undefined;
     texte = correctionDevoir ? String(corps.texte||"").trim() : texteDe(corps.texte);
     extrait = String(corps.extrait || "").slice(0, 80);
     francais = String(corps.francais || "").trim().slice(0, 400);
@@ -138,7 +140,8 @@ export async function POST(request: NextRequest) {
      « maitre-vocal » pour une phrase seule. */
   const enPaire = Boolean(francais);
   try {
-    await ajouterCorrection({
+    if(!enPaire){const {enregistrerPhraseMaitre}=await import("@/lib/memoire-maitre");await enregistrerPhraseMaitre(texte,langueDe(texte),history); }
+    else await ajouterCorrection({
       source: enPaire ? francais : texte,
       corrigee: texte,
       langue: langueDe(texte),

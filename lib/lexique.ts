@@ -39,10 +39,16 @@ function entetes() {
   };
 }
 
-export async function ajouterCorrection(e: Entree): Promise<number> {
+export async function ajouterCorrection(e: Entree, remplacement?:{ancienne:string;source?:string}): Promise<number> {
   cache = null;
   if (!lexiqueConfig.actif) { enMemoire.push(e); return enMemoire.length; }
 
+  if(remplacement){
+    try{const {remplacerCorrectionValidee}=await import('./correction-prioritaire');await remplacerCorrectionValidee(e,remplacement);}
+    finally{cache=null;const g=globalThis as typeof globalThis&{biaRevisionMemoire?:number};g.biaRevisionMemoire=(g.biaRevisionMemoire||0)+1;}
+    void import('./memoire-organisee').then(m=>m.planifierOrganisationMemoire()).catch(()=>{});
+    return -1;
+  }
   const r = await fetch(`${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}`, {
     method: "POST",
     signal: AbortSignal.timeout(8000),
@@ -100,15 +106,15 @@ export async function toutes(): Promise<Entree[]> {
  chargement=(async()=>{
   const base=`${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}`;
   const signal=AbortSignal.timeout(8000);
-  for(const colonnes of ["id,source,corrigee,proposee,langue,application","id,source,corrigee,langue,application"]){
+  for(const colonnes of ["id,source,corrigee,proposee,langue,application,auteur","id,source,corrigee,proposee,langue,application","id,source,corrigee,langue,application"]){
    try{
     const valeurs:Entree[]=[];let curseur:string|undefined;const vus=new Set<string>();
     for(;;){
      const r=await fetch(`${base}?select=${colonnes}&or=(application.is.null,application.neq.bia-apprentissage-v1)&order=id.desc&limit=500${curseur===undefined?'':'&id=lt.'+curseur}`,{headers:entetes(),cache:'no-store',signal});
      if(!r.ok){if(r.status===400&&curseur===undefined)break;throw Error('Supabase '+r.status);}
      const page=await r.json() as Array<Entree&{id:number|string}>;if(!Array.isArray(page))throw Error('Lexique invalide');
-     valeurs.push(...page.filter(e=>e.application!=="bia-apprentissage-v1"));
-     if(!page.length){cache={valeurs,jusqua:Date.now()+60000};lectureDuLexique={colonnes,motif:''};return valeurs;}
+     valeurs.push(...page.filter(e=>e.application!=="bia-apprentissage-v1"&&e.application!=="verification-correction-prioritaire"));
+     if(!page.length){valeurs.sort((a,b)=>Number(!!b.proposee&&['maitre-correction','maitre-vocal'].includes(b.auteur||''))-Number(!!a.proposee&&['maitre-correction','maitre-vocal'].includes(a.auteur||'')));cache={valeurs,jusqua:Date.now()+60000};lectureDuLexique={colonnes,motif:''};return valeurs;}
      const fin=String(page.at(-1)?.id);if(!/^[0-9a-f-]{1,64}$/i.test(fin)||vus.has(fin))throw Error('Pagination invalide');vus.add(fin);curseur=fin;
     }
    }catch{lectureDuLexique={colonnes,motif:'Lecture complète indisponible — dernier index conservé'};cache={valeurs:cache?.valeurs||[],jusqua:Date.now()+15000};return cache.valeurs;}
@@ -520,13 +526,13 @@ export async function motsCorriges(max = 40, recalculer=false): Promise<MotCorri
   for (const e of entrees) {
     if (!e.proposee || !e.corrigee) continue;
     for (const r of remplacements(e.proposee, e.corrigee)) {
-      const cle = `${r.faux.toLowerCase()}→${r.juste.toLowerCase()}`;
+      const cle = r.faux.toLowerCase(); // newest validated replacement wins over older frequency
       const deja = compte.get(cle);
-      if (deja) deja.fois += 1;
+      if (deja) { if(deja.juste.toLowerCase()===r.juste.toLowerCase())deja.fois += 1; }
       else compte.set(cle, { faux: r.faux, juste: r.juste, fois: 1 });
     }
   }
-  const valeurs=[...compte.values()].sort((x,y)=>y.fois-x.fois||x.faux.length-y.faux.length);
+  const valeurs=[...compte.values()]; // input is newest first; repeated old rules cannot win
   motsCalcules={signature,valeurs};
   return valeurs.slice(0,max).map(m=>({...m}));
 }
