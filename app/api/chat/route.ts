@@ -1,4 +1,6 @@
 import {consommerReponseAnticipee} from '@/lib/anticipation-reponse';
+import {profilRapiditeAutorise,modeleRapidite,rapiditeOptimisee,type ProfilRapidite} from '@/lib/rapidite-core';
+import {noterModeleRapidite} from '@/lib/rapidite-etat';
 import {anticiperLexiqueVoix} from '@/lib/anticipation-lexique-voix';
 import {chronometrerPreparation as chrono} from '@/lib/profil-preparation';
 import {uneQuestionParTour} from '@/lib/question-unique';
@@ -782,7 +784,7 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
-type Corps={salutationOuverture?:boolean;continuationBriques?:boolean;anticipationId?:string;voixAnticipee?:string;parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
+type Corps={essaiRapidite?:ProfilRapidite|null;salutationOuverture?:boolean;continuationBriques?:boolean;anticipationId?:string;voixAnticipee?:string;parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
   /* Ancien choix visuel conservé pour les clients existants ; le nom reste BIA. */
   persona?:string;
   /* ── L'APPRENTISSAGE À LA VOIX ──────────────────────────────────────────
@@ -882,6 +884,7 @@ export async function POST(request:NextRequest){
   // Even cached greetings require a valid code, before any response or stream.
   const acces=verifierCode(code,false);
   if(!acces.ok)return NextResponse.json({reply:'Entre un code d’accès valide pour parler avec BIA.',source:'code',motif:acces.raison},{status:401});
+  body={...body,essaiRapidite:profilRapiditeAutorise(request.headers.get('x-bia-essai-rapidite'),acces.maitre)};
   if(Array.isArray(body.history))body={...body,history:body.history.filter(t=>t&&t.transcriptionIncertaine!==true)};
   if(body.apprentissageTest){body.apprend=false;body.aRepeter="";body.malDit=undefined;}
   const vocale=!body.apprentissageTest&&body.parole&&acces.maitre?await preparerCorrectionVocale(body,true,!!lireLOrdre(String(body.message||'')),request.signal):null;
@@ -1706,7 +1709,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       ? (process.env.GEMINI_MODEL||"gemini-3.7-flash")
       : groq
         ? (process.env.GROQ_MODEL||"openai/gpt-oss-120b")
-        : (process.env.BIA_LLM_MODEL||MODELE_SONNET);
+        : modeleRapidite(body.essaiRapidite,process.env.BIA_LLM_MODEL||MODELE_SONNET);
     if(!apiKey){
       const detail=cerebras ? "CEREBRAS_API_KEY n’est pas définie." : local ? "LOCAL_LLM_API_KEY n’est pas définie." : gemini
         ?"GEMINI_API_KEY n'est pas définie."
@@ -2626,7 +2629,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        « sans aucun réglage facultatif » (c'en est un), et plus jamais dès que
        le modèle en a refusé une — voir noterAmorceRefusee(). */
     const amorceDe = (o: { avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean }) =>
-      !gemini && !groq && model!==MODELE_SONNET && amorcePermise() && o.reflexion !== "allumee" && !o.avecOutil && !o.sansAmorce && !amorceRefusee() ? AMORCE_EMOTION : "";
+      !gemini && !groq && model!==MODELE_SONNET && model!=='claude-haiku-5-5' && amorcePermise() && o.reflexion !== "allumee" && !o.avecOutil && !o.sansAmorce && !amorceRefusee() ? AMORCE_EMOTION : "";
     const corpsDuModele = (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
     }) => JSON.stringify({
@@ -2717,7 +2720,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           ? "La recherche web est disponible pour cette réponse : vérifie les faits actuels avec elle."
           : "Pas de recherche web pour cette réponse : ne prétends pas avoir vérifié des faits actuels.",
       ].filter(Boolean).join("\n");
-      return messagesConversation({
+      const messages=messagesConversation({
         suggestionsTranscription: Array.isArray(body.suggestionsTranscription)?body.suggestionsTranscription:[],
         question, history: history.map(m=>({role:m.role,content:texteDeContenu(m.content)})),
         contexte: variable.replace(souvenirsDuTour, "").replace(lexiqueDuTour, "").replace(leconsDuTour, "").replace(instructionsDuTour, "")+"\n"+contexteHorloge(),
@@ -2725,6 +2728,8 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         produits: produitsDuTour, souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: "",
         resume, outils, maitrises:choixIntegre?.consigne||maitrises, nom: "BIA", maitre: verdict.maitre, rapide:true,selection:!!choixIntegre?.consigne,
       });
+      if(rapiditeOptimisee(body.essaiRapidite))messages.push({role:"system",content:"ESSAI DE RÉACTIVITÉ : commence par une phrase complète, utile et naturelle de 6 à 10 mots environ, puis développe si nécessaire. Pas de formule pour meubler. Conserve intégralement toute formulation apprise, correction ou citation exacte, même plus longue ; ne la coupe jamais pour raccourcir. Les règles de compréhension et de langue restent prioritaires."});
+      return messages;
     };
     const appelerGroq = async (o: {
       plafond: number; avecOutil: boolean; reflexion: Reflexion; sansAmorce?: boolean;
@@ -2860,6 +2865,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const partiModele=Date.now();
     noterEtape("preparation",departPreparation,partiModele,partiModele,question.length);
     const premiersReglages={plafond:PLAFOND,avecOutil:cherche,reflexion:(reflechit?"allumee":"eteinte") as Reflexion};
+    noterModeleRapidite(body.essaiRapidite,model);
     const response=await appelerLeModele(premiersReglages);
     /* L'amorce qui accompagne la réponse en main : elle change avec les
        réglages de chaque reprise, et le lecteur doit recoller la bonne. */

@@ -1,4 +1,5 @@
 export const MODELE_SONNET="claude-sonnet-5-5";
+export const MODELE_HAIKU="claude-haiku-5-5";
 // The native conversion is the body actually sent by chat and by bricks.
 // Keep the intended hour-long cache here too; the older chat body is replaced.
 export const CACHE_CONTEXTE_ANTHROPIC={type:"ephemeral",ttl:"1h"} as const;
@@ -9,6 +10,10 @@ export function reglagesSonnet(model:string){
  return model===MODELE_SONNET?{thinking:{type:"between_tools"},output_config:{effort:"low"}}:{thinking:{type:"disabled"}};
 }
 export function corpsAnthropic(body:Record<string,any>){
+ if(body.model===MODELE_HAIKU){
+  const {temperature,top_p,top_k,...reste}=body;
+  return {...reste,thinking:{type:'disabled'},output_config:{effort:'low',...body.output_config}};
+ }
  if(body.model!==MODELE_SONNET)return body;
  const {temperature,top_p,top_k,...reste}=body;
  return {...reste,...reglagesSonnet(body.model),output_config:{effort:"low",...body.output_config}};

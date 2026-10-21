@@ -1,8 +1,10 @@
 import {creerFileBriques,creerFluxBrique,type BriqueAudio} from './briques-file';
+import {entetesRapidite} from './rapidite-core';
 export function creerProducteurBriques(o:{code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;actuel:()=>boolean}){
  const file=creerFileBriques(),abort=new AbortController();
+ const headers={'content-type':'application/json','x-bia-code':o.code,...entetesRapidite()};
  let id:string|undefined,dernier='',enCours:Promise<void>|null=null,ecoute=true,annule=false,commence=false,normal=false,termine=false,ajout=false;
- const liberer=()=>{if(id)void fetch('/api/anticipation/briques',{method:'POST',headers:{'content-type':'application/json','x-bia-code':o.code},body:JSON.stringify({id,action:'annuler'}),keepalive:true}).catch(()=>{});};
+ const liberer=()=>{if(id)void fetch('/api/anticipation/briques',{method:'POST',headers,body:JSON.stringify({id,action:'annuler'}),keepalive:true}).catch(()=>{});};
  async function recevoir(r:Response){
   if(!r.headers.get('content-type')?.includes('application/x-ndjson'))return (await r.json()).preparation;
   if(!r.body)throw Error('Audio interrompu');
@@ -39,7 +41,7 @@ export function creerProducteurBriques(o:{code:string;tour:string;history:unknow
   }finally{void lecteur.cancel().catch(()=>{});}
  }
  async function demander(texte:string,final=false){
-  const r=await fetch('/api/anticipation/briques',{method:'POST',headers:{'content-type':'application/json','x-bia-code':o.code},signal:AbortSignal.any([abort.signal,AbortSignal.timeout(35000)]),body:JSON.stringify({id,texte,final,tour:o.tour,history:o.history,resume:o.resume,voice:o.voice,persona:o.persona,flux:true})});
+  const r=await fetch('/api/anticipation/briques',{method:'POST',headers,signal:AbortSignal.any([abort.signal,AbortSignal.timeout(35000)]),body:JSON.stringify({id,texte,final,tour:o.tour,history:o.history,resume:o.resume,voice:o.voice,persona:o.persona,flux:true})});
   if(!r.ok)throw Error('Préparation indisponible');const d=await recevoir(r);
   if(annule||!o.actuel())return false;
   if(!d){if(final)normal=true;return false;}
@@ -84,7 +86,7 @@ export function creerProducteurBriques(o:{code:string;tour:string;history:unknow
    catch{normal=true;}
    finally{file.fermer();}
   },
-  livree(personne:string,nombre:number){if(!id||normal||annule)return;void fetch('/api/anticipation/briques',{method:'POST',headers:{'content-type':'application/json','x-bia-code':o.code},body:JSON.stringify({id,action:'livree',personne,nombre}),keepalive:true}).catch(()=>{});},
+  livree(personne:string,nombre:number){if(!id||normal||annule)return;void fetch('/api/anticipation/briques',{method:'POST',headers,body:JSON.stringify({id,action:'livree',personne,nombre}),keepalive:true}).catch(()=>{});},
   annuler(){ecoute=false;annule=true;normal=true;abort.abort();file.annuler();liberer();},
  };
 }

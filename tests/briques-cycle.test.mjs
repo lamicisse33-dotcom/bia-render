@@ -35,7 +35,7 @@ test('the long watchdog cancels abandoned work instead of only marking it ready,
   x.timers[0]();assert.equal(cancelled,newer?0:1);assert.equal(x.env.busyRef.current,newer);
  }
 });
-function load(path,req=()=>{throw Error('unexpected import');}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText)(req,m,m.exports);return m.exports;}
+function load(path,req=()=>{throw Error('unexpected import');}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText)(id=>id==='./rapidite-core'?load('lib/rapidite-core.ts'):id==='./rapidite-etat'?load('lib/rapidite-etat.ts'):req(id),m,m.exports);return m.exports;}
 const tick=()=>new Promise(r=>setTimeout(r,0));
 test('a first brick, a fabrication gap beyond the watchdog and the next brick remain a single microphone-free chain',async()=>{
  const original=globalThis.fetch,x=environment();let release;const continuation=new Promise(r=>release=r),spoken=[];
