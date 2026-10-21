@@ -7,7 +7,7 @@
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "ad34b135d0d3589badf6161afd07df8dce927de633ea9ffc215a07dd26c47f19",
     "lib/transport-conversation.ts": "ac8d95016a165bc00abfad385cc2f5c87278775854dfbddbcfbbe4b308e607ce",
-    "app/api/ecouter/route.ts": "b7984b36ed31bec85f18d86630f73c1bfc78bd79ff511bd286a9e2b0710417a5",
+    "app/api/ecouter/route.ts": "4bdf5c22518de8ee48b83bd1d8db90485481d02f8ea9fc856c1ee7acae7f55e5",
     "app/api/ecouter/anticiper/route.ts": "56867d683f1b63e0f57803de17426e4417b717122c8043d3132fa617982f153d",
     "app/api/chatterbox-test/bia/route.ts": "63035dfc3fea98386ae568e2266e6de41b462472927460795f8fb3b9896fe634",
     "app/api/chatterbox-test/bia/stream/route.ts": "a56bd54d4f51272835f915b0be257c4a936ec9aaca069e1b3f5c661bc0e03b7f",
@@ -111,5 +111,13 @@
     "scope": "Only app/page.tsx among protected paths: include recent thread in the existing master save button payload. No microphone, voice, model, streaming or GPU settings change.",
     "behavior": "Explicit master correction plus save command identifies the former answer in recent thread. Archive exact old rows in private storage and verify before CAS updates. Replace all exact matching simple lexicon entries, preserve structured lesson sources on their existing provenance/CAS path and unrelated entries. Durable reread required before confirmation. Latest vocabulary correction precedes frequency of obsolete variants.",
     "verification": "Behavioral tests cover actual writer, duplicate replacement, persistent archive, failed archive, concurrent edit and failed reread, plus command/context mapping and latest-word precedence. Authenticated isolated Supabase diagnostic required before announcing completion; no physical microphone or human pronunciation claim."
+  },
+  "migration_boucle_asr_courte_20261021": {
+    "authorized": "Lamine reports a remote microphone oui vas-y transcribed as a long repeated Wolof loop, with screenshot evidence.",
+    "hash_before": "b7984b36ed31bec85f18d86630f73c1bfc78bd79ff511bd286a9e2b0710417a5",
+    "hash_after": "4bdf5c22518de8ee48b83bd1d8db90485481d02f8ea9fc856c1ee7acae7f55e5",
+    "scope": "Only app/api/ecouter/route.ts among protected paths: replace the local 24-word-only detector with the shared short-loop detector. No microphone thresholds, ASR model/provider, voice, language hints, progressive chunk sizes, streaming order or GPU settings changed.",
+    "behavior": "Reject the exact 21-word screenshot before displaying transcript, responding to it or collecting it into the voice corpus. Preserve ordinary short replies and repetitions. Never guess consent or preserve a plausible prefix from corrupted speech. Existing progressive routes use this same endpoint and its rejection flag.",
+    "verification": "Executed actual route with simulated ASR output: screenshot returns empty rejected transcript and no corpus write; Oui vas-y remains unchanged. Four tests cover emphasis, short controls and a long normal intervention. Public boucles_transcription separately exposes aggregate real rejections and labeled synthetic examples. No claim of actual far-microphone recognition without original audio."
   }
 }

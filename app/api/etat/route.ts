@@ -1,3 +1,4 @@
+import {resumeBouclesTranscription} from "@/lib/transcription-en-boucle";
 import {resumeCorrectionPrioritaire} from "@/lib/correction-prioritaire";
 import {resumeOreilleEssai} from '@/lib/oreille-essai-etat';
 import {resumeFileAnticipation} from '@/lib/anticipation-gpu';
@@ -223,6 +224,7 @@ export async function GET(request: Request) {
     anticipation_lexique_voix:resumeAnticipationLexique(),
     comparaison_cerveaux:resumeComparaisonCerveaux(),
     comprehension_conversation:resumeEssaiComprehension(),
+    boucles_transcription:resumeBouclesTranscription(),
     transcription_contextuelle: resumeCorrectionContexte(),
     correction_vocale:resumeEssaiCorrectionVocale(),
     corrections_biba:resumeBibaCorrections(),
