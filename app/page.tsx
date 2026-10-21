@@ -1,4 +1,5 @@
 "use client";
+import {profilRapiditeNavigateur} from '@/lib/rapidite-core';
 import {maintenirEcranEveille} from '@/lib/veille-native';
 import {creerRelectureMedia,relireMorceaux} from '@/lib/relecture-media';
 import {SILENCE_MEDIA} from '@/lib/silence-media';
@@ -1708,7 +1709,7 @@ export default function Home() {
     void fetch("/api/mesure", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: "tour", ...tour }),
+      body: JSON.stringify({ type: "tour", ...tour, profil_rapidite:profilRapiditeNavigateur(), reprises:bornes.reprises||0 }),
     }).catch(() => {});
   }, []);
 
@@ -6264,6 +6265,7 @@ export default function Home() {
         mesurerLaCoupure(continuation, mots, continuation ? "recollee" : suite.action === "ensuite" ? "reprise_tardive" : !mots.trim() ? "sans_mots" : "pas_de_debut", reprise);
         ilParle = false;
         if (suite.action === "recoller" || suite.action === "remplacer") {
+          bornesRef.current.reprises=(bornesRef.current.reprises||0)+1;
           ouvrirUnTour();
           busyRef.current = false;
           questionEnVolRef.current = "";
