@@ -1,3 +1,4 @@
+import {transcriptionEnBoucle,noterBoucleTranscription} from "@/lib/transcription-en-boucle";
 import { detecterLangue } from "@/lib/langue";
 import {preparerEcoute} from "@/lib/preparer-ecoute";
 import { NextRequest, NextResponse } from "next/server";
@@ -5,33 +6,6 @@ import { verifierCode } from "@/lib/codes";
 import { noterPanne } from "@/lib/panne";
 import { annoncerLaFin, attendreLesMorceaux, cleValide, noterAttenteDesMorceaux, oublierLeDepot, recoudre } from "@/lib/morceaux-de-parole";
 import { corpusActif, garderLaVoix } from "@/lib/corpus";
-
-/** Reject only long mechanical ASR loops; typed learning exercises bypass this route. */
-function transcriptionEnBoucle(texte: string): boolean {
-  const mots = texte.normalize("NFC").toLocaleLowerCase()
-    .match(/[\p{L}\p{N}]+/gu) || [];
-  if (mots.length < 24) return false;
-  for (let taille = 1; taille <= 8; taille++) {
-    const frequences = new Map<string, number>();
-    for (let i = 0; i + taille <= mots.length; i++) {
-      const cle = mots.slice(i, i + taille).join(" ");
-      frequences.set(cle, (frequences.get(cle) || 0) + 1);
-    }
-    for (const [cle, nombre] of frequences) {
-      if (nombre < 6) continue;
-      const motif = cle.split(" ");
-      let couverts = 0;
-      let occurrences = 0;
-      for (let i = 0; i + taille <= mots.length;) {
-        if (motif.every((mot, j) => mots[i + j] === mot)) {
-          couverts += taille; occurrences++; i += taille;
-        } else i++;
-      }
-      if (occurrences >= 6 && couverts / mots.length >= 0.75) return true;
-    }
-  }
-  return false;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -105,6 +79,7 @@ export async function POST(request: NextRequest) {
     const nom = (fichier instanceof File && fichier.name) ? fichier.name : "parole.webm";
     const {reco,ecriture,correction_disponible,chronometrage} = await preparerEcoute(fichier,nom,indice);
     if (transcriptionEnBoucle(String(reco.texte || ""))) {
+      noterBoucleTranscription(String(reco.texte||""));
       noterPanne("transcription répétitive rejetée", "boucle de reconnaissance vocale", "ecoute");
       return NextResponse.json({ texte: "", transcription_rejetee: true,
         motif: "transcription répétitive", au_fil_de_leau: recousu, extrait: null });
