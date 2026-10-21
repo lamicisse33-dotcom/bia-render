@@ -2,12 +2,12 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "83f09cd203ceeff38a5d340dca556925ef0c3503c81edd480ab094b6178cd3a4",
+    "app/page.tsx": "66ed36893a22b36d9541a324b739749e86170196ecbad48c69c83a2be2005d3b",
     "lib/micro.ts": "225f42ffbe4c66c4c61c97d7ae6376506d94d4b8e3348582e67d7fae30b9f2ce",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "ad34b135d0d3589badf6161afd07df8dce927de633ea9ffc215a07dd26c47f19",
     "lib/transport-conversation.ts": "ac8d95016a165bc00abfad385cc2f5c87278775854dfbddbcfbbe4b308e607ce",
-    "app/api/ecouter/route.ts": "4bdf5c22518de8ee48b83bd1d8db90485481d02f8ea9fc856c1ee7acae7f55e5",
+    "app/api/ecouter/route.ts": "f84bee7bbb35db3bd2f851b82fe6321e33f601c3e87e1a1a2baec371753e1014",
     "app/api/ecouter/anticiper/route.ts": "56867d683f1b63e0f57803de17426e4417b717122c8043d3132fa617982f153d",
     "app/api/chatterbox-test/bia/route.ts": "63035dfc3fea98386ae568e2266e6de41b462472927460795f8fb3b9896fe634",
     "app/api/chatterbox-test/bia/stream/route.ts": "a56bd54d4f51272835f915b0be257c4a936ec9aaca069e1b3f5c661bc0e03b7f",
@@ -125,5 +125,16 @@
     "scope": "Explicit replay button only; native wake lock reacquisition. Continuous conversation streaming, microphone, voice choice, models and production GPU untouched.",
     "behavior": "Prime native media in the click, replay exact stored take or ordered faithful synthesis with current voice, animate only on playing; cancel on new turn. Reacquire one native screen lock after release/foreground; remove competing silent video.",
     "verification": "Actual callback, cancellation, denied media and lock lifecycle tests. Chromium native media PCM verification in CI; physical iPhone and human listening remain to be confirmed. Real counts at relecture and veille."
+  },
+  "migration_essai_haiku_20261021": {
+    "authorization": "Owner explicitly requests Haiku 5.5 and all latency optimizations for a whole-chain comparison, then explicitly approves publication on the public GitHub repository and deployment.",
+    "reference": "73c4a5f662650fb2c136219480e0369ccbf0f0b6; sauvegarde/bia-avant-haiku-2026-10-21-73c4a5f; validated f9bf26e9963353cca8a0db8fc1f49468b0956e70 retained.",
+    "previous_hashes": {
+      "app/page.tsx": "83f09cd203ceeff38a5d340dca556925ef0c3503c81edd480ab094b6178cd3a4",
+      "app/api/ecouter/route.ts": "4bdf5c22518de8ee48b83bd1d8db90485481d02f8ea9fc856c1ee7acae7f55e5"
+    },
+    "scope": "Only app/page.tsx and app/api/ecouter/route.ts change among protected files. The page adds URL-only trial headers, a master-only indicator and additive profile/reprise measurements. ASR adds authenticated optimized-profile-only parallel read preloading. Every other protected file retains its exact hash. No model/voice environment variable changes.",
+    "measurements": "304 local behavior checks and production build pass. Actual PCM coverage includes both 4-second reference and 2.5-second optimized segmentation; endpointing remains 400 ms, complete samples stay ordered, preloading is shared and nonblocking, foreign profile injection is ignored and brick sessions cannot change profiles. Existing correction, word preservation, interruption, stale work cancellation and complete-take checks pass. GitHub functional checks and build pass. Chromium audio tests are required before merge, including the actual newly imported profile module.",
+    "limits": "Haiku and the shorter first-sentence prompt apply only to explicit authenticated trial requests; the standard URL retains its existing model and 4-second segmentation. The synthetic six-replay diagnostic measures ASR through first audio HTTP receipt, without corpus/chat memory writes. Real phone first-sound latency, long-speech ASR quality and human Wolof judgment remain unvalidated; no latency gain is asserted by this baseline update."
   }
 }
