@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "f8a8f485acdb28c7c9a208adb7033483022b60df8d4e8b1b74544dee3cba49cb",
+    "app/page.tsx": "83f09cd203ceeff38a5d340dca556925ef0c3503c81edd480ab094b6178cd3a4",
     "lib/micro.ts": "225f42ffbe4c66c4c61c97d7ae6376506d94d4b8e3348582e67d7fae30b9f2ce",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "ad34b135d0d3589badf6161afd07df8dce927de633ea9ffc215a07dd26c47f19",
@@ -119,5 +119,11 @@
     "scope": "Only app/api/ecouter/route.ts among protected paths: replace the local 24-word-only detector with the shared short-loop detector. No microphone thresholds, ASR model/provider, voice, language hints, progressive chunk sizes, streaming order or GPU settings changed.",
     "behavior": "Reject the exact 21-word screenshot before displaying transcript, responding to it or collecting it into the voice corpus. Preserve ordinary short replies and repetitions. Never guess consent or preserve a plausible prefix from corrupted speech. Existing progressive routes use this same endpoint and its rejection flag.",
     "verification": "Executed actual route with simulated ASR output: screenshot returns empty rejected transcript and no corpus write; Oui vas-y remains unchanged. Four tests cover emphasis, short controls and a long normal intervention. Public boucles_transcription separately exposes aggregate real rejections and labeled synthetic examples. No claim of actual far-microphone recognition without original audio."
+  },
+  "migration_relecture_veille_20261021": {
+    "authorized": "Lamine reports silent replay with moving mouth and requires BIA screen to stay awake.",
+    "scope": "Explicit replay button only; native wake lock reacquisition. Continuous conversation streaming, microphone, voice choice, models and production GPU untouched.",
+    "behavior": "Prime native media in the click, replay exact stored take or ordered faithful synthesis with current voice, animate only on playing; cancel on new turn. Reacquire one native screen lock after release/foreground; remove competing silent video.",
+    "verification": "Actual callback, cancellation, denied media and lock lifecycle tests. Chromium native media PCM verification in CI; physical iPhone and human listening remain to be confirmed. Real counts at relecture and veille."
   }
 }
