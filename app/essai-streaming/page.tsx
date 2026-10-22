@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
 import {ouvrirFluxVoix} from '@/lib/flux-khalam';
+import {mesurerReceptionAudio,type MesureReceptionAudio} from '@/lib/mesure-reception-audio';
 const exemples=[{langue:'wo',texte:'Dañu bëgg ma def lu ma bëggul.'},{langue:'wo',texte:'Mu dem ci marse bi, jënd soble ak tamaate, te dellusi ci kër ga.'},{langue:'fr',texte:'Le budget doit rester accessible à tous.'}];
 export default function EssaiStreaming(){
  const [code,setCode]=useState(''),[phrase,setPhrase]=useState(exemples[0].texte),[langue,setLangue]=useState('wo'),[occupe,setOccupe]=useState(false),[message,setMessage]=useState(''),[resultats,setResultats]=useState<any[]>([]),[rapport,setRapport]=useState<any>(null);
@@ -26,7 +27,7 @@ export default function EssaiStreaming(){
    clearTimeout(timer);toucher();etape='verification_code';setMessage('Vérification du code…');
    const auth=await fetch('/api/essai-streaming',{headers,signal:abort.signal});if(!auth.ok)throw Error('Saisis ton code maître.');setRapport(await auth.json());
    etape='demande_voix';setMessage('Préparation de la voix…');
-   const debut=performance.now();let prochaine=ctx.currentTime,dernier:AudioBufferSourceNode|undefined,premierAudio:number|null=null,premierSon:number|null=null,trou=0,paquets=0,parties=1,cache=false;
+   const debut=performance.now(),fluxHttp:Array<MesureReceptionAudio&{partie:number}>=[];let prochaine=ctx.currentTime,dernier:AudioBufferSourceNode|undefined,premierAudio:number|null=null,premierSon:number|null=null,trou=0,paquets=0,parties=1,cache=false;
    async function programmer(b64:string){
     toucher();premierAudio??=performance.now()-debut;
     const bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
@@ -43,17 +44,16 @@ export default function EssaiStreaming(){
     const r=await fetch('/api/chatterbox-test/bia'+(mode==='stream'?'/stream':''),{method:'POST',headers,signal:abort.signal,body:JSON.stringify({texte:phrase,langue,voice:'female',partie})});
     if(!r.ok)throw Error(`La voix n’a pas répondu (HTTP ${r.status}).`);
     if(mode==='stream'){
-     // Observe cache metadata without buffering the stream or duplicating requests.
-     const lecteur=r.body!.getReader(),decoder=new TextDecoder();let prefix='';let metaVue=false;
-     const suivi=new ReadableStream<Uint8Array>({async pull(c){try{const v=await lecteur.read();if(v.done){c.close();return;}if(!metaVue){prefix+=decoder.decode(v.value,{stream:true});const n=prefix.indexOf('\n');if(n>=0){const d=JSON.parse(prefix.slice(0,n));cache||=d.audio_en_cache===true;metaVue=true;prefix='';}}c.enqueue(v.value);}catch(e){c.error(e);}},cancel(){return lecteur.cancel();}});
-     const first=await ouvrirFluxVoix(new Response(suivi,{status:r.status}),()=>{void lecteur.cancel().catch(()=>{});},toucher);parties=first.parties;
+     const suivi=mesurerReceptionAudio(r,debut);
+     const first=await ouvrirFluxVoix(suivi.response,()=>{},toucher);parties=first.parties;
      if(!first.audio)throw Error('Audio vide.');await programmer(first.audio);for await(const b64 of first.flux!)await programmer(b64);
+     const chronologie=suivi.bilan();cache||=chronologie.audio_en_cache;if(fluxHttp.length<24)fluxHttp.push({partie,...chronologie});
     }else{
      const d=await r.json();if(!d.audio)throw Error('Audio vide.');parties=d.parties;cache||=d.audio_en_cache===true;await programmer(d.audio);
     }
    }
    clearTimeout(timer);
-   const mesure={mode,langue,premier_audio_ms:Math.round(premierAudio!),demarrage_programme_ms:Math.round(premierSon!),reception_complete_ms:Math.round(performance.now()-debut),trou_max_ms:Math.round(trou),paquets,parties,audio_en_cache:cache,integrite:true};
+   const mesure={mode,langue,premier_audio_ms:Math.round(premierAudio!),demarrage_programme_ms:Math.round(premierSon!),reception_complete_ms:Math.round(performance.now()-debut),trou_max_ms:Math.round(trou),paquets,parties,audio_en_cache:cache,integrite:true,flux_http:fluxHttp};
    setResultats(x=>[...x,mesure]);
    // Metrics must not hold the audio player open when their request stalls.
    void fetch('/api/essai-streaming',{method:'POST',headers,body:JSON.stringify(mesure),signal:AbortSignal.timeout(5000)}).catch(()=>{});
@@ -95,7 +95,7 @@ export default function EssaiStreaming(){
    <button disabled={occupe} onClick={()=>void chargerPrises(true)} style={{padding:14,borderRadius:8}}>Charger l’essai ciblé</button>
    {cible&&<div><p><strong>Écoute cet audio-ci :</strong> {cible.nom}</p><audio key={cible.url} aria-label="Essai ciblé : phrase complète avec pause avant def" controls preload="auto" src={cible.url} style={{width:'100%'}} onPlaying={()=>noterLecteur('lecture')} onEnded={()=>noterLecteur('fin')} onError={()=>{noterLecteur('erreur');setMessage('Le lecteur n’a pas pu lire ce fichier. Essaie le lien Télécharger cet audio.');}}/><p><a href={cible.url} download="bia-essai-def-lu-ma.wav" style={{color:'#8cd8c0'}}>Télécharger cet audio</a></p></div>}
   </section>
-  <details><summary>Comparer les anciens modes (la phrase signalée y reste défectueuse)</summary>
+  <details><summary>Comparer les délais des deux modes (prononciation à vérifier)</summary>
   <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>{(['complet','stream'] as const).map(mode=><button key={mode} disabled={occupe||!phrase.trim()} onClick={()=>void lancer(mode)} style={{padding:14,borderRadius:8}}>{mode==='complet'?'Écouter la version actuelle':'Écouter en streaming'}</button>)}<button disabled={!occupe} onClick={arreter} style={{padding:14,borderRadius:8}}>Arrêter</button></div></details>
   <p role="status" aria-live="polite">{message||(!code?'Saisis ton code maître, puis choisis une lecture.':'Code de Bia repris. Choisis une lecture.')}</p>
   <p><button disabled={occupe} onClick={()=>void chargerPrises()} style={{padding:14,borderRadius:8}}>Charger les autres prises pour comparaison</button></p>
@@ -103,6 +103,7 @@ export default function EssaiStreaming(){
   <p>Mesure à partir de l’envoi du texte : elle exclut le micro et le cerveau. Le démarrage affiché est celui programmé par le navigateur ; confirme à l’oreille ce que tu entends réellement.</p>
   <div style={{overflowX:'auto'}}><table style={{width:'100%',textAlign:'left'}}><thead><tr><th>Mode</th><th>Premier audio</th><th>Démarrage</th><th>Blanc max.</th><th>Cache</th></tr></thead><tbody>{resultats.map((r,i)=><tr key={i}><td>{r.mode}</td><td>{r.premier_audio_ms} ms</td><td>{r.demarrage_programme_ms} ms</td><td>{r.trou_max_ms} ms</td><td>{r.audio_en_cache?'oui':'non'}</td></tr>)}</tbody></table></div>
   <p>Une lecture depuis le cache est à comparer avec une autre lecture depuis le cache. Un flux complet ne garantit pas que tous les mots ont été bien prononcés.</p>
+  {resultats.some(r=>r.flux_http?.length>0)&&<section aria-label="Arrivée des paquets audio"><h2>Arrivée du son pendant le flux</h2><p>Les premiers octets peuvent ne contenir que des métadonnées. Ces mesures distinguent le premier vrai paquet audio, le dernier et la fin annoncée. Elles ne prouvent pas à elles seules que le moteur fabriquait encore le son.</p><div style={{overflowX:'auto'}}><table style={{width:'100%',textAlign:'left'}}><thead><tr><th>Essai / partie</th><th>Premiers octets</th><th>Premier audio</th><th>Dernier audio</th><th>Fin du flux</th><th>Paquets</th><th>Cache</th></tr></thead><tbody>{resultats.flatMap((r,i)=>(r.flux_http||[]).map((f:any)=><tr key={`${i}-${f.partie}`}><td>{i+1} / {f.partie+1}</td><td>{f.premier_octet_ms??'—'} ms</td><td>{f.premier_audio_ms??'—'} ms</td><td>{f.dernier_audio_ms??'—'} ms</td><td>{f.fin_flux_ms??'—'} ms</td><td>{f.paquets_audio}</td><td>{f.audio_en_cache?'oui':'non'}</td></tr>))}</tbody></table></div></section>}
   {rapport&&<details><summary>Mesures automatiques du serveur</summary><pre style={{whiteSpace:'pre-wrap',fontSize:12}}>{JSON.stringify(rapport.serveur,null,2)}</pre></details>}
  </main>;
 }
