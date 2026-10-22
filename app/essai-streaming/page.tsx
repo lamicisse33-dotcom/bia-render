@@ -8,9 +8,29 @@ export default function EssaiStreaming(){
  const actif=useRef<{abort:AbortController;context:AudioContext|null}|null>(null);
  const [cible,setCible]=useState<{url:string;nom:string}|null>(null);
  const [audios,setAudios]=useState<{url:string;nom:string}[]>([]);const urls=useRef<string[]>([]);
+ const [comparaison,setComparaison]=useState<Array<{cas:number;texte:string;langue:string;prises:Array<{mode:string;url:string;duree_ms:number;transcription_brute?:string}>}>>([]);
  useEffect(()=>{try{const c=localStorage.getItem('bia-code');if(c)setCode(c);}catch{}return()=>{for(const u of urls.current)URL.revokeObjectURL(u);};},[]);
  useEffect(()=>()=>{actif.current?.abort.abort();void actif.current?.context?.close().catch(()=>{});},[]);
  function arreter(){actif.current?.abort.abort();void actif.current?.context?.close().catch(()=>{});setMessage('Essai arrêté.');}
+ async function chargerComparaison(){
+  if(!code.trim()){setMessage('Saisis ton code maître pour charger la comparaison.');return;}
+  setOccupe(true);setMessage('Chargement des deux prises mesurées…');
+  try{
+   const r=await fetch('/api/essai-streaming?prises=1',{headers:{'x-bia-code':code},signal:AbortSignal.timeout(20000)});
+   if(!r.ok)throw Error(r.status===401?'Code maître requis.':'Chargement indisponible.');
+   const d=await r.json();if(!d.prises?.length)throw Error('Les prises sont encore en préparation. Réessaie dans une minute.');
+   const groupes=new Map<number,{cas:number;texte:string;langue:string;prises:Array<{mode:string;url:string;duree_ms:number;transcription_brute?:string}>}>();
+   for(const p of d.prises){
+    const bytes=Uint8Array.from(atob(p.audio),c=>c.charCodeAt(0)),url=URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}));urls.current.push(url);
+    if(!groupes.has(p.cas))groupes.set(p.cas,{cas:p.cas,texte:p.texte,langue:p.langue,prises:[]});
+    groupes.get(p.cas)!.prises.push({mode:p.mode,url,duree_ms:p.duree_ms,transcription_brute:p.transcription_brute});
+   }
+   setComparaison([...groupes.values()].sort((a,b)=>(a.cas===1?-1:a.cas)-(b.cas===1?-1:b.cas)));setMessage('Les prises exactes du diagnostic sont prêtes. Écoute les deux versions de la même phrase, surtout sa fin.');
+  }catch(e){setMessage((e as Error).message);}finally{setOccupe(false);}
+ }
+ function noterComparaison(cas:number,langue:string,mode:string,evenement:string){
+  void fetch('/api/essai-streaming',{method:'POST',headers:{'content-type':'application/json','x-bia-code':code},body:JSON.stringify({type:'comparaison',cas,langue,mode,evenement}),signal:AbortSignal.timeout(5000)}).catch(()=>{});
+ }
  async function lancer(mode:'complet'|'stream'){
   if(actif.current)return;
   if(!code.trim()){setMessage('Saisis ton code maître ci-dessus pour activer la lecture.');return;}
@@ -86,6 +106,11 @@ export default function EssaiStreaming(){
   <a href="/" style={{color:'#8cd8c0'}}>← Revenir à Bia</a><h1>Comparer l’écoute en streaming</h1>
   <p>Essai de la voix Khalam, séparé de ta conversation habituelle. Écoute la même phrase dans les deux modes, puis compare la clarté et le délai.</p>
   <label>Code maître<input type="password" autoComplete="off" value={code} onChange={e=>setCode(e.target.value)} disabled={occupe} style={champ}/></label>
+  <section aria-label="Comparer les prises exactes du diagnostic" style={{border:'2px solid #8cd8c0',padding:16,borderRadius:12,margin:'16px 0'}}>
+   <h2>Vérifier les mots dans les deux versions</h2><p>Ces prises sont celles utilisées pour les mesures automatiques. Les charger ne relance aucune génération. La transcription automatique reste indicative.</p>
+   <button disabled={occupe} onClick={()=>void chargerComparaison()} style={{padding:14,borderRadius:8}}>Charger les deux versions mesurées</button>
+   {comparaison.map(c=><div key={c.cas}><h3>{c.langue==='wo'?'Wolof':'Français'}</h3><p>{c.texte}</p><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:16}}>{[...c.prises].sort((a,b)=>a.mode==='complet'?-1:b.mode==='complet'?1:0).map(p=><div key={p.mode}><p><strong>{p.mode==='complet'?'Version complète':'Version streaming'}</strong> — {(p.duree_ms/1000).toFixed(2)} s</p><audio controls preload="auto" src={p.url} aria-label={`${p.mode==='complet'?'Version complète':'Version streaming'} de la phrase ${c.cas+1}`} style={{width:'100%'}} onPlaying={()=>noterComparaison(c.cas,c.langue,p.mode,'lecture')} onEnded={()=>noterComparaison(c.cas,c.langue,p.mode,'fin')} onError={()=>noterComparaison(c.cas,c.langue,p.mode,'erreur')}/><p><a href={p.url} download={`bia-comparaison-${c.cas+1}-${p.mode}.wav`} style={{color:'#8cd8c0'}}>Télécharger cette prise</a></p>{p.transcription_brute&&<details><summary>Transcription automatique indicative</summary><p>{p.transcription_brute}</p></details>}</div>)}</div></div>)}
+  </section>
   <label>Exemple<select disabled={occupe} style={champ} onChange={e=>{const x=exemples[Number(e.target.value)];setPhrase(x.texte);setLangue(x.langue);}}>{exemples.map((x,i)=><option key={i} value={i}>{x.langue.toUpperCase()} — {x.texte}</option>)}</select></label>
   <label>Phrase<textarea value={phrase} maxLength={400} disabled={occupe} onChange={e=>setPhrase(e.target.value)} rows={3} style={champ}/></label>
   <label>Langue<select value={langue} disabled={occupe} onChange={e=>setLangue(e.target.value)} style={champ}><option value="wo">Wolof</option><option value="fr">Français</option></select></label>

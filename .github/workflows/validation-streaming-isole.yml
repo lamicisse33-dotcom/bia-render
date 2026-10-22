@@ -12,4 +12,4 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: 22, cache: npm}
       - run: npm ci
-      - run: node --test tests/stabilite-streaming.test.mjs tests/mesure-reception-audio.test.mjs tests/essai-streaming-isole.test.mjs tests/flux-khalam.test.mjs tests/prise-validee.test.mjs tests/ecoute-longue.test.mjs tests/anticipation-conversation.test.mjs
+      - run: node --test tests/stabilite-streaming.test.mjs tests/comparaison-transcription-audio.test.mjs tests/mesure-reception-audio.test.mjs tests/essai-streaming-isole.test.mjs tests/flux-khalam.test.mjs tests/prise-validee.test.mjs tests/ecoute-longue.test.mjs tests/anticipation-conversation.test.mjs
