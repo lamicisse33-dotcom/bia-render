@@ -65,3 +65,27 @@ d'attente de l'audio mémorisé et de réponse prête. Il contourne les deux
 caches de réponses uniquement pour les calculs diagnostiques du maître ;
 la voix conserve ses caches. Le comportement des conversations ordinaires
 est inchangé. Aucun gain avant/après n'est déduit de cette seule série.
+
+
+## Six calculs neufs ce567cbf730a
+
+Série 01:22:03–01:22:45 UTC : six ASR, six calculs Sonnet et six voix
+confirmés, aucun cache de réponse ni de voix utilisé. Premiers audios :
+6 019, 4 540, 4 138, 3 250, 4 323, 6 053 ms. Le modèle a cette fois répondu
+librement dans les six cas : l'attente du chemin de sélection apprise ne
+s'est pas reproduite. Il n'est donc pas établi que les 3,3 secondes observées
+venaient du modèle, de la provenance ou de l'audio. Les durées restent
+variables et ne constituent pas une comparaison causale avant/après.
+
+Une autre duplication est vérifiée dans le code et à trois instances en test :
+le catalogue audio partageait sa fraîcheur entre bundles, mais son cache de
+calcul des identifiants restait local. À sa prochaine expiration, un autre
+bundle pouvait refaire les préparations phonétiques de 4 007 phrases. Le
+cache de ces calculs est maintenant partagé aussi, avec les mêmes clés de
+texte, langue et règles exactes. Les suppressions et nouvelles prononciations
+restent immédiatement prises en compte. Le nombre d'entrées reste limité à
+l'inventaire courant ; aucune nouvelle génération ou copie d'audio.
+`audio_memoire.calculs_recents` ajoute les douze derniers temps et nombres de
+calculs, sans texte ni identifiant privé. L'essai complet vérifie aussi les
+composants de finalisation d'une réponse apprise existante, sans modèle ni
+écriture. Ne pas attribuer l'ancien délai à cette duplication sans preuve.

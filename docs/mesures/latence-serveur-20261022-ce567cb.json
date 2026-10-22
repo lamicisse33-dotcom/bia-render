@@ -1,0 +1,311 @@
+{
+  "diagnostic": {
+    "statut": "termine",
+    "date": "2026-10-22T01:22:03.955Z",
+    "version": "ce567cbf730a",
+    "modele": "claude-sonnet-5-5",
+    "lecture_navigateur_mesuree": false,
+    "microphone_mesure": false,
+    "perimetre": "Audio synthétique fixe → routes HTTP réelles ASR, conversation et premier clip vocal. Hors silence de fin de parole, réseau du téléphone et haut-parleur. Ordre inversé au second passage ; caches indiqués. Cache de réponse contourné pour mesurer six calculs réels ; cache de voix conservé.",
+    "cas": [
+      {
+        "scenario": "repas_fr",
+        "passage": 1,
+        "asr_ms": 921,
+        "ecoute": {
+          "total_ms": 871,
+          "reconnaissance_ms": 788,
+          "vocabulaire_ms": 0,
+          "correction_apres_reconnaissance_ms": 83,
+          "salutation": false,
+          "references_ms": 0,
+          "comparaison_ms": 83,
+          "references_pretes": true
+        },
+        "meme_transcription": null,
+        "transcription_signes": 44,
+        "premier_texte_ms": 2702,
+        "premiere_phrase_ms": 2840,
+        "phrase_signes": 52,
+        "langue_voix": "fr",
+        "texte_complet_ms": 3413,
+        "conversation": {
+          "forcer_calcul": true,
+          "preparation_ms": 582,
+          "modele_ms": 2088,
+          "premier_texte_ms": 2673,
+          "modele_complet_ms": 2803,
+          "reponse_prete_ms": 3391
+        },
+        "source": "BIA intelligente",
+        "voix_ms": 2258,
+        "premier_audio_ms": 6019,
+        "voix_cache": false,
+        "voix_preparation_ms": 3,
+        "voix_fabrication_ms": 2191,
+        "voix_generation_ms": 1805,
+        "gpu": {
+          "gpu_http_ms": 2182,
+          "gpu_entetes_ms": 2072,
+          "gpu_corps_ms": 110,
+          "generation_ms": 1805,
+          "hors_generation_ms": 377
+        },
+        "ok": true
+      },
+      {
+        "scenario": "repas_wo",
+        "passage": 1,
+        "asr_ms": 935,
+        "ecoute": {
+          "total_ms": 881,
+          "reconnaissance_ms": 800,
+          "vocabulaire_ms": 0,
+          "correction_apres_reconnaissance_ms": 81,
+          "salutation": false,
+          "references_ms": 0,
+          "comparaison_ms": 81,
+          "references_pretes": true
+        },
+        "meme_transcription": null,
+        "transcription_signes": 47,
+        "premier_texte_ms": 1707,
+        "premiere_phrase_ms": 2034,
+        "phrase_signes": 32,
+        "langue_voix": "wo",
+        "texte_complet_ms": 2132,
+        "conversation": {
+          "forcer_calcul": true,
+          "preparation_ms": 481,
+          "modele_ms": 1207,
+          "premier_texte_ms": 1688,
+          "modele_complet_ms": 1633,
+          "reponse_prete_ms": 2115
+        },
+        "source": "BIA intelligente",
+        "voix_ms": 1571,
+        "premier_audio_ms": 4540,
+        "voix_cache": false,
+        "voix_preparation_ms": 1,
+        "voix_fabrication_ms": 1541,
+        "voix_generation_ms": 1321,
+        "gpu": {
+          "gpu_http_ms": 1541,
+          "gpu_entetes_ms": 1446,
+          "gpu_corps_ms": 95,
+          "generation_ms": 1321,
+          "hors_generation_ms": 220
+        },
+        "ok": true
+      },
+      {
+        "scenario": "suite_wo",
+        "passage": 1,
+        "asr_ms": 867,
+        "ecoute": {
+          "total_ms": 793,
+          "reconnaissance_ms": 711,
+          "vocabulaire_ms": 0,
+          "correction_apres_reconnaissance_ms": 82,
+          "salutation": false,
+          "references_ms": 0,
+          "comparaison_ms": 82,
+          "references_pretes": true
+        },
+        "meme_transcription": null,
+        "transcription_signes": 30,
+        "premier_texte_ms": 1006,
+        "premiere_phrase_ms": 1680,
+        "phrase_signes": 26,
+        "langue_voix": "wo",
+        "texte_complet_ms": 1685,
+        "conversation": {
+          "forcer_calcul": true,
+          "preparation_ms": 332,
+          "modele_ms": 655,
+          "premier_texte_ms": 988,
+          "modele_complet_ms": 1335,
+          "reponse_prete_ms": 1667
+        },
+        "source": "BIA intelligente",
+        "voix_ms": 1591,
+        "premier_audio_ms": 4138,
+        "voix_cache": false,
+        "voix_preparation_ms": 156,
+        "voix_fabrication_ms": 1412,
+        "voix_generation_ms": 1240,
+        "gpu": {
+          "gpu_http_ms": 1410,
+          "gpu_entetes_ms": 1319,
+          "gpu_corps_ms": 91,
+          "generation_ms": 1240,
+          "hors_generation_ms": 170
+        },
+        "ok": true
+      },
+      {
+        "scenario": "suite_wo",
+        "passage": 2,
+        "asr_ms": 923,
+        "ecoute": {
+          "total_ms": 888,
+          "reconnaissance_ms": 774,
+          "vocabulaire_ms": 0,
+          "correction_apres_reconnaissance_ms": 114,
+          "salutation": false,
+          "references_ms": 0,
+          "comparaison_ms": 114,
+          "references_pretes": true
+        },
+        "meme_transcription": true,
+        "transcription_signes": 30,
+        "premier_texte_ms": 1196,
+        "premiere_phrase_ms": 1339,
+        "phrase_signes": 38,
+        "langue_voix": "wo",
+        "texte_complet_ms": 2240,
+        "conversation": {
+          "forcer_calcul": true,
+          "preparation_ms": 354,
+          "modele_ms": 721,
+          "premier_texte_ms": 1082,
+          "modele_complet_ms": 1860,
+          "reponse_prete_ms": 2216
+        },
+        "source": "BIA intelligente",
+        "voix_ms": 988,
+        "premier_audio_ms": 3250,
+        "voix_cache": false,
+        "voix_preparation_ms": 1,
+        "voix_fabrication_ms": 962,
+        "voix_generation_ms": 834,
+        "gpu": {
+          "gpu_http_ms": 960,
+          "gpu_entetes_ms": 894,
+          "gpu_corps_ms": 66,
+          "generation_ms": 834,
+          "hors_generation_ms": 126
+        },
+        "ok": true
+      },
+      {
+        "scenario": "repas_wo",
+        "passage": 2,
+        "asr_ms": 965,
+        "ecoute": {
+          "total_ms": 914,
+          "reconnaissance_ms": 842,
+          "vocabulaire_ms": 0,
+          "correction_apres_reconnaissance_ms": 72,
+          "salutation": false,
+          "references_ms": 0,
+          "comparaison_ms": 72,
+          "references_pretes": true
+        },
+        "meme_transcription": true,
+        "transcription_signes": 47,
+        "premier_texte_ms": 1393,
+        "premiere_phrase_ms": 1744,
+        "phrase_signes": 32,
+        "langue_voix": "wo",
+        "texte_complet_ms": 1945,
+        "conversation": {
+          "forcer_calcul": true,
+          "preparation_ms": 230,
+          "modele_ms": 1144,
+          "premier_texte_ms": 1375,
+          "modele_complet_ms": 1697,
+          "reponse_prete_ms": 1927
+        },
+        "source": "BIA intelligente",
+        "voix_ms": 1614,
+        "premier_audio_ms": 4323,
+        "voix_cache": false,
+        "voix_preparation_ms": 1,
+        "voix_fabrication_ms": 1592,
+        "voix_generation_ms": 1424,
+        "gpu": {
+          "gpu_http_ms": 1591,
+          "gpu_entetes_ms": 1491,
+          "gpu_corps_ms": 100,
+          "generation_ms": 1424,
+          "hors_generation_ms": 167
+        },
+        "ok": true
+      },
+      {
+        "scenario": "repas_fr",
+        "passage": 2,
+        "asr_ms": 847,
+        "ecoute": {
+          "total_ms": 812,
+          "reconnaissance_ms": 746,
+          "vocabulaire_ms": 0,
+          "correction_apres_reconnaissance_ms": 66,
+          "salutation": false,
+          "references_ms": 0,
+          "comparaison_ms": 66,
+          "references_pretes": true
+        },
+        "meme_transcription": true,
+        "transcription_signes": 44,
+        "premier_texte_ms": 2934,
+        "premiere_phrase_ms": 3162,
+        "phrase_signes": 56,
+        "langue_voix": "fr",
+        "texte_complet_ms": 3511,
+        "conversation": {
+          "forcer_calcul": true,
+          "preparation_ms": 245,
+          "modele_ms": 2674,
+          "premier_texte_ms": 2919,
+          "modele_complet_ms": 3252,
+          "reponse_prete_ms": 3497
+        },
+        "source": "BIA intelligente",
+        "voix_ms": 2044,
+        "premier_audio_ms": 6053,
+        "voix_cache": false,
+        "voix_preparation_ms": 1,
+        "voix_fabrication_ms": 2015,
+        "voix_generation_ms": 1778,
+        "gpu": {
+          "gpu_http_ms": 2014,
+          "gpu_entetes_ms": 1903,
+          "gpu_corps_ms": 111,
+          "generation_ms": 1778,
+          "hors_generation_ms": 236
+        },
+        "ok": true
+      }
+    ],
+    "preparation_audio": [
+      {
+        "scenario": "repas_fr",
+        "statut": 200,
+        "parties": 1,
+        "ms": 2653
+      },
+      {
+        "scenario": "repas_wo",
+        "statut": 200,
+        "parties": 3,
+        "ms": 5540
+      },
+      {
+        "scenario": "suite_wo",
+        "statut": 200,
+        "parties": 2,
+        "ms": 2553
+      }
+    ],
+    "fin": "2026-10-22T01:22:45.434Z"
+  },
+  "index_partage": {
+    "chargements": 1,
+    "reutilisations": 11,
+    "documents": 879,
+    "dernier_chargement_ms": 806,
+    "dernier_index_ms": 289
+  }
+}
