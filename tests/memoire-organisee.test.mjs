@@ -16,6 +16,7 @@ test('conversation queries the common index without another Supabase read',async
 
 
 test('an invalidated RAM index reloads current lessons and corrections without storage writes',async()=>{
+ delete globalThis.biaLectureMemoireCommune;
  const previous=globalThis.biaRevisionMemoire;globalThis.biaRevisionMemoire=2;let reads=0,writeAttempts=0;
  const catalogue={version:1,elements:[
   {id:'fiches:stable',famille:'fiches',source:'fiche',actif:true,texte:JSON.stringify({titre:'Khalam',texte:'Information Khalam conservée.'})},
@@ -38,6 +39,7 @@ test('an invalidated RAM index reloads current lessons and corrections without s
  }finally{if(previous===undefined)delete globalThis.biaRevisionMemoire;else globalThis.biaRevisionMemoire=previous;}
 });
 test('a correction arriving during reload is never certified as current; the next read can retry',async()=>{
+ delete globalThis.biaLectureMemoireCommune;
  const previous=globalThis.biaRevisionMemoire;globalThis.biaRevisionMemoire=2;let changed=false;
  try{
   const api=load('lib/memoire-organisee.ts',{...deps,'./audio-memoire-stockage':{lireObjetMemoire:async()=>Response.json({version:1,elements:[]})},'./lexique':{...deps['./lexique'],toutes:async()=>{if(!changed){changed=true;globalThis.biaRevisionMemoire++;}return [{source:'voiture',corrigee:'Correction actuelle.',application:'bia'}];}}});
@@ -46,6 +48,7 @@ test('a correction arriving during reload is never certified as current; the nex
  }finally{if(previous===undefined)delete globalThis.biaRevisionMemoire;else globalThis.biaRevisionMemoire=previous;}
 });
 test('an incomplete correction read cannot silently serve the stale catalogue',async()=>{
+ delete globalThis.biaLectureMemoireCommune;
  const previous=globalThis.biaRevisionMemoire;globalThis.biaRevisionMemoire=2;
  try{
   const api=load('lib/memoire-organisee.ts',{...deps,'./audio-memoire-stockage':{lireObjetMemoire:async()=>Response.json({version:1,elements:[]})},'./lexique':{...deps['./lexique'],lectureLexique:()=>({motif:'indisponible'})}});

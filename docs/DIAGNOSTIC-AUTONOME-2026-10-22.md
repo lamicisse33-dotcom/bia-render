@@ -26,3 +26,18 @@ Ne pas annoncer un gain du téléphone à partir de cette série.
 Avant publication : test de concurrence réel sur les flux simulés, test
 des drapeaux interdisant les écritures, protection des textes privés,
 TypeScript et contrôles habituels de conversation/audio.
+
+Le premier lancement e0719daed584 s'est arrêté pendant la préparation des
+sons témoins : le protocole du test exigeait un seul clip. Le rejeu assemble
+désormais les clips complets ordonnés du flux normal, avec validation de la
+voix et de la fin du flux. Le nombre de clips et le statut HTTP sont publiés.
+
+Correction ciblée : l'index commun de mémoire était encore propre à chaque
+bundle Next. Le chargement, l'index et la révision sont maintenant partagés
+entre ASR, conversation, instrumentation et briques. Sa lecture commence
+pendant l'ASR, sans attendre sa fin. Les sélections contextuelles restent
+recalculées ; chaque correction de source invalide l'index partout. Aucun
+devoir, budget de contexte, classement ou formulation n'est supprimé.
+`memoire_organisee.index_partage` indique chargements, réutilisations, nombre
+de documents et temps du chargement/index. Ce compteur confirme la réutilisation
+effective ; il ne remplace pas la mesure de la chaîne complète.

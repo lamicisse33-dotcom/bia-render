@@ -42,8 +42,8 @@ test('the faster progressive cut sends every sample in order and never starts pl
 test('preloading is read-only, shared and does not need to finish before ASR can proceed',async()=>{
  let reads=0,release;const gate=new Promise(r=>release=r),done=[];
  const read=async()=>{reads++;await gate;};
- const api=load('lib/rapidite-precharger.ts',{'./lexique':{motsCorriges:read},'./instructions-apprentissage':{contexteInstructions:read},'./dialogue-devoirs':{indexDialogue:read},'./audio-memoire':{catalogueAudioMemoire:read},'./anticipation-lexique-voix':{anticiperLexiqueVoix(){}},'./rapidite-etat':{noterPrechargementRapidite:d=>done.push(d)}});
- assert.equal(api.prechargerPendantEcoute(),undefined);api.prechargerPendantEcoute();assert.equal(reads,4);assert.equal(done.length,0);release();await new Promise(r=>setTimeout(r,0));assert.equal(done[0].lectures_reussies,4);
+ const api=load('lib/rapidite-precharger.ts',{'./lexique':{motsCorriges:read},'./instructions-apprentissage':{contexteInstructions:read},'./dialogue-devoirs':{indexDialogue:read},'./audio-memoire':{catalogueAudioMemoire:read},'./memoire-organisee':{preparerMemoireCommune:read},'./anticipation-lexique-voix':{anticiperLexiqueVoix(){}},'./rapidite-etat':{noterPrechargementRapidite:d=>done.push(d)}});
+ assert.equal(api.prechargerPendantEcoute(),undefined);api.prechargerPendantEcoute();assert.equal(reads,5);assert.equal(done.length,0);release();await new Promise(r=>setTimeout(r,0));assert.equal(done[0].lectures_reussies,5);
 });
 test('a non-master cannot select a different brick model through JSON or headers',async()=>{
  let passed;
