@@ -951,7 +951,7 @@ export async function POST(request:NextRequest){
    On ne mesure PAS l'instant où la connexion s'ouvre : un flux répond tout de
    suite et peut rester muet une seconde entière. C'est le premier MOT qui
    compte. `depart` est pris avant l'appel, par l'appelant. */
-async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void,depart=0,amorce=""){
+async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void,depart=0,amorce="",modele=""){
   const lecteur=reponse.body?.getReader();
   if(!lecteur) return {content:[],usage:undefined,stop_reason:"",types:[] as string[]};
   let premierMot=0;
@@ -1007,7 +1007,7 @@ async function lireLeFlux(reponse:Response,emettre:(morceau:string)=>void,depart
       }
     }
   }
-  if(depart)noterEtape("modele",depart,premierMot,Date.now(),blocs.join("").length);
+  if(depart)noterEtape("modele",depart,premierMot,Date.now(),blocs.join("").length,modele);
   return {content:blocs.map((text)=>({type:"text",text})),usage,
     stop_reason:motifDArret,types:[...typesVus]};
 }
@@ -2989,7 +2989,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     };
     let data:Reponse;
     if(emettre&&!gemini&&!groq){
-      data=await lireLeFlux(reponse,emettre,partiModele,amorce);
+      data=await lireLeFlux(reponse,emettre,partiModele,amorce,model);
     }else{
       data=avecAmorce(await reponse.json() as Reponse,amorce);
       /* En mode Gemini le fournisseur répond pour l'instant d'un bloc.
@@ -3074,7 +3074,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       if(sansOutil.ok){
         const amorceDeSecours=amorceDe(reglagesDeSecours);
         const second:Reponse=(emettre&&!gemini&&!groq)
-          ?await lireLeFlux(sansOutil,emettre,0,amorceDeSecours)
+          ?await lireLeFlux(sansOutil,emettre,0,amorceDeSecours,model)
           :avecAmorce(await sansOutil.json() as Reponse,amorceDeSecours);
         if(emettre&&(gemini||groq)&&sansOutil.headers.get("x-bia-deja-diffuse") !== "true"){
           const t=(second.content||[]).filter(b=>b.type==="text").map(b=>b.text||"").join("");
