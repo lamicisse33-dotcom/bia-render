@@ -7,11 +7,15 @@ const core=load('lib/rapidite-core.ts');
 test('trial models are bounded and selection is authorized by the authenticated master',()=>{
  assert.equal(core.profilRapiditeAutorise('haiku',false),null);
  assert.equal(core.profilRapiditeAutorise('haiku-optimise',true),'haiku-optimise');
+ assert.equal(core.profilRapiditeAutorise('segment-2500',true),'segment-2500');
+ assert.equal(core.profilRapiditeAutorise('segment-2500',false),null);
  assert.equal(core.profilRapiditeAutorise('arbitrary-expensive-model',true),null);
  assert.equal(core.modeleRapidite(null,'original-model'),'original-model');
  assert.equal(core.modeleRapidite('sonnet','original-model'),'claude-sonnet-5-5');
  assert.equal(core.modeleRapidite('haiku','original-model'),'claude-haiku-5-5');
- assert.equal(core.segmentRapiditeMs(null),4000);assert.equal(core.segmentRapiditeMs('haiku'),4000);assert.equal(core.segmentRapiditeMs('haiku-optimise'),2500);
+ assert.equal(core.modeleRapidite('segment-2500','original-model'),'original-model');
+ assert.equal(core.rapiditeOptimisee('segment-2500'),false);
+ assert.equal(core.segmentRapiditeMs(null),4000);assert.equal(core.segmentRapiditeMs('haiku'),4000);assert.equal(core.segmentRapiditeMs('haiku-optimise'),2500);assert.equal(core.segmentRapiditeMs('segment-2500'),2500);
 });
 test('no browser preference survives leaving the trial URL',()=>{
  const old=globalThis.window;try{
