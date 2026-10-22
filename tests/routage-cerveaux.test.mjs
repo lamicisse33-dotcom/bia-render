@@ -22,6 +22,7 @@ test('Sonnet keeps learned language, complex reasoning, actions, and longer cont
 test('manual model trials and custom model configuration remain authoritative',()=>{
  assert.equal(choisir('Explique un calcul compliqué.',{profil:'haiku'}),'claude-haiku-5-5');
  assert.equal(choisir('Naka nga def ?',{profil:'sonnet'}),'claude-sonnet-5-5');
+ assert.equal(choisir('Naka nga def ?',{profil:'sonnet-segment-1500'}),'claude-sonnet-5-5');
  assert.equal(choisir('Naka nga def ?',{profil:'segment-2500'}),'claude-haiku-5-5');
  assert.equal(choisir('Traduis-moi bonjour en wolof.',{profil:'segment-2500'}),'claude-sonnet-5-5');
  assert.equal(choisir('Naka nga def ?',{modeleConfigure:'custom-model'}),'custom-model');

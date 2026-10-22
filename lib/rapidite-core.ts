@@ -8,7 +8,7 @@ export function profilRapiditeAutorise(v: unknown, maitre: boolean) {
 }
 export function modeleRapidite(profil: unknown, normal: string): string {
   const p = profilRapidite(profil);
-  return p === 'sonnet' ? 'claude-sonnet-5-5' : p === 'haiku' || p === 'haiku-optimise' ? 'claude-haiku-5-5' : normal;
+  return p === 'sonnet' || p === 'sonnet-segment-1500' ? 'claude-sonnet-5-5' : p === 'haiku' || p === 'haiku-optimise' ? 'claude-haiku-5-5' : normal;
 }
 export function rapiditeOptimisee(profil: unknown) { return profil === 'haiku-optimise'; }
 export function profilRapiditeNavigateur() {
