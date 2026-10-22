@@ -19,7 +19,7 @@ const exemples=[
 export function verifierLatenceAutonome(){return etat.travail??=(async()=>{
  const rapport:any={statut:'en_cours',date:new Date().toISOString(),version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),modele:process.env.BIA_LLM_MODEL,lecture_navigateur_mesuree:false,microphone_mesure:false,perimetre:'Audio synthétique fixe → routes HTTP réelles ASR, conversation et premier clip vocal. Hors silence de fin de parole, réseau du téléphone et haut-parleur. Ordre inversé au second passage ; caches indiqués. Cache de réponse contourné pour mesurer six calculs réels ; cache de voix conservé.',cas:[]};etat.rapport=rapport;
  const code=process.env.BIA_CODE_MAITRE||'',base='https://app.khalam.app';
- const requete=(path:string,body:unknown,signal:AbortSignal)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json','x-bia-code':code,'x-bia-diagnostic-latence':'calcul'},body:JSON.stringify(body),signal,cache:'no-store'});
+ const requete=(path:string,body:unknown,signal:AbortSignal,profil?:'sonnet'|'haiku')=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json','x-bia-code':code,'x-bia-diagnostic-latence':'calcul',...(profil?{'x-bia-essai-rapidite':profil}:{})},body:JSON.stringify(body),signal,cache:'no-store'});
  try{
   if(!code)throw Error('acces_absent');
   const audios=new Map<string,Buffer>(),transcriptions=new Map<string,string>();
@@ -76,6 +76,26 @@ export function verifierLatenceAutonome(){return etat.travail??=(async()=>{
     }}finally{await reader.cancel().catch(()=>{});}
     if(!fin||!voix)throw Error('reponse_non_confirmee');await voix;c.ok=true;
    }catch{if(voix)await voix.catch(()=>{});c.ok=false;c.erreur='echange_non_confirme';c.ms=Date.now()-debut;}
+  }
+  // Paired, text-only model comparison: identical ASR transcript and history,
+  // forced model per request. Store timings and model labels, never response text.
+  rapport.comparaison_modeles=[];
+  for(const [index,exemple] of exemples.entries())for(const profil of (index%2?['haiku','sonnet']:['sonnet','haiku']) as ('haiku'|'sonnet')[]){
+   const c:any={scenario:exemple.id,profil};rapport.comparaison_modeles.push(c);
+   try{
+    const question=transcriptions.get(exemple.id);if(!question)throw Error('transcription_absente');
+    const debut=Date.now(),signal=AbortSignal.timeout(30000);
+    const response=await requete('/api/chat',{message:question,history:exemple.history,apprentissageTest:true,diffuse:true},signal,profil);
+    if(!response.ok||!response.body)throw Error('conversation_indisponible');
+    const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',termine=false;
+    try{for(;;){const p=await reader.read();if(p.done)break;buffer+=decoder.decode(p.value,{stream:true});let cut;
+     while((cut=buffer.indexOf('\n\n'))>=0){const packet=buffer.slice(0,cut);buffer=buffer.slice(cut+2);const nom=packet.match(/^event:\s*(.+)$/m)?.[1],raw=packet.match(/^data:\s*(.+)$/m)?.[1];if(!raw)continue;const e=JSON.parse(raw);
+      if(nom==='texte')c.premier_texte_ms??=Date.now()-debut;
+      if(nom==='fin'){c.complet_ms=Date.now()-debut;termine=e.statut===200&&!!e.corps?.reply;}
+     }
+    }}finally{await reader.cancel().catch(()=>{});}
+    c.ok=termine&&c.premier_texte_ms!==undefined;
+   }catch{c.ok=false;c.erreur='comparaison_non_confirmee';}
   }
   // Read-only verification of the learned-answer finalization, independent of
   // whether the six current model outputs happen to select a source tag.
