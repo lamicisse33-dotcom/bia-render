@@ -102,7 +102,7 @@ export default function EssaiStreaming(){
   void fetch('/api/essai-streaming',{method:'POST',headers:{'content-type':'application/json','x-bia-code':code},body:JSON.stringify({type:'lecteur',mode:'complet',langue:'wo',essai:917,evenement}),signal:AbortSignal.timeout(5000)}).catch(()=>{});
  }
  const champ={width:'100%',padding:12,borderRadius:8,border:'1px solid #555',background:'#171c26',color:'#fff',margin:'8px 0'};
- return <main style={{maxWidth:850,margin:'auto',padding:24,color:'#eee',background:'#0b1018',minHeight:'100vh',fontFamily:'system-ui'}}>
+ return <main tabIndex={0} style={{maxWidth:850,margin:'auto',padding:'24px 24px 70px',color:'#eee',background:'#0b1018',height:'100dvh',overflowY:'auto',WebkitOverflowScrolling:'touch',fontFamily:'system-ui'}}>
   <a href="/" style={{color:'#8cd8c0'}}>← Revenir à Bia</a><h1>Comparer l’écoute en streaming</h1>
   <p>Essai de la voix Khalam, séparé de ta conversation habituelle. Écoute la même phrase dans les deux modes, puis compare la clarté et le délai.</p>
   <label>Code maître<input type="password" autoComplete="off" value={code} onChange={e=>setCode(e.target.value)} disabled={occupe} style={champ}/></label>
