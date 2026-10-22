@@ -1,11 +1,20 @@
 import {createHash} from 'node:crypto';
 import {reunirWav} from './essai-transport-voix';
 import {mesurerReceptionAudio} from './mesure-reception-audio';
-const g=globalThis as typeof globalThis&{biaStreamingIsole?:{rapport:any;travail?:Promise<void>;navigateur:any[];erreurs?:any[];lecteurs?:any[]}};
+import {comparerTranscriptionAudio,motsComparaisonAudio} from './comparaison-transcription-audio';
+type PriseComparaison={cas:number;mode:string;langue:string;texte:string;audio:string;duree_ms:number;sha256_pcm:string;transcription_brute?:string;transcription_corrigee?:string};
+const g=globalThis as typeof globalThis&{biaStreamingIsole?:{rapport:any;travail?:Promise<void>;navigateur:any[];erreurs?:any[];lecteurs?:any[];prises?:PriseComparaison[];comparaison_lectures?:any[]}};
 const etat=g.biaStreamingIsole??={rapport:null,navigateur:[]};
-export const resumeStreamingIsole=()=>({reference:'441951c3c93f',conversation_modifiee:false,serveur:etat.rapport,navigateur:etat.navigateur,erreurs:etat.erreurs||[],lecteurs:etat.lecteurs||[]});
+export const resumeStreamingIsole=()=>({reference:'441951c3c93f',conversation_modifiee:false,serveur:etat.rapport,navigateur:etat.navigateur,erreurs:etat.erreurs||[],lecteurs:etat.lecteurs||[],comparaison_lectures:etat.comparaison_lectures||[]});
+/** Only the authenticated owner route calls this. Public status stays numeric;
+ * retain at most the six bounded synthetic WAVs actually measured, never user audio. */
+export const prisesStreamingIsole=()=>({version:etat.rapport?.version,date:etat.rapport?.date,statut:etat.rapport?.statut,prises:(etat.prises||[]).map(p=>({...p}))});
 export function noterEssaiStreaming(d:any){
  if(!d||!['complet','stream'].includes(d.mode)||!['fr','wo'].includes(d.langue))return false;
+ if(d.type==='comparaison'){
+  if(!Number.isSafeInteger(d.cas)||d.cas<0||d.cas>2||!['lecture','fin','erreur'].includes(d.evenement))return false;
+  etat.comparaison_lectures??=[];etat.comparaison_lectures.push({cas:d.cas,mode:d.mode,evenement:d.evenement,date:new Date().toISOString()});etat.comparaison_lectures=etat.comparaison_lectures.slice(-24);return true;
+ }
  if(d.type==='lecteur'){
   if(d.essai!==917||!['lecture','fin','erreur'].includes(d.evenement))return false;
   etat.lecteurs??=[];etat.lecteurs.push({essai:917,evenement:d.evenement,date:new Date().toISOString()});etat.lecteurs=etat.lecteurs.slice(-20);return true;
@@ -38,11 +47,13 @@ export function noterEssaiStreaming(d:any){
  }
  etat.navigateur.push(propre);etat.navigateur=etat.navigateur.slice(-12);return true;
 }
-/** Same input/seed/checkpoint, sequential calls, no ASR or production configuration writes. */
+/** Same input/seed/checkpoint, sequential TTS then read-only ASR verification.
+ * No conversation, corpus, learned-source or production configuration writes. */
 export function verifierStreamingIsole(){return etat.travail??=(async()=>{
  const url=(process.env.CHATTERBOX_TEST_URL||'').replace(/\/$/,''),key=process.env.CHATTERBOX_TEST_KEY||'';
  const rapport:any={statut:'en_cours',date:new Date().toISOString(),version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),mesure:'Client HTTP du GPU : octets, premier/dernier paquet audio et fin du flux. Hors micro/LLM/téléphone. Une livraison étalée ne prouve pas le chevauchement de la génération ; pas une validation de prononciation.',cas:[]};etat.rapport=rapport;
  if(!url||!key){rapport.statut='configuration_absente';return;}
+ etat.prises=[];
  const cas=[['wo','Dañu bëgg ma def lu ma bëggul.'],['wo','Mu dem ci marse bi, jënd soble ak tamaate, te dellusi ci kër ga.'],['fr','Le budget doit rester accessible à tous.']];
  for(let index=0;index<cas.length;index++){
   const [langue,texte]=cas[index];const c:any={langue,texte,passes:[]};rapport.cas.push(c);
@@ -69,11 +80,51 @@ export function verifierStreamingIsole(){return etat.travail??=(async()=>{
       }
      }if(!fin||buffer.trim())throw Error('fin_absente');}finally{await reader.cancel().catch(()=>{});}
     }
-    const wav=reunirWav(frames);c.passes.push({mode,premier_audio_ms:premier,reception_complete_ms:Date.now()-debut,generation_ms:generation,paquets,duree_ms:Math.round((wav.length-44)/48),sha256_pcm:createHash('sha256').update(wav.subarray(44)).digest('hex'),integrite:true,...(chronologie?{chronologie:chronologie.bilan()}: {})});
+    const wav=reunirWav(frames),duree_ms=Math.round((wav.length-44)/48),sha256_pcm=createHash('sha256').update(wav.subarray(44)).digest('hex');
+    if(wav.length<=1024*1024&&etat.prises.length<6)etat.prises.push({cas:index,mode,langue,texte,audio:wav.toString('base64'),duree_ms,sha256_pcm});
+    c.passes.push({mode,premier_audio_ms:premier,reception_complete_ms:Date.now()-debut,generation_ms:generation,paquets,duree_ms,sha256_pcm,integrite:true,...(chronologie?{chronologie:chronologie.bilan()}: {})});
    }catch(e){const message=String((e as Error).message);c.passes.push({mode,erreur:/^[a-zA-Z_0-9]+$/.test(message)?message:'connexion_ou_format',ms:Date.now()-debut,...(chronologie?{chronologie:chronologie.bilan()}: {})});}
   }
   const a=c.passes.find((p:any)=>p.mode==='complet'),b=c.passes.find((p:any)=>p.mode==='stream');
   if(a?.integrite&&b?.integrite){c.gain_premier_audio_ms=a.premier_audio_ms-b.premier_audio_ms;c.pcm_identique=a.sha256_pcm===b.sha256_pcm;c.ecart_duree_ms=b.duree_ms-a.duree_ms;}
+ }
+ // Recognize the exact retained audio only after all TTS timings are complete.
+ // Do not send the expected sentence to ASR or let spelling correction hide
+ // omissions: evaluate texte_brut separately and expose only reference words.
+ rapport.verification_fidelite={statut:'en_cours',methode:'ASR brut indicatif sur les prises exactes ; aucune validation humaine ni activation automatique.',validation_humaine:false};
+ const code=process.env.BIA_CODE_MAITRE||'';
+ if(!code)rapport.verification_fidelite.statut='acces_absent';
+ else{
+  for(const prise of etat.prises){
+   const passe=rapport.cas[prise.cas].passes.find((p:any)=>p.mode===prise.mode),debut=Date.now();
+   try{
+    const form=new FormData();form.set('audio',new Blob([new Uint8Array(Buffer.from(prise.audio,'base64'))],{type:'audio/wav'}),'verification-streaming.wav');form.set('diagnostic','1');form.set('indice_langue',prise.langue);
+    const r=await fetch('https://app.khalam.app/api/ecouter',{method:'POST',headers:{'x-bia-code':code},body:form,signal:AbortSignal.timeout(25000),cache:'no-store'}),d=await r.json();
+    const brut=typeof d.texte_brut==='string'?d.texte_brut:String(d.texte||'');
+    if(!r.ok||d.panne||d.transcription_rejetee||!brut.trim())throw Error('reconnaissance_non_confirmee');
+    prise.transcription_brute=brut;prise.transcription_corrigee=String(d.texte||'');
+    passe.verification_asr={statut:'indicatif',brut_disponible:typeof d.texte_brut==='string',ms:Date.now()-debut,...comparerTranscriptionAudio(prise.texte,brut)};
+   }catch{passe.verification_asr={statut:'non_confirmee',ms:Date.now()-debut,validation_humaine:false};}
+  }
+  for(let n=0;n<rapport.cas.length;n++){
+   const complet=etat.prises.find(p=>p.cas===n&&p.mode==='complet'),stream=etat.prises.find(p=>p.cas===n&&p.mode==='stream');
+   if(complet?.transcription_brute&&stream?.transcription_brute)rapport.cas[n].asr_complet_flux_identique=JSON.stringify(motsComparaisonAudio(complet.transcription_brute))===JSON.stringify(motsComparaisonAudio(stream.transcription_brute));
+  }
+  rapport.verification_fidelite.statut=etat.prises.length===6&&rapport.cas.every((c:any)=>c.passes.every((p:any)=>p.verification_asr?.statut==='indicatif'))?'termine_indicatif':'a_verifier';
+  // Real authenticated read-back proves the page receives these exact takes,
+  // including across Next route bundles. No audio is copied into public status.
+  try{
+   const cible='https://app.khalam.app/api/essai-streaming?prises=1';
+   const refuse=await fetch(cible,{signal:AbortSignal.timeout(10000),cache:'no-store'});await refuse.body?.cancel();
+   const r=await fetch(cible,{headers:{'x-bia-code':code},signal:AbortSignal.timeout(10000),cache:'no-store'}),d=await r.json();
+   const identiques=Array.isArray(d.prises)?d.prises.filter((p:any)=>{
+    const attendu=etat.prises!.find(a=>a.cas===p.cas&&a.mode===p.mode);
+    if(!attendu||typeof p.audio!=='string'||p.audio.length>1_500_000)return false;
+    const wav=reunirWav([Buffer.from(p.audio,'base64')]);return createHash('sha256').update(wav.subarray(44)).digest('hex')===attendu.sha256_pcm;
+   }).length:0;
+   const distinctes=Array.isArray(d.prises)?new Set(d.prises.map((p:any)=>`${p.cas}:${p.mode}`)).size:0;
+   rapport.controle_acces_prises={statut:r.status,refus_sans_code:refuse.status,prises_disponibles:d.prises?.length||0,prises_identiques:identiques,ok:r.ok&&refuse.status===401&&d.version===rapport.version&&identiques===6&&distinctes===6&&d.prises?.length===6};
+  }catch{rapport.controle_acces_prises={ok:false};}
  }
  rapport.statut='termine';rapport.fin=new Date().toISOString();
 })().catch(()=>{etat.rapport={statut:'echec',date:new Date().toISOString()};});}

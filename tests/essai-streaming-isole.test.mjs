@@ -3,7 +3,7 @@ const transpile=s=>ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.E
 // Keep the real WAV validator; strip unrelated diagnostic imports/code.
 const wavSource=fs.readFileSync('lib/essai-transport-voix.ts','utf8');
 const wav=wavSource.slice(wavSource.indexOf('function pcmWav'),wavSource.indexOf('const normal='));
-const moduleSource=fs.readFileSync('lib/essai-streaming-isole.ts','utf8').replace("import {reunirWav} from './essai-transport-voix';",wav.replace('export function reunirWav','function reunirWav')).replace("import {mesurerReceptionAudio} from './mesure-reception-audio';",fs.readFileSync('lib/mesure-reception-audio.ts','utf8').replaceAll('export ',''));
+const moduleSource=fs.readFileSync('lib/essai-streaming-isole.ts','utf8').replace("import {reunirWav} from './essai-transport-voix';",wav.replace('export function reunirWav','function reunirWav')).replace("import {mesurerReceptionAudio} from './mesure-reception-audio';",fs.readFileSync('lib/mesure-reception-audio.ts','utf8').replaceAll('export ','')).replace("import {comparerTranscriptionAudio,motsComparaisonAudio} from './comparaison-transcription-audio';",fs.readFileSync('lib/comparaison-transcription-audio.ts','utf8').replaceAll('export ',''));
 const source=transpile(moduleSource);
 function makeWav(){const b=Buffer.alloc(48);b.write('RIFF');b.writeUInt32LE(40,4);b.write('WAVE',8);b.write('fmt ',12);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(24000,24);b.writeUInt32LE(48000,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(4,40);return b.toString('base64');}
 test('same input, alternating order, sequential requests, no ASR, and complete validated stream',async()=>{
@@ -14,6 +14,27 @@ test('same input, alternating order, sequential requests, no ASR, and complete v
  return Response.json({status:'COMPLETED',output:{checkpoint_sha256:sha,voice:'female',audio_base64:makeWav(),generation_ms:1}});};
  try{const m=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));await m.verifierStreamingIsole();await m.verifierStreamingIsole();assert.equal(calls.length,6);assert.equal(maxActive,1);for(let i=0;i<6;i+=2)assert.deepEqual(calls[i].input,calls[i+1].input);assert.deepEqual(calls.map(c=>c.url.split('/').at(-1)),['tts','stream','stream','tts','tts','stream']);assert(m.resumeStreamingIsole().serveur.cas.every(c=>c.pcm_identique));for(const c of m.resumeStreamingIsole().serveur.cas){const t=c.passes.find(p=>p.mode==='stream').chronologie;assert.equal(t.paquets_audio,1);assert(t.premier_audio_ms>=t.premier_octet_ms);assert(t.fin_flux_ms>=t.dernier_audio_ms);assert.equal(t.generation_progressive_confirmee,false);}assert.equal(m.noterEssaiStreaming({mode:'stream',langue:'wo',premier_audio_ms:NaN}),false);
  }finally{globalThis.fetch=original;}
+});
+
+test('ASR inspects exact retained WAVs, rejects corrupt recognition, and authenticated readback preserves takes',async()=>{
+ delete globalThis.biaStreamingIsole;const previous=process.env.BIA_CODE_MAITRE,original=globalThis.fetch;process.env.BIA_CODE_MAITRE='synthetic-owner';const tts=[];let ecoutes=0,module;
+ globalThis.fetch=async(url,req)=>{
+  if(url.includes('/api/essai-streaming'))return req.headers?Response.json(module.prisesStreamingIsole()):Response.json({erreur:'code'},{status:401});
+  if(url.endsWith('/api/ecouter')){
+   assert.equal(tts.length,6);assert.equal(req.headers['x-bia-code'],'synthetic-owner');assert.equal(req.body.get('diagnostic'),'1');assert.deepEqual([...req.body.keys()],['audio','diagnostic','indice_langue']);assert.deepEqual(Buffer.from(await req.body.get('audio').arrayBuffer()),Buffer.from(makeWav(),'base64'));
+   const input=tts[ecoutes++],raw=input.mode==='stream'&&input.text.includes('Mu dem')?input.text.replace('ci kër ga.',''):input.text+(ecoutes===2?' private-transcription':'');
+   return Response.json({texte_brut:raw,texte:input.text,...(ecoutes===6?{transcription_rejetee:true}:{})});
+  }
+  const input=JSON.parse(req.body).input,mode=url.endsWith('/stream')?'stream':'complet';tts.push({text:input.text,mode});
+  const sha=input.language==='fr'?'b1237586127ce98e7800a68e49938eb5092846862aabcb6e17b2fda7889a6c75':'8320e6788427029dcaf7aeea8e54124f172dd7cdd12d7fcf658cf616c0c21e9f';
+  if(mode==='complet')return Response.json({status:'COMPLETED',output:{checkpoint_sha256:sha,voice:'female',audio_base64:makeWav(),generation_ms:1}});
+  return new Response([{type:'meta',checkpoint_sha256:sha,voice:'female',sample_rate:24000},{type:'audio',sequence:0,offset_samples:0,samples:2,audio_base64:makeWav()},{type:'end',packets:1,samples:2,generation_ms:1}].map(x=>JSON.stringify(x)+'\n').join(''));
+ };
+ try{
+  const m=module=await import('data:text/javascript;base64,'+Buffer.from(source+'\n// exact retained recognition').toString('base64'));await m.verifierStreamingIsole();await m.verifierStreamingIsole();assert.equal(ecoutes,6);
+  const report=m.resumeStreamingIsole(),long=report.serveur.cas[1],stream=long.passes.find(p=>p.mode==='stream');assert.equal(stream.verification_asr.suppressions,3);assert.deepEqual(stream.verification_asr.mots_reference_non_retrouves,['ci','ker','ga']);assert.equal(long.asr_complet_flux_identique,false);assert.equal(report.serveur.verification_fidelite.validation_humaine,false);assert.equal(report.serveur.verification_fidelite.statut,'a_verifier');assert.equal(report.serveur.cas[2].passes.at(-1).verification_asr.statut,'non_confirmee');assert.equal(report.serveur.controle_acces_prises.ok,true);assert.equal(report.serveur.controle_acces_prises.prises_identiques,6);assert(!JSON.stringify(report).includes('private-transcription'));assert(!JSON.stringify(report).includes(makeWav()));assert(!JSON.stringify(report).includes('synthetic-owner'));
+  const prises=m.prisesStreamingIsole().prises;assert.equal(prises.length,6);assert(prises.every(p=>p.audio===makeWav()));assert(prises.some(p=>p.transcription_brute.includes('private-transcription')));
+ }finally{globalThis.fetch=original;if(previous===undefined)delete process.env.BIA_CODE_MAITRE;else process.env.BIA_CODE_MAITRE=previous;}
 });
 
 test('browser delivery timing is optional, bounded and excludes extra payloads and claimed producer proof',async()=>{
