@@ -6,11 +6,17 @@ import {APP_LECONS} from "./lexique-apprentissage-core";
 import {termesDialogue,indexerDevoirs,referenceApprisePourTour,contexteDialogue,type TourDialogue} from "./dialogue-devoirs-core";
 type Bloc={version:2;type:"devoir";id:string;index:number;total:number;texte:string;date:string;statut?:"validé";date_validation?:string;langue?:"fr"|"wo"};
 const headers=()=>({apikey:lexiqueConfig.cle,Authorization:`Bearer ${lexiqueConfig.cle}`});
-const revisions=globalThis as typeof globalThis&{biaGenerationDevoirs?:number};
-let cache:{blocs:Bloc[];expires:number;generation:number}|null=null;
+const revisions=globalThis as typeof globalThis&{biaGenerationDevoirs?:number;biaLectureDevoirs?:{cache:{blocs:Bloc[];expires:number;generation:number}|null;chargement?:Promise<Bloc[]>}};
+const lecture=revisions.biaLectureDevoirs??={cache:null};
 async function lireBlocs(delaiMs=8000):Promise<Bloc[]>{
  if(!lexiqueConfig.actif)throw Error("Supabase non configuré");
+ const cache=lecture.cache;
  if(cache&&cache.expires>Date.now()&&cache.generation===(revisions.biaGenerationDevoirs||0))return cache.blocs;
+ if(lecture.chargement)return lecture.chargement;
+ const travail=chargerBlocs(delaiMs).finally(()=>{if(lecture.chargement===travail)lecture.chargement=undefined;});
+ lecture.chargement=travail;return travail;
+}
+async function chargerBlocs(delaiMs:number):Promise<Bloc[]>{
  const generation=revisions.biaGenerationDevoirs||0,debut=Date.now();
  const blocs:Bloc[]=[];const seen=new Set<string>();
  const signal=AbortSignal.timeout(delaiMs);
@@ -25,8 +31,8 @@ async function lireBlocs(delaiMs=8000):Promise<Bloc[]>{
  }
  // A correction completed while this read was in flight must not make the
  // earlier snapshot appear to belong to the new revision.
- if(generation!==(revisions.biaGenerationDevoirs||0))return lireBlocs(Math.max(1,delaiMs-(Date.now()-debut)));
- cache={blocs,expires:Date.now()+15000,generation};return blocs;
+ if(generation!==(revisions.biaGenerationDevoirs||0))return chargerBlocs(Math.max(1,delaiMs-(Date.now()-debut)));
+ lecture.cache={blocs,expires:Date.now()+15000,generation};return blocs;
 }
 export async function garderBlocDevoir(texte:string,index:number,total:number,id:string,valide=false,langue:"fr"|"wo"="wo"){
  if(!lexiqueConfig.actif)throw Error("Supabase non configuré");
@@ -66,7 +72,7 @@ export async function phrasesApprisesDevoirs(wolofSeulement=false){
 }
 
 export const revisionDevoir=(texte:string)=>createHash("sha256").update(texte).digest("hex");
-export function invaliderDevoirs(){cache=null;revisions.biaGenerationDevoirs=(revisions.biaGenerationDevoirs||0)+1;}
+export function invaliderDevoirs(){lecture.cache=null;revisions.biaGenerationDevoirs=(revisions.biaGenerationDevoirs||0)+1;}
 // Blocks are private immutable snapshots, replaced on expiry or invalidation.
 // Reuse parsing/hashing only for the same snapshot; no additional freshness TTL.
 const assemblages=new WeakMap<Bloc[],ReturnType<typeof assemblerDevoirs>>();
