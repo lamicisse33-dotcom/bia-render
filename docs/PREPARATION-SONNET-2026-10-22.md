@@ -35,3 +35,20 @@ mesurent ni le microphone ni le premier son du téléphone. Aucun gain bout
 à bout n'est déduit du seul gain sur le filtrage.
 
 Référence avant cette modification : ebfabf6e134ed59542ba4d3eb127f30bfc9396d6.
+
+## Vérification des lecteurs partagés
+
+Premier contrôle en ligne : réanalyse médiane 45,715 ms, réutilisation
+16,01 ms, sorties identiques sur les six comparaisons. Ce gain seul
+n'explique pas plusieurs secondes. Le compteur de la route d'état montrait
+zéro analyse tandis que le contrôle en comptait 336 : les différents
+bundles chargeaient des instances distinctes du cache de module.
+
+Le cache des analyses, les lectures de devoirs et d'instructions et l'index
+des dialogues sont donc partagés au niveau du processus. Les TTL de 15/30
+secondes et les générations d'invalidation restent appliqués. Une lecture
+de devoirs en cours est partagée ; une correction pendant cette lecture
+force sa reprise sur la nouvelle génération. Les caches privés ne sont pas
+inclus dans les rapports publics, qui gardent seulement des compteurs.
+Les tests utilisent deux chargements indépendants des vrais modules pour
+vérifier la réutilisation, l'expiration et la correction immédiate.

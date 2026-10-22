@@ -4,9 +4,11 @@ export type DialogueAppris={id:string;titre:string;date:string;repliques:Repliqu
 export type TourDialogue={role:string;text:string};
 const globalReferences=globalThis as typeof globalThis&{biaReferencesApprises?:{appels_filtres:number;formulations_ecartees:number}};
 const references=globalReferences.biaReferencesApprises??={appels_filtres:0,formulations_ecartees:0};
-const analysesReferences=new Map<string,{correction?:{valeurs:Record<string,unknown>;texte:string};repliques?:RepliqueApprise[]}>();
-let signesReferences=0,analyses=0,reutilisations=0;
-export const resumeReferencesApprises=()=>({...references,revision:'faits-dialogue-v1',preparation:{analyses,reutilisations,entrees:analysesReferences.size,signes_en_cache:signesReferences}});
+type AnalyseReference={correction?:{valeurs:Record<string,unknown>;texte:string};repliques?:RepliqueApprise[]};
+const gAnalyses=globalThis as typeof globalThis&{biaAnalysesReferences?:{sources:Map<string,AnalyseReference>;signes:number;analyses:number;reutilisations:number}};
+const preparation=gAnalyses.biaAnalysesReferences??={sources:new Map<string,AnalyseReference>(),signes:0,analyses:0,reutilisations:0};
+const analysesReferences=preparation.sources;
+export const resumeReferencesApprises=()=>({...references,revision:'faits-dialogue-v1',preparation:{analyses:preparation.analyses,reutilisations:preparation.reutilisations,entrees:analysesReferences.size,signes_en_cache:preparation.signes}});
 const noterExtrait=(n:number)=>{references.appels_filtres++;references.formulations_ecartees+=n;};
 /** An explicit request for reasoning uses the conversational brain directly.
  * Its context still contains the retrieved, validated lesson formulations. */
@@ -196,18 +198,18 @@ export function montantDeLeconNonConfirme(fr:string,wo:string,question:string,hi
 /** Read-time excerpt only: keep exact bilingual formulations, without carrying
  * unrelated numeric examples into a real conversation. Stored lessons and
  * explicit reading/translation remain unchanged. */
-function analyserReference(texte:string,recalculer:boolean){
+function analyserReference(texte:string,recalculer:boolean):AnalyseReference{
  const connue=analysesReferences.get(texte);
- if(connue&&!recalculer){reutilisations++;return connue;}
- analyses++;
- let preparee:{correction?:{valeurs:Record<string,unknown>;texte:string};repliques?:RepliqueApprise[]}|undefined;
+ if(connue&&!recalculer){preparation.reutilisations++;return connue;}
+ preparation.analyses++;
+ let preparee:AnalyseReference|undefined;
  try{const v=JSON.parse(texte);if(typeof v?.demande==='string'&&/^DEVOIR:/.test(v.demande)&&typeof v.reponse_corrigee==='string')preparee={correction:{valeurs:v,texte:v.reponse_corrigee}};}catch{}
  preparee??={repliques:analyserDevoir({id:'reference',texte,date:'',valide:true,langue:'wo'}).repliques};
  // Exact source bytes are the key. A corrected source is analysed afresh;
  // no result depending on the current question or history is cached.
  if(!recalculer&&texte.length<=100000){
-  while(analysesReferences.size>=256||signesReferences+texte.length>2000000){const cle=analysesReferences.keys().next().value;if(cle===undefined)break;analysesReferences.delete(cle);signesReferences-=cle.length;}
-  analysesReferences.set(texte,preparee);signesReferences+=texte.length;
+  while(analysesReferences.size>=256||preparation.signes+texte.length>2000000){const cle=analysesReferences.keys().next().value;if(cle===undefined)break;analysesReferences.delete(cle);preparation.signes-=cle.length;}
+  analysesReferences.set(texte,preparee);preparation.signes+=texte.length;
  }
  return preparee;
 }

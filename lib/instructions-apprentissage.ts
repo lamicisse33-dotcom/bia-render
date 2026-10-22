@@ -2,18 +2,18 @@ import {createHash} from "node:crypto";
 import {ajouterCorrection,lexiqueConfig} from "./lexique";
 import {APP_LECONS} from "./lexique-apprentissage-core";
 type Instruction={source:string;corrigee:string};
-let cache:{rows:Instruction[];expires:number}|null=null;
-let chargement:Promise<Instruction[]>|undefined;
-let generation=0;
+const g=globalThis as typeof globalThis&{biaLectureInstructions?:{cache:{rows:Instruction[];expires:number}|null;chargement?:Promise<Instruction[]>;generation:number}};
+const lecture=g.biaLectureInstructions??={cache:null,generation:0};
 async function lire(force=false):Promise<Instruction[]>{
+ const cache=lecture.cache;
  if(!force&&cache&&cache.expires>Date.now())return cache.rows;
- if(!force&&chargement)return chargement;
+ if(!force&&lecture.chargement)return lecture.chargement;
  const travail=charger();
- const revision=generation;
+ const revision=lecture.generation;
  if(force)return travail;
- chargement=travail;
- try{const rows=await travail;if(revision===generation)cache={rows,expires:Date.now()+30000};return rows;}
- finally{if(chargement===travail)chargement=undefined;}
+ lecture.chargement=travail;
+ try{const rows=await travail;if(revision===lecture.generation)lecture.cache={rows,expires:Date.now()+30000};return rows;}
+ finally{if(lecture.chargement===travail)lecture.chargement=undefined;}
 }
 async function charger(){if(!lexiqueConfig.actif)throw Error("Supabase non configuré");
  const rows:Instruction[]=[];
@@ -25,10 +25,10 @@ async function charger(){if(!lexiqueConfig.actif)throw Error("Supabase non confi
 }
 export async function garderInstruction(texte:string){const source="INSTRUCTION:"+createHash("sha256").update(texte).digest("hex");
  if(!(await lire(true)).some(r=>r.source===source&&r.corrigee===texte))await ajouterCorrection({source,corrigee:texte,application:APP_LECONS,auteur:"maitre-instruction",langue:"fr"});
- generation++;cache=null;chargement=undefined;
+ lecture.generation++;lecture.cache=null;lecture.chargement=undefined;
  const rows=await lire(true);
  if(!rows.some(r=>r.source===source&&r.corrigee===texte))throw Error("Instruction non confirmée");
- cache={rows,expires:Date.now()+30000};
+ lecture.cache={rows,expires:Date.now()+30000};
  return {verifie:true};
 }
 export async function contexteInstructions(){const rows=await lire();const uniques=[...new Map(rows.map(r=>[r.source,r.corrigee])).values()];
