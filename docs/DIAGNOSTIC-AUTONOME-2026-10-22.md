@@ -41,3 +41,27 @@ devoir, budget de contexte, classement ou formulation n'est supprimé.
 `memoire_organisee.index_partage` indique chargements, réutilisations, nombre
 de documents et temps du chargement/index. Ce compteur confirme la réutilisation
 effective ; il ne remplace pas la mesure de la chaîne complète.
+
+
+## Première série complète a2532cd011cd
+
+Six échanges HTTP réels réussis, 01:12:07–01:12:44 UTC. Les secondes écoutes
+ont exactement la même transcription. L'index commun est chargé une seule
+fois en 876 ms, dont 245 ms d'indexation ; dix réutilisations observées.
+La lecture anticipée fait partie des cinq lectures confirmées pendant l'ASR.
+
+Quatre réponses calculées sans cache audio : 5 178, 7 267, 4 453 et 4 772 ms
+jusqu'au premier clip reçu ; médiane 4 975 ms. Deux réponses répétées passent
+par les caches et prennent 2 533 et 986 ms : ne pas les mélanger aux calculs
+neufs pour présenter un gain. Reconnaissance HTTP médiane des quatre calculs
+903 ms, préparation 463 ms, premier token natif 1 052 ms, voix 1 950 ms.
+Aucune de ces durées ne comprend le silence ou le haut-parleur du téléphone.
+
+Anomalie localisée : le modèle a terminé la sélection apprise wolof en
+1 091 ms après 520 ms de préparation, alors que la réponse HTTP n'est
+complète qu'à 4 900 ms. Environ 3 289 ms après le modèle restent donc à tracer.
+Le prochain rejeu publie les durées de lecture des devoirs, de provenance,
+d'attente de l'audio mémorisé et de réponse prête. Il contourne les deux
+caches de réponses uniquement pour les calculs diagnostiques du maître ;
+la voix conserve ses caches. Le comportement des conversations ordinaires
+est inchangé. Aucun gain avant/après n'est déduit de cette seule série.

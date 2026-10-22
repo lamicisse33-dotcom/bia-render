@@ -18,7 +18,7 @@ test('real-chain replay uses ASR output, preserves context, starts voice before 
   const b=JSON.parse(req.body);
   if(url.endsWith('/api/chat')){
    assert.equal(b.message,'transcription réelle du contrôle');assert.equal(b.apprentissageTest,true);assert.equal(b.parole,true);
-   assert.equal(req.headers['x-bia-diagnostic-latence'],'1');
+   assert.equal(req.headers['x-bia-diagnostic-latence'],'calcul');
    const cas=conversations++;assert.equal(b.history.length,cas===2||cas===3?2:0);
    const encodeur=new TextEncoder();
    return new Response(new ReadableStream({async start(c){

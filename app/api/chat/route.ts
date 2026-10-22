@@ -784,7 +784,7 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
-type Corps={mesureDiagnostic?:{preparation_ms?:number;premier_texte_ms?:number;modele_ms?:number};essaiRapidite?:ProfilRapidite|null;salutationOuverture?:boolean;continuationBriques?:boolean;anticipationId?:string;voixAnticipee?:string;parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
+type Corps={mesureDiagnostic?:{forcer_calcul?:boolean;preparation_ms?:number;premier_texte_ms?:number;modele_ms?:number;modele_complet_ms?:number;devoirs_ms?:number;origine_ms?:number;audio_memoire_ms?:number;reponse_prete_ms?:number};essaiRapidite?:ProfilRapidite|null;salutationOuverture?:boolean;continuationBriques?:boolean;anticipationId?:string;voixAnticipee?:string;parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
   /* Ancien choix visuel conservé pour les clients existants ; le nom reste BIA. */
   persona?:string;
   /* ── L'APPRENTISSAGE À LA VOIX ──────────────────────────────────────────
@@ -884,7 +884,7 @@ export async function POST(request:NextRequest){
   // Even cached greetings require a valid code, before any response or stream.
   const acces=verifierCode(code,false);
   if(!acces.ok)return NextResponse.json({reply:'Entre un code d’accès valide pour parler avec BIA.',source:'code',motif:acces.raison},{status:401});
-  body={...body,mesureDiagnostic:acces.maitre&&body.apprentissageTest&&request.headers.get("x-bia-diagnostic-latence")==="1"?{}:undefined,essaiRapidite:profilRapiditeAutorise(request.headers.get('x-bia-essai-rapidite'),acces.maitre)};
+  body={...body,mesureDiagnostic:acces.maitre&&body.apprentissageTest&&["1","calcul"].includes(request.headers.get("x-bia-diagnostic-latence")||"")?{forcer_calcul:request.headers.get("x-bia-diagnostic-latence")==="calcul"}:undefined,essaiRapidite:profilRapiditeAutorise(request.headers.get('x-bia-essai-rapidite'),acces.maitre)};
   if(Array.isArray(body.history))body={...body,history:body.history.filter(t=>t&&t.transcriptionIncertaine!==true)};
   if(body.apprentissageTest){body.apprend=false;body.aRepeter="";body.malDit=undefined;}
   const vocale=!body.apprentissageTest&&body.parole&&acces.maitre?await preparerCorrectionVocale(body,true,!!lireLOrdre(String(body.message||'')),request.signal):null;
@@ -902,6 +902,7 @@ export async function POST(request:NextRequest){
     return NextResponse.json(avecTranscription(r.corps),r.statut?{status:r.statut}:undefined);
   }
 
+  const debutDiagnostic=Date.now();
   const encodeur=new TextEncoder();
   const flux=new ReadableStream({
     async start(canal){
@@ -910,6 +911,7 @@ export async function POST(request:NextRequest){
       };
       try{
         const r=await repondre(body,code,(morceau)=>envoyer("texte",{morceau}));
+        if(body.mesureDiagnostic)body.mesureDiagnostic.reponse_prete_ms=Date.now()-debutDiagnostic;
         envoyer("fin",{corps:avecTranscription(r.corps),statut:r.statut||200,...(body.mesureDiagnostic?{chronometrage:body.mesureDiagnostic}:{})});
         if(!vocale)garderCeTour(body,code,r.corps,r.statut);
       }catch(err){
@@ -1386,7 +1388,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        &&!concerneProduits(question,body.history)&&!estUnSecours(question)&&!intentionMedia(question)&&!besoinDInternet(question)&&!demandeDeNombre(question)){
       // Reuse verified choices immediately. On a miss, the final conversational
       // call selects the exact learned ID itself; never pay for two serial calls.
-      const memorisee=await chrono('choix_cache',()=>dialoguerAvecDevoirs(question,body.history,{cacheSeulement:true}));
+      const memorisee=body.mesureDiagnostic?.forcer_calcul?null:await chrono('choix_cache',()=>dialoguerAvecDevoirs(question,body.history,{cacheSeulement:true}));
       if(memorisee){
         // Audio is read from the existing private library, never regenerated.
         // Reading alongside provenance avoids an extra browser/server round trip.
@@ -2392,7 +2394,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       webConfigure(question) || (!gemini && !local && !cerebras && rechercheActive()),
     );
     const consigneSignee="conversation-appel-unique-v1\n"+(choixIntegre?.consigne||"")+"fiches-connectees-v1\n"+fichesDuTour+bibaDuTour+(produitsDuTour?"produits-connectes-v1\n"+produitsDuTour:"")+maitrises+socle+"\n"+registre+"\n"+devoirs+variable;
-    const reutilisable=!body.suggestionsTranscription?.length&&!dependDuContexte(question)&&!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
+    const reutilisable=!body.mesureDiagnostic?.forcer_calcul&&!body.suggestionsTranscription?.length&&!dependDuContexte(question)&&!besoinDInternet(question) && questionReutilisable(question,seSuffitAElleMeme(question))&&!body.malDit?.encours;
     if(reutilisable){
       const dejaDonnee=await chrono('reponse_gardee',()=>reponseGardee(question,langueDe(question),consigneSignee));
       if(dejaDonnee){
@@ -3008,6 +3010,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     noterReflexion(reflechit, Date.now() - partiModele);
     const texteDe=(d:Reponse)=>(d.content||[]).filter(b=>b.type==="text").map(b=>b.text||"").join("\n").trim();
     let complet=texteDe(data);
+    if(body.mesureDiagnostic)body.mesureDiagnostic.modele_complet_ms=Date.now()-partiModele;
 
     /* ── UN PLAFOND NE DOIT JAMAIS LA COUPER AU MILIEU D'UN MOT ────────────
 
@@ -3114,9 +3117,15 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       const memorisee=resoudreChoixDuTour(sansEmotion,choixIntegre);
       if(memorisee){
         const audioPromesse=Promise.race([audioPourReponse(memorisee.reply,memorisee.langue),new Promise<null>(resolve=>setTimeout(()=>resolve(null),700))]);
+        const debutDevoirs=Date.now();
         const d=(await devoirsALire(1500)).devoirs.find(d=>d.id===memorisee.lecon_id);
+        if(body.mesureDiagnostic)body.mesureDiagnostic.devoirs_ms=Date.now()-debutDevoirs;
+        const debutOrigine=Date.now();
         const origine_devoir=d?origineReplique(d,memorisee.replique_id,memorisee.langue)||{devoir_id:d.id,indisponible:true}:null;
-        return {corps:{...memorisee,origine_devoir,audio_memorise:await audioPromesse}};
+        if(body.mesureDiagnostic)body.mesureDiagnostic.origine_ms=Date.now()-debutOrigine;
+        const debutAudio=Date.now(),audio_memorise=await audioPromesse;
+        if(body.mesureDiagnostic)body.mesureDiagnostic.audio_memoire_ms=Date.now()-debutAudio;
+        return {corps:{...memorisee,origine_devoir,audio_memorise}};
       }
       noterPanne("choix de leçon rejeté","identifiant ou format invalide","chat");
       return {corps:{reply:"Peux-tu reformuler ce dernier point ?",source:"choix invalide"}};

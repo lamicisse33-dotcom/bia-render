@@ -17,9 +17,9 @@ const exemples=[
  * Diagnostic flags prevent corpus/chat/lesson writes. No private text exported.
  */
 export function verifierLatenceAutonome(){return etat.travail??=(async()=>{
- const rapport:any={statut:'en_cours',date:new Date().toISOString(),version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),modele:process.env.BIA_LLM_MODEL,lecture_navigateur_mesuree:false,microphone_mesure:false,perimetre:'Audio synthétique fixe → routes HTTP réelles ASR, conversation et premier clip vocal. Hors silence de fin de parole, réseau du téléphone et haut-parleur. Ordre inversé au second passage ; caches indiqués.',cas:[]};etat.rapport=rapport;
+ const rapport:any={statut:'en_cours',date:new Date().toISOString(),version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),modele:process.env.BIA_LLM_MODEL,lecture_navigateur_mesuree:false,microphone_mesure:false,perimetre:'Audio synthétique fixe → routes HTTP réelles ASR, conversation et premier clip vocal. Hors silence de fin de parole, réseau du téléphone et haut-parleur. Ordre inversé au second passage ; caches indiqués. Cache de réponse contourné pour mesurer six calculs réels ; cache de voix conservé.',cas:[]};etat.rapport=rapport;
  const code=process.env.BIA_CODE_MAITRE||'',base='https://app.khalam.app';
- const requete=(path:string,body:unknown,signal:AbortSignal)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json','x-bia-code':code,'x-bia-diagnostic-latence':'1'},body:JSON.stringify(body),signal,cache:'no-store'});
+ const requete=(path:string,body:unknown,signal:AbortSignal)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json','x-bia-code':code,'x-bia-diagnostic-latence':'calcul'},body:JSON.stringify(body),signal,cache:'no-store'});
  try{
   if(!code)throw Error('acces_absent');
   const audios=new Map<string,Buffer>(),transcriptions=new Map<string,string>();
