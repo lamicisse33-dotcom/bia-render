@@ -48,6 +48,17 @@ test('the faster progressive cut sends every sample in order and never starts pl
   await p.finir();assert.equal(firstAt,seuil);assert.equal(clips.reduce((a,b)=>a+b,0),192000);assert(clips.every(n=>n>0));
  }
 });
+test('the 1.5 s trial keeps pre-roll but never sends it alone as its first continuous-speech clip',async()=>{
+ const {creerEcouteProgressive}=load('lib/ecoute-progressive.ts',{'./ecoute-longue':load('lib/ecoute-longue.ts')});
+ const clips=[];let recorded=0,firstAt;
+ const p=creerEcouteProgressive(async f=>{firstAt??=recorded;const a=await f.get('audio').arrayBuffer(),v=new DataView(a),samples=[];for(let i=44;i<a.byteLength;i+=2)samples.push(v.getInt16(i,true));clips.push(samples);return Response.json({texte:'Une pensée complète.'});},()=> 'fr',()=>true,()=>{},1500);
+ for(let i=0;i<10;i++){recorded+=100;p.pousser(new Float32Array(1600),false);await Promise.resolve();}
+ for(let i=0;i<25;i++){recorded+=100;p.pousser(new Float32Array(1600).fill(.2),true);await Promise.resolve();}
+ await p.finir();assert.equal(firstAt,2500);
+ assert(clips[0].some(n=>n!==0),'first clip must include speech');
+ const all=clips.flat();assert.equal(all.length,56000);
+ assert(all.slice(0,16000).every(n=>n===0));assert(all.slice(16000).every(n=>n>0));
+});
 test('preloading is read-only, shared and does not need to finish before ASR can proceed',async()=>{
  let reads=0,release;const gate=new Promise(r=>release=r),done=[];
  const read=async()=>{reads++;await gate;};
