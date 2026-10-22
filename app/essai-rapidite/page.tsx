@@ -12,7 +12,7 @@ export default function EssaiRapidite(){
   {profils.map(p=>{const mesure=etat?.profils?.find((x:any)=>x.profil===p.id);return <section key={p.id} style={{padding:20,margin:'18px 0',border:'1px solid #365046',borderRadius:16,background:'#18241f'}}>
    <h2 style={{fontSize:21,marginTop:0}}>{p.nom}</h2><p>{p.detail}</p>
    <a href={'/?essai-rapidite='+p.id} style={{display:'inline-block',padding:'12px 18px',borderRadius:9,background:'#bbf0d5',color:'#102119',fontWeight:700,textDecoration:'none'}}>Parler avec ce mode</a>
-   <p style={{fontSize:14,color:'#b5cbbf',marginBottom:0}}>{mesure?.tours?\`${mesure.tours} échange(s) mesuré(s). Médiane sans reprise : ${mesure.mediane_sans_reprise_ms===null?'pas encore de mesure':(mesure.mediane_sans_reprise_ms/1000).toFixed(2)+' s'}. Reprises : ${mesure.tours_avec_reprise}.\`:'Aucun échange mesuré dans ce mode pour le moment.'}</p>
+   <p style={{fontSize:14,color:'#b5cbbf',marginBottom:0}}>{mesure?.tours ? mesure.tours + ' échange(s) mesuré(s). Médiane sans reprise : ' + (mesure.mediane_sans_reprise_ms===null?'pas encore de mesure':(mesure.mediane_sans_reprise_ms/1000).toFixed(2)+' s') + '. Reprises : ' + mesure.tours_avec_reprise + '.' : 'Aucun échange mesuré dans ce mode pour le moment.'}</p>
   </section>;})}
   <button onClick={actualiser} style={{padding:'12px 16px',borderRadius:8,cursor:'pointer'}}>Actualiser les mesures</button><p>{erreur}</p>
   <p style={{fontSize:13,color:'#a7beb1'}}>La mesure va de la fin de parole détectée au premier son programmé par le navigateur. Les échanges avec reprise sont comptés séparément. Une petite série ne suffit pas à garantir le même délai à chaque fois. Les mesures repartent à zéro au redémarrage du serveur.</p>
