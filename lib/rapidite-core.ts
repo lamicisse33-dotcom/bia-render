@@ -1,4 +1,4 @@
-export const PROFILS_RAPIDITE = ['sonnet', 'haiku', 'haiku-optimise', 'segment-2500'] as const;
+export const PROFILS_RAPIDITE = ['sonnet', 'haiku', 'haiku-optimise', 'segment-2500', 'sonnet-segment-1500'] as const;
 export type ProfilRapidite = typeof PROFILS_RAPIDITE[number];
 export function profilRapidite(v: unknown): ProfilRapidite | null {
   return PROFILS_RAPIDITE.includes(v as ProfilRapidite) ? v as ProfilRapidite : null;
@@ -18,4 +18,4 @@ export function entetesRapidite(): Record<string, string> {
   const profil = profilRapiditeNavigateur();
   return profil ? {'x-bia-essai-rapidite': profil} : {};
 }
-export function segmentRapiditeMs(profil: unknown) { return rapiditeOptimisee(profil) || profil === 'segment-2500' ? 2500 : 4000; }
+export function segmentRapiditeMs(profil: unknown) { return profil === 'sonnet-segment-1500' ? 1500 : rapiditeOptimisee(profil) || profil === 'segment-2500' ? 2500 : 4000; }

@@ -1,7 +1,7 @@
 import {wavLong} from './ecoute-longue';
 /** A single ordered ASR queue; only complete decoded PCM is sent. */
 export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,indice:()=>string,actuel:()=>boolean,progression:(texte:string)=>void,segmentMs=4000){
- const tailleSegment=segmentMs===2500?40000:64000;
+ const tailleSegment=segmentMs===1500?24000:segmentMs===2500?40000:64000;
  let buffer=new Float32Array(0),chaine:Promise<void>=Promise.resolve(),erreur:unknown=null,segments=0,total=0,commence=false,clos=false,silence=0,paroleDansBuffer=false,finParole=0;
  const textes:string[]=[],bruts:string[]=[],suggestions:string[]=[];
  function segment(pcm:Float32Array){total+=pcm.length;segments++;
@@ -28,4 +28,3 @@ export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,i
  async abandonner(){clos=true;buffer=new Float32Array(0);await chaine;},
  };
 }
-
