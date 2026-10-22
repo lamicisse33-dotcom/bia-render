@@ -61,6 +61,7 @@ import {resumePrechauffageDialogue} from "@/lib/prechauffage-dialogue";
 import {resumePiperWeb} from "@/lib/piper-web-etat";
 import {resumeAnthropic,MODELE_SONNET} from "@/lib/cerveau-anthropic";
 import {resumeLatenceCache} from "@/lib/latence-cache-anthropic";
+import {resumeDiagnosticLatence} from '@/lib/diagnostic-latence-autonome';
 import {resumeEssaiGPT} from "@/lib/essai-gpt";
 import {resumeSecoursCerebras} from "@/lib/cerveau-cerebras";
 import {resumeAudioMemoire} from "@/lib/audio-memoire";
@@ -189,6 +190,7 @@ export async function GET(request: Request) {
     commerce_contextuel:resumeCommerceContextuel(),
     contexte_appris:resumeContexteAppris(),
     preparation_references:resumePerformanceReferences(),
+    diagnostic_latence_autonome:resumeDiagnosticLatence(),
     reglages_rapidite:{silence_court_ms:silenceQuiSuffit(700),silence_phrase_ms:silenceQuiSuffit(2500),silence_recit_ms:silenceQuiSuffit(7000),historique_vocal_max_tours:12,premiere_phrase_courte:true,cache_dialogue_par_sources_pertinentes:true},
     piper_web: resumePiperWeb(),
     // La tenue de BIA — réglable depuis /reglage, lue par tout le monde ici.
