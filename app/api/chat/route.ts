@@ -1,5 +1,6 @@
 import {consommerReponseAnticipee} from '@/lib/anticipation-reponse';
 import {profilRapiditeAutorise,modeleRapidite,rapiditeOptimisee,type ProfilRapidite} from '@/lib/rapidite-core';
+import {choisirModeleConversation} from '@/lib/routage-cerveaux';
 import {noterModeleRapidite} from '@/lib/rapidite-etat';
 import {anticiperLexiqueVoix} from '@/lib/anticipation-lexique-voix';
 import {chronometrerPreparation as chrono} from '@/lib/profil-preparation';
@@ -1708,11 +1709,12 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       : groq
         ? process.env.GROQ_API_KEY
         : (process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY);
-    const model=cerebras ? (process.env.CEREBRAS_MODEL || "gpt-oss-120b") : local ? (process.env.LOCAL_LLM_MODEL || "Oolel-v0.1-Q8_0") : gemini
+    const modeleAnthropic=modeleRapidite(body.essaiRapidite,process.env.BIA_LLM_MODEL||MODELE_SONNET);
+    let model=cerebras ? (process.env.CEREBRAS_MODEL || "gpt-oss-120b") : local ? (process.env.LOCAL_LLM_MODEL || "Oolel-v0.1-Q8_0") : gemini
       ? (process.env.GEMINI_MODEL||"gemini-3.7-flash")
       : groq
         ? (process.env.GROQ_MODEL||"openai/gpt-oss-120b")
-        : modeleRapidite(body.essaiRapidite,process.env.BIA_LLM_MODEL||MODELE_SONNET);
+        : modeleAnthropic;
     if(!apiKey){
       const detail=cerebras ? "CEREBRAS_API_KEY n’est pas définie." : local ? "LOCAL_LLM_API_KEY n’est pas définie." : gemini
         ?"GEMINI_API_KEY n'est pas définie."
@@ -2442,6 +2444,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     }
     const cherche = !gemini && !local && (!cerebras || rechercheViaGroq) && (rechercheActive() || rechercheViaGroq) && demandeWeb;
     if (cherche && !cerebras) variable += CONSIGNE_RECHERCHE;
+    if(!gemini&&!groq)model=choisirModeleConversation(question,{apprentissage:Boolean(body.apprend),avecOutil:cherche,modeleConfigure:modeleAnthropic,profil:body.essaiRapidite});
 
     /* Le socle porte la marque « garde-le en mémoire ». Le reste suit
        normalement : il change à chaque question, le mettre en cache coûterait
