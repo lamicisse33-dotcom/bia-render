@@ -1,4 +1,4 @@
-import {profilRapidite, type ProfilRapidite} from './rapidite-core';
+import {PROFILS_RAPIDITE, profilRapidite, type ProfilRapidite} from './rapidite-core';
 type BriqueMesure={profil:ProfilRapidite;reprises:number;vecu_ms:number;micro_ms:number;quand:string};
 type Mesure = {profil: ProfilRapidite; reprises: number; vecu_ms: number; queue_ms: number; transcription_ms: number; modele_ms: number; voix_ms: number; demarrage_ms: number; quand: string};
 const g = globalThis as typeof globalThis & {biaEssaiRapidite?: {modeles: Record<string, {appels: number; modele: string}>; tours: Mesure[]; briques:BriqueMesure[]; prechauffages: number; derniers_prechargements: unknown}};
@@ -25,7 +25,7 @@ export function noterPremierSonRapidite(d:Record<string,unknown>){
 }
 const mediane = (n: number[]) => { const a = [...n].sort((a,b)=>a-b), m = Math.floor(a.length/2); return a.length ? (a[m]+a[(a.length-1)>>1])/2 : null; };
 export function resumeEssaiRapidite() {
-  return {profils: ['sonnet','haiku','haiku-optimise'].map(profil => {
+  return {profils: PROFILS_RAPIDITE.map(profil => {
     const ordinaires=etat.tours.filter(t=>t.profil===profil),briques=etat.briques.filter(t=>t.profil===profil);
     const tours = [...ordinaires,...briques], directs = tours.filter(t=>!t.reprises);
     return {profil, modele: etat.modeles[profil] ?? null, tours: tours.length, ordinaires:ordinaires.length,briques:briques.length,tours_avec_reprise: tours.length-directs.length,

@@ -6,7 +6,7 @@ import {normaliser} from './normaliser';
  * calculations, comparisons, and long/context-heavy requests stay on Sonnet. */
 export function choisirModeleConversation(question:string, options:{apprentissage?:boolean;avecOutil?:boolean;modeleConfigure:string;profil?:string|null}){
  const {apprentissage=false,avecOutil=false,modeleConfigure,profil}=options;
- if(profil==='sonnet')return 'claude-sonnet-5-5';
+ if(profil==='sonnet'||profil==='sonnet-segment-1500')return 'claude-sonnet-5-5';
  if(profil==='haiku'||profil==='haiku-optimise')return 'claude-haiku-5-5';
  if(modeleConfigure!=='claude-sonnet-5-5'||apprentissage||avecOutil)return modeleConfigure;
  const q=normaliser(question);

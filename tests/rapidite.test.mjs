@@ -12,6 +12,8 @@ test('trial models are bounded and selection is authorized by the authenticated 
  assert.equal(core.profilRapiditeAutorise('arbitrary-expensive-model',true),null);
  assert.equal(core.modeleRapidite(null,'original-model'),'original-model');
  assert.equal(core.modeleRapidite('sonnet','original-model'),'claude-sonnet-5-5');
+ assert.equal(core.modeleRapidite('sonnet-segment-1500','original-model'),'claude-sonnet-5-5');
+ assert.equal(core.segmentRapiditeMs('sonnet-segment-1500'),1500);
  assert.equal(core.modeleRapidite('haiku','original-model'),'claude-haiku-5-5');
  assert.equal(core.modeleRapidite('segment-2500','original-model'),'original-model');
  assert.equal(core.rapiditeOptimisee('segment-2500'),false);
@@ -33,10 +35,13 @@ test('ordinary and brick measurements preserve the long resumed turn without bla
  const p=api.resumeEssaiRapidite().profils.find(p=>p.profil==='haiku');
  assert.equal(p.tours,3);assert.equal(p.ordinaires,2);assert.equal(p.briques,1);assert.equal(p.tours_avec_reprise,1);assert.equal(p.mediane_sans_reprise_ms,3000);
  assert.equal(api.resumeEssaiRapidite().tours[1].vecu_ms,15000);
+ api.noterTourRapidite({...d,profil_rapidite:'sonnet-segment-1500',vecu_ms:2100});
+ const nouveau=api.resumeEssaiRapidite().profils.find(p=>p.profil==='sonnet-segment-1500');
+ assert.equal(nouveau.tours,1);assert.equal(nouveau.mediane_sans_reprise_ms,2100);
 });
 test('the faster progressive cut sends every sample in order and never starts playback',async()=>{
  const {creerEcouteProgressive}=load('lib/ecoute-progressive.ts',{'./ecoute-longue':load('lib/ecoute-longue.ts')});
- for(const seuil of [2500,4000]){
+ for(const seuil of [1500,2500,4000]){
   const clips=[];let recorded=0,firstAt;
   const p=creerEcouteProgressive(async f=>{firstAt??=recorded;const b=await f.get('audio').arrayBuffer();clips.push((b.byteLength-44)/2);return Response.json({texte:'Une pensée complète.'});},()=> 'fr',()=>true,()=>{},seuil);
   for(let n=0;n<120;n++){recorded+=100;p.pousser(new Float32Array(1600).fill(.2),true);await Promise.resolve();}
