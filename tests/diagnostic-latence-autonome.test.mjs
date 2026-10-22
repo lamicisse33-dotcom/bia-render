@@ -17,12 +17,15 @@ for(const appris of [false,true])test(`real-chain replay uses ASR output and con
   }
   const b=JSON.parse(req.body);
   if(url.endsWith('/api/chat')){
-   assert.equal(b.message,'transcription réelle du contrôle');assert.equal(b.apprentissageTest,true);assert.equal(b.parole,true);
+   assert.equal(b.message,'transcription réelle du contrôle');assert.equal(b.apprentissageTest,true);
    assert.equal(req.headers['x-bia-diagnostic-latence'],'calcul');
-   const cas=conversations++;assert.equal(b.history.length,cas===2||cas===3?2:0);
+   const cas=conversations++;
+   if(!b.parole){assert(['sonnet','haiku'].includes(req.headers['x-bia-essai-rapidite']));const paire=(cas-6)%6;assert.equal(b.history.length,paire>=4?2:0);}
+   else assert.equal(b.history.length,cas===2||cas===3?2:0);
    const encodeur=new TextEncoder();
    return new Response(new ReadableStream({async start(c){
     c.enqueue(encodeur.encode('event: texte\ndata: '+JSON.stringify({morceau:'Une phrase complète.'})+'\n\n'));
+    if(!b.parole){c.enqueue(encodeur.encode('event: fin\ndata: '+JSON.stringify({statut:200,corps:{reply:'Une phrase complète.'}})+'\n\n'));c.close();return;}
     await new Promise(resolve=>{liberer=resolve;});
     c.enqueue(encodeur.encode('event: fin\ndata: '+JSON.stringify({statut:200,corps:{reply:'Une phrase complète.',source:'contrôle'},chronometrage:{preparation_ms:10}})+'\n\n'));c.close();
    }}),{headers:{'content-type':'text/event-stream'}});
@@ -38,11 +41,12 @@ for(const appris of [false,true])test(`real-chain replay uses ASR output and con
   new Function('require','module','exports',js)(id=>{assert(id in deps,id);return deps[id];},m,m.exports);
   await m.exports.verifierLatenceAutonome();await m.exports.verifierLatenceAutonome();
   const rapport=m.exports.resumeDiagnosticLatence();
-  assert.equal(rapport.statut,'termine');assert.equal(ecoutes,6);assert.equal(conversations,6);assert.equal(voix,6);
+  assert.equal(rapport.statut,'termine');assert.equal(ecoutes,6);assert.equal(conversations,12);assert.equal(voix,6);
   assert(rapport.preparation_audio.every(c=>c.parties===2));
   assert.equal(rapport.reponses_apprises.length,2);assert(rapport.reponses_apprises.every(c=>appris?c.ok&&c.audio_disponible&&c.provenance_disponible:!c.disponible));
   assert(!JSON.stringify(rapport).includes('Phrase privée apprise.'));
   assert(rapport.cas.every(c=>c.ok&&c.conversation.preparation_ms===10&&c.voix_cache===false));
+  assert.equal(rapport.comparaison_modeles.length,6);assert(rapport.comparaison_modeles.every(c=>c.ok&&c.premier_texte_ms>=0&&c.complet_ms>=0),JSON.stringify(rapport.comparaison_modeles));
   assert.equal(rapport.lecture_navigateur_mesuree,false);assert.equal(rapport.microphone_mesure,false);
   assert(!JSON.stringify(rapport).includes('transcription réelle'));assert(!JSON.stringify(rapport).includes('Une phrase complète.'));assert(!JSON.stringify(rapport).includes('synthetic-test-only'));
  }finally{globalThis.fetch=original;if(previous===undefined)delete process.env.BIA_CODE_MAITRE;else process.env.BIA_CODE_MAITRE=previous;}
