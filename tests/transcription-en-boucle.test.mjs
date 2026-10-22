@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
-function load(path,imports={}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(id=>{if(id==='@/lib/rapidite-core')return load('lib/rapidite-core.ts',{});if(id==='@/lib/rapidite-precharger')return {prechargerPendantEcoute(){assert.fail('normal speech must not start experimental preloading');}};assert(id in imports,id);return imports[id];},m,m.exports);return m.exports;}
+function load(path,imports={}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(id=>{if(id==='@/lib/rapidite-core')return load('lib/rapidite-core.ts',{});if(id==='@/lib/rapidite-precharger')return {prechargerPendantEcoute(){}};assert(id in imports,id);return imports[id];},m,m.exports);return m.exports;}
 const guard=load('lib/transcription-en-boucle.ts'),c=guard.transcriptionEnBoucle;
 const capture='Wii waaw ba ma wax a doon walla doon walla doon walla doon waa doon walla doon walla doon walla doon';
 test('the exact 21-word screenshot is rejected without guessing oui vas-y from its prefix',()=>{assert.equal(capture.split(/\s+/).length,21);assert.equal(c(capture),true);assert.equal(c('Oui, vas-y.'),false);assert.equal(c('Waaw, demal.'),false);});

@@ -7,7 +7,7 @@
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "ad34b135d0d3589badf6161afd07df8dce927de633ea9ffc215a07dd26c47f19",
     "lib/transport-conversation.ts": "ac8d95016a165bc00abfad385cc2f5c87278775854dfbddbcfbbe4b308e607ce",
-    "app/api/ecouter/route.ts": "f84bee7bbb35db3bd2f851b82fe6321e33f601c3e87e1a1a2baec371753e1014",
+    "app/api/ecouter/route.ts": "fa340e8771d8b6abfbfe1440b3547b2da89b5369f6fc4797cd0ade5ae389083c",
     "app/api/ecouter/anticiper/route.ts": "56867d683f1b63e0f57803de17426e4417b717122c8043d3132fa617982f153d",
     "app/api/chatterbox-test/bia/route.ts": "63035dfc3fea98386ae568e2266e6de41b462472927460795f8fb3b9896fe634",
     "app/api/chatterbox-test/bia/stream/route.ts": "a56bd54d4f51272835f915b0be257c4a936ec9aaca069e1b3f5c661bc0e03b7f",
@@ -136,5 +136,15 @@
     "scope": "Only app/page.tsx and app/api/ecouter/route.ts change among protected files. The page adds URL-only trial headers, a master-only indicator and additive profile/reprise measurements. ASR adds authenticated optimized-profile-only parallel read preloading. Every other protected file retains its exact hash. No model/voice environment variable changes.",
     "measurements": "304 local behavior checks and production build pass. Actual PCM coverage includes both 4-second reference and 2.5-second optimized segmentation; endpointing remains 400 ms, complete samples stay ordered, preloading is shared and nonblocking, foreign profile injection is ignored and brick sessions cannot change profiles. Existing correction, word preservation, interruption, stale work cancellation and complete-take checks pass. GitHub functional checks and build pass. Chromium audio tests are required before merge, including the actual newly imported profile module.",
     "limits": "Haiku and the shorter first-sentence prompt apply only to explicit authenticated trial requests; the standard URL retains its existing model and 4-second segmentation. The synthetic six-replay diagnostic measures ASR through first audio HTTP receipt, without corpus/chat memory writes. Real phone first-sound latency, long-speech ASR quality and human Wolof judgment remain unvalidated; no latency gain is asserted by this baseline update."
+  },
+  "migration_preparation_sonnet_20261022": {
+    "authorization": "Lamine reports a latency regression and asks to investigate what changed; his authorized maintenance and latency optimizations continue with Sonnet selected.",
+    "reference": "ebfabf6e134ed59542ba4d3eb127f30bfc9396d6; earlier validated restoration branches retained.",
+    "previous_hashes": {
+      "app/api/ecouter/route.ts": "f84bee7bbb35db3bd2f851b82fe6321e33f601c3e87e1a1a2baec371753e1014"
+    },
+    "scope": "Only the authenticated master read-only preloader condition changes in this protected route. Sonnet ordinary speech receives the same nonblocking four readers as the prior optimized trial. No transcription, microphone, endpoint, language or corpus logic changes.",
+    "measurements": "Targeted behavior tests and TypeScript pass, including unauthenticated and non-master exclusion, master ASR completion while preloading remains pending, exact output equivalence, immediate source correction, and bounded cache size. Full CI and browser audio checks remain required before merge.",
+    "limits": "The once-per-process production comparison measures source filtering only, with actual private references and no model/audio generation. Human phone latency is not inferred from the source benchmark."
   }
 }
