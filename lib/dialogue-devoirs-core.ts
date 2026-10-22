@@ -4,7 +4,9 @@ export type DialogueAppris={id:string;titre:string;date:string;repliques:Repliqu
 export type TourDialogue={role:string;text:string};
 const globalReferences=globalThis as typeof globalThis&{biaReferencesApprises?:{appels_filtres:number;formulations_ecartees:number}};
 const references=globalReferences.biaReferencesApprises??={appels_filtres:0,formulations_ecartees:0};
-export const resumeReferencesApprises=()=>({...references,revision:'faits-dialogue-v1'});
+const analysesReferences=new Map<string,{correction?:{valeurs:Record<string,unknown>;texte:string};repliques?:RepliqueApprise[]}>();
+let signesReferences=0,analyses=0,reutilisations=0;
+export const resumeReferencesApprises=()=>({...references,revision:'faits-dialogue-v1',preparation:{analyses,reutilisations,entrees:analysesReferences.size,signes_en_cache:signesReferences}});
 const noterExtrait=(n:number)=>{references.appels_filtres++;references.formulations_ecartees+=n;};
 /** An explicit request for reasoning uses the conversational brain directly.
  * Its context still contains the retrieved, validated lesson formulations. */
@@ -166,12 +168,17 @@ export function questionDejaResolue(fr:string,faits:ReturnType<typeof faitsExpli
  * can establish an amount; BIA's earlier guesses never validate themselves. */
 export function montantDeLeconNonConfirme(fr:string,wo:string,question:string,history:TourDialogue[]){
  const texte=fr+' '+wo;
- const donnees=[...history.filter(t=>t.role==='user').map(t=>t.text),question].join(' ');
  // A clarification must refer to numbers supplied by the person, not to a
  // preceding lesson example or to BIA's own invented price.
- const clarification=/\b(?:ces|tes|vos|les) (?:chiffres|nombres|montants)\b|\bprix (?:ou|et) (?:le |la |les |une? |des )?(?:nombre|quantite|kilos?|poids)\b/.test(normaliserDialogue(fr));
+ const frNormal=normaliserDialogue(fr);
+ const clarification=/\b(?:ces|tes|vos|les) (?:chiffres|nombres|montants)\b|\bprix (?:ou|et) (?:le |la |les |une? |des )?(?:nombre|quantite|kilos?|poids)\b/.test(frNormal);
+ const monetaire=/\b(?:francs?|fcfa|cfa|euros?|benefices?|profits?|capital|depenses?|recettes?|prix|couts?|marge)\b/i.test(frNormal+' '+normaliserDialogue(wo))||/\d\s*f(?:cfa)?\b/i.test(texte);
+ // Most learned phrases contain no price or numeric clarification. Avoid
+ // rebuilding and normalising the whole private history for every such line.
+ if(!clarification&&!monetaire)return false;
+ const donnees=[...history.filter(t=>t.role==='user').map(t=>t.text),question].join(' ');
  if(clarification&&!/\d|\b(?:zero|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|vingt|trente|cent|mille|million|benn|naar|nett|nent|jur[oó]om)\b/i.test(normaliserDialogue(donnees)))return true;
- if(!/\b(?:francs?|fcfa|cfa|euros?|benefices?|profits?|capital|depenses?|recettes?|prix|couts?|marge)\b/i.test(normaliserDialogue(texte))&&!/\d\s*f(?:cfa)?\b/i.test(texte))return false;
+ if(!monetaire)return false;
  const montants=(s:string)=>[
   ...[...s.matchAll(/\d+(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)?/g)].map(m=>m[0].replace(/[ \u00a0\u202f]/g,'')),
   ...[...normaliserDialogue(s).matchAll(/\b((?:(?:zero|un|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze|treize|quatorze|quinze|seize|vingt|trente|quarante|cinquante|soixante|cent[s]?|mille|million[s]?|et)\s+)+)(?=francs?|cfa|euros?)/g)].map(m=>m[1].trim()),
@@ -189,22 +196,32 @@ export function montantDeLeconNonConfirme(fr:string,wo:string,question:string,hi
 /** Read-time excerpt only: keep exact bilingual formulations, without carrying
  * unrelated numeric examples into a real conversation. Stored lessons and
  * explicit reading/translation remain unchanged. */
-export function referenceApprisePourTour(texte:string,question:string,history:TourDialogue[]=[]):string{
+function analyserReference(texte:string,recalculer:boolean){
+ const connue=analysesReferences.get(texte);
+ if(connue&&!recalculer){reutilisations++;return connue;}
+ analyses++;
+ let preparee:{correction?:{valeurs:Record<string,unknown>;texte:string};repliques?:RepliqueApprise[]}|undefined;
+ try{const v=JSON.parse(texte);if(typeof v?.demande==='string'&&/^DEVOIR:/.test(v.demande)&&typeof v.reponse_corrigee==='string')preparee={correction:{valeurs:v,texte:v.reponse_corrigee}};}catch{}
+ preparee??={repliques:analyserDevoir({id:'reference',texte,date:'',valide:true,langue:'wo'}).repliques};
+ // Exact source bytes are the key. A corrected source is analysed afresh;
+ // no result depending on the current question or history is cached.
+ if(!recalculer&&texte.length<=100000){
+  while(analysesReferences.size>=256||signesReferences+texte.length>2000000){const cle=analysesReferences.keys().next().value;if(cle===undefined)break;analysesReferences.delete(cle);signesReferences-=cle.length;}
+  analysesReferences.set(texte,preparee);signesReferences+=texte.length;
+ }
+ return preparee;
+}
+export function referenceApprisePourTour(texte:string,question:string,history:TourDialogue[]=[],recalculer=false):string{
  if(/\b(?:lis|relis|recite|repete|cite|traduis|traduction|comment (?:on )?dit)\b/.test(normaliserDialogue(question)))return texte;
  // The common catalogue also contains a correction-table copy of each lesson.
  // Apply the same rule to that copy, preserving its JSON envelope and origin.
- try{
-  const v=JSON.parse(texte);
-  if(typeof v?.demande==='string'&&/^DEVOIR:/.test(v.demande)&&typeof v.reponse_corrigee==='string'){
-   const extrait=referenceApprisePourTour(v.reponse_corrigee,question,history);
-   return extrait?(extrait===v.reponse_corrigee?texte:JSON.stringify({...v,reponse_corrigee:extrait})):'';
-  }
- }catch{}
- const d=analyserDevoir({id:'reference',texte,date:'',valide:true,langue:'wo'});
- if(!d.repliques.length){if(montantDeLeconNonConfirme(texte,'',question,history)){noterExtrait(1);return '';}return texte;}
- const gardees=d.repliques.filter(p=>!montantDeLeconNonConfirme(p.fr,p.wo,question,history));
- if(gardees.length===d.repliques.length)return texte;
- noterExtrait(d.repliques.length-gardees.length);
+ const preparee=analyserReference(texte,recalculer);
+ if(preparee.correction){const c=preparee.correction,extrait=referenceApprisePourTour(c.texte,question,history,recalculer);return extrait?(extrait===c.texte?texte:JSON.stringify({...c.valeurs,reponse_corrigee:extrait})):'';}
+ const repliques=preparee.repliques!;
+ if(!repliques.length){if(montantDeLeconNonConfirme(texte,'',question,history)){noterExtrait(1);return '';}return texte;}
+ const gardees=repliques.filter(p=>!montantDeLeconNonConfirme(p.fr,p.wo,question,history));
+ if(gardees.length===repliques.length)return texte;
+ noterExtrait(repliques.length-gardees.length);
  return gardees.length?'EXTRAITS LINGUISTIQUES — formulations exactes, exemples non factuels\n'+JSON.stringify(gardees):'';
 }
 export function projetCommercialAPreciser(question:string,history:TourDialogue[]){

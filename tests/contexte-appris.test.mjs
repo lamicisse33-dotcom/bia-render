@@ -59,3 +59,20 @@ test('raw lesson context applies the same filter while respecting validation and
  assert.equal(service.selectionnerDevoirs([{...b,statut:undefined}],'tomates',history),'');
  assert.match(service.selectionnerDevoirs([b],'Les tomates',[{role:'user',text:'Le prix des tomates est de 1000 francs.'}]),/1000/);
 });
+test('source analysis is reused while every question, user fact and corrected source is reevaluated',()=>{
+ const source=texte+'\n';
+ const avant=core.resumeReferencesApprises().preparation;
+ for(const [question,h] of [['Jën ak tamaate.',history],['Le prix des tomates est de 1000 francs.',[]],['Jën ak tamaate.',history]]){
+  assert.equal(core.referenceApprisePourTour(source,question,h),core.referenceApprisePourTour(source,question,h,true));
+ }
+ const apres=core.resumeReferencesApprises().preparation;
+ assert(apres.reutilisations-avant.reutilisations>=2);
+ assert.doesNotMatch(core.referenceApprisePourTour(source,'Jën ak tamaate.',history),/1000|kilos/);
+ const corrige=source.replace('Tamaate.','Formulation corrigée exacte.');
+ assert.match(core.referenceApprisePourTour(corrige,'Jën ak tamaate.',history),/Formulation corrigée exacte/);
+ assert.doesNotMatch(core.referenceApprisePourTour(corrige,'Jën ak tamaate.',history),/1000|kilos/);
+});
+test('the analysis cache stays bounded as source revisions accumulate',()=>{
+ for(let i=0;i<300;i++)core.referenceApprisePourTour('Wolof : Formulation '+i+'.\nFrançais : Expression '+i+'.','Expression',[]);
+ const s=core.resumeReferencesApprises().preparation;assert(s.entrees<=256);assert(s.signes_en_cache<=2000000);
+});

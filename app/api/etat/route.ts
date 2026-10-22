@@ -1,5 +1,6 @@
 import {resumeControleRapidite} from '@/lib/rapidite-controle-http';
 import {resumeContexteAppris} from '@/lib/essai-contexte-appris';
+import {resumePerformanceReferences} from '@/lib/performance-references';
 import {resumeTexteVoix} from "@/lib/texte-khalam-voix";
 import {resumeEssaiRapidite} from '@/lib/rapidite-etat';
 import {resumeRelecture} from "@/lib/relecture-etat";
@@ -187,6 +188,7 @@ export async function GET(request: Request) {
     dialogue_domaines:resumeDialogueDomaines(),
     commerce_contextuel:resumeCommerceContextuel(),
     contexte_appris:resumeContexteAppris(),
+    preparation_references:resumePerformanceReferences(),
     reglages_rapidite:{silence_court_ms:silenceQuiSuffit(700),silence_phrase_ms:silenceQuiSuffit(2500),silence_recit_ms:silenceQuiSuffit(7000),historique_vocal_max_tours:12,premiere_phrase_courte:true,cache_dialogue_par_sources_pertinentes:true},
     piper_web: resumePiperWeb(),
     // La tenue de BIA — réglable depuis /reglage, lue par tout le monde ici.

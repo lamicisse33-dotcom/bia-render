@@ -51,3 +51,19 @@ test('a non-master cannot select a different brick model through JSON or headers
  await route.POST(new Request('https://app.khalam.app/api/anticipation/briques',{method:'POST',headers:{'x-bia-code':'ordinary-test','x-bia-essai-rapidite':'haiku'},body:JSON.stringify({essaiRapidite:'haiku-optimise'})}));
  assert.equal(passed.essaiRapidite,null);
 });
+test('ordinary authenticated master speech preloads without delaying ASR or changing its words',async()=>{
+ for(const acces of [{ok:false,maitre:false},{ok:true,maitre:false},{ok:true,maitre:true}]){
+  let preparations=0,ecoutes=0;
+  const route=load('app/api/ecouter/route.ts',{
+   '@/lib/rapidite-precharger':{prechargerPendantEcoute(){preparations++;return new Promise(()=>{});}},
+   '@/lib/transcription-en-boucle':{transcriptionEnBoucle:()=>false},'@/lib/langue':{detecterLangue:()=> 'wo'},
+   '@/lib/preparer-ecoute':{preparerEcoute:async()=>{ecoutes++;return {reco:{texte:'Jën ak tamaate.'},ecriture:{texte:'Jën ak tamaate.'},correction_disponible:true,chronometrage:{}};}},
+   'next/server':{NextResponse:{json:Response.json}},'@/lib/codes':{verifierCode:()=>acces},'@/lib/panne':{noterPanne(){}},
+   '@/lib/morceaux-de-parole':{cleValide:()=>null},'@/lib/corpus':{corpusActif:()=>false},
+  });
+  const f=new FormData();f.set('audio',new Blob(['test'],{type:'audio/wav'}),'test.wav');
+  const r=await route.POST({headers:{get:()=>null},formData:async()=>f});
+  assert.equal(r.status,acces.ok?200:401);assert.equal(preparations,acces.maitre?1:0);assert.equal(ecoutes,acces.ok?1:0);
+  if(acces.ok)assert.equal((await r.json()).texte,'Jën ak tamaate.');
+ }
+});

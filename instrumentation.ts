@@ -4,6 +4,7 @@ export async function register(){
   // bounded calls per process; no dependency in the user's conversation path.
   if(process.env.RENDER_GIT_COMMIT){
    setTimeout(()=>{void import('./lib/latence-cache-anthropic').then(m=>m.prechaufferContexteAnthropic()).catch(()=>{});},3000).unref();
+   if(Date.now()>=Date.parse('2026-10-22T00:00:00Z')&&Date.now()<Date.parse('2026-10-23T00:00:00Z'))setTimeout(()=>{void import('./lib/performance-references').then(m=>m.verifierPerformanceReferences()).then(()=>import('./lib/essai-contexte-appris')).then(m=>m.verifierContexteAppris()).catch(()=>{});},20000).unref();
    if(Date.now()<Date.parse('2026-10-22T00:00:00Z'))setTimeout(()=>{void import('./lib/latence-cache-anthropic').then(m=>m.verifierLatenceCache()).then(()=>import('./lib/essai-cerveaux-rapides')).then(m=>m.comparerCerveaux()).then(()=>import('./lib/essai-gpt')).then(m=>m.lancerEssaiGPT()).then(()=>import('./lib/rapidite-controle-http')).then(m=>m.verifierChaineRapidite()).then(()=>import('./lib/essai-contexte-appris')).then(m=>m.verifierContexteAppris()).catch(()=>{});},15000).unref();
   }
   if(process.env.RENDER_GIT_COMMIT&&process.env.BIA_CODE_MAITRE&&Date.now()<Date.parse('2026-10-17T23:00:00Z')){
