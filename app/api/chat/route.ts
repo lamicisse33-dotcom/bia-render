@@ -784,7 +784,7 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
-type Corps={essaiRapidite?:ProfilRapidite|null;salutationOuverture?:boolean;continuationBriques?:boolean;anticipationId?:string;voixAnticipee?:string;parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
+type Corps={mesureDiagnostic?:{preparation_ms?:number;premier_texte_ms?:number;modele_ms?:number};essaiRapidite?:ProfilRapidite|null;salutationOuverture?:boolean;continuationBriques?:boolean;anticipationId?:string;voixAnticipee?:string;parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
   /* Ancien choix visuel conservé pour les clients existants ; le nom reste BIA. */
   persona?:string;
   /* ── L'APPRENTISSAGE À LA VOIX ──────────────────────────────────────────
@@ -884,7 +884,7 @@ export async function POST(request:NextRequest){
   // Even cached greetings require a valid code, before any response or stream.
   const acces=verifierCode(code,false);
   if(!acces.ok)return NextResponse.json({reply:'Entre un code d’accès valide pour parler avec BIA.',source:'code',motif:acces.raison},{status:401});
-  body={...body,essaiRapidite:profilRapiditeAutorise(request.headers.get('x-bia-essai-rapidite'),acces.maitre)};
+  body={...body,mesureDiagnostic:acces.maitre&&body.apprentissageTest&&request.headers.get("x-bia-diagnostic-latence")==="1"?{}:undefined,essaiRapidite:profilRapiditeAutorise(request.headers.get('x-bia-essai-rapidite'),acces.maitre)};
   if(Array.isArray(body.history))body={...body,history:body.history.filter(t=>t&&t.transcriptionIncertaine!==true)};
   if(body.apprentissageTest){body.apprend=false;body.aRepeter="";body.malDit=undefined;}
   const vocale=!body.apprentissageTest&&body.parole&&acces.maitre?await preparerCorrectionVocale(body,true,!!lireLOrdre(String(body.message||'')),request.signal):null;
@@ -910,7 +910,7 @@ export async function POST(request:NextRequest){
       };
       try{
         const r=await repondre(body,code,(morceau)=>envoyer("texte",{morceau}));
-        envoyer("fin",{corps:avecTranscription(r.corps),statut:r.statut||200});
+        envoyer("fin",{corps:avecTranscription(r.corps),statut:r.statut||200,...(body.mesureDiagnostic?{chronometrage:body.mesureDiagnostic}:{})});
         if(!vocale)garderCeTour(body,code,r.corps,r.statut);
       }catch(err){
         console.error("BIA — erreur pendant la diffusion :",(err as Error).message);
@@ -1123,6 +1123,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
   // Memory confirmations must not be spoken before Supabase accepts them.
   const attendreMemoire=parleDeMemoire(String(body.message||""))||Boolean(body.apprend||body.correctionDevoir);
   const emettre=emettreBrut&&!attendreMemoire?((morceau:string)=>{
+    if(body.mesureDiagnostic)body.mesureDiagnostic.premier_texte_ms??=Date.now()-departPreparation;
     envoye+=morceau;
     if(choixIntegre&&/^\s*\[\[replique:/i.test(detacherEmotion(envoye).reply))return;
     if(!dejaParle&&teteDeLaReponse(envoye))dejaParle=true;
@@ -2863,10 +2864,12 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     // The voice route still rechecks its normal cache and correction revision.
     if(maitre.ok)anticiperLexiqueVoix();
     const partiModele=Date.now();
+    if(body.mesureDiagnostic)body.mesureDiagnostic.preparation_ms=partiModele-departPreparation;
     noterEtape("preparation",departPreparation,partiModele,partiModele,question.length);
     const premiersReglages={plafond:PLAFOND,avecOutil:cherche,reflexion:(reflechit?"allumee":"eteinte") as Reflexion};
     noterModeleRapidite(body.essaiRapidite,model);
     const response=await appelerLeModele(premiersReglages);
+    if(body.mesureDiagnostic)body.mesureDiagnostic.modele_ms=Date.now()-partiModele;
     /* L'amorce qui accompagne la réponse en main : elle change avec les
        réglages de chaque reprise, et le lecteur doit recoller la bonne. */
     let amorce=amorceDe(premiersReglages);
