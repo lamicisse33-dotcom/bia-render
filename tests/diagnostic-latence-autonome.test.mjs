@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
 
-test('real-chain replay uses ASR output, preserves context, starts voice before model completion and exports no text',async()=>{
+for(const appris of [false,true])test(`real-chain replay uses ASR output and concurrent voice without exporting text; learned finalization=${appris}`,async()=>{
  delete globalThis.biaDiagnosticLatence;
  const previous=process.env.BIA_CODE_MAITRE,original=globalThis.fetch;
  process.env.BIA_CODE_MAITRE='synthetic-test-only';
@@ -34,12 +34,14 @@ test('real-chain replay uses ASR output, preserves context, starts voice before 
  const m={exports:{}},js=ts.transpileModule(fs.readFileSync('lib/diagnostic-latence-autonome.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  try{
   const audio={exports:{}};new Function('module','exports',ts.transpileModule(fs.readFileSync('lib/briques-audio.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText)(audio,audio.exports);
-  const deps={'./diffusion':{teteDeLaReponse:s=>s.includes('.')?s:''},'./langue':{detecterLangue:()=> 'wo'},'./briques-audio':audio.exports,'./assembler-sons-courants':{assemblerSonsCourants:(clips,maximum)=>{assert.equal(clips.length,2);assert.equal(maximum,30);return {wav:Buffer.concat(clips.map(b=>Buffer.from(b)))};}}};
+  const deps={'./diffusion':{teteDeLaReponse:s=>s.includes('.')?s:''},'./langue':{detecterLangue:()=> 'wo'},'./briques-audio':audio.exports,'./dialogue-devoirs':{dialoguerAvecDevoirs:async(q,_h,o)=>{assert.equal(q,'transcription réelle du contrôle');assert.equal(o.diagnostic,true);assert.equal(o.cacheSeulement,true);return appris?{reply:'Phrase privée apprise.',langue:'wo',lecon_id:'source',replique_id:'2'}:null;}},'./devoirs-apprentissage':{devoirsALire:async()=>({devoirs:[{id:'source'}]})},'./correction-devoir-core':{origineReplique:(d,id,l)=>{assert.equal(d.id,'source');assert.equal(id,'2');assert.equal(l,'wo');return {debut:12};}},'./audio-memoire':{audioPourReponse:async(t,l)=>{assert.equal(t,'Phrase privée apprise.');assert.equal(l,'wo');return {base64:entree};}},'./assembler-sons-courants':{assemblerSonsCourants:(clips,maximum)=>{assert.equal(clips.length,2);assert.equal(maximum,30);return {wav:Buffer.concat(clips.map(b=>Buffer.from(b)))};}}};
   new Function('require','module','exports',js)(id=>{assert(id in deps,id);return deps[id];},m,m.exports);
   await m.exports.verifierLatenceAutonome();await m.exports.verifierLatenceAutonome();
   const rapport=m.exports.resumeDiagnosticLatence();
   assert.equal(rapport.statut,'termine');assert.equal(ecoutes,6);assert.equal(conversations,6);assert.equal(voix,6);
   assert(rapport.preparation_audio.every(c=>c.parties===2));
+  assert.equal(rapport.reponses_apprises.length,2);assert(rapport.reponses_apprises.every(c=>appris?c.ok&&c.audio_disponible&&c.provenance_disponible:!c.disponible));
+  assert(!JSON.stringify(rapport).includes('Phrase privée apprise.'));
   assert(rapport.cas.every(c=>c.ok&&c.conversation.preparation_ms===10&&c.voix_cache===false));
   assert.equal(rapport.lecture_navigateur_mesuree,false);assert.equal(rapport.microphone_mesure,false);
   assert(!JSON.stringify(rapport).includes('transcription réelle'));assert(!JSON.stringify(rapport).includes('Une phrase complète.'));assert(!JSON.stringify(rapport).includes('synthetic-test-only'));

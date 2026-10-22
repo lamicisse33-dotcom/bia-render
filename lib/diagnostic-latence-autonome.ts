@@ -69,13 +69,28 @@ export function verifierLatenceAutonome(){return etat.travail??=(async()=>{
        c.texte_complet_ms=Date.now()-debutChat;c.conversation=e.chronometrage;c.source=e.corps?.source;fin=e.statut===200&&!!e.corps?.reply;
        if(fin&&!voix){const joint=e.corps.audio_memorise?.base64||e.corps.audio_anticipe?.base64;
         if(typeof joint==='string'&&Buffer.from(joint,'base64').length>44){c.audio_joint=true;c.voix_cache=true;c.voix_ms=0;c.premier_audio_ms=Date.now()-debut;voix=Promise.resolve();}
-        else parler(teteDeLaReponse(e.corps.reply)||e.corps.reply,e.corps.langue==='wo'?'wo':'fr');
+        else parler(teteDeLaReponse(e.corps.reply)||e.corps.reply,e.corps.langue==='wo'||e.corps.langue==='fr'?e.corps.langue:detecterLangue(e.corps.reply,exemple.langue as 'wo'|'fr'));
        }
       }
      }
     }}finally{await reader.cancel().catch(()=>{});}
     if(!fin||!voix)throw Error('reponse_non_confirmee');await voix;c.ok=true;
    }catch{if(voix)await voix.catch(()=>{});c.ok=false;c.erreur='echange_non_confirme';c.ms=Date.now()-debut;}
+  }
+  // Read-only verification of the learned-answer finalization, independent of
+  // whether the six current model outputs happen to select a source tag.
+  const [{dialoguerAvecDevoirs},{devoirsALire},{origineReplique},{audioPourReponse}]=await Promise.all([import('./dialogue-devoirs'),import('./devoirs-apprentissage'),import('./correction-devoir-core'),import('./audio-memoire')]);
+  rapport.reponses_apprises=[];
+  for(const exemple of exemples.filter(e=>e.langue==='wo')){
+   const c:any={scenario:exemple.id},debut=Date.now();rapport.reponses_apprises.push(c);
+   try{
+    const memorisee=await dialoguerAvecDevoirs(transcriptions.get(exemple.id)!,exemple.history,{diagnostic:true,cacheSeulement:true});c.choix_ms=Date.now()-debut;c.disponible=!!memorisee;
+    if(!memorisee)continue;
+    const debutAudio=Date.now(),son=audioPourReponse(memorisee.reply,memorisee.langue).then(a=>{c.audio_ms=Date.now()-debutAudio;c.audio_disponible=!!a;});
+    const t=Date.now(),d=(await devoirsALire(1500)).devoirs.find(d=>d.id===memorisee.lecon_id);c.devoirs_ms=Date.now()-t;
+    const u=Date.now();c.provenance_disponible=!!(d&&origineReplique(d,memorisee.replique_id!,memorisee.langue));c.origine_ms=Date.now()-u;
+    await son;c.total_ms=Date.now()-debut;c.ok=true;
+   }catch{c.ok=false;}
   }
   rapport.statut=rapport.cas.every((c:any)=>c.ok)?'termine':'a_verifier';
  }catch(e){rapport.statut='echec';rapport.erreur=e instanceof Error&&['acces_absent','audio_temoin_indisponible','Audio incomplet'].includes(e.message)?e.message:'preparation_non_confirmee';}

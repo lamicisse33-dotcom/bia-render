@@ -15,15 +15,16 @@ const etat:Etat=global.biaAudioMemoire??={bilan:{actif:false,statut:'non_lance',
 const gAudio=globalThis as typeof globalThis&{biaAudiosPrecharges?:Map<string,Uint8Array>;biaAudiosChargements?:Map<string,Promise<Uint8Array|null>>};
 const audios=gAudio.biaAudiosPrecharges??=new Map(),chargements=gAudio.biaAudiosChargements??=new Map();
 const hash=(b:Uint8Array)=>createHash('sha256').update(b).digest('hex');
-export const resumeAudioMemoire=()=>({...etat.bilan});
+export const resumeAudioMemoire=()=>({...etat.bilan,calculs_recents:calculsAudio.recents.slice(-12)});
 async function anciennesValidees(){
  const rows:any[]=[];for(let offset=0;;offset+=500){
   const r=await fetch(`${lexiqueConfig.url}/rest/v1/${lexiqueConfig.table}?select=source,corrigee,langue,auteur&application=eq.bia&auteur=in.(maitre-lecon,maitre-vocal)&order=id.desc&limit=500&offset=${offset}`,{headers:{apikey:lexiqueConfig.cle,Authorization:'Bearer '+lexiqueConfig.cle},cache:'no-store',signal:AbortSignal.timeout(8000)});
   if(!r.ok)throw Error('Lecture des anciennes validations impossible.');const page=await r.json();if(!Array.isArray(page))throw Error('Lexique invalide.');rows.push(...page);if(page.length<500)break;
  }return rows;
 }
-const identifiants=new Map<string,string>();
-let revisionPrononciations="";
+type CalculAudio={identifiants:Map<string,string>;revision:string;recents:Array<{ms:number;calcul_ms:number;reutilises:number;recalcules:number;quand:string}>};
+const calculsAudio:CalculAudio=(globalThis as typeof globalThis&{biaCalculsAudioMemoire?:CalculAudio}).biaCalculsAudioMemoire??={identifiants:new Map(),revision:'',recents:[]};
+const identifiants=calculsAudio.identifiants;
 export async function catalogueAudioMemoire(force=false,recalculer=false):Promise<AudioMemoire[]>{
  const debut=Date.now();
  const prononciation=(globalThis as typeof globalThis&{biaGenerationPrononciation?:number}).biaGenerationPrononciation||0;
@@ -36,7 +37,7 @@ export async function catalogueAudioMemoire(force=false,recalculer=false):Promis
   // The exact text and complete pronunciation rules determine the ID. Reuse
   // only that calculation; always rebuild membership from freshly read sources.
   const revision=JSON.stringify([lecons,regles]);
-  if(revision!==revisionPrononciations){identifiants.clear();revisionPrononciations=revision;}
+  if(revision!==calculsAudio.revision){identifiants.clear();calculsAudio.revision=revision;}
   const calcul=Date.now(),actuels=new Set<string>();let reutilises=0,recalcules=0;
   const phrases=inventaire.phrases.map(p=>{
    const cle=p.langue+":"+p.texte;actuels.add(cle);
@@ -46,6 +47,7 @@ export async function catalogueAudioMemoire(force=false,recalculer=false):Promis
   });
   for(const cle of identifiants.keys())if(!actuels.has(cle))identifiants.delete(cle);
   Object.assign(etat.bilan,{catalogue_ms:Date.now()-debut,calcul_identifiants_ms:Date.now()-calcul,preparatifs_reutilises:reutilises,preparatifs_recalcules:recalcules});
+  calculsAudio.recents.push({ms:Date.now()-debut,calcul_ms:Date.now()-calcul,reutilises,recalcules,quand:new Date().toISOString()});calculsAudio.recents=calculsAudio.recents.slice(-12);
   etat.catalogue={phrases,aVerifier:inventaire.aVerifier,expire:Date.now()+15000,generation,prononciation};etat.bilan.devoirs_valides=inventaire.devoirsValides;etat.bilan.a_verifier=inventaire.aVerifier.length;
   actualiser(phrases);return phrases;
  })().finally(()=>{etat.lecture=undefined;});return etat.lecture;

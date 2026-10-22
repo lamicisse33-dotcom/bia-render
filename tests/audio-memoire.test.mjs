@@ -18,7 +18,7 @@ test('the durable audio identity changes with source text, language or pronuncia
 function fixture(){
  const objects=new Map();let generations=0,lessons=[devoir],fail=false,preparations=0,regles=[];
  const storage={assurerMemoire:async()=>{},lireObjetMemoire:async path=>objects.has(path)?new Response(objects.get(path)):null,ecrireObjetMemoire:async(path,body,_t,mutable)=>{if(objects.has(path)&&!mutable)throw Error('already exists');objects.set(path,typeof body==='string'?body:new Uint8Array(body));},supprimerObjetMemoire:async path=>objects.delete(path),objetsMemoire:async()=>new Map([...objects].filter(([p])=>p.startsWith('sons/')&&objects.has('details/'+p.slice(5,-4)+'.json')).map(([p,b])=>[p.slice(5,-4),b.length]))};
- function server(){const g={},timers=[];
+ function server(g={}){const timers=[];
   const api=load('lib/audio-memoire.ts',{'node:crypto':crypto,'./lexique-partage':{indexLexiquePartage:async()=>[]},'./devoirs-apprentissage':{devoirsALire:async()=>({devoirs:lessons})},'./lexique-apprentissage':{lireLecons:async()=>[]},'./prononciation':{reglesPrononciation:async()=>regles},'./lexique':{lexiqueConfig:{actif:true,url:'https://private',cle:'server-only',table:'lexique'}},'./passages-khalam-core':{preparerAvecRegles:t=>{preparations++;return [{texte:t,regles}];}},'./audio-memoire-core':core,'./audio-memoire-stockage':storage,'./sons-courants':{fabriquerSon:async()=>{generations++;if(fail)throw Error('GPU failed');return {audio:{secondes:1},mp3:new Uint8Array(2500).fill(25)};}}},{globalThis:g,fetch:async()=>({ok:true,json:async()=>[]}),setTimeout:f=>{timers.push(f);return {unref(){}};},clearTimeout(){}});
   return {api,pump:async()=>{const f=timers.shift();assert(f);f();await g.biaAudioMemoire.worker;},g};
  }return {server,objects,generations:()=>generations,preparations:()=>preparations,pronunciation:()=>{regles=[{de:"x",vers:"y"}];},change:()=>{lessons=[{...devoir,texte:devoir.texte.replace('Nanga def ?','Maa ngi fi.')}];},fail:()=>{fail=true;}};
@@ -64,4 +64,18 @@ test('inventory refresh reuses identical preparation but immediately invalidates
  f.pronunciation();s.g.biaGenerationPrononciation=1;
  const changed=await s.api.catalogueAudioMemoire();assert.notEqual(changed[0].id,first[0].id);assert.equal(f.preparations(),calls+2);
  const baseline=await s.api.catalogueAudioMemoire(true,true);assert.deepEqual(baseline,changed);assert.equal(f.preparations(),calls+4);
+});
+
+
+test('separate route bundles reuse the same audio IDs and invalidate pronunciation and corrected source immediately',async()=>{
+ const f=fixture(),g={},startup=f.server(g),asr=f.server(g),chat=f.server(g);
+ const initial=await startup.api.catalogueAudioMemoire(true),count=f.preparations();
+ assert.deepEqual(await asr.api.catalogueAudioMemoire(true),initial);assert.equal(f.preparations(),count);
+ assert.deepEqual(await chat.api.catalogueAudioMemoire(true),initial);assert.equal(f.preparations(),count);
+ assert.equal(chat.api.resumeAudioMemoire().calculs_recents.at(-1).recalcules,0);
+ f.change();const corrected=await asr.api.catalogueAudioMemoire(true);assert.equal(f.preparations(),count+1);assert(!corrected.some(p=>p.texte==='Nanga def ?'));
+ assert.deepEqual(await chat.api.catalogueAudioMemoire(true),corrected);assert.equal(f.preparations(),count+1);
+ f.pronunciation();g.biaGenerationPrononciation=1;
+ const pronunciation=await chat.api.catalogueAudioMemoire();assert.equal(f.preparations(),count+3);assert.notEqual(pronunciation[0].id,corrected[0].id);
+ assert.deepEqual(await asr.api.catalogueAudioMemoire(true),pronunciation);assert.equal(f.preparations(),count+3);
 });
