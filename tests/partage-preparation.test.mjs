@@ -44,3 +44,25 @@ test('independent dialogue modules reuse the same index, while a changed source 
  texte='Wolof : Nouvelle formulation exacte.\nFrançais : Formulation corrigée.';
  const b=await chat.indexDialogue();assert.notStrictEqual(b,a);assert.equal(b[0].repliques[0].wo,'Nouvelle formulation exacte.');assert.strictEqual(await asr.indexDialogue(),b);
 });
+
+test('ASR preloads the same common index used by chat and bricks; confirmed corrections invalidate it everywhere',async()=>{
+ const g={};let reads=0,indexes=0,release;
+ const gate=new Promise(r=>release=r);
+ const catalogue={version:1,elements:[{id:'devoirs:lesson',famille:'devoirs',source:'source',actif:true,texte:'Formulation ancienne.'}]};
+ const deps={
+  './memoire-commune-core':{fusionnerMemoire:e=>e.map(x=>({id:x.id,texte:x.texte}))},
+  './fiches-connaissances-core':{indexerFiches:e=>{indexes++;return e},selectionnerFiches:e=>({passages:e,texte:e.map(x=>x.texte).join(' ')})},
+  'node:crypto':crypto,'./audio-memoire-stockage':{lireObjetMemoire:async()=>{reads++;await gate;return Response.json(catalogue);}},
+  './lexique':{lexiqueConfig:{table:'fixture'},toutes:async()=>[],lectureLexique:()=>({motif:''})},
+  './devoirs-apprentissage':{devoirsALire:async()=>({devoirs:[{id:'lesson',texte:'Formulation corrigée exacte.'}]})},
+  './dialogue-devoirs-core':{indexerDevoirs:()=>[{id:'lesson'}],normaliserDialogue:s=>s},
+  './lexique-apprentissage':{},'./lexique-partage':{},'./biba-corrections':{},'./fiches-connaissances':{},'./lecons':{},'./instructions-apprentissage':{},
+ };
+ const asr=load('lib/memoire-organisee.ts',deps,g),chat=load('lib/memoire-organisee.ts',deps,g),briques=load('lib/memoire-organisee.ts',deps,g);
+ const preload=asr.preparerMemoireCommune(),pending=chat.contexteMemoireCommune('question');assert.equal(reads,1);release();await preload;
+ const initial=await pending;assert.match(initial,/Formulation ancienne/);assert.equal(await briques.contexteMemoireCommune('question'),initial);assert.equal(reads,1);assert.equal(indexes,1);
+ assert.equal(chat.resumeMemoireOrganisee().index_partage.chargements,1);assert.equal(chat.resumeMemoireOrganisee().index_partage.reutilisations,1);
+ g.biaRevisionMemoire=1;
+ const corrige=await chat.contexteMemoireCommune('question');assert.match(corrige,/Formulation corrigée exacte/);assert.doesNotMatch(corrige,/Formulation ancienne/);
+ assert.equal(await briques.contexteMemoireCommune('question'),corrige);assert.equal(await asr.contexteMemoireCommune('question'),corrige);assert.equal(reads,2);assert.equal(indexes,2);
+});

@@ -1,5 +1,7 @@
 import {teteDeLaReponse} from './diffusion';
 import {detecterLangue} from './langue';
+import {lireAudioBrique} from './briques-audio';
+import {assemblerSonsCourants} from './assembler-sons-courants';
 
 const g=globalThis as typeof globalThis&{biaDiagnosticLatence?:{rapport:any;travail?:Promise<void>}};
 const etat=g.biaDiagnosticLatence??={rapport:null};
@@ -21,9 +23,15 @@ export function verifierLatenceAutonome(){return etat.travail??=(async()=>{
  try{
   if(!code)throw Error('acces_absent');
   const audios=new Map<string,Buffer>(),transcriptions=new Map<string,string>();
+  rapport.preparation_audio=[];
   for(const exemple of exemples){
-   const r=await requete('/api/chatterbox-test/bia',{texte:exemple.texte,langue:exemple.langue,voice:'female',lecture_fidele:true},AbortSignal.timeout(30000));const d=await r.json();
-   if(!r.ok||!d.audio||d.parties!==1)throw Error('audio_temoin_indisponible');audios.set(exemple.id,Buffer.from(d.audio,'base64'));
+   const signal=AbortSignal.timeout(30000),debut=Date.now();
+   const r=await requete('/api/chatterbox-test/bia',{texte:exemple.texte,langue:exemple.langue,voice:'female',lecture_fidele:true,continu:true},signal);
+   const p:any={scenario:exemple.id,statut:r.status};rapport.preparation_audio.push(p);
+   if(!r.ok)throw Error('audio_temoin_indisponible');
+   const d=await lireAudioBrique(r,'female',signal);
+   p.parties=d.parties;p.ms=Date.now()-debut;
+   audios.set(exemple.id,Buffer.from(assemblerSonsCourants(d.clips,30).wav));
   }
   for(const index of [0,1,2,2,1,0]){
    const exemple=exemples[index],c:any={scenario:exemple.id,passage:rapport.cas.filter((x:any)=>x.scenario===exemple.id).length+1};rapport.cas.push(c);
@@ -70,6 +78,6 @@ export function verifierLatenceAutonome(){return etat.travail??=(async()=>{
    }catch{if(voix)await voix.catch(()=>{});c.ok=false;c.erreur='echange_non_confirme';c.ms=Date.now()-debut;}
   }
   rapport.statut=rapport.cas.every((c:any)=>c.ok)?'termine':'a_verifier';
- }catch{rapport.statut='echec';rapport.erreur='preparation_non_confirmee';}
+ }catch(e){rapport.statut='echec';rapport.erreur=e instanceof Error&&['acces_absent','audio_temoin_indisponible','Audio incomplet'].includes(e.message)?e.message:'preparation_non_confirmee';}
  rapport.fin=new Date().toISOString();
 })();}

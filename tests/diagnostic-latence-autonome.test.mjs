@@ -27,16 +27,19 @@ test('real-chain replay uses ASR output, preserves context, starts voice before 
     c.enqueue(encodeur.encode('event: fin\ndata: '+JSON.stringify({statut:200,corps:{reply:'Une phrase complète.',source:'contrôle'},chronometrage:{preparation_ms:10}})+'\n\n'));c.close();
    }}),{headers:{'content-type':'text/event-stream'}});
   }
-  if(!b.continu)return Response.json({audio:entree,parties:1});
+  if(b.lecture_fidele)return new Response([0,1].map(partie=>JSON.stringify({type:'morceau',partie,parties:2,voice:'female',empreinte:'controle',audio:entree})).join('\n')+'\n'+JSON.stringify({type:'fin'})+'\n');
   voix++;assert.equal(b.texte,'Une phrase complète.');liberer();
   return new Response(JSON.stringify({type:'morceau',partie:0,parties:1,audio:entree,audio_en_cache:false,temps_gpu:{attente_ms:0}})+'\n'+JSON.stringify({type:'fin'})+'\n');
  };
  const m={exports:{}},js=ts.transpileModule(fs.readFileSync('lib/diagnostic-latence-autonome.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  try{
-  new Function('require','module','exports',js)(id=>id==='./diffusion'?{teteDeLaReponse:s=>s.includes('.')?s:''}:{detecterLangue:()=> 'wo'},m,m.exports);
+  const audio={exports:{}};new Function('module','exports',ts.transpileModule(fs.readFileSync('lib/briques-audio.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText)(audio,audio.exports);
+  const deps={'./diffusion':{teteDeLaReponse:s=>s.includes('.')?s:''},'./langue':{detecterLangue:()=> 'wo'},'./briques-audio':audio.exports,'./assembler-sons-courants':{assemblerSonsCourants:(clips,maximum)=>{assert.equal(clips.length,2);assert.equal(maximum,30);return {wav:Buffer.concat(clips.map(b=>Buffer.from(b)))};}}};
+  new Function('require','module','exports',js)(id=>{assert(id in deps,id);return deps[id];},m,m.exports);
   await m.exports.verifierLatenceAutonome();await m.exports.verifierLatenceAutonome();
   const rapport=m.exports.resumeDiagnosticLatence();
   assert.equal(rapport.statut,'termine');assert.equal(ecoutes,6);assert.equal(conversations,6);assert.equal(voix,6);
+  assert(rapport.preparation_audio.every(c=>c.parties===2));
   assert(rapport.cas.every(c=>c.ok&&c.conversation.preparation_ms===10&&c.voix_cache===false));
   assert.equal(rapport.lecture_navigateur_mesuree,false);assert.equal(rapport.microphone_mesure,false);
   assert(!JSON.stringify(rapport).includes('transcription réelle'));assert(!JSON.stringify(rapport).includes('Une phrase complète.'));assert(!JSON.stringify(rapport).includes('synthetic-test-only'));
