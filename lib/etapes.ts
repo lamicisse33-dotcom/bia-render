@@ -44,6 +44,8 @@
 export type Etape = {
   /** « ecoute », « modele » ou « voix ». */
   quoi: string;
+  /** Identifiant du modèle pour séparer les mesures Haiku/Sonnet. */
+  modele?: string;
   /** Départ → premier octet utile. C'est le chiffre qui décide. */
   premier_ms: number;
   /** Départ → dernier octet. */
@@ -58,7 +60,7 @@ export type Etape = {
 const GARDEES = 60;
 let etapes: Etape[] = [];
 
-export function noterEtape(quoi: string, depart: number, premier: number, fin: number, signes = 0) {
+export function noterEtape(quoi: string, depart: number, premier: number, fin: number, signes = 0, modele = "") {
   const entier = (n: number) => {
     const x = Math.round(n);
     return Number.isFinite(x) && x >= 0 && x < 600_000 ? x : 0;
@@ -71,6 +73,7 @@ export function noterEtape(quoi: string, depart: number, premier: number, fin: n
   if (!fin_ms) return;
   etapes = [...etapes, {
     quoi: String(quoi).slice(0, 20),
+    ...(quoi === "modele" && modele ? { modele: String(modele).slice(0, 80) } : {}),
     premier_ms,
     fin_ms,
     /* CE QU'IL Y A À GAGNER, nommé pour qu'on n'ait pas à le calculer de
@@ -96,6 +99,16 @@ export function resumeEtapes() {
     if (!l.length) return null;
     const premier = mediane(l.map((e) => e.premier_ms));
     const fin = mediane(l.map((e) => e.fin_ms));
+    const parModele = quoi === "modele"
+      ? Object.fromEntries([...new Set(l.map((e) => e.modele).filter((m): m is string => Boolean(m)))].map((modele) => {
+          const m = l.filter((e) => e.modele === modele);
+          return [modele, {
+            appels: m.length,
+            premier_octet_ms: mediane(m.map((e) => e.premier_ms)),
+            complet_ms: mediane(m.map((e) => e.fin_ms)),
+          }];
+        }))
+      : {};
     return {
       appels: l.length,
       premier_octet_ms: premier,
@@ -117,6 +130,7 @@ export function resumeEtapes() {
           : `il y a ${fin - premier} ms à reprendre : le reste coule après le premier octet`,
       signes_median: mediane(l.map((e) => e.signes)),
       derniers: l.slice(-5),
+      ...(Object.keys(parModele).length ? { par_modele: parModele } : {}),
     };
   };
   return {
