@@ -12,5 +12,6 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22', cache: npm}
       - run: npm ci
+      - run: node --test tests/gemini-live.test.mjs
       - run: npx tsc --noEmit
       - run: npm run build
