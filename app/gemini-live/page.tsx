@@ -6,8 +6,10 @@ export default function GeminiLive(){
  const live=useRef<BiaGeminiLive|null>(null),[code,setCode]=useState(''),[etat,setEtat]=useState('Appuie sur Parler pour commencer'),[actif,setActif]=useState(false),[parle,setParle]=useState(false),[muet,setMuet]=useState(false),[erreur,setErreur]=useState(''),[latence,setLatence]=useState<number|null>(null),[user,setUser]=useState(''),[bia,setBia]=useState(''),[configure,setConfigure]=useState<boolean|null>(null);
  useEffect(()=>{try{setCode(localStorage.getItem('bia-code')||'');}catch{}void chargerPortrait('rara','nouvelle').catch(()=>{});void fetch('/api/gemini-live/session',{cache:'no-store'}).then(r=>r.json()).then(d=>setConfigure(d.configure===true)).catch(()=>{});return()=>live.current?.arreter();},[]);
  async function demarrer(){
-  live.current?.arreter();setErreur('');setActif(true);setMuet(false);
-  const moteur=new BiaGeminiLive(code,{etat:s=>{setEtat(s);if(s.includes('terminée')||s.includes('pause'))setActif(false);},transcription:(role,t)=>role==='user'?setUser(t):setBia(t),parle:setParle,latence:setLatence,erreur:s=>{setErreur(s);setActif(false);}});
+  const propre=code.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(!propre){setErreur('Saisis ton code maître.');return;}
+  setCode(propre);live.current?.arreter();setErreur('');setActif(true);setMuet(false);
+  const moteur=new BiaGeminiLive(propre,{etat:s=>{setEtat(s);if(s.includes('terminée')||s.includes('pause'))setActif(false);},transcription:(role,t)=>role==='user'?setUser(t):setBia(t),parle:setParle,latence:setLatence,erreur:s=>{setErreur(s);setActif(false);}});
   live.current=moteur;await moteur.demarrer();
  }
  function arreter(){live.current?.arreter();setActif(false);setEtat('Conversation arrêtée');}
@@ -19,10 +21,12 @@ export default function GeminiLive(){
    <p role="status">{etat}</p>
    {configure===false&&<p>La connexion Google doit encore être activée sur le serveur.</p>}
    {erreur&&<p role="alert" style={{color:'#ffb5ae'}}>{erreur}</p>}
-   {!actif&&<label>Code d’accès <input aria-label="Code d’accès" type="password" autoComplete="off" value={code} onChange={e=>setCode(e.target.value)} style={{color:'#111',padding:10,borderRadius:10}}/></label>}
+   <form onSubmit={e=>{e.preventDefault();if(!actif)void demarrer();}}>
+   {!actif&&<label>Code d’accès <input aria-label="Code d’accès" type="password" autoComplete="off" autoCapitalize="characters" autoCorrect="off" spellCheck={false} value={code} onChange={e=>setCode(e.target.value)} style={{color:'#111',padding:10,borderRadius:10}}/></label>}
    <div style={{display:'flex',gap:12,justifyContent:'center',margin:16}}>
-    {!actif?<button onClick={()=>void demarrer()} disabled={!code||configure===false} style={{padding:'16px 28px',borderRadius:30,background:'#d4af37',color:'#111'}}>Parler avec Bia</button>:<><button onClick={()=>{setMuet(!muet);live.current?.couperMicro(!muet);}} style={{padding:16,borderRadius:24}}>{muet?'Réactiver le micro':'Couper le micro'}</button><button onClick={arreter} style={{padding:16,borderRadius:24}}>Arrêter</button></>}
+    {!actif?<button type="submit" disabled={!code||configure===false} style={{padding:'16px 28px',borderRadius:30,background:'#d4af37',color:'#111'}}>Parler avec Bia</button>:<><button type="button" onClick={()=>{setMuet(!muet);live.current?.couperMicro(!muet);}} style={{padding:16,borderRadius:24}}>{muet?'Réactiver le micro':'Couper le micro'}</button><button type="button" onClick={arreter} style={{padding:16,borderRadius:24}}>Arrêter</button></>}
    </div>
+   </form>
    {user&&<p style={{opacity:.8}}>Toi : {user}</p>}
    {bia&&<p>Bia : {bia}</p>}
    {latence!==null&&<p style={{fontSize:12,opacity:.65}}>Dernier délai estimé avant le son : {(latence/1000).toFixed(2)} s</p>}
