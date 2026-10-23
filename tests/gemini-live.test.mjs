@@ -25,6 +25,7 @@ test('microphone resampling preserves the stream across worklet boundaries at 44
 test('session authentication precedes Google and returns only a constrained ephemeral token',async()=>{
  const module={exports:{}},oldFetch=globalThis.fetch,oldKey=process.env.GEMINI_API_KEY,oldGoogle=process.env.GOOGLE_API_KEY;
  const dependencies={
+  '@/lib/gemini-live-diagnostic':{resumeGeminiLive:()=>({statut:'non_lance'})},
   'next/server':{NextResponse:{json:(d,o)=>Response.json(d,o)}},
   '@/lib/codes':{verifierCode:code=>code==='MASTER'?{ok:true,maitre:true}:{ok:false}},
   '@/lib/instructions-apprentissage':{contexteInstructions:async()=>'Consignes apprises'},

@@ -1,3 +1,4 @@
+import {resumeGeminiLive} from '@/lib/gemini-live-diagnostic';
 import {NextRequest,NextResponse} from 'next/server';
 import {createHash} from 'node:crypto';
 import {verifierCode} from '@/lib/codes';
@@ -8,7 +9,7 @@ export const dynamic='force-dynamic';
 const sessions=new Map<string,number[]>();
 const headers={'cache-control':'no-store'};
 const cle=()=>process.env.GEMINI_API_KEY||process.env.GOOGLE_API_KEY||'';
-export async function GET(){return NextResponse.json({configure:Boolean(cle()),modele:process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live'},{headers});}
+export async function GET(){return NextResponse.json({configure:Boolean(cle()),modele:process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live',diagnostic:resumeGeminiLive()},{headers});}
 export async function POST(req:NextRequest){
  const acces=verifierCode(req.headers.get('x-bia-code'),false);
  if(!acces.ok)return NextResponse.json({erreur:'Code d’accès refusé.'},{status:401,headers});
@@ -34,7 +35,7 @@ export async function POST(req:NextRequest){
  };
  try{
   const r=await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens',{method:'POST',headers:{'x-goog-api-key':cle(),'Content-Type':'application/json'},body:JSON.stringify({uses:1,expireTime:new Date(now+10*60000).toISOString(),newSessionExpireTime:new Date(now+60000).toISOString(),bidiGenerateContentSetup:setup}),signal:AbortSignal.timeout(15000)});
-  if(!r.ok)return NextResponse.json({erreur:'Google refuse actuellement la connexion Live.',statut_fournisseur:r.status},{status:502,headers});
+  if(!r.ok){let motif='refus_google';try{const e=await r.json();motif=String(e.error?.message||e.error?.status||motif).split(cle()).join('[cle masquee]').slice(0,180);}catch{}return NextResponse.json({erreur:'Google refuse actuellement la connexion Live.',statut_fournisseur:r.status,motif},{status:502,headers});}
   const data=await r.json();
   if(typeof data.name!=='string')throw Error('jeton absent');
   return NextResponse.json({token:data.name,setup,expireTime:new Date(now+10*60000).toISOString()},{headers});
