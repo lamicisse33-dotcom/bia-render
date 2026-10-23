@@ -4708,7 +4708,7 @@ export default function Home() {
           setHistory(items=>[...items,message]);
           if(role==='user')langueDuFil.current=estWolof(text)?'wo':'fr';
         },
-        parle:actif=>{if(liveMaitreRef.current!==moteur)return;bouche(actif);if(!actif&&conversationRef.current){setMode('listening');setFace('ecoute');}},
+        parle:actif=>{if(liveMaitreRef.current!==moteur){if(!actif&&!liveMaitreRef.current)bouche(false);return;}bouche(actif);if(!actif&&conversationRef.current){setMode('listening');setFace('ecoute');}},
         latence:()=>{},erreur:message=>terminer(message),
       },historyRef.current);
       liveMaitreRef.current=moteur;setPanne('');
