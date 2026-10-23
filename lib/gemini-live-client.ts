@@ -1,5 +1,5 @@
 
-export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',texte:string,fin:boolean)=>void;parle:(v:boolean)=>void;latence:(ms:number)=>void;erreur:(s:string)=>void};
+export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',texte:string,fin:boolean)=>void;parle:(v:boolean)=>void;latence:(ms:number,tour:{session:string;tour:number})=>void;erreur:(s:string)=>void};
 const WORKLET=`
 class CaptureBia extends AudioWorkletProcessor{
  constructor(){super();this.pending=[];this.offset=0;this.samples=[];}
@@ -29,11 +29,42 @@ export function alphabetLiveAutorise(text:string){
 }
 export class BiaGeminiLive{
  private socket?:WebSocket;private micro?:MediaStream;private input?:AudioContext;private output?:AudioContext;private capture?:AudioWorkletNode;private source?:MediaStreamAudioSourceNode;private gain?:GainNode;
- private nodes=new Set<AudioBufferSourceNode>();private next=0;private stoppe=true;private ready=false;private finParole=0;private premiere=true;private idle?:ReturnType<typeof setInterval>;private timer?:ReturnType<typeof setTimeout>;
+ private nodes=new Set<AudioBufferSourceNode>();private next=0;private stoppe=true;private ready=false;private finParole=0;private idle?:ReturnType<typeof setInterval>;private timer?:ReturnType<typeof setTimeout>;
+ /* ── MESURER UNE FOIS PAR TOUR, ET PAS UNE FOIS PAR MORCEAU ──────────────
+
+    Lu sur /api/etat le 23 octobre 2026 à 22:28 : neuf « mesures » en 393 ms,
+    de 31 à 2 324 ms, pour UNE seule réponse. Trente et une mesures pour cinq
+    tours réels, et une médiane bonne par hasard.
+
+    LA FAUTE ÉTAIT ICI. `premiere` était ré-armé par n'importe quelle trame
+    au-dessus du seuil de bruit — donc par la voix de BIA que le micro entend
+    par le haut-parleur. Chaque morceau audio suivant déclenchait une mesure,
+    et ce qu'elle mesurait n'était plus une attente mais la PROFONDEUR DE LA
+    FILE DE LECTURE : le terme d'avance de planification grandit à mesure que
+    les morceaux s'empilent. D'où les valeurs qui montent.
+
+    Et mon garde-fou du serveur ne rattrapait rien : il bornait les valeurs
+    impossibles, pas le double armement. RÈGLE 4, corollaire — un filet sous
+    le mauvais trou ne rattrape rien.
+
+    DONC : on n'arme la mesure que sur une parole entendue PENDANT QU'ELLE SE
+    TAIT, et le premier morceau de sa réponse la referme. `finParole`, lui,
+    reste mis à jour par toutes les trames : c'est la veille des 90 secondes,
+    qui doit compter l'activité et non les tours.
+
+    CE QUE ÇA NE MESURE PLUS, exprès : le tour où on lui coupe la parole. Les
+    trames y arrivent pendant qu'elle parle, donc rien ne s'arme. Mieux vaut
+    quatre tours justes que trente faux. */
+ private finParoleMesure=0;private mesurePrete=false;private finDuSon=0;
+ private sessionMesure=Math.random().toString(36).slice(2,10)+Date.now().toString(36);private tourMesure=0;
  private userText='';private biaText='';private history:Array<{role:string;parts:Array<{text:string}>}>=[];private muted=false;
  constructor(private code:string,private events:LiveEvents,private historique?:Array<{role:'user'|'bia';text:string}>){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');}
  private send(data:unknown){if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify(data));}
- private viderSon(){for(const n of this.nodes){n.onended=null;try{n.stop();}catch{}}this.nodes.clear();this.next=0;this.events.parle(false);}
+ private viderSon(){for(const n of this.nodes){n.onended=null;try{n.stop();}catch{}}this.nodes.clear();this.next=0;this.finDuSon=performance.now();this.events.parle(false);}
+ /* Elle parle, ou elle vient de finir. Les 300 ms de marge couvrent la queue
+    d'écho du haut-parleur, qui ré-armait la mesure juste après sa dernière
+    syllabe. */
+ private elleParle(){return this.nodes.size>0||(this.finDuSon>0&&performance.now()-this.finDuSon<300);}
  async demarrer(){
   this.stoppe=false;this.events.etat('Connexion…');
   try{
@@ -49,7 +80,10 @@ export class BiaGeminiLive{
    this.capture.port.onmessage=e=>{
     if(this.stoppe||this.muted||!this.ready)return;
     const {raw,rms}=e.data as {raw:ArrayBuffer;rms:number};
-    if(rms>0.018){this.finParole=performance.now();this.premiere=true;}
+    if(rms>0.018){
+     this.finParole=performance.now();                       // veille : toute activité
+     if(!this.elleParle()){this.finParoleMesure=this.finParole;this.mesurePrete=true;}
+    }
     let binary='';for(const b of new Uint8Array(raw))binary+=String.fromCharCode(b);
     this.send({realtimeInput:{audio:{data:btoa(binary),mimeType:'audio/pcm;rate=16000'}}});
    };
@@ -108,9 +142,16 @@ export class BiaGeminiLive{
   for(let i=0;i<a.length;i++)a[i]=view.getInt16(i*2,true)/32768;
   const node=ctx.createBufferSource();node.buffer=buffer;node.connect(ctx.destination);this.nodes.add(node);
   const start=Math.max(ctx.currentTime+0.015,this.next);this.next=start+buffer.duration;
-  node.onended=()=>{node.disconnect();this.nodes.delete(node);if(!this.nodes.size)this.events.parle(false);};
+  node.onended=()=>{node.disconnect();this.nodes.delete(node);if(!this.nodes.size){this.finDuSon=performance.now();this.events.parle(false);}};
   node.start(start);this.events.parle(true);this.events.etat('Bia te répond');
-  if(this.premiere&&this.finParole){this.events.latence(Math.round(performance.now()-this.finParole+(start-ctx.currentTime)*1000));this.premiere=false;}
+  /* Le premier morceau de SA réponse, et lui seul. L'avance de planification
+     compte : ce morceau-ci n'est pas encore audible, et c'est le son qu'on
+     mesure, pas l'arrivée du paquet. */
+  if(this.mesurePrete&&this.finParoleMesure){
+   this.mesurePrete=false;this.tourMesure+=1;
+   const avance=Math.max(0,(start-ctx.currentTime)*1000);
+   this.events.latence(Math.round(performance.now()-this.finParoleMesure+avance),{session:this.sessionMesure,tour:this.tourMesure});
+  }
  }
  private finirTour(){
   if(this.userText.trim()){this.history.push({role:'user',parts:[{text:this.userText}]});this.events.transcription('user',this.userText,true);}
@@ -120,7 +161,7 @@ export class BiaGeminiLive{
  }
  couperMicro(v:boolean){this.muted=v;if(v)this.send({realtimeInput:{audioStreamEnd:true}});}
  arreter(){
-  this.stoppe=true;this.ready=false;clearInterval(this.idle);clearTimeout(this.timer);
+  this.stoppe=true;this.ready=false;this.mesurePrete=false;clearInterval(this.idle);clearTimeout(this.timer);
   this.socket?.close();this.socket=undefined;this.capture?.disconnect();this.source?.disconnect();this.gain?.disconnect();
   this.micro?.getTracks().forEach(t=>t.stop());this.micro=undefined;this.viderSon();
   void this.input?.close().catch(()=>{});void this.output?.close().catch(()=>{});this.input=undefined;this.output=undefined;

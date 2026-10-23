@@ -156,3 +156,79 @@ test('Live reads all lesson and lexicon pages, exact corrections and master inst
  assert.equal((await module.exports.POST(request({action:'supprimer'}))).status,400);
  assert.equal((await module.exports.POST(request({action:'lister_lexique',offset:-1}))).status,400);
 });
+
+/* ── UNE MESURE PAR TOUR, ET PAS UNE PAR MORCEAU ──────────────────────────
+
+   Lu sur /api/etat le 23 octobre 2026 à 22:28:26 : neuf « mesures » en
+   393 ms, de 31 à 2 324 ms, pour UNE seule réponse — et une médiane juste
+   par hasard. `premiere` était ré-armé par n'importe quelle trame au-dessus
+   du seuil de bruit, donc par la voix de BIA que le micro entend par le
+   haut-parleur ; chaque morceau suivant mesurait alors la profondeur de la
+   file de lecture, pas une attente.
+
+   Cette épreuve rejoue la séquence exacte : une parole, une réponse en trois
+   morceaux avec de l'écho entre les morceaux, puis un second tour. On exige
+   DEUX mesures numérotées, pas neuf. Les deux horloges — celle du navigateur
+   et celle de l'AudioContext — avancent ensemble, comme dans la vraie vie :
+   c'est ce qui rend l'avance de planification mesurable. */
+test('one measurement per turn: playback echo cannot re-arm it, and turns are numbered',()=>{
+ const module={exports:{}};
+ new Function('module','exports',compile('lib/gemini-live-client.ts'))(module,module.exports);
+ const mesures=[];
+ const client=new module.exports.BiaGeminiLive('TEST',{etat(){},transcription(){},parle(){},latence:(ms,tour)=>mesures.push({ms,...tour}),erreur(){}});
+
+ let maintenant=0,horloge=0;
+ const avancer=ms=>{maintenant+=ms;horloge+=ms/1000;};
+ const encours=[];
+ const ctx={get currentTime(){return horloge;},
+  createBuffer:(_c,n,rate)=>({duration:n/rate,getChannelData:()=>new Float32Array(n)}),
+  createBufferSource:()=>{const n={buffer:null,onended:null,connect(){},disconnect(){},start(){}};encours.push(n);return n;},
+  destination:{},close:async()=>{}};
+ client.output=ctx;client.stoppe=false;client.ready=true;client.send=()=>{};
+ const perf=performance.now;performance.now=()=>maintenant;
+ const morceau=Buffer.alloc(2400).toString('base64');   // 1200 échantillons à 24 kHz = 50 ms
+ /* Le même gestionnaire que le worklet réel : seule la décision d'armement
+    est rejouée, et c'est exactement la ligne qui était fautive. */
+ const trame=rms=>{
+  if(client.stoppe||client.muted||!client.ready)return;
+  if(rms>0.018){client.finParole=maintenant;if(!client.elleParle()){client.finParoleMesure=client.finParole;client.mesurePrete=true;}}
+ };
+ const parole=()=>trame(0.4),silence=()=>trame(0.001);
+ const finirLesSons=()=>{for(const n of encours.splice(0)) n.onended?.();};
+ const jouer=()=>client.jouer(morceau,'audio/pcm;rate=24000');
+ try{
+  /* AUCUNE parole : rien ne s'arme, rien ne se mesure. Avant ce correctif,
+     `premiere` valait vrai dès la construction et le tout premier morceau
+     après la connexion partait comme une fausse mesure. */
+  jouer();
+  assert.equal(mesures.length,0,'un morceau sans parole préalable ne se mesure pas');
+  finirLesSons();avancer(400);
+
+  /* TOUR 1 : il parle, elle répond en trois morceaux, et l'écho de sa voix
+     revient dans le micro entre les morceaux. */
+  parole();avancer(100);silence();avancer(900);
+  jouer();
+  assert.equal(mesures.length,1,'le premier morceau de sa réponse mesure');
+  assert.equal(mesures[0].ms,1015,'1000 ms d’attente + 15 ms d’avance de planification');
+  assert.equal(mesures[0].tour,1);
+  for(let i=0;i<2;i++){avancer(40);parole();jouer();}
+  assert.equal(mesures.length,1,'l’écho pendant la lecture ne ré-arme pas la mesure');
+
+  /* La lecture finit ; les 300 ms de marge couvrent la queue d'écho. */
+  finirLesSons();avancer(100);parole();
+  assert.equal(client.mesurePrete,false,'la queue d’écho ne ré-arme pas non plus');
+
+  /* TOUR 2 : il reparle vraiment, après la marge. */
+  avancer(400);parole();avancer(50);silence();avancer(750);
+  jouer();
+  assert.equal(mesures.length,2,'un nouveau tour se mesure');
+  assert.equal(mesures[1].tour,2);
+  assert.equal(mesures[1].ms,815);
+  assert.equal(mesures[0].session,mesures[1].session);
+  assert(/^[a-z0-9]{4,40}$/.test(mesures[0].session),mesures[0].session);
+
+  /* Et un arrêt ferme la mesure en cours. */
+  parole();client.arreter();
+  assert.equal(client.mesurePrete,false,'arrêter ferme la mesure en cours');
+ }finally{performance.now=perf;}
+});

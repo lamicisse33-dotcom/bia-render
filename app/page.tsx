@@ -4754,10 +4754,13 @@ export default function Home() {
            — exactement ce que la RÈGLE 1 de AVANT-DE-DIRE-QUE-C-EST-BON.md
            interdit. Elle part maintenant dans /api/etat, champ
            `khalam_rapide`, et `void` : noter ne retarde pas sa réponse. */
-        latence:ms=>{
+        latence:(ms,tour)=>{
           if(liveMaitreRef.current!==moteur)return;
+          /* Le numéro de tour part avec la mesure : c'est ce qui permet au
+             serveur de refuser un doublon si le navigateur se trompe un
+             jour, au lieu de le laisser polluer la médiane. */
           void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},
-            body:JSON.stringify({type:'khalam_rapide',etape:'premier_son',ms}),keepalive:true}).catch(()=>{});
+            body:JSON.stringify({type:'khalam_rapide',etape:'premier_son',ms,...tour}),keepalive:true}).catch(()=>{});
         },
         erreur:message=>terminer(message),
       },historyRef.current);
@@ -8171,15 +8174,32 @@ export default function Home() {
             <path d="M3 5h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v10h18V7H3Zm2 2h2v2H5V9Zm4 0h2v2H9V9Zm4 0h2v2h-2V9Zm4 0h2v2h-2V9ZM5 13h2v2H5v-2Zm4 0h10v2H9v-2Z" />
           </svg>
         </button>
-        <button
-          className={conversation ? `microphone en-conversation${entendParler && mode === "listening" ? " entend" : ""}` : "microphone"}
-          type="button" onClick={toggleMicrophone}
-          disabled={microFerme} aria-disabled={microFerme}
-          aria-label={conversation ? "Fermer la conversation vocale" : labels[mode]}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V5a3.5 3.5 0 0 0-7 0v6a3.5 3.5 0 0 0 3.5 3.5Zm-6-4a1 1 0 0 1 2 0V11a4 4 0 0 0 8 0v-.5a1 1 0 1 1 2 0V11a6 6 0 0 1-5 5.92V19h3a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3v-2.08A6 6 0 0 1 6 11v-.5Z" />
-          </svg>
-        </button>
+        {/* ── L'ÉTAT, PAS SEULEMENT LA DESTINATION ──────────────────────────
+
+            Lamine, le 23 octobre 2026 : « en Khalam Rapide j'entends
+            Chatterbox ». Le bouton de bascule dit où l'on VA — « Basculer
+            vers Khalam » — et il se lit aussi bien comme un état que comme
+            une destination. Avec deux chemins qui parlent tous les deux par
+            la bouche de BIA, cette ambiguïté coûte un diagnostic entier.
+
+            Donc le nom du chemin COURANT est écrit juste au-dessus du micro,
+            en permanence, et il est dans l'étiquette du bouton pour qui
+            écoute l'écran. Posé en absolu : le micro ne bouge pas d'un
+            pixel, sa place est une habitude. */}
+        <div className="micro-et-mode">
+          <span className="mode-actuel" data-mode-actuel={khalamRapide ? "rapide" : "khalam"} aria-hidden="true">
+            {khalamRapide ? "Khalam Rapide" : "Khalam"}
+          </span>
+          <button
+            className={conversation ? `microphone en-conversation${entendParler && mode === "listening" ? " entend" : ""}` : "microphone"}
+            type="button" onClick={toggleMicrophone}
+            disabled={microFerme} aria-disabled={microFerme}
+            aria-label={`${conversation ? "Fermer la conversation vocale" : labels[mode]} — ${khalamRapide ? "Khalam Rapide" : "Khalam"}`}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V5a3.5 3.5 0 0 0-7 0v6a3.5 3.5 0 0 0 3.5 3.5Zm-6-4a1 1 0 0 1 2 0V11a4 4 0 0 0 8 0v-.5a1 1 0 1 1 2 0V11a6 6 0 0 1-5 5.92V19h3a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3v-2.08A6 6 0 0 1 6 11v-.5Z" />
+            </svg>
+          </button>
+        </div>
 
         <button className="papier-ouvrir" type="button" aria-label="Moi — réglages et services"
           onClick={() => { ouvrirPapier("devis"); ouvrirService("fiche"); }}>

@@ -10,6 +10,14 @@ let browser;
  /* Point 5 : la latence fin de parole → premier son doit QUITTER le
     navigateur. Elle partait à la poubelle (`latence:()=>{}`). */
  const mesures=[];page.on('request',r=>{if(new URL(r.url()).pathname==='/api/mesure'){try{mesures.push(JSON.parse(r.postData()||'{}'));}catch{}}});
+ /* ── TRANCHER PAR LE RÉSEAU, PAS PAR L'ÉTIQUETTE ────────────────────────
+    Lamine, le 23 octobre 2026 : « en Khalam Rapide j'entends Chatterbox ».
+    Soit les étiquettes sont inversées, soit il était resté sur Khalam. On
+    enregistre donc les routes réellement appelées dans chaque mode : la
+    connexion rapide passe par /api/gemini-live/session et un WebSocket, le
+    chemin Khalam par /api/ecouter puis la voix Chatterbox. */
+ const routes=[];page.on('request',r=>{const c=new URL(r.url()).pathname;if(c.startsWith('/api/'))routes.push(c);});
+ const depuis=()=>{const n=routes.length;return ()=>routes.slice(n);};
  await page.route('**/api/**',async route=>{
   const path=new URL(route.request().url()).pathname;
   let data={};
@@ -73,6 +81,14 @@ let browser;
  assert.equal(await page.evaluate(()=>localStorage.getItem('bia-mode-conversation')),'rapide');
  await page.getByRole('button',{name:'Ouvrir le clavier et la conversation écrite'}).waitFor();
 
+ /* Le nom du chemin courant est écrit en permanence, pas seulement sur le
+    bouton : c'est ce qui manquait pour qu'on sache lequel répond. */
+ const nomDuMode=page.locator('.micro-et-mode .mode-actuel');
+ await nomDuMode.waitFor({state:'visible'});
+ assert.equal((await nomDuMode.innerText()).trim(),'Khalam Rapide');
+ assert(/Khalam Rapide$/.test(await page.locator('button.microphone').getAttribute('aria-label')));
+
+ const routesRapide=depuis();
  await page.locator('button.microphone').click();
  try{await page.getByRole('button',{name:"Elle l'a bien dit — à garder et à enregistrer"}).waitFor({timeout:15000});}catch(e){console.log('État après clic',await page.locator('body').innerText(),await page.evaluate(()=>window.__liveConnections));throw e;}
  assert.equal(await page.evaluate(()=>window.__liveConnections),1);
@@ -84,13 +100,66 @@ let browser;
  await page.getByText('Bonjour papa, comment vas-tu ?', {exact:true}).waitFor();
  await page.locator('.mal-dit').first().click();
  assert(await page.locator('textarea').count()>0);
+ /* ── LE VERDICT : LES ÉTIQUETTES NE SONT PAS INVERSÉES ──────────────────
+    En « Khalam Rapide » le navigateur a demandé la session rapide et n'a
+    touché NI /api/ecouter NI la voix Chatterbox. */
+ const vuesRapide=routesRapide();
+ assert(vuesRapide.includes('/api/gemini-live/session'),JSON.stringify(vuesRapide));
+ assert(!vuesRapide.some(c=>c.startsWith('/api/chatterbox-test')),JSON.stringify(vuesRapide));
+ assert(!vuesRapide.includes('/api/ecouter'),JSON.stringify(vuesRapide));
+
+ /* Et en « Khalam », le même geste n'ouvre AUCUNE connexion rapide. Dans un
+    contexte neuf : les panneaux ouverts par la scène précédente recouvrent
+    la barre, et on vérifie un chemin, pas une adresse de clic. */
+ const enKhalam=await browser.newContext();
+ const pageKhalam=await enKhalam.newPage();
+ const vuesKhalam=[];
+ pageKhalam.on('request',r=>{const c=new URL(r.url()).pathname;if(c.startsWith('/api/'))vuesKhalam.push(c);});
+ await pageKhalam.route('**/api/**',async route=>{
+  const chemin=new URL(route.request().url()).pathname;
+  let data={};
+  if(chemin==='/api/acces'||chemin==='/api/codes')data={ok:true,maitre:true};
+  if(chemin==='/api/etat')data={ecoute:'runpod',voix:'runpod',version:'local-synthetic'};
+  if(chemin==='/api/gemini-live/session')data={token:'auth_tokens/synthetic',setup:{model:'synthetic'}};
+  if(chemin==='/api/voix-gardees')data={ok:true};
+  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
+ });
+ await pageKhalam.addInitScript(decor);
+ await pageKhalam.goto('http://127.0.0.1:3112/');
+ await pageKhalam.locator('.micro-et-mode .mode-actuel').waitFor({state:'visible'});
+ assert.equal((await pageKhalam.locator('.micro-et-mode .mode-actuel').innerText()).trim(),'Khalam Rapide');
+ await pageKhalam.locator('button.bascule-mode').click();
+ assert.equal((await pageKhalam.locator('.micro-et-mode .mode-actuel').innerText()).trim(),'Khalam');
+ assert.equal((await pageKhalam.locator('button.bascule-mode').innerText()).trim(),'Basculer vers Khalam Rapide');
+ vuesKhalam.length=0;
+ await pageKhalam.locator('button.microphone').click();
+ await pageKhalam.waitForTimeout(3000);
+ assert(!vuesKhalam.includes('/api/gemini-live/session'),JSON.stringify(vuesKhalam));
+ assert.equal(await pageKhalam.evaluate(()=>window.__liveConnections),0);
+ await enKhalam.close();
+
  assert.equal(errors.length,0,errors.join('\n'));
  const bascules=mesures.filter(m=>m.type==='khalam_rapide'&&m.etape==='bascule');
  const premiersSons=mesures.filter(m=>m.type==='khalam_rapide'&&m.etape==='premier_son');
  assert.equal(bascules.length,2,JSON.stringify(mesures));
  assert.deepEqual(bascules.map(m=>m.vers),['khalam','rapide']);
- assert.equal(premiersSons.length,1,JSON.stringify(mesures));
- assert(Number.isFinite(premiersSons[0].ms)&&premiersSons[0].ms>=0);
+ /* ── POURQUOI ZÉRO MESURE ICI, ET POURQUOI C'EST LE BON RÉSULTAT ────────
+
+    La mesure ne s'arme plus que sur une parole entendue PENDANT QU'ELLE SE
+    TAIT. Le faux micro de Chromium ne franchit pas le seuil de bruit, donc
+    rien ne s'arme : avant le correctif, ce même décor déclarait 218 ms —
+    c'est-à-dire le temps depuis la connexion, pas depuis une fin de parole.
+
+    Ce qu'on exige donc ici : AU PLUS une mesure. La rafale du 23 octobre à
+    22:28 (neuf en 393 ms) ferait échouer cette ligne. Le comportement exact
+    de l'armement est éprouvé au cas par cas dans tests/gemini-live.test.mjs
+    (« one measurement per turn »), où les deux horloges sont pilotées. */
+ assert(premiersSons.length<=1,JSON.stringify(premiersSons));
+ for(const m of premiersSons){
+  assert(Number.isFinite(m.ms)&&m.ms>=0);
+  assert.equal(m.tour,1);
+  assert(/^[a-z0-9]{4,40}$/.test(m.session||''),JSON.stringify(m));
+ }
  /* ── POINT 1 : KHALAM RAPIDE POUR QUELQU'UN QUI N'EST PAS LAMINE ────────
     Décidé par Lamine le 23 octobre 2026. Avant ce jour la connexion rapide
     était réservée à son code maître. On rejoue donc la même scène avec un
@@ -127,5 +196,6 @@ let browser;
  assert.equal(erreursVisiteur.length,0,erreursVisiteur.join('\n'));
  await visite.close();
 
- console.log(JSON.stringify({live:true,interface_maitre:true,bien_dit:1,mal_dit:1,fil:true,correction:true,bascules:bascules.map(m=>m.vers),latence_declaree_ms:premiersSons[0].ms,visiteur_khalam_rapide:true,erreurs:errors}));
+ console.log(JSON.stringify({live:true,interface_maitre:true,bien_dit:1,mal_dit:1,fil:true,correction:true,bascules:bascules.map(m=>m.vers),latences_declarees:premiersSons.map(m=>m.ms),visiteur_khalam_rapide:true,
+  routes_en_rapide:[...new Set(vuesRapide)],routes_en_khalam:[...new Set(vuesKhalam)],erreurs:errors}));
  }catch(e){console.error(e);process.exitCode=1;}finally{await browser?.close();server.kill();}})();

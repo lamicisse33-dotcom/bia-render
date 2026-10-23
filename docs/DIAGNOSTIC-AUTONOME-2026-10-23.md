@@ -128,3 +128,88 @@ Ni le silence de fin de parole, ni le réseau du téléphone, ni le haut-parleur
 Aucun gain avant/après n'est déduit de cette série. Et aucune de ces durées ne
 dit ce que Lamine entend : pour l'oreille, la voix et le micro, la RÈGLE 1
 tient — ça se mesure dans sa bouche et dans ses oreilles.
+
+---
+
+# Addendum du 23 octobre au soir : la mesure elle-même était fausse
+
+## La rafale
+
+Premier relevé réel de `khalam_rapide` après la mise en ligne de `e2827ea` :
+médiane 1 411 ms sur 31 mesures. Les horodatages disent autre chose.
+
+```
+22:27:57.251   3185      ← tour réel (connexion froide)
+22:28:05.681   1532      ← tour réel
+22:28:16.806   1411      ← tour réel
+22:28:26.249     31  ┐
+22:28:26.307    319  │   NEUF mesures en 393 ms.
+22:28:26.330    476  │   Ce n'est pas neuf tours :
+22:28:26.399    642  ├── c'est UNE réponse, et ses
+22:28:26.467    878  │   morceaux audio successifs.
+22:28:26.528   1398  │
+22:28:26.565   1732  │
+22:28:26.607   1995  │
+22:28:26.642   2324  ┘
+```
+
+**La faute, `lib/gemini-live-client.ts`** : `premiere` était remis à vrai par
+toute trame au-dessus du seuil de bruit — donc par la voix de BIA que le micro
+entend au haut-parleur. Chaque morceau suivant déclenchait une mesure, et ce
+qu'elle mesurait n'était plus une attente mais la **profondeur de la file de
+lecture** : le terme d'avance de planification grandit à mesure que les
+morceaux s'empilent. D'où les valeurs qui montent de 31 à 2 324.
+
+Et `premiere` valait vrai **dès la construction**, avec `finParole` posé à la
+connexion : le tout premier morceau partait donc comme une mesure, en comptant
+le temps depuis la connexion et non depuis une fin de parole.
+
+**Mon garde-fou serveur ne rattrapait rien.** Il bornait les valeurs
+impossibles ; les neuf étaient toutes dans les bornes. `mesures_refusees`
+affichait 0 pendant que la médiane était fausse. C'est la RÈGLE 4 mot pour
+mot : « un filet doit être posé sous le défaut réel ».
+
+## Les seuls chiffres qui valaient quelque chose
+
+**3 185 ms au premier tour (connexion froide), puis 1 532 et 1 411 ms.** Soit
+**environ 1,4 à 1,5 s** de la fin de parole au premier son en régime établi.
+La médiane publiée tombait près de la vérité par hasard, ce qui est
+exactement pourquoi il ne fallait pas s'y fier.
+
+## Les deux filets, au bon trou
+
+1. **Navigateur** : la mesure ne s'arme que sur une parole entendue *pendant
+   qu'elle se tait* (`nodes.size`, plus 300 ms de marge pour la queue
+   d'écho), et le premier morceau de sa réponse la referme. `finParole` reste
+   mis à jour par toutes les trames : c'est la veille des 90 s, qui doit
+   compter l'activité et non les tours.
+2. **Serveur** : le navigateur numérote ses tours (`session` + rang), et un
+   tour déjà vu est refusé et compté dans `tours_en_double_refuses`. Un seuil
+   de temps n'aurait pas marché : Khalam Rapide étant ouverte à tous, deux
+   personnes peuvent légitimement mesurer dans la même seconde.
+
+Ce qui n'est **plus** mesuré, exprès : le tour où on lui coupe la parole.
+Quatre tours justes valent mieux que trente faux, et la limite publique le dit.
+
+## Le bouton : tranché par le réseau
+
+Lamine : « en Khalam Rapide j'entends Chatterbox. » Deux hypothèses — étiquettes
+inversées, ou resté sur Khalam. Les routes réellement appelées, mode par mode,
+dans Chromium sur un serveur de production :
+
+| mode affiché | routes appelées au clic sur le micro |
+|---|---|
+| **Khalam Rapide** | `/api/gemini-live/session` — et **ni** `/api/chatterbox-test` **ni** `/api/ecouter` |
+| **Khalam** | `/api/ecouter/morceau` — et **aucune** session rapide, zéro WebSocket |
+
+**Les étiquettes ne sont pas inversées.** Et les compteurs le confirment :
+`basculements` disait `vers_khalam: 1`, `vers_rapide: 0`. Lamine avait basculé
+une fois vers Khalam et n'était pas revenu — il entendait Chatterbox parce
+qu'il était sur Khalam.
+
+La vraie faute était d'affichage : le bouton nomme la **destination**
+(« Basculer vers Khalam »), et avec deux chemins qui parlent de la même voix et
+sous le même visage, cette étiquette se lit aussi bien comme un état. Le nom du
+chemin **courant** est donc écrit en permanence au-dessus du micro, et il est
+dans l'étiquette du bouton du micro pour qui écoute l'écran. Posé en absolu :
+le micro ne bouge pas d'un pixel, sa place est une habitude du pouce.

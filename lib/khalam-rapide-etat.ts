@@ -17,12 +17,30 @@
    son, aucun code d'accès ne passe par ici. */
 
 type Mesure = { ms: number; quand: string };
-const g = globalThis as typeof globalThis & {
-  biaKhalamRapide?: { mesures: Mesure[]; tours: number; refusees: number; basculements: { vers_rapide: number; vers_khalam: number } };
-};
-const etat = (g.biaKhalamRapide ??= { mesures: [], tours: 0, refusees: 0, basculements: { vers_rapide: 0, vers_khalam: 0 } });
+type Etat = { mesures: Mesure[]; tours: number; refusees: number; doublons: number; vus: Map<string, number>; basculements: { vers_rapide: number; vers_khalam: number } };
+const g = globalThis as typeof globalThis & { biaKhalamRapide?: Etat };
+const etat: Etat = (g.biaKhalamRapide ??= { mesures: [], tours: 0, refusees: 0, doublons: 0, vus: new Map<string, number>(), basculements: { vers_rapide: 0, vers_khalam: 0 } });
 
 const BORNE_MS = 60000;
+const SESSIONS_AU_PLUS = 200;
+
+/* ── LE FILET, CETTE FOIS SOUS LE BON TROU ─────────────────────────────────
+
+   Première version : je bornais les valeurs impossibles. Le 23 octobre à
+   22:28, neuf mesures d'une même réponse sont passées — toutes dans les
+   bornes, toutes fausses. `mesures_refusees` affichait 0 pendant que le
+   champ était pollué. C'est RÈGLE 4 mot pour mot : « un filet doit être posé
+   sous le défaut réel ».
+
+   Le défaut réel était le DOUBLON DE TOUR, pas la valeur aberrante. Le
+   navigateur numérote donc ses tours (session + rang), et un tour déjà vu
+   est refusé et compté à part. Un seuil de temps n'aurait pas marché : avec
+   Khalam Rapide ouverte à tout le monde, deux personnes peuvent mesurer
+   dans la même seconde sans que ce soit un doublon.
+
+   La table des sessions est bornée : la plus ancienne part quand elle
+   déborde. Aucun identifiant de personne ici — un jeton tiré au hasard par
+   le navigateur, sans lien avec un code d'accès. */
 
 /** Le téléphone dit combien de temps il a attendu le premier son. Rien d'autre. */
 export function noterKhalamRapide(d: Record<string, unknown>) {
@@ -35,6 +53,15 @@ export function noterKhalamRapide(d: Record<string, unknown>) {
   /* Une mesure hors bornes est refusée et COMPTÉE : un compteur muet est ce
      qui a caché six jours de wolof refusé (RÈGLE 3). */
   if (d.etape !== "premier_son" || !Number.isFinite(ms) || ms < 0 || ms > BORNE_MS) { etat.refusees += 1; return; }
+  const session = String(d.session ?? "").slice(0, 40), tour = Number(d.tour);
+  /* Une mesure sans numéro de tour vient d'un téléphone qui n'a pas encore
+     la nouvelle page : on la refuse plutôt que de la mélanger. */
+  if (!/^[a-z0-9]{4,40}$/.test(session) || !Number.isSafeInteger(tour) || tour < 1) { etat.refusees += 1; return; }
+  const dernier = etat.vus.get(session);
+  if (dernier !== undefined && tour <= dernier) { etat.doublons += 1; return; }
+  etat.vus.delete(session);
+  etat.vus.set(session, tour);
+  while (etat.vus.size > SESSIONS_AU_PLUS) etat.vus.delete(etat.vus.keys().next().value as string);
   etat.tours += 1;
   etat.mesures.push({ ms: Math.round(ms), quand: new Date().toISOString() });
   etat.mesures = etat.mesures.slice(-90);
@@ -52,6 +79,8 @@ export function resumeKhalamRapide() {
     defaut_pour_tous: true,
     tours_mesures: etat.tours,
     mesures_refusees: etat.refusees,
+    tours_en_double_refuses: etat.doublons,
+    telephones_mesures: etat.vus.size,
     fin_de_parole_au_premier_son: {
       mediane_ms: mediane(ms),
       minimum_ms: ms.length ? Math.min(...ms) : null,
@@ -61,6 +90,7 @@ export function resumeKhalamRapide() {
     basculements: { ...etat.basculements },
     limite:
       "Mesure navigateur déclarée : de la fin de sa parole au premier son, avance de planification audio comprise. " +
+      "Une seule mesure par tour, armée par une parole entendue pendant qu'elle se tait : un tour où on lui coupe la parole n'est pas mesuré. " +
       "Le silence de fin de parole décidé par la détection d'activité et le réseau du téléphone sont dedans sans être séparés. " +
       "Aucun texte, transcription ni son n'est exporté.",
   };
