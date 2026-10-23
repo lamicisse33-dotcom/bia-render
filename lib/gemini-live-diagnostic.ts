@@ -20,7 +20,6 @@ function pcm16k(wav:Buffer){
 export function verifierGeminiLive(){return etat.travail??=(async()=>{
  etat.date=new Date().toISOString();etat.statut='en_cours';
  if(typeof WebSocket==='undefined'){etat.statut='websocket_serveur_indisponible';return;}
- const {POST}=await import('../app/api/gemini-live/session/route');
  const {POST:parler}=await import('../app/api/chatterbox-test/route');
  const {NextRequest}=await import('next/server');
  for(const [langue,texte] of [['fr','Bonjour Bia. Comment vas-tu ?'],['wo','Nanga def Bia ?']]){
@@ -30,7 +29,7 @@ export function verifierGeminiLive(){return etat.travail??=(async()=>{
    if(!speech.ok)throw Error('source_audio_http_'+speech.status);
    const spoken=await speech.json();if(!spoken.output?.audio_base64)throw Error('source_audio_absente');
    const audio=pcm16k(Buffer.from(spoken.output.audio_base64,'base64'));
-   const response=await POST(new NextRequest('https://app.khalam.app/api/gemini-live/session',{method:'POST',headers:{'x-bia-code':process.env.BIA_CODE_MAITRE||''}}));
+   const response=await fetch('https://app.khalam.app/api/gemini-live/session',{method:'POST',headers:{'x-bia-code':process.env.BIA_CODE_MAITRE||'',origin:'https://app.khalam.app'},signal:AbortSignal.timeout(25000),cache:'no-store'});
    cas.jeton_http=response.status;const d=await response.json();
    if(!response.ok){cas.fournisseur_http=d.statut_fournisseur;throw Error(d.motif||'session_refusee');}
    await new Promise<void>((resolve,reject)=>{
