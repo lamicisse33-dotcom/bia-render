@@ -14,7 +14,9 @@ export async function POST(req:NextRequest){
  const acces=verifierCode(req.headers.get('x-bia-code'),false);
  if(!acces.ok)return NextResponse.json({erreur:'Code d’accès refusé.'},{status:401,headers});
  if(!acces.maitre)return NextResponse.json({erreur:'Ce premier branchement est réservé au code maître.'},{status:403,headers});
- if(req.headers.get('origin')&&req.headers.get('origin')!==req.nextUrl.origin)return NextResponse.json({erreur:'Origine refusée.'},{status:403,headers});
+ // Render can expose an internal nextUrl origin behind its HTTPS reverse proxy.
+ const origine=req.headers.get('origin');
+ if(origine&&origine!==req.nextUrl.origin&&origine!=='https://app.khalam.app')return NextResponse.json({erreur:'Origine refusée.'},{status:403,headers});
  if(!cle())return NextResponse.json({erreur:'La clé Gemini doit être configurée sur le serveur.',motif:'cle_absente'},{status:503,headers});
  const id=createHash('sha256').update(req.headers.get('x-bia-code')||'').digest('hex'),now=Date.now();
  for(const [k,v] of sessions)if(!v.some(t=>now-t<60000))sessions.delete(k);
