@@ -29,7 +29,7 @@ test('session authentication precedes Google and returns only a constrained ephe
   'next/server':{NextResponse:{json:(d,o)=>Response.json(d,o)}},
   '@/lib/codes':{verifierCode:code=>code==='MASTER'?{ok:true,maitre:true}:code==='VISITOR'?{ok:true,maitre:false}:{ok:false}},
   '@/lib/instructions-apprentissage':{contexteInstructions:async()=>'Consignes apprises'},
-  '@/lib/gemini-live-prompt':{BIA_LIVE_SYSTEM:'Identité de Bia'}
+  '@/lib/gemini-live-prompt':{BIA_LIVE_CONSIGNES_BASE:'Identité de Bia'}
  };
  const calls=[];globalThis.fetch=async(url,init)=>{calls.push({url,init});return Response.json({name:'auth_tokens/ephemeral-test'});};
  process.env.GEMINI_API_KEY='FAKE-SERVER-KEY';delete process.env.GOOGLE_API_KEY;
@@ -56,4 +56,23 @@ test('Live code normalization matches normal Bia before creating HTTP headers',(
  const client=new module.exports.BiaGeminiLive('  ma\u00a0st-er\u200b  ',{});
  assert.equal(client.code,'MASTER');
  assert.equal(new Headers({'x-bia-code':client.code}).get('x-bia-code'),'MASTER');
+});
+
+test('Live retains the exact native identity and shared base instructions',()=>{
+ function literal(path,name){
+  const source=ts.createSourceFile(path,fs.readFileSync(path,'utf8'),ts.ScriptTarget.Latest,true);let value;
+  function visit(node){if(ts.isVariableDeclaration(node)&&node.name.getText(source)===name&&node.initializer&&ts.isNoSubstitutionTemplateLiteral(node.initializer))value=node.initializer.text;ts.forEachChild(node,visit);}
+  visit(source);assert.equal(typeof value,'string',name);return value;
+ }
+ const identity=literal('app/api/chat/route.ts','system');
+ const relations=literal('lib/relations.ts','SOCLE_RELATIONS');
+ const comprehensionModule={exports:{}};
+ new Function('module','exports',compile('lib/comprehension-conversation.ts'))(comprehensionModule,comprehensionModule.exports);
+ const comprehension=comprehensionModule.exports.CONSIGNE_COMPREHENSION;
+ const master=literal('lib/conversation-groq.ts','CONSIGNE_MAITRE');
+ const deps={'./relations':{SOCLE_RELATIONS:relations},'./comprehension-conversation':{CONSIGNE_COMPREHENSION:comprehension},'./conversation-groq':{CONSIGNE_MAITRE:master}};
+ const module={exports:{}};
+ new Function('module','exports','require',compile('lib/gemini-live-prompt.ts'))(module,module.exports,n=>deps[n]);
+ assert.equal(module.exports.BIA_LIVE_SYSTEM,identity);
+ assert.equal(module.exports.BIA_LIVE_CONSIGNES_BASE,[identity,relations,comprehension,master].join('\n\n'));
 });
