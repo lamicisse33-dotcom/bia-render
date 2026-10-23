@@ -1,0 +1,16 @@
+name: Validate Gemini Live integration
+on:
+  push:
+    branches: [integration/gemini-live-20261023]
+permissions: {contents: read}
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build
