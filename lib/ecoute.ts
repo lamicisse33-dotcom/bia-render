@@ -279,8 +279,12 @@ async function unEssai(
      sur du wolof. C'est ce que ces cent mots étaient censés corriger depuis
      six jours. */
   if (mots && mots.length) {
-    for (const m of mots) form.append("keyterms", m);
-    compte.mots = mots.length;
+    // ElevenLabs counts multipart entries, not just unique keyterms. The
+    // merged pronunciation/lesson vocabulary can contain thousands; keep a
+    // small prioritized prefix so retries never exceed its 1,100-field cap.
+    const termes = mots.slice(0, 100);
+    for (const m of termes) form.append("keyterms", m);
+    compte.mots = termes.length;
   }
 
   /* ── LES TROIS INSTANTS DE L'ÉCOUTE ─────────────────────────────────
