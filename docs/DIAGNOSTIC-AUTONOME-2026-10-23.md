@@ -213,3 +213,94 @@ sous le même visage, cette étiquette se lit aussi bien comme un état. Le nom 
 chemin **courant** est donc écrit en permanence au-dessus du micro, et il est
 dans l'étiquette du bouton du micro pour qui écoute l'écran. Posé en absolu :
 le micro ne bouge pas d'un pixel, sa place est une habitude du pouce.
+
+---
+
+# Addendum 2 : la porte qui refusait l'anticipation
+
+Priorité du 23 octobre au soir : l'anticipation ne se déclenche jamais, et
+`sans_preparation: 4` alors que l'écoute progressive réussit 6 fois sur 6.
+Trouvé **par la mesure**, pas par la lecture.
+
+## Ce que disaient les compteurs
+
+```
+anticipation_conversation.ecoute   segments 6, segments_reussis 6
+anticipation_conversation          preparations 0, pretes 0, servies 0
+briques_conversation               sessions 0, preparees 0, lectures 0
+briques_conversation.departs       sans_preparation 4
+micro_capture.derniers  parole_ms  1151   702   2686   767
+```
+
+`sessions: 0` est la clé : **le téléphone n'a jamais rien demandé au serveur.**
+Les sept portes du serveur n'avaient donc rien refusé — elles n'avaient rien
+vu. Lire le serveur d'abord faisait conclure à tort que tout allait bien.
+
+## La porte, nommée et éprouvée
+
+`tests/eligibilite-anticipation.test.mjs` rejoue les quatre durées de parole
+mesurées, avec la capture réelle (100 ms de PCM, 1 s de pré-micro, 400 ms
+d'endpoint) et une ASR à 900 ms. Résultat, sur 702, 767 et 1151 ms :
+
+| porte | ce qu'elle dit |
+|---|---|
+| `premier_segment_hors_portee` | la phrase n'atteint jamais le seuil du premier segment |
+| `transcription_apres_fermeture` | le seul segment part sur le silence de fin de parole ; sa transcription revient **après** la fermeture de la capture |
+| `jamais_de_texte` (`signes_max: 0`) | le producteur de briques n'a **jamais vu un caractère** |
+| `demandes: 0` | aucune requête ne part — CQFD |
+
+**Le seuil de 35 signes n'a même pas été consulté.** Ni les sept portes du
+serveur. La porte était la première de la chaîne : le premier segment partait
+après **4 000 ms de tampon**, jamais atteint par une phrase ordinaire.
+L'anticipation n'était pas en panne — elle était **hors de portée**.
+
+## La correction
+
+`lib/premier-segment.ts` : le premier segment part après **1 500 ms de
+PAROLE** (le seuil déjà éprouvé par le profil d'essai `sonnet-segment-1500`),
+avec la compensation du pré-micro désormais appliquée dans tous les cas — sans
+elle, un premier clip pourrait n'être que du silence, et une ASR générative
+invente des mots sur du silence. Les segments **suivants** gardent leur durée.
+
+Module sans aucun import, exprès : les épreuves qui chargent
+`lib/ecoute-progressive.ts` rendent souvent le même module factice pour toutes
+ses dépendances, et une constante prise ailleurs y arrivait `undefined` — le
+seuil devenait `NaN` et plus aucun segment ne partait, en silence. C'est
+arrivé pendant cette session, et c'est ce qui a fait tomber deux épreuves.
+Un seuil faux doit être impossible, pas rattrapé.
+
+Mesuré sur 2 686 ms de parole : un segment part **pendant** qu'il parle, sa
+transcription arrive avant la fermeture, et la demande de préparation part
+vraiment.
+
+## Ce que ça coûte, et ce que ça ne donnera pas
+
+**Une transcription de plus par tour de plus de 1,5 s de parole.** C'est le
+prix de l'anticipation.
+
+Et une limite à dire avant de mesurer : **trois des quatre tours de Lamine
+étaient sous 1,2 s de parole.** Sous 1,5 s il n'y a rien à anticiper — le
+chemin ordinaire est déjà le plus rapide. Le gain ne portera donc que sur les
+phrases plus longues, et il ne faut pas attendre que la médiane des 5,2 s
+tombe d'un coup.
+
+## Le lever suivant, non pris
+
+Sur une phrase courte, la transcription finale est connue ~900 ms après la
+coupure du micro, et le chemin ordinaire enchaîne alors modèle (870–1 800 ms)
+puis voix (1 450–1 700 ms). Les briques pourraient prendre le relais là, mais
+`commencer()` exige qu'une brique soit déjà prête — décision datée et
+explicite : « ASR alone is not a prepared response. Starting a new brick after
+speech ended can add an entire rejected model call before ordinary chat
+starts. » Je ne la retourne pas sans mesure et sans l'accord de Lamine.
+
+## Les portes, désormais toutes nommées
+
+Champ public `eligibilite_anticipation` : `porte_qui_refuse`,
+`cote_telephone`, `cote_serveur`, `tours_sans_aucun_texte`, et les vingt
+derniers tours. Le téléphone passe devant dans le classement — s'il n'a
+jamais demandé, un refus du serveur n'est pas la cause.
+
+Noms de conditions et comptes seulement. La longueur du texte est publiée
+parce qu'elle **est** la condition ; aucune transcription, aucun texte, aucun
+code. Une porte inventée par un client bricolé n'entre pas.

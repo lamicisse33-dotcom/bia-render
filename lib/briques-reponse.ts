@@ -13,6 +13,7 @@ import {detecterLangue} from './langue';
 import {assemblerSonsCourants} from './assembler-sons-courants';
 import {POST as synthetiser} from '../app/api/chatterbox-test/bia/route';
 import {contexteAnticipation,empreinteAnticipation,normaliserAnticipation,eligibleBriques} from './anticipation-core';
+import {noterRefusServeur} from './eligibilite-etat';
 import {etatBriques} from './briques-etat';
 import type {BriqueAudio} from './briques-file';
 import {garder} from './souvenirs';
@@ -75,8 +76,21 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
   let s:Session|undefined;
   if(body.id){s=sessions.get(String(body.id));if(!s||s.owner!==owner||s.profil!==profilRapidite(body.essaiRapidite))throw Error('Session inconnue');}
   else {
-    if(!eligibleBriques(texte)||salutationReconnue(texte)||identiteReconnue(texte)||!Array.isArray(body.history)||!['female','male'].includes(body.voice)||body.apprend||! /^[a-zA-Z0-9_-]{8,80}$/.test(String(body.tour||'')))return null;
-    if(sessions.size>=32||[...sessions.values()].filter(x=>x.owner===owner&&!x.fermee).length>=4)return null;
+    /* ── CHAQUE REFUS PORTE SON NOM ──────────────────────────────────────
+
+       Sept conditions étaient réunies dans un seul `||` : le refus repartait
+       `null`, sans trace. Le 23 octobre, `sessions: 0` et `preparations: 0`
+       ne disaient donc rien de la cause. Même ordre, même décision, mais
+       chaque porte se nomme avant de se fermer. Voir lib/eligibilite-etat.ts. */
+    if(texte.length<35||texte.length>6000){noterRefusServeur('texte_court',texte.length);return null;}
+    if(!eligibleBriques(texte)){noterRefusServeur('texte_action',texte.length);return null;}
+    if(salutationReconnue(texte)){noterRefusServeur('salutation',texte.length);return null;}
+    if(identiteReconnue(texte)){noterRefusServeur('identite',texte.length);return null;}
+    if(!Array.isArray(body.history)){noterRefusServeur('historique');return null;}
+    if(!['female','male'].includes(body.voice)){noterRefusServeur('voix');return null;}
+    if(body.apprend){noterRefusServeur('apprentissage');return null;}
+    if(! /^[a-zA-Z0-9_-]{8,80}$/.test(String(body.tour||''))){noterRefusServeur('tour_invalide');return null;}
+    if(sessions.size>=32||[...sessions.values()].filter(x=>x.owner===owner&&!x.fermee).length>=4){noterRefusServeur('limite_personne');return null;}
     const v=verifierCode(code,false);if(!v.ok)return null;
     s={profil:profilRapidite(body.essaiRapidite),id:randomUUID(),owner,tour:body.tour,history:contexteAnticipation(body.history.map((m:any)=>({...m,role:m.role==='bia'?'assistant':m.role}))),resume:String(body.resume||'').slice(0,6000),voice:body.voice,maitre,expire:Date.now()+240000,traite:'',dernier:'',briques:[],occupe:false,fermee:false,appels:0};
     sessions.set(s.id,s);etatBriques.sessions++;

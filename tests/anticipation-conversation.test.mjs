@@ -29,6 +29,7 @@ test('draft ownership, single consumption and changed intent are enforced withou
  delete globalThis.biaAnticipationReponse;let syntheses=0,modeles=0;
  const api=load('lib/anticipation-reponse.ts',id=>{
  if(id==='node:crypto')return crypto;if(id==='next/server')return {NextRequest:Request};if(id==='./anticipation-core')return core;
+ if(id==='./eligibilite-etat')return {noterRefusServeur(){},noterEligibilite(){},resumeEligibilite:()=>({})};
  if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
  if(id==='./cerveau-anthropic')return {MODELE_SONNET:'test',MODELE_HAIKU:'test-haiku',messagesAnthropic:messages=>({messages}),contenuAnthropic:d=>d.text,fetchAnthropic:async()=>{modeles++;return Response.json({text:JSON.stringify({eligible:true,reply:'Écoute ton ami et demande-lui ce qui lui ferait du bien.',valide:false})});}};
  if(id==='./conversation-groq')return {messagesConversation:()=>[]};if(id==='./memoire-organisee')return {contexteMemoireCommune:async()=>''};if(id==='./instructions-apprentissage')return {contexteInstructions:async()=>''};if(id==='./langue')return {detecterLangue:()=> 'fr'};if(id==='./assembler-sons-courants')return {assemblerSonsCourants:()=>({wav:new ArrayBuffer(1200)})};
@@ -49,20 +50,38 @@ test('Sonnet request preserves the constrained JSON schema and default conversat
 });
 
 
-test('first partial transcription starts after four seconds and preserves ordered complete samples',async()=>{
+/* ── LE PREMIER SEGMENT PART À 1,5 s DE PAROLE, PAS À 4 s ─────────────────
+
+   Contrat changé sciemment le 23 octobre 2026. À 4 s, le premier segment
+   était hors de portée d'une phrase ordinaire : mesuré sur quatre tours
+   Khalam réels, 702, 767, 1151 et 2686 ms de parole, l'anticipation ne
+   partait jamais. Voir lib/premier-segment.ts et
+   tests/eligibilite-anticipation.test.mjs.
+
+   Ce qui NE change pas, et que cette épreuve garde intact : aucun échantillon
+   perdu ni dupliqué, les segments restent ordonnés, et la durée totale
+   annoncée est exactement celle qui a été poussée. */
+test('first partial transcription starts after 1.5 s of speech and preserves ordered complete samples',async()=>{
  const sent=[],updates=[];const p=progressive().creerEcouteProgressive(async f=>{sent.push((await f.get('audio').arrayBuffer()).byteLength);return Response.json({texte:'Un premier point achevé.'});},()=> 'fr',()=>true,t=>updates.push(t));
- for(let i=0;i<15;i++)p.pousser(new Float32Array(4000).fill(.2),true);
- await new Promise(r=>setTimeout(r,0));assert.equal(sent.length,0);
+ for(let i=0;i<5;i++)p.pousser(new Float32Array(4000).fill(.2),true);
+ await new Promise(r=>setTimeout(r,0));assert.equal(sent.length,0,'rien avant 1,5 s de parole');
  p.pousser(new Float32Array(4000).fill(.2),true);await new Promise(r=>setTimeout(r,0));assert.equal(sent.length,1);assert.equal(updates.length,1);
- const end=await p.finir();assert.equal(sent.reduce((n,b)=>n+(b-44)/2,0),4*16000);assert.equal(end.progressive.secondes,4);
+ const end=await p.finir();
+ assert.deepEqual(sent.map(b=>(b-44)/2),[8160,15840],'coupe au plus silencieux, puis le reste');
+ assert.equal(sent.reduce((n,b)=>n+(b-44)/2,0),1.5*16000,'tous les échantillons, une seule fois');
+ assert.equal(end.progressive.secondes,1.5);
 });
 
 test('a short utterance is transcribed during the endpointing pause and resumed speech retains every sample',async()=>{
  let frames=0;const updates=[];const p=progressive().creerEcouteProgressive(async f=>{frames+=((await f.get('audio').arrayBuffer()).byteLength-44)/2;return Response.json({texte:'Un point complet.'});},()=> 'fr',()=>true,t=>updates.push(t));
  for(let i=0;i<8;i++)p.pousser(new Float32Array(4000).fill(.2),true);
  for(let i=0;i<2;i++)p.pousser(new Float32Array(4000),false);
- await new Promise(r=>setTimeout(r,0));assert.equal(p.segmentsCommences,1);assert.equal(updates.length,1,'must start before the 1.5–2 second endpoint');assert.equal(frames,40000);
+ /* Deux segments depuis le 23 octobre 2026, et c'est le progrès : un PENDANT
+    la parole (à 1,5 s), un à la pause d'endpointing. Avant, le premier ne
+    partait qu'à 4 s, donc jamais sur une phrase de deux secondes, et seule
+    la pause produisait du texte — trop tard pour préparer quoi que ce soit. */
+ await new Promise(r=>setTimeout(r,0));assert.equal(p.segmentsCommences,2);assert.equal(updates.length,2,'must start before the 1.5–2 second endpoint');assert.equal(frames,40000);
  for(let i=0;i<5;i++)p.pousser(new Float32Array(4000).fill(.15),true);
  for(let i=0;i<2;i++)p.pousser(new Float32Array(4000),false);
- const result=await p.finir();assert.equal(frames,17*4000);assert.equal(result.progressive.secondes,4.25);
+ const result=await p.finir();assert.equal(p.segmentsCommences,3);assert.equal(frames,17*4000,'aucun échantillon perdu ni dupliqué');assert.equal(result.progressive.secondes,4.25);
 });

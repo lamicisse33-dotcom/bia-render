@@ -8,6 +8,7 @@ import {detecterLangue} from './langue';
 import {assemblerSonsCourants} from './assembler-sons-courants';
 import {POST as synthetiser} from '../app/api/chatterbox-test/bia/route';
 import {eligibleAnticipation,contexteAnticipation,empreinteAnticipation,normaliserAnticipation,verifierSuite} from './anticipation-core';
+import {noterRefusServeur} from './eligibilite-etat';
 import {gpuAnticipation} from './anticipation-gpu';
 const globalAnticipation=globalThis as typeof globalThis&{biaAnticipationReponse?:any};
 const espace=globalAnticipation.biaAnticipationReponse??={};
@@ -25,11 +26,18 @@ async function modele(messages:Array<{role:string;content:string}>,signal?:Abort
 }
 export async function preparerReponseAnticipee(body:any,code:string,maitre:boolean,signal:AbortSignal){
  balayer();const question=normaliserAnticipation(body.texte),tour=String(body.tour||'');
- if(!/^[a-zA-Z0-9_-]{8,80}$/.test(tour)||!eligibleAnticipation(question)||body.persona==='rara'||body.apprend||!['female','male'].includes(body.voice))return null;
+ /* Même règle qu'au-dessus : un refus sans nom est un refus qu'on cherchera
+    encore dans six jours. */
+ if(!/^[a-zA-Z0-9_-]{8,80}$/.test(tour)){noterRefusServeur('tour_invalide');return null;}
+ if(question.length<35||question.length>6000){noterRefusServeur('texte_court',question.length);return null;}
+ if(!eligibleAnticipation(question)){noterRefusServeur('texte_action',question.length);return null;}
+ if(body.persona==='rara'){noterRefusServeur('persona_rara');return null;}
+ if(body.apprend){noterRefusServeur('apprentissage');return null;}
+ if(!['female','male'].includes(body.voice)){noterRefusServeur('voix');return null;}
  // Compile the small validation schema once while speech and preparation continue.
  if(!espace.schemaVerification){espace.schemaVerification=modele([{role:'system',content:'Retourne uniquement {"valide":false}. Ceci initialise le format, sans conversation utilisateur.'},{role:'user',content:'Initialisation.'}],AbortSignal.timeout(10000),true).then(()=>true).catch(()=>false);}
  const owner=empreinteAnticipation(code),limite=limites.get(owner)||{debut:Date.now(),n:0,busy:false,dernier:0};
- if(limite.busy||limite.n>=8||Date.now()-limite.dernier<10000)return null;
+ if(limite.busy||limite.n>=8||Date.now()-limite.dernier<10000){noterRefusServeur('limite_personne');return null;}
  limite.busy=true;limite.n++;limite.dernier=Date.now();limites.set(owner,limite);etat.preparations++;const debut=Date.now();let etape='contexte';
  try{
  const history=contexteAnticipation(body.history),resume=String(body.resume||'').slice(0,6000);

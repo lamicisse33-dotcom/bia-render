@@ -39,17 +39,25 @@ test('ordinary and brick measurements preserve the long resumed turn without bla
  const nouveau=api.resumeEssaiRapidite().profils.find(p=>p.profil==='sonnet-segment-1500');
  assert.equal(nouveau.tours,1);assert.equal(nouveau.mediane_sans_reprise_ms,2100);
 });
+/* ── LE PREMIER SEGMENT NE DÉPEND PLUS DU PROFIL, LES SUIVANTS SI ─────────
+
+   Depuis le 23 octobre 2026, le premier segment part à 1,5 s de parole quel
+   que soit le profil : à 4 s il était hors de portée d'une phrase ordinaire
+   et l'anticipation ne partait jamais (voir lib/premier-segment.ts). Les
+   segments SUIVANTS gardent la durée du profil — c'est ce que règle
+   `segmentRapiditeMs`, et c'est ce que cette épreuve continue de vérifier
+   par le total des échantillons et l'absence de clip vide. */
 test('the faster progressive cut sends every sample in order and never starts playback',async()=>{
- const {creerEcouteProgressive}=load('lib/ecoute-progressive.ts',{'./ecoute-longue':load('lib/ecoute-longue.ts')});
+ const {creerEcouteProgressive}=load('lib/ecoute-progressive.ts',{'./ecoute-longue':load('lib/ecoute-longue.ts'),'./premier-segment':load('lib/premier-segment.ts')});
  for(const seuil of [1500,2500,4000]){
   const clips=[];let recorded=0,firstAt;
   const p=creerEcouteProgressive(async f=>{firstAt??=recorded;const b=await f.get('audio').arrayBuffer();clips.push((b.byteLength-44)/2);return Response.json({texte:'Une pensée complète.'});},()=> 'fr',()=>true,()=>{},seuil);
   for(let n=0;n<120;n++){recorded+=100;p.pousser(new Float32Array(1600).fill(.2),true);await Promise.resolve();}
-  await p.finir();assert.equal(firstAt,seuil);assert.equal(clips.reduce((a,b)=>a+b,0),192000);assert(clips.every(n=>n>0));
+  await p.finir();assert.equal(firstAt,Math.min(seuil,1500),'premier segment à 1,5 s de parole, profil ou non');assert.equal(clips.reduce((a,b)=>a+b,0),192000,'tous les échantillons, une seule fois');assert(clips.every(n=>n>0));
  }
 });
 test('the 1.5 s trial keeps pre-roll but never sends it alone as its first continuous-speech clip',async()=>{
- const {creerEcouteProgressive}=load('lib/ecoute-progressive.ts',{'./ecoute-longue':load('lib/ecoute-longue.ts')});
+ const {creerEcouteProgressive}=load('lib/ecoute-progressive.ts',{'./ecoute-longue':load('lib/ecoute-longue.ts'),'./premier-segment':load('lib/premier-segment.ts')});
  const clips=[];let recorded=0,firstAt;
  const p=creerEcouteProgressive(async f=>{firstAt??=recorded;const a=await f.get('audio').arrayBuffer(),v=new DataView(a),samples=[];for(let i=44;i<a.byteLength;i+=2)samples.push(v.getInt16(i,true));clips.push(samples);return Response.json({texte:'Une pensée complète.'});},()=> 'fr',()=>true,()=>{},1500);
  for(let i=0;i<10;i++){recorded+=100;p.pousser(new Float32Array(1600),false);await Promise.resolve();}

@@ -19,3 +19,4 @@ export function entetesRapidite(): Record<string, string> {
   return profil ? {'x-bia-essai-rapidite': profil} : {};
 }
 export function segmentRapiditeMs(profil: unknown) { return profil === 'sonnet-segment-1500' ? 1500 : rapiditeOptimisee(profil) || profil === 'segment-2500' ? 2500 : 4000; }
+

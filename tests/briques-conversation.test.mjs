@@ -48,6 +48,7 @@ function server(answer,options={}){
   if(id==='./identite-core')return load('lib/identite-core.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./salutations-dialogue')return load('lib/salutations-dialogue.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./anticipation-core')return core;
+  if(id==='./eligibilite-etat')return {noterRefusServeur(){},noterEligibilite(){},resumeEligibilite:()=>({})};
   if(id==='./briques-etat')return {etatBriques:state};
   if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
   if(id==='./cerveau-anthropic')return {MODELE_SONNET:'test',messagesAnthropic:messages=>({messages}),contenuAnthropic:d=>d.text,fetchAnthropic:async(u,init)=>{
@@ -246,7 +247,11 @@ test('final points are synthesized one at a time and charged only after the last
 });
 test('ASR without a prepared or running brick takes ordinary chat without a preliminary model call',async()=>{
  const original=globalThis.fetch;let calls=0;
- globalThis.fetch=async()=>{calls++;assert.fail('no final brick request before ordinary chat');};
+ /* La déclaration des portes part vers /api/mesure : ce n'est pas une demande
+    de brique, et c'est elle qui dit pourquoi rien n'a été préparé. L'intention
+    de l'épreuve — aucun appel au modèle avant le chat ordinaire — est gardée
+    telle quelle. */
+ globalThis.fetch=async(url)=>{if(String(url)==='/api/mesure')return {ok:true,json:async()=>({ok:true})};calls++;assert.fail('no final brick request before ordinary chat');};
  try{
   const p=load('lib/briques-client.ts',()=>fileApi).creerProducteurBriques({...body,code:'owner',actuel:()=>true});p.arreterEcoute();
   const reading=p.commencer({signal:new AbortController().signal,jouer:async()=>assert.fail('no prepared audio'),attente(){},taire(){},mesure(){}});assert.equal(reading,null);

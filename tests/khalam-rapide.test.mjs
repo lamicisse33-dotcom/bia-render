@@ -121,6 +121,7 @@ test('la route de mesure aiguille le type khalam_rapide',async()=>{
  const muet=new Proxy({},{get:()=>()=>{}});
  const route=load('app/api/mesure/route.ts',{
   '@/lib/khalam-rapide-etat':{noterKhalamRapide:d=>vus.push(d)},
+  '@/lib/eligibilite-etat':muet,
   'next/server':{NextResponse:{json:(d)=>Response.json(d)}},
   '@/lib/relecture-etat':muet,'@/lib/rapidite-etat':muet,'@/lib/micro-etat':muet,
   '@/lib/reprise-etat':muet,'@/lib/protection-parole-etat':muet,'@/lib/briques-etat':muet,
