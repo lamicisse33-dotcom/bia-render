@@ -1,7 +1,7 @@
 name: Validate Gemini Live integration
 on:
   push:
-    branches: [integration/gemini-live-20261023, diagnostic/gemini-live-20261023]
+    branches: [integration/gemini-live-20261023, diagnostic/gemini-live-20261023, fix/gemini-live-checks-20261023]
 permissions: {contents: read}
 jobs:
   validate:
@@ -12,6 +12,6 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22', cache: npm}
       - run: npm ci
-      - run: node --test tests/gemini-live.test.mjs
+      - run: node --test tests/gemini-live.test.mjs tests/diagnostic-ports-gpu.test.mjs
       - run: npx tsc --noEmit
       - run: npm run build

@@ -13,7 +13,7 @@ test('probes both configured health routes once without a key and separates gate
  process.env.WOLOF_LOCAL_URL='https://example-8000.proxy.runpod.net';process.env.CHATTERBOX_TEST_URL='https://example-8001.proxy.runpod.net';
  globalThis.fetch=async(url,options)=>{calls.push({url,options});return new Response('{}',{status:url.includes('8000')?502:200});};
  try{
-  await Promise.all([api.verifierPortsGpu(),api.verifierPortsGpu()]);assert.equal(calls.length,2);assert(calls.every(c=>!c.options.headers&&c.url.endsWith('/health')));
+  await Promise.all([api.verifierPortsGpu(),api.verifierPortsGpu()]);assert.equal(calls.length,2);assert(calls.some(c=>c.url.endsWith('8000.proxy.runpod.net/asr/health')));assert(calls.some(c=>c.url.endsWith('8001.proxy.runpod.net/health')));assert(calls.every(c=>!c.options.headers&&c.url.endsWith('/health')));
   const d=api.resumePortsGpu();assert.equal(d.statut,'termine');assert.equal(d.cas.find(c=>c.role==='oreille').verdict,'passerelle_sans_service');assert.equal(d.cas.find(c=>c.role==='voix').verdict,'sante_http_accessible');assert(!JSON.stringify(d).includes('example-'));
  }finally{globalThis.fetch=oldFetch;if(oldEar===undefined)delete process.env.WOLOF_LOCAL_URL;else process.env.WOLOF_LOCAL_URL=oldEar;if(oldVoice===undefined)delete process.env.CHATTERBOX_TEST_URL;else process.env.CHATTERBOX_TEST_URL=oldVoice;}
 });
