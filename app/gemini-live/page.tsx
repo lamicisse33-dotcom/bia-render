@@ -4,7 +4,7 @@ import {BiaGeminiLive} from '@/lib/gemini-live-client';
 import {chargerPortrait} from '@/lib/portrait-images';
 export default function GeminiLive(){
  const live=useRef<BiaGeminiLive|null>(null),[code,setCode]=useState(''),[etat,setEtat]=useState('Appuie sur Parler pour commencer'),[actif,setActif]=useState(false),[parle,setParle]=useState(false),[muet,setMuet]=useState(false),[erreur,setErreur]=useState(''),[latence,setLatence]=useState<number|null>(null),[user,setUser]=useState(''),[bia,setBia]=useState(''),[configure,setConfigure]=useState<boolean|null>(null);
- useEffect(()=>{try{setCode(localStorage.getItem('bia-code')||'');}catch{}void chargerPortrait('bia','nouvelle').catch(()=>{});void fetch('/api/gemini-live/session',{cache:'no-store'}).then(r=>r.json()).then(d=>setConfigure(d.configure===true)).catch(()=>{});return()=>live.current?.arreter();},[]);
+ useEffect(()=>{try{setCode(localStorage.getItem('bia-code')||'');}catch{}void chargerPortrait('rara','nouvelle').catch(()=>{});void fetch('/api/gemini-live/session',{cache:'no-store'}).then(r=>r.json()).then(d=>setConfigure(d.configure===true)).catch(()=>{});return()=>live.current?.arreter();},[]);
  async function demarrer(){
   live.current?.arreter();setErreur('');setActif(true);setMuet(false);
   const moteur=new BiaGeminiLive(code,{etat:s=>{setEtat(s);if(s.includes('terminée')||s.includes('pause'))setActif(false);},transcription:(role,t)=>role==='user'?setUser(t):setBia(t),parle:setParle,latence:setLatence,erreur:s=>{setErreur(s);setActif(false);}});
@@ -12,7 +12,7 @@ export default function GeminiLive(){
  }
  function arreter(){live.current?.arreter();setActif(false);setEtat('Conversation arrêtée');}
  return <main className="bia-presence" data-mode={parle?'speaking':'ready'} style={{minHeight:'100dvh',background:'#000'}}>
-  <div className="portrait" aria-hidden="true" data-tenue="nouvelle" data-persona="bia"><div className="avatar" data-face="yeux_ouverts"/></div>
+  <div className="portrait" aria-hidden="true" data-tenue="nouvelle" data-persona="rara"><div className="avatar" data-face="yeux_ouverts"/></div>
   <a href="/" style={{position:'fixed',top:16,left:16,zIndex:20,color:'#e3c576',padding:12,background:'#151515df',borderRadius:20}}>Bia habituelle</a>
   <section style={{position:'fixed',bottom:0,left:0,right:0,zIndex:20,padding:'20px 20px max(24px, env(safe-area-inset-bottom))',background:'linear-gradient(transparent,#000 22%)',color:'white',textAlign:'center',maxHeight:'65dvh',overflowY:'auto'}}>
    <h1 style={{fontSize:24}}>Bia · Conversation directe</h1>
