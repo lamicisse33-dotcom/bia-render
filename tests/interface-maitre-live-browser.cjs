@@ -33,7 +33,10 @@ let browser;
   }
   window.WebSocket=FakeSocket;
  });
+ const controleMaitre=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/codes');
  await page.goto('http://127.0.0.1:3112/');
+ await controleMaitre;
+ await page.locator('.outils button').filter({hasText:'Apprentissage / lecture continue'}).waitFor({state:'attached'});
  await page.getByRole('button',{name:'Ouvrir le clavier et la conversation écrite'}).waitFor();
  await page.locator('button.microphone').click();
  try{await page.getByRole('button',{name:"Elle l'a bien dit — à garder et à enregistrer"}).waitFor({timeout:15000});}catch(e){console.log('État après clic',await page.locator('body').innerText(),await page.evaluate(()=>window.__liveConnections));throw e;}
