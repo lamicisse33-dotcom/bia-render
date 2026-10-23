@@ -487,6 +487,9 @@ async function chezSoynade(audio: Blob, nomFichier: string, langue: "wo" | "fr")
       method: "POST",
       headers: { Authorization: `Bearer ${s.apiKey}` },
       body: form,
+      // Never let an unavailable ASR gateway stall the conversation for minutes.
+      // The existing ElevenLabs fallback handles this timeout.
+      signal: AbortSignal.timeout(6_000),
     });
     compteSoynade.ms += Date.now() - parti;
     if (!r.ok) {
