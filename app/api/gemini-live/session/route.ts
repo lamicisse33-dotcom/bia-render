@@ -3,13 +3,13 @@ import {NextRequest,NextResponse} from 'next/server';
 import {createHash} from 'node:crypto';
 import {verifierCode} from '@/lib/codes';
 import {contexteInstructions} from '@/lib/instructions-apprentissage';
-import {BIA_LIVE_SYSTEM} from '@/lib/gemini-live-prompt';
+import {BIA_LIVE_CONSIGNES_BASE} from '@/lib/gemini-live-prompt';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 const sessions=new Map<string,number[]>();
 const headers={'cache-control':'no-store'};
 const cle=()=>process.env.GEMINI_API_KEY||process.env.GOOGLE_API_KEY||'';
-export async function GET(){return NextResponse.json({configure:Boolean(cle()),modele:process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live',diagnostic:resumeGeminiLive()},{headers});}
+export async function GET(){return NextResponse.json({configure:Boolean(cle()),modele:process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live',consignes_base:{empreinte_sha256:createHash('sha256').update(BIA_LIVE_CONSIGNES_BASE).digest('hex'),sources:['identite_et_personnalite_bia','relations','comprehension_conversation','consigne_maitre'],instructions_apprises:true},diagnostic:resumeGeminiLive()},{headers});}
 export async function POST(req:NextRequest){
  const acces=verifierCode(req.headers.get('x-bia-code'),false);
  if(!acces.ok)return NextResponse.json({erreur:'Code d’accès refusé.'},{status:401,headers});
@@ -28,7 +28,7 @@ export async function POST(req:NextRequest){
  const setup={
   model:'models/'+(process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live').replace(/^models\//,''),
   generationConfig:{responseModalities:['AUDIO'],maxOutputTokens:512,speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Kore'}}}},
-  systemInstruction:{parts:[{text:BIA_LIVE_SYSTEM+'\n'+instructions+'\nMODE VOCAL DIRECT : parle uniquement en français ou en wolof urbain de Dakar selon la langue de papa. Une ou deux phrases naturelles, puis écoute. Ne coupe jamais la parole. Ne récite pas les prix des devoirs sans demande explicite. Tu appelles le maître papa. Les anciennes commandes d’écran ne sont pas exécutées dans ce mode : ne prétends pas avoir effectué une action. Consulte chercher_connaissances pour les leçons et corrections mémorisées pertinentes. Ne prétends jamais avoir enregistré un nouvel apprentissage : renvoie vers le mode habituel pour cela.'}]},
+  systemInstruction:{parts:[{text:BIA_LIVE_CONSIGNES_BASE+'\n'+instructions+'\nMODE VOCAL DIRECT : parle uniquement en français ou en wolof urbain de Dakar selon la langue de papa. Privilégie une réponse naturelle et concise, puis écoute. Les consignes de base et les formulations exactes apprises priment sur la concision. Ne coupe jamais la parole. Ne récite pas les prix des devoirs sans demande explicite. Tu appelles le maître papa au début de ta réponse de conversation, sans ajouter papa aux phrases exactes à répéter. Ne lis jamais les balises techniques à voix haute : dans ce mode, exprime les émotions naturellement dans la voix. Les anciennes commandes d’écran ne sont pas exécutées dans ce mode : ne prétends pas avoir effectué une action. Consulte chercher_connaissances pour les leçons et corrections mémorisées pertinentes. Ne prétends jamais avoir enregistré un nouvel apprentissage : renvoie vers le mode habituel pour cela.'}]},
   inputAudioTranscription:{},outputAudioTranscription:{},
   realtimeInputConfig:{automaticActivityDetection:{startOfSpeechSensitivity:'START_SENSITIVITY_HIGH',endOfSpeechSensitivity:'END_SENSITIVITY_LOW',prefixPaddingMs:150,silenceDurationMs:500},activityHandling:'START_OF_ACTIVITY_INTERRUPTS'},
   contextWindowCompression:{triggerTokens:'18000',slidingWindow:{targetTokens:'9000'}},
