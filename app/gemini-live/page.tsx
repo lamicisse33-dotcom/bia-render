@@ -15,9 +15,9 @@ export default function GeminiLive(){
  function arreter(){live.current?.arreter();setActif(false);setEtat('Conversation arrêtée');}
  return <main className="bia-presence" data-mode={parle?'speaking':'ready'} style={{minHeight:'100dvh',background:'#000'}}>
   <div className="portrait" aria-hidden="true" data-tenue="nouvelle" data-persona="rara"><div className="avatar" data-face="yeux_ouverts"/></div>
-  <a href="/" style={{position:'fixed',top:16,left:16,zIndex:20,color:'#e3c576',padding:12,background:'#151515df',borderRadius:20}}>Bia habituelle</a>
+  <a href="/?mode=khalam" style={{position:'fixed',top:16,left:16,zIndex:20,color:'#e3c576',padding:12,background:'#151515df',borderRadius:20}}>Khalam et apprentissages</a>
   <section style={{position:'fixed',bottom:0,left:0,right:0,zIndex:20,padding:'20px 20px max(24px, env(safe-area-inset-bottom))',background:'linear-gradient(transparent,#000 22%)',color:'white',textAlign:'center',maxHeight:'65dvh',overflowY:'auto'}}>
-   <h1 style={{fontSize:24}}>Bia · Conversation rapide</h1>
+   <h1 style={{fontSize:24}}>Bia</h1>
    <p role="status">{etat}</p>
    {configure===false&&<p>La connexion Google doit encore être activée sur le serveur.</p>}
    {erreur&&<p role="alert" style={{color:'#ffb5ae'}}>{erreur}</p>}
