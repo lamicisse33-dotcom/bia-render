@@ -26,7 +26,7 @@ export class BiaGeminiLive{
  private socket?:WebSocket;private micro?:MediaStream;private input?:AudioContext;private output?:AudioContext;private capture?:AudioWorkletNode;private source?:MediaStreamAudioSourceNode;private gain?:GainNode;
  private nodes=new Set<AudioBufferSourceNode>();private next=0;private stoppe=true;private ready=false;private finParole=0;private premiere=true;private idle?:ReturnType<typeof setInterval>;private timer?:ReturnType<typeof setTimeout>;
  private userText='';private biaText='';private history:Array<{role:string;parts:Array<{text:string}>}>=[];private muted=false;
- constructor(private code:string,private events:LiveEvents){}
+ constructor(private code:string,private events:LiveEvents){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');}
  private send(data:unknown){if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify(data));}
  private viderSon(){for(const n of this.nodes){n.onended=null;try{n.stop();}catch{}}this.nodes.clear();this.next=0;this.events.parle(false);}
  async demarrer(){
@@ -58,6 +58,7 @@ export class BiaGeminiLive{
  private async connecter(){
   const response=await fetch('/api/gemini-live/session',{method:'POST',headers:{'x-bia-code':this.code},signal:AbortSignal.timeout(25000),cache:'no-store'});
   const data=await response.json();if(!response.ok)throw Error(data.erreur||'Connexion refusée.');
+  try{localStorage.setItem('bia-code',this.code);}catch{}
   if(this.stoppe)return;
   await new Promise<void>((resolve,reject)=>{
    const ws=new WebSocket('wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token='+encodeURIComponent(data.token));this.socket=ws;
