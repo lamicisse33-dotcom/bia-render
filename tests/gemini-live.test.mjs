@@ -27,7 +27,7 @@ test('session authentication precedes Google and returns only a constrained ephe
  const dependencies={
   '@/lib/gemini-live-diagnostic':{resumeGeminiLive:()=>({statut:'non_lance'})},
   'next/server':{NextResponse:{json:(d,o)=>Response.json(d,o)}},
-  '@/lib/codes':{verifierCode:code=>code==='MASTER'?{ok:true,maitre:true}:{ok:false}},
+  '@/lib/codes':{verifierCode:code=>code==='MASTER'?{ok:true,maitre:true}:code==='VISITOR'?{ok:true,maitre:false}:{ok:false}},
   '@/lib/instructions-apprentissage':{contexteInstructions:async()=>'Consignes apprises'},
   '@/lib/gemini-live-prompt':{BIA_LIVE_SYSTEM:'Identité de Bia'}
  };
@@ -37,10 +37,23 @@ test('session authentication precedes Google and returns only a constrained ephe
   new Function('module','exports','require',compile('app/api/gemini-live/session/route.ts'))(module,module.exports,n=>dependencies[n]||require(n));
   const request=code=>({headers:new Headers({'x-bia-code':code,origin:'https://app.khalam.app'}),nextUrl:{origin:'https://app.khalam.app'}});
   assert.equal((await module.exports.POST(request('INVALID'))).status,401);assert.equal(calls.length,0);
+  assert.equal((await module.exports.POST(request('VISITOR'))).status,403);
+  const foreign=request('MASTER');foreign.headers.set('origin','https://evil.example');
+  assert.equal((await module.exports.POST(foreign)).status,403);assert.equal(calls.length,0);
+  const proxy=request('MASTER');proxy.nextUrl.origin='http://localhost:10000';
+  assert.equal((await module.exports.POST(proxy)).status,200);
   const response=await module.exports.POST(request('MASTER'));assert.equal(response.status,200);const data=await response.json();
   assert.equal(data.token,'auth_tokens/ephemeral-test');assert(!JSON.stringify(data).includes('FAKE-SERVER-KEY'));
   const body=JSON.parse(calls[0].init.body);assert.equal(body.uses,1);assert.equal(calls[0].init.headers['x-goog-api-key'],'FAKE-SERVER-KEY');
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.includes('Consignes apprises'));assert.deepEqual(body.bidiGenerateContentSetup.generationConfig.responseModalities,['AUDIO']);
   assert(Date.parse(body.expireTime)-Date.now()<=600000);
  }finally{globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;if(oldGoogle===undefined)delete process.env.GOOGLE_API_KEY;else process.env.GOOGLE_API_KEY=oldGoogle;}
+});
+
+test('Live code normalization matches normal Bia before creating HTTP headers',()=>{
+ const module={exports:{}};
+ new Function('module','exports',compile('lib/gemini-live-client.ts'))(module,module.exports);
+ const client=new module.exports.BiaGeminiLive('  ma\u00a0st-er\u200b  ',{});
+ assert.equal(client.code,'MASTER');
+ assert.equal(new Headers({'x-bia-code':client.code}).get('x-bia-code'),'MASTER');
 });
