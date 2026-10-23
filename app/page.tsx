@@ -1,4 +1,5 @@
 "use client";
+import {BiaGeminiLive} from "@/lib/gemini-live-client";
 import {profilRapiditeNavigateur,entetesRapidite} from '@/lib/rapidite-core';
 import EssaiRapiditeBadge from '@/app/essai-rapidite/badge';
 import {maintenirEcranEveille} from '@/lib/veille-native';
@@ -435,6 +436,9 @@ function phoneticWolof(text: string) {
 
 export default function Home() {
   const [history, setHistory] = useState<Message[]>([]);
+  const liveMaitreRef=useRef<BiaGeminiLive|null>(null);
+  const utiliserLiveMaitre=()=>estMaitreRef.current&&!apprend.current&&new URL(window.location.href).searchParams.get('mode')!=='khalam';
+  useEffect(()=>()=>{liveMaitreRef.current?.arreter();liveMaitreRef.current=null;},[]);
   const [face, setFace] = useState<Face>("yeux_ouverts");
   /* Le visage qu'on vient de quitter, pour le fondu. Les bouches sont exclues
      des deux côtés : la parole reste nette. */
@@ -4601,6 +4605,7 @@ export default function Home() {
      la page. On coupe le fil AVANT le micro, pour qu'aucune veille ne
      redémarre un tour sur un flux qu'on vient d'éteindre. */
   const fermerConversation = useCallback(() => {
+    const live=liveMaitreRef.current;liveMaitreRef.current=null;live?.arreter();
     focusLocuteurRef.current?.terminer();
     conversationRef.current = false;
     /* ── FERMER LA CONVERSATION, C'EST TUER CE QUI EST EN VOL ──────────────
@@ -4680,6 +4685,36 @@ export default function Home() {
   }, [film, fermerConversation]);
 
   const ecouter = useCallback(async () => {
+    if(utiliserLiveMaitre()){
+      if(liveMaitreRef.current)return;
+      const terminer=(erreur?:string)=>{
+        if(liveMaitreRef.current!==moteur)return;
+        liveMaitreRef.current=null;conversationRef.current=false;setConversation(false);
+        bouche(false);setEntendParler(false);
+        if(erreur){setPanne(erreur);setClavier(true);setMode('error');}
+      };
+      const moteur=new BiaGeminiLive(codeRef.current,{
+        etat:s=>{
+          if(liveMaitreRef.current!==moteur)return;
+          if(s.includes('terminée')||s.includes('pause')){terminer();return;}
+          if(s==='Je t’écoute'){setMode('listening');setFace('ecoute');setEntendParler(false);}
+          else if(s==='Connexion…')setMode('thinking');
+        },
+        transcription:(role,text,fin)=>{
+          if(liveMaitreRef.current!==moteur)return;
+          if(!fin){if(role==='user')setEntendParler(true);return;}
+          if(!text.trim())return;
+          const message:Message={role:role==='user'?'user':'bia',text};
+          setHistory(items=>[...items,message]);
+          if(role==='user')langueDuFil.current=estWolof(text)?'wo':'fr';
+        },
+        parle:actif=>{if(liveMaitreRef.current!==moteur)return;bouche(actif);if(!actif&&conversationRef.current){setMode('listening');setFace('ecoute');}},
+        latence:()=>{},erreur:message=>terminer(message),
+      },historyRef.current);
+      liveMaitreRef.current=moteur;setPanne('');
+      await moteur.demarrer();return;
+    }
+
     /* CET ENREGISTREMENT-CI, ET PAS UN AUTRE. Le numéro est pris AVANT
        d'ouvrir le micro : demander la permission peut durer une seconde, et
        pendant cette seconde on a pu couper la parole ou fermer la
@@ -5672,6 +5707,7 @@ export default function Home() {
      elle finissait sa phrase par-dessus l'échange suivant, et les deux voix
      se chevauchaient. Les deux jetons doivent tomber ensemble. */
   const taire = useCallback(() => {
+    const live=liveMaitreRef.current;liveMaitreRef.current=null;live?.arreter();
     window.speechSynthesis?.cancel();
     couperSon();
     tourRef.current = null;
@@ -6064,7 +6100,7 @@ export default function Home() {
      barre retombe au seuil ordinaire — c'est le cas « avec des écouteurs »
      décrit ci-dessus. */
   useEffect(() => {
-    if (!conversation || (mode !== "speaking" && mode !== "thinking")) return;
+    if (liveMaitreRef.current || !conversation || (mode !== "speaking" && mode !== "thinking")) return;
     const analyse = analyseRef.current;
     if (!analyse) return;
     const tampon = new Uint8Array(analyse.frequencyBinCount);
@@ -6456,7 +6492,7 @@ export default function Home() {
     contexte();   // débloque le son du navigateur, sans rien prononcer
 
     const parScribe = moteurs ? moteurs.ecoute !== "navigateur" : false;
-    if (parScribe) {
+    if (parScribe || utiliserLiveMaitre()) {
       /* SECOND APPUI : on ferme tout. C'est la seule façon de sortir, et elle
          doit marcher à n'importe quel moment — pendant qu'elle écoute,
          réfléchit ou parle. */
@@ -6605,7 +6641,7 @@ export default function Home() {
   }
 
   function ouvrirCorrection(index: number) {
-    taire();
+    fermerConversation();taire();
     setCorrige(index);
     setCorrection(history[index]?.text || "");
     setPropositions([]);
@@ -7836,6 +7872,8 @@ export default function Home() {
   }
 
   function nouvelleConversation() {
+    fermerConversation();
+    try{localStorage.removeItem('bia-gemini-live-history');}catch{}
     salutationOuvertureRef.current=true;
     couperSon();
     window.speechSynthesis?.cancel();
