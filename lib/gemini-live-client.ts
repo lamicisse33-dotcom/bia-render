@@ -87,7 +87,7 @@ export class BiaGeminiLive{
      if(c?.turnComplete){this.finirTour();this.events.etat('Je t’écoute');}
      for(const call of d.toolCall?.functionCalls||[]){
       if(call.name!=='chercher_connaissances'){this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:{erreur:'Outil indisponible'}}]}});continue;}
-      let result;try{const r=await fetch('/api/gemini-live/connaissances',{method:'POST',headers:{'x-bia-code':this.code,'Content-Type':'application/json'},body:JSON.stringify({question:String(call.args?.question||''),action:call.args?.action,devoir_id:call.args?.devoir_id,offset:call.args?.offset,historique:this.history.slice(-6).map(m=>({role:m.role==='model'?'bia':'user',text:m.parts.map(p=>p.text).join(' ')}))}),signal:AbortSignal.timeout(15000)});result=await r.json();}catch{result={erreur:'Mémoire inaccessible. Ne prétends pas l’avoir consultée.'};}
+      let result;try{const r=await fetch('/api/gemini-live/connaissances',{method:'POST',headers:{'x-bia-code':this.code,'Content-Type':'application/json'},body:JSON.stringify({question:String(call.args?.question||'').slice(0,2000),action:call.args?.action,devoir_id:call.args?.devoir_id,offset:call.args?.offset,historique:this.history.slice(-6).map(m=>({role:m.role==='model'?'bia':'user',text:m.parts.map(p=>p.text).join(' ').slice(0,800)}))}),signal:AbortSignal.timeout(15000)});result=await r.json();}catch{result={erreur:'Mémoire inaccessible. Ne prétends pas l’avoir consultée.'};}
       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:result}]}});
      }
     }catch{this.events.erreur('Un message audio n’a pas pu être lu.');}
