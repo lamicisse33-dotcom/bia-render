@@ -29,7 +29,7 @@ test('session authentication precedes Google and returns only a constrained ephe
   'next/server':{NextResponse:{json:(d,o)=>Response.json(d,o)}},
   '@/lib/codes':{verifierCode:code=>code==='MASTER'?{ok:true,maitre:true}:code==='VISITOR'?{ok:true,maitre:false}:{ok:false}},
   '@/lib/instructions-apprentissage':{contexteInstructions:async()=>'Consignes apprises'},
-  '@/lib/gemini-live-prompt':{BIA_LIVE_CONSIGNES_BASE:'Identité de Bia'}
+  '@/lib/gemini-live-prompt':{BIA_LIVE_CONSIGNES_BASE:'Identité de Bia',BIA_LIVE_LANGUES:'FR_WO_UNIQUEMENT'}
  };
  const calls=[];globalThis.fetch=async(url,init)=>{calls.push({url,init});return Response.json({name:'auth_tokens/ephemeral-test'});};
  process.env.GEMINI_API_KEY='FAKE-SERVER-KEY';delete process.env.GOOGLE_API_KEY;
@@ -45,7 +45,9 @@ test('session authentication precedes Google and returns only a constrained ephe
   const response=await module.exports.POST(request('MASTER'));assert.equal(response.status,200);const data=await response.json();
   assert.equal(data.token,'auth_tokens/ephemeral-test');assert(!JSON.stringify(data).includes('FAKE-SERVER-KEY'));
   const body=JSON.parse(calls[0].init.body);assert.equal(body.uses,1);assert.equal(calls[0].init.headers['x-goog-api-key'],'FAKE-SERVER-KEY');
-  assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.includes('Consignes apprises'));assert.deepEqual(body.bidiGenerateContentSetup.generationConfig.responseModalities,['AUDIO']);
+  assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.includes('Consignes apprises'));
+  assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.startsWith('FR_WO_UNIQUEMENT'));
+  assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.endsWith('FR_WO_UNIQUEMENT'));assert.deepEqual(body.bidiGenerateContentSetup.generationConfig.responseModalities,['AUDIO']);
   assert(Date.parse(body.expireTime)-Date.now()<=600000);
  }finally{globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;if(oldGoogle===undefined)delete process.env.GOOGLE_API_KEY;else process.env.GOOGLE_API_KEY=oldGoogle;}
 });
@@ -75,4 +77,33 @@ test('Live retains the exact native identity and shared base instructions',()=>{
  new Function('module','exports','require',compile('lib/gemini-live-prompt.ts'))(module,module.exports,n=>deps[n]);
  assert.equal(module.exports.BIA_LIVE_SYSTEM,identity);
  assert.equal(module.exports.BIA_LIVE_CONSIGNES_BASE,[identity,relations,comprehension,master].join('\n\n'));
+});
+
+test('Latin alphabet guard preserves Wolof and French and refuses foreign scripts',()=>{
+ const module={exports:{}};new Function('module','exports',compile('lib/gemini-live-client.ts'))(module,module.exports);
+ for(const text of ['Bonjour papa !','Ñëwal, gëmmeen tuwuma.','Ŋ, ñ, é, ë, à, ç, œ, 15 000 F CFA 😊','Bia et Google'])assert(module.exports.alphabetLiveAutorise(text),text);
+ for(const text of ['مرحبا','Привет','你好','नमस्ते','Bonjour مرحبا'])assert.equal(module.exports.alphabetLiveAutorise(text),false,text);
+ // Latin words can belong to many languages; do not pretend this is language detection.
+ assert(module.exports.alphabetLiveAutorise('Google'));
+});
+
+test('a foreign-script transcript stops queued playback before the same packet can play',async()=>{
+ const module={exports:{}};new Function('module','exports',compile('lib/gemini-live-client.ts'))(module,module.exports);
+ const old={fetch:globalThis.fetch,WebSocket:globalThis.WebSocket,localStorage:globalThis.localStorage};
+ let socket,played=0,stopped=0;const errors=[];
+ class Socket{
+  static OPEN=1;readyState=1;
+  constructor(){socket=this;queueMicrotask(()=>this.onopen());}
+  send(raw){if(JSON.parse(raw).setup)queueMicrotask(()=>this.onmessage({data:JSON.stringify({setupComplete:{}})}));}
+  close(){}
+ }
+ try{
+  globalThis.WebSocket=Socket;globalThis.localStorage={setItem(){}};
+  globalThis.fetch=async()=>Response.json({token:'auth_tokens/synthetic',setup:{model:'synthetic'}});
+  const client=new module.exports.BiaGeminiLive('TEST',{etat(){},transcription(){},parle(){},latence(){},erreur:e=>errors.push(e)});
+  client.stoppe=false;client.jouer=()=>played++;client.arreter=()=>stopped++;
+  await client.connecter();
+  await socket.onmessage({data:JSON.stringify({serverContent:{outputTranscription:{text:'مرحبا'},modelTurn:{parts:[{inlineData:{data:'AAAA',mimeType:'audio/pcm;rate=24000'}}]}}})});
+  assert.equal(played,0);assert.equal(stopped,1);assert.equal(errors.length,1);assert(errors[0].includes('français et wolof uniquement'));
+ }finally{globalThis.fetch=old.fetch;globalThis.WebSocket=old.WebSocket;if(old.localStorage===undefined)delete globalThis.localStorage;else globalThis.localStorage=old.localStorage;}
 });

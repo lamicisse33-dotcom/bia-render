@@ -22,6 +22,11 @@ class CaptureBia extends AudioWorkletProcessor{
 }
 registerProcessor('capture-bia-live',CaptureBia);
 `;
+// Wolof and French both use Latin letters; keep their diacritics and symbols.
+// This detects foreign scripts, not the language of ambiguous Latin words.
+export function alphabetLiveAutorise(text:string){
+ return [...text].every(c=>!(/\p{L}/u.test(c))||/\p{Script=Latin}/u.test(c));
+}
 export class BiaGeminiLive{
  private socket?:WebSocket;private micro?:MediaStream;private input?:AudioContext;private output?:AudioContext;private capture?:AudioWorkletNode;private source?:MediaStreamAudioSourceNode;private gain?:GainNode;
  private nodes=new Set<AudioBufferSourceNode>();private next=0;private stoppe=true;private ready=false;private finParole=0;private premiere=true;private idle?:ReturnType<typeof setInterval>;private timer?:ReturnType<typeof setTimeout>;
@@ -74,6 +79,9 @@ export class BiaGeminiLive{
      const c=d.serverContent;
      if(c?.interrupted){this.viderSon();this.finirTour();}
      if(c?.inputTranscription?.text){this.userText+=c.inputTranscription.text;this.events.transcription('user',this.userText,false);}
+     if(c?.outputTranscription?.text&&!alphabetLiveAutorise(c.outputTranscription.text)){
+      this.arreter();this.events.erreur('Réponse interrompue : Bia doit parler français et wolof uniquement. Appuie sur le micro pour reprendre.');return;
+     }
      if(c?.outputTranscription?.text){this.biaText+=c.outputTranscription.text;this.events.transcription('bia',this.biaText,false);}
      for(const p of c?.modelTurn?.parts||[]){if(p.inlineData?.data)this.jouer(p.inlineData.data,p.inlineData.mimeType);}
      if(c?.turnComplete){this.finirTour();this.events.etat('Je t’écoute');}
