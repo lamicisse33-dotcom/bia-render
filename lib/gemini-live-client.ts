@@ -16,7 +16,7 @@ class CaptureBia extends AudioWorkletProcessor{
     this.port.postMessage({raw,rms:Math.sqrt(square/640)},[raw]);this.samples=[];
    }
   }
-  const used=Math.floor(this.offset);this.pending.splice(0,used);this.offset-=used;
+  const used=Math.min(Math.floor(this.offset),this.pending.length);this.pending.splice(0,used);this.offset-=used;
   return true;
  }
 }
