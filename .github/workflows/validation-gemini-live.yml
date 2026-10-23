@@ -1,7 +1,7 @@
 name: Validate Gemini Live integration
 on:
   push:
-    branches: [integration/gemini-live-20261023, diagnostic/gemini-live-20261023, fix/gemini-live-checks-20261023, diagnostic/gemini-audio-natif-20261023, feat/gemini-live-rapide-20261023, fix/gemini-live-acces-20261023, feat/bia-live-principal-20261023, fix/bia-live-consignes-20261023]
+    branches: [integration/gemini-live-20261023, diagnostic/gemini-live-20261023, fix/gemini-live-checks-20261023, diagnostic/gemini-audio-natif-20261023, feat/gemini-live-rapide-20261023, fix/gemini-live-acces-20261023, feat/bia-live-principal-20261023, fix/bia-live-consignes-20261023, fix/bia-interface-maitre-20261023]
 permissions: {contents: read}
 jobs:
   validate:
