@@ -40,7 +40,7 @@ const etat: Etat = (g.biaEligibilite ??= {
 const PORTES_TELEPHONE = new Set([
   "jamais_de_texte", "trop_court", "preparation_en_cours", "ecoute_fermee",
   "annule", "tour_perime", "rien_de_pret", "transcription_apres_fermeture",
-  "premier_segment_hors_portee",
+  "premier_segment_hors_portee", "depart_sur_transcription_finale",
 ]);
 const PORTES_SERVEUR = new Set([
   "texte_court", "texte_action", "salutation", "identite", "historique",
@@ -90,6 +90,9 @@ export function noterEligibilite(d: Record<string, unknown>) {
 
 const classer = (ou: Record<string, Refus>) =>
   Object.values(ou).sort((a, b) => b.fois - a.fois);
+/* Un départ sur la transcription finale n'est pas un refus : c'est une
+   décision, et elle ne doit pas se présenter comme la cause d'un blocage. */
+const DECISIONS = new Set(["depart_sur_transcription_finale"]);
 
 export function resumeEligibilite() {
   const tel = classer(etat.cote_telephone), srv = classer(etat.cote_serveur);
@@ -101,7 +104,7 @@ export function resumeEligibilite() {
     /* La porte qui refuse le plus. Côté téléphone d'abord : si le téléphone
        n'a jamais demandé, les portes du serveur n'ont rien refusé — elles
        n'ont simplement rien vu, et les lire d'abord ferait conclure à tort. */
-    porte_qui_refuse: tel[0]?.porte ?? srv[0]?.porte ?? null,
+    porte_qui_refuse: tel.find(p => !DECISIONS.has(p.porte))?.porte ?? srv[0]?.porte ?? null,
     cote_telephone: tel,
     cote_serveur: srv,
     derniers_tours: etat.derniers,

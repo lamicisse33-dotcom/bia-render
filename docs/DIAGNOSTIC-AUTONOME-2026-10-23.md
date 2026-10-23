@@ -304,3 +304,81 @@ jamais demandé, un refus du serveur n'est pas la cause.
 Noms de conditions et comptes seulement. La longueur du texte est publiée
 parce qu'elle **est** la condition ; aucune transcription, aucun texte, aucun
 code. Une porte inventée par un client bricolé n'entre pas.
+
+---
+
+# Addendum 3 : le premier segment à 1,5 s, mesuré — et l'essai suivant
+
+Quatre nouveaux tours Khalam de Lamine, 23:36–23:37, sur `354bba1ddbf4`.
+
+## Le chemin Khalam, avant / après
+
+Comparé à durées comparables (tours répondus par le modèle, le salut
+préenregistré écarté) :
+
+| médiane | avant (4 s) | après (1,5 s) | écart |
+|---|---|---|---|
+| **fin de parole → premier son** | 5 443 ms | **4 322 ms** | **−1 121 ms** |
+| la transcription | 2 008 ms | **877 ms** | **−1 131 ms** |
+| le modèle | 1 357 ms | 1 372 ms | ≈ 0 |
+| la fabrication de la voix | 1 311 ms | 1 086 ms | −225 |
+| silence avant la coupure du micro | 446 ms | 420 ms | −26 |
+
+**Le gain est entièrement sur la transcription, et c'est exactement ce que la
+correction visait.** L'attente finale d'ASR est passée de 2 000 à **748 ms**
+(`ecoute.dernier_reste_ms`), avec 9 segments au lieu de 6 et 2 interventions
+achevées. Le modèle et la voix n'ont pas bougé — rien n'est attribué à autre
+chose qu'à ce qui a changé.
+
+Les quatre tours : **1 327** (salut préenregistré), **4 322**, **3 929**,
+**5 454 ms**. Médiane des quatre : 4 126 ms.
+
+## Mais l'anticipation ne prépare toujours rien
+
+```
+porte_qui_refuse            jamais_de_texte   (7 tours sur 8 déclarés)
+anticipation_conversation   preparations 0, pretes 0, servies 0
+departs                     sans_preparation 4, en_fabrication 1
+```
+
+Sur les 8 tours déclarés, **6 n'ont produit aucun segment** : la parole
+détectée était de 300 à 838 ms — très en dessous des 1 500 ms. Deux tours ont
+eu 2 segments ; l'un a atteint **36 signes**, donc au-dessus du seuil, et il
+a réellement fabriqué une brique (`sessions 1, preparees 1, lectures 1`).
+
+**Et cette unique lecture par briques a mis 7 780 ms jusqu'au premier son** —
+nettement plus lent que les 4 322 ms du chemin ordinaire. Elle n'entre pas
+dans la médiane de `tours` (le tour n'a pas les deux bornes). À ce stade, les
+briques ne sont donc pas démontrées plus rapides : c'est une observation, sur
+un seul cas.
+
+## L'essai demandé, et ses trois garde-fous
+
+Démarrage des briques sur la transcription finale. Ce que ça retourne est une
+décision datée de `commencer()` : « ASR alone is not a prepared response.
+Starting a new brick after speech ended can add an entire rejected model call
+before ordinary chat starts. » Le risque est nommé depuis l'origine.
+
+1. **Réversible sans déploiement.** `BIA_BRIQUES_FINALES=non` dans Render, et
+   la page revient au comportement d'avant au prochain chargement. Le réglage
+   est publié dans `briques_conversation.briques_sur_transcription_finale` ;
+   absent ou illisible vaut **non** — un essai ne s'active pas par défaut sur
+   une inconnue. Éprouvé : interrupteur fermé, aucune lecture ouverte, aucune
+   requête.
+2. **L'attente de fin de parole pour la lecture n'est pas touchée.**
+   `finirAttente` reste dans le rappel `jouer`, qui ne s'exécute que si une
+   brique arrive vraiment. Une lecture ouverte à vide ne prononce rien et
+   n'avance aucune lecture. Éprouvé : `jouer()` fait échouer l'épreuve si elle
+   est appelée alors que le serveur ne rend rien.
+3. **Mesuré avant/après.** `departs.sur_transcription_finale` sépare le pari de
+   `sans_preparation` — mélangés, l'essai serait invisible. `replis` et
+   `chaines` disent ce qu'il coûte quand la brique ne vient pas.
+   `premier_son_median_ms` donne la médiane des premiers sons par briques, à
+   comparer à `tours.reponse_du_modele.vecu_ms`.
+
+## Ce qu'il faut lire pour trancher
+
+Si `replis` grimpe avec `departs.sur_transcription_finale` et que
+`premier_son_median_ms` reste au-dessus de `tours.reponse_du_modele.vecu_ms`,
+l'essai coûte plus qu'il ne rend, et l'interrupteur se ferme. Aucun gain n'est
+annoncé d'avance.

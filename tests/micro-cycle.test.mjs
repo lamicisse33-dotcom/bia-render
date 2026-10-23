@@ -14,7 +14,12 @@ function environment(){
     micro : elles le demandent donc explicitement. Le chemin rapide a ses
     propres épreuves dans tests/gemini-live.test.mjs et
     tests/interface-maitre-live-browser.cjs. */
- const env={utiliserLiveMaitre:()=>false,conversationRef:ref(false),modeRef:ref('ready'),busyRef:ref(false),ecouterRef:ref(null),ouvertureEcouteRef:ref(null),enregistreurRef:ref(null),nouvelEnregistrement:()=>++id,estCetEnregistrement:n=>n===id,
+ const env={utiliserLiveMaitre:()=>false,
+  /* L'essai « briques sur la transcription finale » est un opt-in piloté par
+     le serveur : ces épreuves-ci mesurent le cycle du micro, pas les briques.
+     Son propre comportement est éprouvé dans tests/eligibilite-anticipation. */
+  briquesFinalesPermises:()=>false,
+ conversationRef:ref(false),modeRef:ref('ready'),busyRef:ref(false),ecouterRef:ref(null),ouvertureEcouteRef:ref(null),enregistreurRef:ref(null),nouvelEnregistrement:()=>++id,estCetEnregistrement:n=>n===id,
   micro:async()=>({flux:{},analyse:{frequencyBinCount:256},analysePeriodique:{fftSize:1024},ctxMicro:{state:'running'}}),
   ouvrirEnregistreur:()=>{const r={state:'inactive',start(){starts++;this.state='recording';},stop(){stops++;this.state='inactive';}};recorders.push(r);return r;},
   creerFiltreDeclenchement:()=>()=>false,suivreLeBruit:()=>({seuil:()=>8}),seuilRef:ref(8),

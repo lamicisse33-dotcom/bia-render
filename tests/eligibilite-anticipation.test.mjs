@@ -178,3 +178,85 @@ test('le champ public nomme la porte et ne confond pas téléphone et serveur',(
  etat.noterEligibilite({etape:'portes',portes:{trop_court:1},signes_max:40,texte:'phrase privée'});
  assert(!JSON.stringify(etat.resumeEligibilite()).includes('phrase privée'));
 });
+
+/* ── L'ESSAI : DÉMARRER LES BRIQUES SUR LA TRANSCRIPTION FINALE ───────────
+
+   Demandé par Lamine le 23 octobre 2026, après avoir lu que le levier restait
+   non pris : « essaie le démarrage des briques sur la transcription finale —
+   en mesurant avant/après, réversible, et sans toucher à l'attente de fin de
+   parole pour la lecture. »
+
+   Les trois exigences sont éprouvées ici : réversible (l'interrupteur fermé
+   rend EXACTEMENT l'ancien comportement), mesurable (le départ se nomme), et
+   le repli reste garanti quand la brique ne vient pas. */
+function essaiFinal({surTranscriptionFinale,reponseServeur}){
+ const producteur=load('lib/briques-client.ts',{});
+ const demandes=[],envois=[];
+ const faireSemblant=async(url,init)=>{
+  const chemin=String(url);
+  if(chemin==='/api/mesure'){envois.push(JSON.parse(init.body));return {ok:true,json:async()=>({ok:true})};}
+  if(chemin==='/api/anticipation/briques'){
+   demandes.push(JSON.parse(init.body));
+   return {ok:true,headers:{get:()=>'application/json'},json:async()=>({preparation:reponseServeur})};
+  }
+  assert.fail('appel non prévu : '+chemin);
+ };
+ const briques=producteur.creerProducteurBriques({
+  code:'CODE',tour:'tour-essai-1',history:[],resume:'',voice:'female',persona:'bia',
+  actuel:()=>true,surTranscriptionFinale,
+ });
+ /* Les portes se lisent dans ce que le producteur DÉCLARE à /api/mesure :
+    c'est exactement ce que le serveur verra, et celles qu'il compte en
+    interne n'apparaissent pas autrement. */
+ return {briques,demandes,envois,
+  async lancer(texte){
+   const vieuxFetch=globalThis.fetch;globalThis.fetch=faireSemblant;
+   try{
+    briques.arreterEcoute();
+    const lecture=briques.commencer({signal:new AbortController().signal,
+     jouer:async()=>assert.fail('aucune brique ne doit être jouée'),attente(){},taire(){},mesure(){}});
+    const fini=lecture?lecture.fin:null;
+    await briques.terminer(texte);
+    const declare=envois.find(e=>e.type==='eligibilite');
+    return {lecture,resultat:fini?await fini:null,portes:declare?.portes??{}};
+   }finally{globalThis.fetch=vieuxFetch;}
+  }};
+}
+
+/* INTERRUPTEUR FERMÉ : rien ne bouge. C'est la réversibilité, vérifiée — pas
+   promise. L'ancienne épreuve « ASR without a prepared or running brick »
+   garde son sens, et aucune requête ne part. */
+test('interrupteur fermé : aucune lecture ouverte, aucune requête, comportement d’avant',async()=>{
+ const e=essaiFinal({surTranscriptionFinale:false,reponseServeur:{id:'s1',termine:true}});
+ const {lecture,portes}=await e.lancer('Une phrase assez longue pour franchir le seuil des trente-cinq signes.');
+ assert.equal(lecture,null,'la lecture ne s’ouvre pas');
+ assert.equal(e.demandes.length,0,'rien ne part au serveur');
+ assert.equal(portes.rien_de_pret,1,'et le refus porte son nom');
+ assert.equal(portes.depart_sur_transcription_finale,undefined);
+});
+
+/* INTERRUPTEUR OUVERT, et le serveur rend une brique : la lecture s'ouvre, la
+   demande finale part, et le départ se nomme pour que l'avant/après se lise. */
+test('interrupteur ouvert : la lecture s’ouvre à vide et la transcription finale est demandée',async()=>{
+ const e=essaiFinal({surTranscriptionFinale:true,reponseServeur:{id:'s1',termine:true,brique:{numero:0,texte:'Réponse.',audio:'AAAA',langue:'wo',voice:'female'}}});
+ const texte='Une phrase assez longue pour franchir le seuil des trente-cinq signes.';
+ const {lecture,portes}=await e.lancer(texte);
+ assert(lecture,'la lecture doit s’ouvrir');
+ assert.equal(portes.depart_sur_transcription_finale,1,JSON.stringify(portes));
+ assert.equal(portes.rien_de_pret,undefined,'ce n’est plus un refus');
+ assert(e.demandes.length>=1,'la demande finale doit partir');
+ assert.equal(e.demandes[0].final,true,'et elle est marquée finale');
+ assert.equal(e.demandes[0].texte,texte);
+});
+
+/* ET SURTOUT : quand le serveur ne rend RIEN, le repli doit tenir. C'est le
+   risque nommé dans la décision d'origine — « an entire rejected model call
+   before ordinary chat starts ». La lecture se referme, `normal` est vrai, et
+   le chemin ordinaire repart. Rien n'a été prononcé. */
+test('serveur sans brique : la lecture se referme sur un repli, rien n’est prononcé',async()=>{
+ const e=essaiFinal({surTranscriptionFinale:true,reponseServeur:null});
+ const {lecture,resultat}=await e.lancer('Une phrase assez longue pour franchir le seuil des trente-cinq signes.');
+ assert(lecture,'la lecture s’ouvre');
+ assert.equal(resultat.normal,true,'le chemin ordinaire doit reprendre');
+ assert.equal(resultat.reponse,'','aucune brique dite');
+});

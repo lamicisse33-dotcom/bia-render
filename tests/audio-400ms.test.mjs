@@ -31,7 +31,12 @@ function capture(){
     micro : elles le demandent donc explicitement. Le chemin rapide a ses
     propres épreuves dans tests/gemini-live.test.mjs et
     tests/interface-maitre-live-browser.cjs. */
- const env={utiliserLiveMaitre:()=>false,Date:{now:()=>now},Math,Symbol,Uint8Array,conversationRef:ref(true),modeRef:ref('ready'),busyRef:ref(false),ecouterRef:ref(null),ouvertureEcouteRef:ref(null),enregistreurRef:ref(null),nouvelEnregistrement:()=>1,estCetEnregistrement:()=>true,
+ const env={utiliserLiveMaitre:()=>false,
+  /* L'essai « briques sur la transcription finale » est un opt-in piloté par
+     le serveur : ces épreuves-ci mesurent le cycle du micro, pas les briques.
+     Son propre comportement est éprouvé dans tests/eligibilite-anticipation. */
+  briquesFinalesPermises:()=>false,
+ Date:{now:()=>now},Math,Symbol,Uint8Array,conversationRef:ref(true),modeRef:ref('ready'),busyRef:ref(false),ecouterRef:ref(null),ouvertureEcouteRef:ref(null),enregistreurRef:ref(null),nouvelEnregistrement:()=>1,estCetEnregistrement:()=>true,
   micro:async()=>({flux:{},analyse,analysePeriodique:{fftSize:1024,getByteTimeDomainData:a=>a.fill(128)},ctxMicro:{state:'running',sampleRate:48000}}),
   ouvrirEnregistreur:()=>({state:'inactive',start(ms){slice=ms;this.state='recording';},stop(){stops++;this.state='inactive';}}),
   creerFiltreDeclenchement:()=>a=>a,suivreLeBruit:()=>({seuil:()=>8,voir:()=>voix}),seuilRef:ref(8),setInterval:f=>{step=f;return 1;},clearInterval(){},

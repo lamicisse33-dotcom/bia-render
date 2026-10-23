@@ -1190,6 +1190,14 @@ export default function Home() {
   const annuleRef = useRef(false);
   const [annule, setAnnule] = useState(false);
   const moteursRef = useRef<{ voix: string; ecoute: string } | null>(null);
+  /* ── L'INTERRUPTEUR DE L'ESSAI, CÔTÉ SERVEUR ───────────────────────────
+     `briques_sur_transcription_finale` est publié par /api/etat et piloté par
+     BIA_BRIQUES_FINALES dans Render : Lamine peut revenir au comportement
+     d'avant sans déploiement, au prochain chargement de la page. Absent —
+     serveur plus ancien, lecture échouée — vaut NON : un essai ne doit pas
+     s'activer par défaut sur une inconnue. */
+  const briquesFinalesPermises=()=>(moteursRef.current as {briques_conversation?:{briques_sur_transcription_finale?:boolean}}|null)
+    ?.briques_conversation?.briques_sur_transcription_finale===true;
   const jouerSouffleRef = useRef<((emotion: string, sansPrelude?: boolean) => Promise<void>) | null>(null);
   const tourRef = useRef<object | null>(null);
 
@@ -5335,7 +5343,6 @@ export default function Home() {
         };
         const taireBriques=()=>{attendBrique=false;if(estLeTour(monTour))taireLeSouffle();};
         const stockBriques=progressive?.etatBriques();
-        if(stockBriques)mesureBriques('depart',0,{pretes:stockBriques.pretes,en_cours:Number(stockBriques.en_cours)});
         const lectureBriques=!busyRef.current&&!motsRattrapesRef.current&&captureProgressiveValide?progressive?.commencerBriques({
           signal:abortBriques.signal,
           jouer:async b=>{
@@ -5382,6 +5389,15 @@ export default function Home() {
             attendBrique=true;
           },taire:taireBriques,mesure:()=>{},
         }):null;
+        /* ── LE DÉPART, MESURÉ APRÈS COUP, ET C'EST VOULU ──────────────────
+
+           On ne sait qu'ICI si la lecture s'est ouverte À VIDE, en pariant
+           sur la transcription finale (essai du 23 octobre 2026, demandé par
+           Lamine). Mélangé à `sans_preparation`, ce pari serait invisible :
+           `departs.sur_transcription_finale` le sépare, et `replis` dit ce
+           qu'il coûte quand la brique ne vient pas. */
+        if(stockBriques)mesureBriques('depart',0,{pretes:stockBriques.pretes,en_cours:Number(stockBriques.en_cours),
+          finale:Number(!!lectureBriques&&!stockBriques.pretes&&!stockBriques.en_cours)});
         if(lectureBriques){busyRef.current=true;fluxVoixRef.current.add(abortBriques);}
 
         try {
@@ -5622,7 +5638,7 @@ export default function Home() {
          plafond de 20 Mo ; le repli complet reste disponible. */
       const exclusionCapture=exclusionAnticipation({persona:personaRef.current,voixCompatible:essaiChatterboxActif(),desactivee:localStorage.getItem('bia-anticipation')==='non',apprentissage:apprend.current,correctionDevoir:!!correctionDevoirRef.current,correctionListe:chantierMalDit.current,prenom:attendLeNomRef.current,reprise:!!motsRattrapesRef.current});
       if(!exclusionCapture){
-        progressive=await brancherAnticipation({ctx:ctxMicro,flux,code:codeRef.current,tour:tourDeParole,history:fenetreDuFil(historyRef.current),resume:resumeRef.current,voice:voixChatterboxBia(),persona:personaRef.current,langue:()=>langueDuFil.current,parle:()=>aParle&&Date.now()-dernierSon<240,actuel:()=>estCetEnregistrement(idEnr)});
+        progressive=await brancherAnticipation({surTranscriptionFinale:briquesFinalesPermises(),ctx:ctxMicro,flux,code:codeRef.current,tour:tourDeParole,history:fenetreDuFil(historyRef.current),resume:resumeRef.current,voice:voixChatterboxBia(),persona:personaRef.current,langue:()=>langueDuFil.current,parle:()=>aParle&&Date.now()-dernierSon<240,actuel:()=>estCetEnregistrement(idEnr)});
       }
       if(!estCetEnregistrement(idEnr)){await progressive?.annuler();return;}
       const etapeCapture=progressive?'branchee':['voix_incompatible','desactivee'].includes(exclusionCapture)?exclusionCapture:exclusionCapture?'contexte_exclu':'indisponible';

@@ -1,7 +1,7 @@
 import {creerEcouteProgressive} from './ecoute-progressive';
 import {creerProducteurBriques} from './briques-client';
 import {entetesRapidite,profilRapiditeNavigateur,segmentRapiditeMs} from './rapidite-core';
-export async function brancherAnticipation(o:{ctx:AudioContext;flux:MediaStream;code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;langue:()=>string;parle:()=>boolean;actuel:()=>boolean}){
+export async function brancherAnticipation(o:{ctx:AudioContext;flux:MediaStream;code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;langue:()=>string;parle:()=>boolean;actuel:()=>boolean;surTranscriptionFinale?:boolean}){
  let node:AudioWorkletNode|null=null,entree:MediaStreamAudioSourceNode|null=null,muet:GainNode|null=null,fin=false;
  const briques=creerProducteurBriques({...o,segments:()=>pipeline.segmentsCommences});
  const abort=new AbortController();let accuseFin:(()=>void)|undefined;

@@ -3,7 +3,29 @@ import {PREMIER_SEGMENT_MS} from "./premier-segment";
 const g=globalThis as typeof globalThis&{biaBriquesEtat?:any};
 const etat=g.biaBriquesEtat??={sessions:0,preparees:0,finalisees:0,erreurs:0,lectures:0,dernier_premier_son_ms:null,dernier_depuis_micro_ms:null,dernier_blanc_ms:null,blanc_max_ms:0,reflexions:0,dernier_echec:null};
 export const etatBriques=etat;
-export const resumeBriques=()=>({mode:'briques_texte_verrouillees_audio_progressif',revision:'stream-continu-priorite-ecoute-v1',premier_segment_apres_ms:PREMIER_SEGMENT_MS,pause_transcription_ms:400,capture_pcm_ms:100,morceau_enregistrement_ms:100,livraison_audio:'progressive_ndjson',anticipation_texte:'pendant_parole_et_fin',ordonnancement_audio:'par_morceau_ecoute_prioritaire',...etat,son_reflexion:'mmm_khalam_convertis_20261020',reflexion_seuil_initial_ms:REFLEXION_COURTE.attente_ms,reflexion_seuil_suite_ms:null,politique_reflexion:REFLEXION_COURTE});
+/* ── LES BRIQUES SUR LA TRANSCRIPTION FINALE : L'ESSAI, ET SON INTERRUPTEUR ─
+
+   Demandé par Lamine le 23 octobre 2026 : « essaie le démarrage des briques
+   sur la transcription finale — en mesurant avant/après, réversible, et sans
+   toucher à l'attente de fin de parole pour la lecture. »
+
+   Ce que ça retourne : une décision datée et explicite de `commencer()`,
+   « ASR alone is not a prepared response. Starting a new brick after speech
+   ended can add an entire rejected model call before ordinary chat starts. »
+   Le risque est donc nommé depuis le début : quand la brique ne vient pas, on
+   AJOUTE une attente avant le chemin ordinaire. C'est précisément ce que
+   `departs.sur_transcription_finale` et `replis` mesurent.
+
+   RÉVERSIBLE SANS DÉPLOIEMENT : BIA_BRIQUES_FINALES=non dans Render, et le
+   téléphone revient au comportement d'avant au prochain chargement. Le
+   réglage est publié ici pour que le téléphone le lise, et pour qu'on sache
+   lequel des deux on mesure.
+
+   L'ATTENTE DE FIN DE PAROLE N'EST PAS TOUCHÉE : `finirAttente` reste dans le
+   rappel `jouer`, qui ne s'exécute que si une brique arrive vraiment. Un
+   démarrage à vide ne prononce rien et n'avance aucune lecture. */
+export const briquesSurTranscriptionFinale=()=>(process.env.BIA_BRIQUES_FINALES||'oui')!=='non';
+export const resumeBriques=()=>({mode:'briques_texte_verrouillees_audio_progressif',revision:'stream-continu-priorite-ecoute-v1',premier_segment_apres_ms:PREMIER_SEGMENT_MS,briques_sur_transcription_finale:briquesSurTranscriptionFinale(),pause_transcription_ms:400,capture_pcm_ms:100,morceau_enregistrement_ms:100,livraison_audio:'progressive_ndjson',anticipation_texte:'pendant_parole_et_fin',ordonnancement_audio:'par_morceau_ecoute_prioritaire',...etat,son_reflexion:'mmm_khalam_convertis_20261020',reflexion_seuil_initial_ms:REFLEXION_COURTE.attente_ms,reflexion_seuil_suite_ms:null,politique_reflexion:REFLEXION_COURTE});
 export function noterBriques(d:Record<string,unknown>){
   const ms=Number(d.ms);if(!Number.isFinite(ms)||ms<0||ms>180000)return;
   if(d.etape==='reflexion_prechargee'){
@@ -12,7 +34,7 @@ export function noterBriques(d:Record<string,unknown>){
   }
   if(typeof d.tour==='string'&&/^[a-zA-Z0-9_-]{8,80}$/.test(d.tour)&&['depart','lecture_demandee','debut_brique','fin_brique','transcrit','fin_preparation','fin_chaine','annulation'].includes(String(d.etape))){
     const details:Record<string,number>={};
-    for(const cle of ['numero','nombre','pretes','en_cours','actuel','repli','tour_actuel','capture_actuelle']){
+    for(const cle of ['numero','nombre','pretes','en_cours','actuel','repli','tour_actuel','capture_actuelle','finale']){
       const v=Number(d[cle]);if(Number.isInteger(v)&&v>=0&&v<=20)details[cle]=v;
     }
     etat.cycle??={comptes:{},derniers:[]};
@@ -20,13 +42,28 @@ export function noterBriques(d:Record<string,unknown>){
     etat.cycle.derniers=[...etat.cycle.derniers.slice(-39),{tour:d.tour,etape:d.etape,ms,...details,quand:new Date().toISOString()}];
   }
   if(d.etape==='depart'){
-    const pretes=Number(d.pretes),enCours=Number(d.en_cours);
+    const pretes=Number(d.pretes),enCours=Number(d.en_cours),finale=Number(d.finale);
     if(!Number.isInteger(pretes)||pretes<0||pretes>6||![0,1].includes(enCours))return;
-    const choix=pretes?'prete':enCours?'en_fabrication':'sans_preparation';
+    /* Un quatrième choix, distinct exprès : rien n'était prêt et on a quand
+       même ouvert la lecture, en pariant sur la transcription finale. Mélangé
+       à `sans_preparation`, l'essai serait invisible. */
+    const choix=pretes?'prete':enCours?'en_fabrication':finale===1?'sur_transcription_finale':'sans_preparation';
     etat.departs??={};etat.departs[choix]=(etat.departs[choix]||0)+1;
     etat.dernier_depart={choix,pretes,en_cours:!!enCours,quand:new Date().toISOString()};
   }
-  if(d.etape==='premier_son'){etat.lectures++;etat.dernier_premier_son_ms=ms;const micro=Number(d.micro_ms);if(Number.isFinite(micro)&&micro>=0&&micro<=180000)etat.dernier_depuis_micro_ms=micro;}
+  if(d.etape==='premier_son'){etat.lectures++;etat.dernier_premier_son_ms=ms;const micro=Number(d.micro_ms);if(Number.isFinite(micro)&&micro>=0&&micro<=180000)etat.dernier_depuis_micro_ms=micro;
+    /* Avant/après : la médiane des premiers sons par briques, à comparer à
+       tours.reponse_du_modele.vecu_ms du chemin ordinaire. Jamais la moyenne. */
+    etat.premiers_sons=[...(etat.premiers_sons||[]).slice(-29),Math.round(ms)];
+    const t=[...etat.premiers_sons].sort((a:number,b:number)=>a-b),m=Math.floor(t.length/2);
+    etat.premier_son_median_ms=t.length?(t[m]+t[(t.length-1)>>1])/2:null;}
+  if(d.etape==='fin_chaine'){
+    /* Le repli est le prix de l'essai : la chaîne de briques n'a rien rendu et
+       le chemin ordinaire repart APRÈS. On le compte, sinon on ne saurait pas
+       ce que l'essai coûte quand il échoue. */
+    etat.chaines=(etat.chaines||0)+1;
+    if(Number(d.repli)===1)etat.replis=(etat.replis||0)+1;
+    etat.dernier_repli_ms=Number(d.repli)===1?Math.round(ms):etat.dernier_repli_ms??null;}
   if(d.etape==='blanc'){etat.dernier_blanc_ms=ms;etat.blanc_max_ms=Math.max(etat.blanc_max_ms,ms);}
   if(d.etape==='reflexion'){
     etat.reflexions++;

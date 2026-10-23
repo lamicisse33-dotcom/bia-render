@@ -1,6 +1,6 @@
 import {creerFileBriques,creerFluxBrique,type BriqueAudio} from './briques-file';
 import {entetesRapidite} from './rapidite-core';
-export function creerProducteurBriques(o:{code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;actuel:()=>boolean;segments?:()=>number}){
+export function creerProducteurBriques(o:{code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;actuel:()=>boolean;segments?:()=>number;surTranscriptionFinale?:boolean}){
  const file=creerFileBriques(),abort=new AbortController();
  const headers={'content-type':'application/json','x-bia-code':o.code,...entetesRapidite()};
  let id:string|undefined,dernier='',enCours:Promise<void>|null=null,ecoute=true,annule=false,commence=false,normal=false,termine=false,ajout=false;
@@ -87,7 +87,24 @@ export function creerProducteurBriques(o:{code:string;tour:string;history:unknow
    // ASR alone is not a prepared response. Starting a new brick after speech
    // ended can add an entire rejected model call before ordinary chat starts.
    if(commence||annule){porte('annule');return null;}
-   if(!file.pretes&&!enCours){porte('rien_de_pret');return null;}
+   if(!file.pretes&&!enCours){
+    /* ── L'ESSAI DU 23 OCTOBRE 2026, DEMANDÉ PAR LAMINE ─────────────────
+
+       Rien n'est prêt. L'ancien comportement rendait la main au chemin
+       ordinaire, par la décision citée juste au-dessus. On ouvre maintenant
+       la lecture À VIDE, en pariant sur la transcription finale que
+       `terminer()` apportera dans la seconde.
+
+       CE QUE ÇA NE FAIT PAS : rien n'est prononcé et aucune attente de fin
+       de parole n'est consommée — `jouer` n'est appelé que si une brique
+       arrive vraiment. Un démarrage à vide qui ne donne rien se referme sur
+       `file.fermer()` et le chemin ordinaire repart, avec un repli compté.
+
+       RÉVERSIBLE : le serveur publie `briques_sur_transcription_finale`
+       (BIA_BRIQUES_FINALES=non), le téléphone le lit au chargement. */
+    if(!o.surTranscriptionFinale){porte('rien_de_pret');return null;}
+    porte('depart_sur_transcription_finale');
+   }
    commence=true;
    const arreter=()=>{annule=true;abort.abort();file.annuler();liberer();};
    options.signal.addEventListener('abort',arreter,{once:true});
@@ -101,6 +118,8 @@ export function creerProducteurBriques(o:{code:string;tour:string;history:unknow
    ecoute=false;
    declarerLesPortes();
    if(!commence){annule=true;abort.abort();file.annuler();liberer();return;}
+   /* Sans rien de préparé, la toute première demande EST la finale : sans ce
+      passage, la boucle ci-dessous repartirait sur `ajout` jamais vrai. */
    try{await enCours;if(annule||!o.actuel()){normal=true;return;}
     // Keep an already running first brick: it starts as soon as it arrives,
     // independently of the final ASR. Finish with short complete bricks, so
