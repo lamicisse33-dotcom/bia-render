@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {NextRequest} from 'next/server';
-import {fetchAnthropic,messagesAnthropic,contenuAnthropic,MODELE_SONNET} from './cerveau-anthropic';
+import {fetchAnthropic,messagesAnthropic,contenuAnthropic,MODELE_HAIKU} from './cerveau-anthropic';
 import {messagesConversation} from './conversation-groq';
 import {contexteMemoireCommune} from './memoire-organisee';
 import {contexteInstructions} from './instructions-apprentissage';
@@ -19,7 +19,7 @@ function balayer(){for(const [id,d] of drafts)if(d.expire<Date.now())drafts.dele
 async function modele(messages:Array<{role:string;content:string}>,signal?:AbortSignal,verification=false){
  const schema=verification?{type:"object",properties:{valide:{type:"boolean"}},required:["valide"],additionalProperties:false}:{type:"object",properties:{eligible:{type:"boolean"},reply:{type:"string"}},required:["eligible","reply"],additionalProperties:false};
  if((process.env.BIA_LLM_PROVIDER||'anthropic')!=='anthropic')throw Error('Fournisseur non compatible');
- const r=await fetchAnthropic((process.env.ANTHROPIC_BASE_URL||'https://api.anthropic.com')+'/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01'},body:JSON.stringify({model:process.env.BIA_LLM_MODEL||MODELE_SONNET,max_tokens:1200,output_config:{format:{type:"json_schema",schema}},...messagesAnthropic(messages)}),signal},Date.now()+10000);
+ const r=await fetchAnthropic((process.env.ANTHROPIC_BASE_URL||'https://api.anthropic.com')+'/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01'},body:JSON.stringify({model:process.env.BIA_ANTICIPATION_MODEL||process.env.BIA_LLM_MODEL||MODELE_HAIKU,max_tokens:1200,output_config:{format:{type:"json_schema",schema}},...messagesAnthropic(messages)}),signal},Date.now()+10000);
  if(!r.ok)throw Error('Préparation indisponible');const d=await r.json();if(d.stop_reason==='max_tokens')throw Error('Réponse incomplète');
  const text=contenuAnthropic(d).replace(/^```(?:json)?\s*|\s*```$/g,'');try{return JSON.parse(text);}catch{throw Error('json_invalide');}
 }
