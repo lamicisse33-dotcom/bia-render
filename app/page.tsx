@@ -7948,7 +7948,6 @@ export default function Home() {
   return (
     <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
       <EssaiRapiditeBadge actif={estMaitre} />
-      {estMaitre && <a href="/gemini-live" onClick={() => { taire(); fermerConversation(); }} style={{position:'absolute',top:'max(60px, calc(env(safe-area-inset-top) + 48px))',left:12,zIndex:8,color:'#f4dda1',background:'#101014dd',borderRadius:18,padding:'10px 14px',textDecoration:'none'}}>Conversation rapide</a>}
       <a href="/?changer-code=1" aria-label="Changer de code d’accès" style={{position:'absolute',top:'max(12px, env(safe-area-inset-top))',left:12,zIndex:8,color:'#d4af37',background:'#101014dd',borderRadius:18,padding:'10px 14px',textDecoration:'none'}}>Code d’accès</a>
       <div className={eclipse ? "portrait eclipse" : rallume ? "portrait rallume" : "portrait"}
         aria-hidden="true" data-tenue={tenue} data-persona={persona}>
