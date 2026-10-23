@@ -10,7 +10,7 @@ let browser;
  await page.route('**/api/**',async route=>{
   const path=new URL(route.request().url()).pathname;
   let data={};
-  if(path==='/api/acces')data={ok:true,maitre:true};
+  if(path==='/api/acces'||path==='/api/codes')data={ok:true,maitre:true};
   if(path==='/api/etat')data={ecoute:'runpod',voix:'runpod',version:'local-synthetic'};
   if(path==='/api/gemini-live/session')data={token:'auth_tokens/synthetic',setup:{model:'synthetic'}};
   if(path==='/api/voix-gardees')data={ok:true};
