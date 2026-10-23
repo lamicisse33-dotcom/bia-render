@@ -1,7 +1,7 @@
-type Cas={langue:string;statut:string;jeton_http?:number;fournisseur_http?:number;premier_audio_ms?:number;duree_audio_s?:number;paquets?:number;transcription_entree_caracteres?:number;erreur?:string};
+type Cas={langue:string;statut:string;entree?:string;source_audio_erreur?:string;jeton_http?:number;fournisseur_http?:number;premier_audio_ms?:number;duree_audio_s?:number;paquets?:number;transcription_entree_caracteres?:number;erreur?:string};
 const g=globalThis as typeof globalThis&{biaGeminiDiagnostic?:{statut:string;date?:string;cas:Cas[];travail?:Promise<void>}};
 const etat=g.biaGeminiDiagnostic??={statut:'non_lance',cas:[]};
-export const resumeGeminiLive=()=>({statut:etat.statut,date:etat.date,cas:etat.cas,perimetre:'Audio synthétique fixe envoyé à Gemini depuis Render ; mesure jusqu’au premier paquet audio. Hors microphone, réseau du téléphone et haut-parleur.'});
+export const resumeGeminiLive=()=>({statut:etat.statut,date:etat.date,cas:etat.cas,perimetre:'Entrée fixe depuis Render ; chaque cas indique audio ou texte. Mesure jusqu’au premier paquet audio. Hors microphone, réseau du téléphone et haut-parleur.'});
 function pcm16k(wav:Buffer){
  if(wav.toString('ascii',0,4)!=='RIFF'||wav.toString('ascii',8,12)!=='WAVE')throw Error('wav_invalide');
  let rate=0,channels=0,bits=0,format=0,data:Buffer|undefined;
@@ -35,7 +35,7 @@ export function verifierGeminiLive(){return etat.travail??=(async()=>{
    const response=await POST(new NextRequest('https://app.khalam.app/api/gemini-live/session',{method:'POST',headers:{'x-bia-code':process.env.BIA_CODE_MAITRE||''}}));
    cas.jeton_http=response.status;const d=await response.json();
    if(!response.ok){cas.fournisseur_http=d.statut_fournisseur;throw Error(d.motif||'session_refusee');}
-   const audio=await sourceAudio(langue,texte);
+   let audio:Buffer|undefined;try{audio=await sourceAudio(langue,texte);cas.entree='audio';}catch(e){cas.entree='texte';cas.source_audio_erreur=e instanceof Error?e.message:'source_audio_indisponible';}
    await new Promise<void>((resolve,reject)=>{
     let start=0,bytes=0,packets=0;const ws=new WebSocket('wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token='+encodeURIComponent(d.token));
     let settled=false;
@@ -43,15 +43,16 @@ export function verifierGeminiLive(){return etat.travail??=(async()=>{
     const timer=setTimeout(()=>finish('delai_session'),25000);
     ws.onopen=()=>ws.send(JSON.stringify({setup:d.setup}));
     ws.onerror=()=>finish('connexion_google');
-    ws.onclose=()=>{if(!settled)finish('session_fermee_sans_audio');};
+    ws.onclose=event=>{if(!settled)finish('fermeture_'+event.code+'_'+event.reason.replace(/auth_tokens\/\S+/g,'[jeton]').slice(0,70));};
     ws.onmessage=async event=>{
      try{
       const msg=JSON.parse(typeof event.data==='string'?event.data:await event.data.text());
-      if(msg.error){finish('erreur_protocole_google');return;}
+      if(msg.error){finish('google_'+String(msg.error.message||msg.error.code||'erreur').replace(/auth_tokens\/\S+/g,'[jeton]').slice(0,80));return;}
       if(msg.setupComplete){
        ws.send(JSON.stringify({clientContent:{turns:[],turnComplete:true}}));
-       ws.send(JSON.stringify({realtimeInput:{audio:{data:audio.toString('base64'),mimeType:'audio/pcm;rate=16000'}}}));
-       start=performance.now();ws.send(JSON.stringify({realtimeInput:{audioStreamEnd:true}}));
+       start=performance.now();
+       if(audio){ws.send(JSON.stringify({realtimeInput:{audio:{data:audio.toString('base64'),mimeType:'audio/pcm;rate=16000'}}}));ws.send(JSON.stringify({realtimeInput:{audioStreamEnd:true}}));}
+       else ws.send(JSON.stringify({realtimeInput:{text:texte}}));
       }
       const c=msg.serverContent;
       if(c?.inputTranscription?.text)cas.transcription_entree_caracteres=(cas.transcription_entree_caracteres||0)+c.inputTranscription.text.length;

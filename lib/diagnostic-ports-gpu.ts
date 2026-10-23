@@ -16,7 +16,7 @@ export function verifierPortsGpu(){return etat.travail??=(async()=>{
   try{
    if(!adresse){c.verdict='adresse_absente';return;}
    Object.assign(c,portsAdresseGpu(adresse));
-   const r=await fetch(adresse.replace(/\/$/,'')+'/health',{cache:'no-store',signal:AbortSignal.timeout(5000)});
+   const r=await fetch(adresse.replace(/\/$/,'')+(role==='oreille'?'/asr/health':'/health'),{cache:'no-store',signal:AbortSignal.timeout(5000)});
    c.statut_http=r.status;c.ok=r.ok;c.verdict=r.ok?'sante_http_accessible':r.status===502||r.status===503||r.status===504?'passerelle_sans_service':r.status===404?'route_sante_absente':r.status===401||r.status===403?'acces_refuse':'erreur_http';
    await r.body?.cancel().catch(()=>{});
   }catch{c.ok=false;c.verdict='connexion_non_confirmee';}
