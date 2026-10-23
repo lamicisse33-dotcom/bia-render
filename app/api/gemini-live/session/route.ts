@@ -2,6 +2,7 @@ import {resumeGeminiLive} from '@/lib/gemini-live-diagnostic';
 import {NextRequest,NextResponse} from 'next/server';
 import {createHash} from 'node:crypto';
 import {verifierCode} from '@/lib/codes';
+import {motsCorriges} from '@/lib/lexique';
 import {contexteInstructions} from '@/lib/instructions-apprentissage';
 import {BIA_LIVE_CONSIGNES_BASE,BIA_LIVE_LANGUES} from '@/lib/gemini-live-prompt';
 export const runtime='nodejs';
@@ -23,17 +24,17 @@ export async function POST(req:NextRequest){
  const recent=(sessions.get(id)||[]).filter(t=>now-t<60000);
  if(recent.length>=6)return NextResponse.json({erreur:'Trop de connexions rapprochées. Réessaie dans une minute.'},{status:429,headers});
  sessions.set(id,[...recent,now]);
- let instructions:string;
- try{instructions=await contexteInstructions();}catch{return NextResponse.json({erreur:'Les consignes apprises sont momentanément inaccessibles.'},{status:503,headers});}
+ let instructions:string;let corrections:string;
+ try{const [apprises,mots]=await Promise.all([contexteInstructions(),motsCorriges()]);instructions=apprises;corrections=mots.length?'CORRECTIONS DE LANGUE DU MAÎTRE — leur forme corrigée fait autorité :\n'+JSON.stringify(mots):'';}catch{return NextResponse.json({erreur:'Les consignes apprises sont momentanément inaccessibles.'},{status:503,headers});}
  const setup={
   model:'models/'+(process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live').replace(/^models\//,''),
   generationConfig:{responseModalities:['AUDIO'],maxOutputTokens:512,speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Kore'}}}},
-  systemInstruction:{parts:[{text:BIA_LIVE_LANGUES+'\n\n'+BIA_LIVE_CONSIGNES_BASE+'\n'+instructions+'\nMODE VOCAL DIRECT : parle uniquement en français ou en wolof urbain de Dakar selon la langue de papa. Privilégie une réponse naturelle et concise, puis écoute. Les consignes de base et les formulations exactes apprises priment sur la concision. Ne coupe jamais la parole. Ne récite pas les prix des devoirs sans demande explicite. Tu appelles le maître papa au début de ta réponse de conversation, sans ajouter papa aux phrases exactes à répéter. Ne lis jamais les balises techniques à voix haute : dans ce mode, exprime les émotions naturellement dans la voix. Les anciennes commandes d’écran ne sont pas exécutées dans ce mode : ne prétends pas avoir effectué une action. Consulte chercher_connaissances pour les leçons et corrections mémorisées pertinentes. Ne prétends jamais avoir enregistré un nouvel apprentissage : renvoie vers le mode habituel pour cela.'+'\n\n'+BIA_LIVE_LANGUES}]},
+  systemInstruction:{parts:[{text:BIA_LIVE_LANGUES+'\n\n'+BIA_LIVE_CONSIGNES_BASE+'\n'+instructions+'\n'+corrections+'\nMODE VOCAL DIRECT : parle uniquement en français ou en wolof urbain de Dakar selon la langue de papa. Privilégie une réponse naturelle et concise, puis écoute. Les consignes de base et les formulations exactes apprises priment sur la concision. Ne coupe jamais la parole. Ne récite pas les prix des devoirs sans demande explicite. Tu appelles le maître papa au début de ta réponse de conversation, sans ajouter papa aux phrases exactes à répéter. Ne lis jamais les balises techniques à voix haute : dans ce mode, exprime les émotions naturellement dans la voix. Les anciennes commandes d’écran ne sont pas exécutées dans ce mode : ne prétends pas avoir effectué une action. Consulte chercher_connaissances avant de répondre à une question de langue, une correction ou un sujet couvert par les devoirs. Cet outil consulte les devoirs, le lexique Supabase, le lexique partagé et les consignes récentes. Pour lister tous les devoirs ou tout le lexique, utilise les actions de liste et leur pagination ; pour lire un devoir exact, utilise son identifiant retourné par la liste. Ne dis jamais que tu as consulté la mémoire sans un résultat effectif de cet outil. Ne prétends jamais avoir enregistré un nouvel apprentissage : renvoie vers le mode habituel pour cela.'+'\n\n'+BIA_LIVE_LANGUES}]},
   inputAudioTranscription:{},outputAudioTranscription:{},
   realtimeInputConfig:{automaticActivityDetection:{startOfSpeechSensitivity:'START_SENSITIVITY_HIGH',endOfSpeechSensitivity:'END_SENSITIVITY_LOW',prefixPaddingMs:150,silenceDurationMs:500},activityHandling:'START_OF_ACTIVITY_INTERRUPTS'},
   contextWindowCompression:{triggerTokens:'18000',slidingWindow:{targetTokens:'9000'}},
   sessionResumption:{},historyConfig:{initialHistoryInClientContent:true},
-  tools:[{functionDeclarations:[{name:'chercher_connaissances',description:'Consulter les leçons et formulations wolof apprises par Bia pour répondre à une question pertinente.',parameters:{type:'OBJECT',properties:{question:{type:'STRING'}},required:['question']}}]}]
+  tools:[{functionDeclarations:[{name:'chercher_connaissances',description:'Lire les devoirs, corrections et lexiques de Bia dans Supabase. Chercher des références pertinentes, lister tous les devoirs ou le lexique avec pagination, et lire intégralement un devoir par son identifiant. Lecture seule.',parameters:{type:'OBJECT',properties:{question:{type:'STRING'},action:{type:'STRING',enum:['chercher','lister_devoirs','lire_devoir','lister_lexique']},devoir_id:{type:'STRING'},offset:{type:'INTEGER'}},required:['question']}}]}]
  };
  try{
   const r=await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens',{method:'POST',headers:{'x-goog-api-key':cle(),'Content-Type':'application/json'},body:JSON.stringify({uses:1,expireTime:new Date(now+10*60000).toISOString(),newSessionExpireTime:new Date(now+60000).toISOString(),bidiGenerateContentSetup:setup}),signal:AbortSignal.timeout(15000)});
