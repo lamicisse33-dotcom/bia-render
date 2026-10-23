@@ -34,7 +34,7 @@ export async function chezOreilleLocale(audio: Blob): Promise<Ecoute | null> {
       method: "POST",
       headers: { "X-Wolof-Key": key, "Content-Type": audio.type || "application/octet-stream" },
       body: audio,
-      signal: AbortSignal.timeout(12_000),
+      signal: AbortSignal.timeout(6_000),
       cache: "no-store",
     });
     if (!r.ok) throw new Error("HTTP_" + r.status);
