@@ -244,14 +244,13 @@ test('final points are synthesized one at a time and charged only after the last
  const next=await s.preparerBrique({id:first.id,texte:c,final:true},'owner',true,signal);assert(!next.termine);assert.equal(next.brique.numero,1);assert.equal(s.quota(),0);
  const last=await s.preparerBrique({id:first.id,texte:c,final:true},'owner',true,signal);assert(last.termine);assert.equal(last.brique.numero,2);assert.equal(s.quota(),1);assert.equal(JSON.stringify(first.brique),locked);
 });
-test('a queued short transcript can start its first complete answer without an abandoned draft and continue while playing',async()=>{
- const original=globalThis.fetch,firstReady=deferred(),secondReady=deferred(),played=[];let calls=0;
- globalThis.fetch=async(_u,init)=>{const b=JSON.parse(init.body);assert(b.final);const n=calls++;await(n===0?firstReady:secondReady).promise;return Response.json({preparation:{id:'session',brique:brick(n),termine:n===1}});};
+test('ASR without a prepared or running brick takes ordinary chat without a preliminary model call',async()=>{
+ const original=globalThis.fetch;let calls=0;
+ globalThis.fetch=async()=>{calls++;assert.fail('no final brick request before ordinary chat');};
  try{
   const p=load('lib/briques-client.ts',()=>fileApi).creerProducteurBriques({...body,code:'owner',actuel:()=>true});p.arreterEcoute();
-  const reading=p.commencer({signal:new AbortController().signal,jouer:async b=>{played.push(b.numero);return true;},attente(){},taire(){},mesure(){}},true);assert(reading);
-  const finish=p.terminer(question);firstReady.resolve();await tick();assert.deepEqual(played,[0]);assert.equal(calls,2);
-  secondReady.resolve();await finish;assert.deepEqual(played,[0,1]);assert.equal((await reading.fin).normal,false);
+  const reading=p.commencer({signal:new AbortController().signal,jouer:async()=>assert.fail('no prepared audio'),attente(){},taire(){},mesure(){}});assert.equal(reading,null);
+  await p.terminer(question);assert.equal(calls,0);
  }finally{globalThis.fetch=original;}
 });
 test('focused prompt preserves complete teaching instructions and exact memory without duplicating the question',()=>{
