@@ -7,15 +7,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
-  async rewrites() {
-    return {
-      beforeFiles: [{
-        source: '/',
-        missing: [{type: 'query', key: 'mode', value: 'khalam'}],
-        destination: '/gemini-live',
-      }],
-    };
-  },
+
 };
 
 export default nextConfig;
