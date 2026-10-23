@@ -9,6 +9,25 @@ const page=fs.readFileSync('app/page.tsx','utf8'),ast=ts.createSourceFile('page.
 function callback(name){let body;function walk(n){if(ts.isVariableDeclaration(n)&&n.name.getText(ast)===name)body=n.initializer.arguments[0].getText(ast);ts.forEachChild(n,walk);}walk(ast);assert(body);return new Function('env',`with(env){${compile('const run='+body)};return run;}`);}
 const makeGate=callback('autoriserLaVoix'),makePlay=callback('jouerEtAnimer');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+test('startup measurements retain bounded phases and acoustic causes without private payloads',async()=>{
+ const api=await import('data:text/javascript;base64,'+Buffer.from(compile(fs.readFileSync('lib/protection-parole-etat.ts','utf8'))).toString('base64'));
+ api.noterProtectionParole({type:'demarrage_voix',phase:'decodage',ms:85,ok:true,texte:'private text'});
+ api.noterProtectionParole({type:'demarrage_voix',phase:'private text',ms:5});
+ api.noterProtectionParole({type:'demarrage_voix',phase:'reveil',ms:Infinity});
+ api.noterProtectionParole({type:'protection_parole',etape:'retenue',ms:23000,phase:'apres_decodage',contexte:'suspended',causes:{micro:0,porte:0,signal:400,texte:'private text'}});
+ const r=api.resumeProtectionParole();assert.equal(r.demarrage_detaille.length,1);assert.equal(r.demarrage_detaille[0].ms,85);
+ assert.equal(r.attentes_detaillees.at(-1).phase,'apres_decodage');assert.equal(r.attentes_detaillees.at(-1).causes.signal,400);
+ assert(!JSON.stringify(r).includes('private text'));
+});
+test('startup instrumentation preserves action results and failures when telemetry fails',async()=>{
+ const {mesurerDemarrageVoix}=await import('data:text/javascript;base64,'+Buffer.from(compile(fs.readFileSync('lib/mesure-demarrage-voix.ts','utf8'))).toString('base64'));
+ const original=globalThis.fetch,events=[];globalThis.fetch=async(_url,init)=>{events.push(JSON.parse(init.body));throw Error('network');};
+ try{
+  assert.equal(await mesurerDemarrageVoix('reveil',async()=>42),42);
+  const erreur=new Error('decode failed');await assert.rejects(mesurerDemarrageVoix('decodage',async()=>{throw erreur;}),e=>e===erreur);
+  assert.deepEqual(events.map(e=>[e.phase,e.ok]),[['reveil',true],['decodage',false]]);
+ }finally{globalThis.fetch=original;}
+});
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 function environment(){
  let now=10000,speech=false,plays=0;const events=[];
@@ -17,7 +36,7 @@ function environment(){
   analyseRef:{current:{frequencyBinCount:128,context:{sampleRate:48000},getByteTimeDomainData:a=>a.fill(speech?150:128),getByteFrequencyData:a=>a.fill(speech?1:0)}},
   sourceRef:{current:null},sourcesRef:{current:new Set()},voixDuTelephoneRef:{current:false},sonDelleRef:{current:0},seuilRef:{current:8},dernierSignalParoleRef:{current:{quand:0,delai:1500}},
   partVocale:()=>speech?.6:0,fetch:async(_u,o)=>{events.push(JSON.parse(o.body));return {ok:true};},numeroDuTourRef:{current:1},
-  reveillerLeSon:async()=>ctx,ralentir:(_c,a)=>a,sansSilence:(_c,a)=>a,vitesseAudioBia:()=>1,enveloppeDe:()=>({valeurs:[1],pic:1,pas:.01}),
+  reveillerLeSon:async()=>ctx,mesurerDemarrageVoix:async(_phase,action)=>action(),ralentir:(_c,a)=>a,sansSilence:(_c,a)=>a,vitesseAudioBia:()=>1,enveloppeDe:()=>({valeurs:[1],pic:1,pas:.01}),
   setMode(){},setFace(){},animationRef:{current:null},segmentEnCoursRef:{current:false},requestAnimationFrame:()=>1,cancelAnimationFrame(){},envoyerLeTour(){}};
  env.autoriserLaVoix=makeGate(env);
  return {env,ctx,events,now:v=>now=v,speech:v=>speech=v,plays:()=>plays};

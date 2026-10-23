@@ -99,6 +99,7 @@ import {creerFocusLocuteur} from "@/lib/focus-locuteur";
 import {exclusionAnticipation} from '@/lib/activation-anticipation';
 import {brancherReprise} from '@/lib/reprise-progressive';
 import { attendreSonTour, creerDetectionInterruption } from "@/lib/tour-de-parole";
+import {mesurerDemarrageVoix} from '@/lib/mesure-demarrage-voix';
 import Installer from "./installer";
 import Ecran from "./ecran";
 import type { PieceEcran } from "./ecran";
@@ -1624,7 +1625,7 @@ export default function Home() {
     const ctx = contexte();
     /* La règle elle-même est dans lib/reveil-du-son.ts, avec son histoire et
        ses épreuves. Ici on ne fait que l'appliquer. */
-    await reveiller(ctx);
+    await mesurerDemarrageVoix('reveil',()=>reveiller(ctx));
     return ctx;
   }, [contexte]);
 
@@ -1716,12 +1717,15 @@ export default function Home() {
 
   // This check survives React's thinking/speaking transitions and runs again
   // after downloads/decoding, immediately before committing audible playback.
-  const autoriserLaVoix = useCallback(async (actuel:()=>boolean) => {
+  const autoriserLaVoix = useCallback(async (actuel:()=>boolean,phase='autre') => {
     const debut=Date.now();let retenue=false;
+    const causes={micro:0,porte:0,signal:0,analyse_erreur:0};let contexte='inconnu';
     const silencieux=()=>{
       if(!conversationRef.current)return true;
       const microOuvert=enregistreurRef.current?.state==='recording';
+      if(microOuvert)causes.micro++;
       const analyse=analyseRef.current;
+      contexte=String(analyse?.context.state||'inconnu');
       // Do not mistake BIA's own audio for the user. Barge-in handles that case.
       if(analyse&&!sourceRef.current&&!sourcesRef.current.size&&!voixDuTelephoneRef.current&&sonDelleRef.current===0){
         try{
@@ -1731,18 +1735,19 @@ export default function Home() {
           if(pic>(seuilRef.current||8)&&partVocale(spectre,analyse.context.sampleRate)>=0.2){
             dernierSignalParoleRef.current={quand:Date.now(),delai:silenceQuiSuffit(7000,coupesTropTotRef.current)};
           }
-        }catch{ return false; }
+        }catch{ causes.analyse_erreur++;return false; }
       }
       const signal=dernierSignalParoleRef.current;
+      if(signal.quand&&Date.now()-signal.quand<signal.delai)causes.signal++;
       const libre=!microOuvert&&(!signal.quand||Date.now()-signal.quand>=signal.delai);
       if(!libre)retenue=true;
       return libre;
     };
     const accord=await attendreSonTour(actuel,()=>{
-      if(porteRef.current)retenue=true;
+      if(porteRef.current){retenue=true;causes.porte++;}
       return porteRef.current;
     },silencieux);
-    if(retenue)void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'protection_parole',etape:accord?'retenue':'annulee',ms:Date.now()-debut}),keepalive:true}).catch(()=>{});
+    if(retenue)void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'protection_parole',etape:accord?'retenue':'annulee',ms:Date.now()-debut,phase,contexte,causes}),keepalive:true}).catch(()=>{});
     return accord;
   },[]);
 
@@ -1764,8 +1769,8 @@ export default function Home() {
       if (secours) clearTimeout(secours);
       fini(ms);
     };
-    ctx.decodeAudioData(octets.slice(0)).then(async (brut) => {
-      if(!await autoriserLaVoix(actif)){rendre(0);return;}
+    mesurerDemarrageVoix('decodage',()=>ctx.decodeAudioData(octets.slice(0))).then(async (brut) => {
+      if(!await autoriserLaVoix(actif,'lecture_simple')){rendre(0);return;}
       /* POSÉE, PAS PRESSÉE. Lamine, le 11 septembre 2026 : « ralentir de
          30 % la vitesse de sa voix, elle est trop agressive ». Le modèle de
          voix n'a AUCUN réglage de vitesse — vérifié dans sa documentation —
@@ -2654,7 +2659,7 @@ export default function Home() {
        mot, une fois le son fabriqué. */
     const tourAuDepart = numeroDuTourRef.current;
     const actuel = () => numeroDuTourRef.current === tourAuDepart;
-    const peutParler = () => autoriserLaVoix(actuel);
+    const peutParler = (phase='avant_lecture') => autoriserLaVoix(actuel,phase);
     if (suite && ou === "réponse") setMode("thinking");
     const prendreLaParole = async () => {
       /* ── SAUF QUAND ELLE A DÉJÀ COMMENCÉ ─────────────────────────────
@@ -2664,7 +2669,7 @@ export default function Home() {
          couperait le son qu'on vient de lancer — donc on ne fait rien, on
          continue simplement de parler. */
       if (suite) return;
-      await finirAttente(langueRef.current,!lecture?.sonCourant);
+      await mesurerDemarrageVoix('prise_parole',()=>finirAttente(langueRef.current,!lecture?.sonCourant));
       if (!actuel()) return;
       window.speechSynthesis?.cancel();
       couperSon();
@@ -3000,8 +3005,8 @@ export default function Home() {
       let noteDansLEcho = false;
 
       const programmer = async (octets: ArrayBuffer, continu = false) => {
-        const brut = await ctx.decodeAudioData(octets.slice(0));
-        if (perdu() || !await peutParler() || perdu()) return;
+        const brut = await mesurerDemarrageVoix('decodage',()=>ctx.decodeAudioData(octets.slice(0)));
+        if (perdu() || !await peutParler('apres_decodage') || perdu()) return;
         // Internal audio packet boundaries can fall inside a syllable.
         // Keep every sample; silence trimming applies only to whole clips.
         const mémoire = ralentir(ctx, continu ? brut : sansSilence(ctx, brut), vitesseAudioBia(octets));
@@ -3013,7 +3018,7 @@ export default function Home() {
           // synthesis/retry. The normal loop still reads every following clip.
           const suivant=await Promise.race([enVol.get(1),new Promise<"delai">((resolve)=>setTimeout(()=>resolve("delai"),400))]);
           if(suivant!=="delai"&&!suivant?.audio)throw new Error("La voix n’a pas pu préparer la suite.");
-          if(perdu()||!await peutParler()||perdu())return;
+          if(perdu()||!await peutParler('apres_amorcage')||perdu())return;
         }
         const { valeurs, pic, pas } = enveloppeDe(mémoire);
         const source = ctx.createBufferSource();
