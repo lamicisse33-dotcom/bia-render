@@ -1,6 +1,6 @@
-const g=globalThis as typeof globalThis&{biaProtectionParole?:{retenues:number;annulees:number;derniere:unknown;captures:Record<string,number>;derniere_capture:unknown;motifs_exclusion:Record<string,number>}};
+const g=globalThis as typeof globalThis&{biaProtectionParole?:{retenues:number;annulees:number;derniere:unknown;captures:Record<string,number>;derniere_capture:unknown;motifs_exclusion:Record<string,number>;attentes_detaillees?:Record<string,unknown>[];demarrage_detaille?:Record<string,unknown>[]}};
 const etat=g.biaProtectionParole??={retenues:0,annulees:0,derniere:null,captures:{},derniere_capture:null,motifs_exclusion:{}};
-const attentes:Record<string,unknown>[]=[],demarrages:Record<string,unknown>[]=[];
+const attentes=etat.attentes_detaillees??=[],demarrages=etat.demarrage_detaille??=[];
 export const resumeProtectionParole=()=>({revision:'silence-avant-son-v1',...etat,attentes_detaillees:attentes,demarrage_detaille:demarrages});
 export function noterProtectionParole(d:Record<string,unknown>){
   if(d.type==='demarrage_voix'){
