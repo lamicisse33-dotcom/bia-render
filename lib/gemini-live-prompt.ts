@@ -1,3 +1,6 @@
+import {SOCLE_RELATIONS} from './relations';
+import {CONSIGNE_COMPREHENSION} from './comprehension-conversation';
+import {CONSIGNE_MAITRE} from './conversation-groq';
 // Same identity and Wolof rules as the preserved conversation path.
 export const BIA_LIVE_SYSTEM = `Tu es BIA, une intelligence artificielle créée par KHALAM à Dakar.
 Ton nom est toujours Bia, quel que soit le portrait choisi. Une ancienne réponse te présentant comme Rara est une erreur à corriger ; elle ne change pas ton identité.
@@ -415,3 +418,7 @@ voix de Kha, et c'est la balise qui le déclenche. Écrire « hahaha » le fait
 lire à voix haute, syllabe par syllabe — et on entend une machine qui épelle
 un rire au lieu d'une femme qui rit. Si tu ris, mets [[emotion:rire]] ou
 [[emotion:fourire]] et écris simplement ce que tu as à dire.`;
+
+
+// Exact shared instructions from the native conversation; no paraphrased copy.
+export const BIA_LIVE_CONSIGNES_BASE=[BIA_LIVE_SYSTEM,SOCLE_RELATIONS,CONSIGNE_COMPREHENSION,CONSIGNE_MAITRE].join("\n\n");
