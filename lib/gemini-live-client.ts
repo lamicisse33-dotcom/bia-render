@@ -26,7 +26,7 @@ export class BiaGeminiLive{
  private socket?:WebSocket;private micro?:MediaStream;private input?:AudioContext;private output?:AudioContext;private capture?:AudioWorkletNode;private source?:MediaStreamAudioSourceNode;private gain?:GainNode;
  private nodes=new Set<AudioBufferSourceNode>();private next=0;private stoppe=true;private ready=false;private finParole=0;private premiere=true;private idle?:ReturnType<typeof setInterval>;private timer?:ReturnType<typeof setTimeout>;
  private userText='';private biaText='';private history:Array<{role:string;parts:Array<{text:string}>}>=[];private muted=false;
- constructor(private code:string,private events:LiveEvents){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');}
+ constructor(private code:string,private events:LiveEvents,private historique?:Array<{role:'user'|'bia';text:string}>){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');}
  private send(data:unknown){if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify(data));}
  private viderSon(){for(const n of this.nodes){n.onended=null;try{n.stop();}catch{}}this.nodes.clear();this.next=0;this.events.parle(false);}
  async demarrer(){
@@ -49,7 +49,8 @@ export class BiaGeminiLive{
     this.send({realtimeInput:{audio:{data:btoa(binary),mimeType:'audio/pcm;rate=16000'}}});
    };
    await this.input.resume();
-   try{const saved=JSON.parse(localStorage.getItem('bia-gemini-live-history')||'[]');if(Array.isArray(saved))this.history=saved.slice(-12);}catch{}
+   if(this.historique){this.history=this.historique.filter(m=>m.text?.trim()).slice(-12).map(m=>({role:m.role==='bia'?'model':'user',parts:[{text:m.text}]}));}
+   else try{const saved=JSON.parse(localStorage.getItem('bia-gemini-live-history')||'[]');if(Array.isArray(saved))this.history=saved.slice(-12);}catch{}
    await this.connecter();
    this.finParole=performance.now();
    this.idle=setInterval(()=>{if(!this.stoppe&&performance.now()-this.finParole>90000){this.arreter();this.events.etat('En pause. Appuie sur Parler pour reprendre.');}},5000);
