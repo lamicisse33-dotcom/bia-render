@@ -14,18 +14,21 @@ export async function GET(){return NextResponse.json({configure:Boolean(cle()),m
 export async function POST(req:NextRequest){
  const acces=verifierCode(req.headers.get('x-bia-code'),false);
  if(!acces.ok)return NextResponse.json({erreur:'Code d’accès refusé.'},{status:401,headers});
- if(!acces.maitre)return NextResponse.json({erreur:'Ce premier branchement est réservé au code maître.'},{status:403,headers});
  // Render can expose an internal nextUrl origin behind its HTTPS reverse proxy.
  const origine=req.headers.get('origin');
  if(origine&&origine!==req.nextUrl.origin&&origine!=='https://app.khalam.app')return NextResponse.json({erreur:'Origine refusée.'},{status:403,headers});
- if(!cle())return NextResponse.json({erreur:'La clé Gemini doit être configurée sur le serveur.',motif:'cle_absente'},{status:503,headers});
+ if(!cle())return NextResponse.json({erreur:'La clé de Khalam Rapide doit être configurée sur le serveur.',motif:'cle_absente'},{status:503,headers});
  const id=createHash('sha256').update(req.headers.get('x-bia-code')||'').digest('hex'),now=Date.now();
  for(const [k,v] of sessions)if(!v.some(t=>now-t<60000))sessions.delete(k);
  const recent=(sessions.get(id)||[]).filter(t=>now-t<60000);
  if(recent.length>=6)return NextResponse.json({erreur:'Trop de connexions rapprochées. Réessaie dans une minute.'},{status:429,headers});
  sessions.set(id,[...recent,now]);
  let instructions:string;let corrections:string;
- try{const [apprises,mots]=await Promise.all([contexteInstructions(),motsCorriges()]);instructions=apprises;corrections=mots.length?'CORRECTIONS DE LANGUE DU MAÎTRE — leur forme corrigée fait autorité :\n'+JSON.stringify(mots):'';}catch{return NextResponse.json({erreur:'Les consignes apprises sont momentanément inaccessibles.'},{status:503,headers});}
+ /* Les instructions pédagogiques du maître ne partent qu'au maître, comme dans
+    app/api/chat/route.ts : la connexion est ouverte à tous depuis le 23 octobre
+    2026, la mémoire privée de Lamine ne l'est pas. Le lexique corrigé, lui, est
+    la façon de parler de BIA — il vaut pour tout le monde. */
+ try{const [apprises,mots]=await Promise.all([acces.maitre?contexteInstructions():Promise.resolve(''),motsCorriges()]);instructions=apprises;corrections=mots.length?'CORRECTIONS DE LANGUE DU MAÎTRE — leur forme corrigée fait autorité :\n'+JSON.stringify(mots):'';}catch{return NextResponse.json({erreur:'Les consignes apprises sont momentanément inaccessibles.'},{status:503,headers});}
  const setup={
   model:'models/'+(process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live').replace(/^models\//,''),
   generationConfig:{responseModalities:['AUDIO'],maxOutputTokens:512,speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Kore'}}}},
@@ -38,9 +41,9 @@ export async function POST(req:NextRequest){
  };
  try{
   const r=await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens',{method:'POST',headers:{'x-goog-api-key':cle(),'Content-Type':'application/json'},body:JSON.stringify({uses:1,expireTime:new Date(now+10*60000).toISOString(),newSessionExpireTime:new Date(now+60000).toISOString(),bidiGenerateContentSetup:setup}),signal:AbortSignal.timeout(15000)});
-  if(!r.ok){let motif='refus_google';try{const e=await r.json();motif=String(e.error?.message||e.error?.status||motif).split(cle()).join('[cle masquee]').slice(0,180);}catch{}return NextResponse.json({erreur:'Google refuse actuellement la connexion Live.',statut_fournisseur:r.status,motif},{status:502,headers});}
+  if(!r.ok){let motif='refus_google';try{const e=await r.json();motif=String(e.error?.message||e.error?.status||motif).split(cle()).join('[cle masquee]').slice(0,180);}catch{}return NextResponse.json({erreur:'Khalam Rapide est momentanément refusée par son fournisseur.',statut_fournisseur:r.status,motif},{status:502,headers});}
   const data=await r.json();
   if(typeof data.name!=='string')throw Error('jeton absent');
   return NextResponse.json({token:data.name,setup,expireTime:new Date(now+10*60000).toISOString()},{headers});
- }catch{return NextResponse.json({erreur:'La connexion à Gemini Live a échoué.'},{status:502,headers});}
+ }catch{return NextResponse.json({erreur:'La connexion à Khalam Rapide a échoué.'},{status:502,headers});}
 }

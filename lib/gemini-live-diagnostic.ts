@@ -1,7 +1,7 @@
 type Cas={langue:string;statut:string;entree?:string;jeton_http?:number;fournisseur_http?:number;premier_audio_ms?:number;duree_audio_s?:number;paquets?:number;transcription_entree_caracteres?:number;erreur?:string};
 const g=globalThis as typeof globalThis&{biaGeminiDiagnostic?:{statut:string;date?:string;cas:Cas[];connaissances?:Record<string,unknown>;travail?:Promise<void>}};
 const etat=g.biaGeminiDiagnostic??={statut:'non_lance',cas:[]};
-export const resumeGeminiLive=()=>({statut:etat.statut,date:etat.date,cas:etat.cas,connaissances:etat.connaissances,perimetre:'Question audio synthétique Khalam diffusée en temps réel depuis Render vers Gemini Live. Mesure depuis la fin de cet audio jusqu’au premier paquet de réponse. Hors microphone, réseau du téléphone et haut-parleur.'});
+export const resumeGeminiLive=()=>({statut:etat.statut,date:etat.date,cas:etat.cas,connaissances:etat.connaissances,perimetre:'Question audio synthétique Khalam diffusée en temps réel depuis Render vers Khalam Rapide. Mesure depuis la fin de cet audio jusqu’au premier paquet de réponse. Hors microphone, réseau du téléphone et haut-parleur.'});
 function pcm16k(wav:Buffer){
  if(wav.toString('ascii',0,4)!=='RIFF'||wav.toString('ascii',8,12)!=='WAVE')throw Error('wav_invalide');
  let rate=0,channels=0,bits=0,format=0,data:Buffer|undefined;

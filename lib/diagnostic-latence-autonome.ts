@@ -17,9 +17,9 @@ const exemples=[
  * Diagnostic flags prevent corpus/chat/lesson writes. No private text exported.
  */
 export function verifierLatenceAutonome(){return etat.travail??=(async()=>{
- const rapport:any={statut:'en_cours',date:new Date().toISOString(),version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),modele:process.env.BIA_LLM_MODEL,lecture_navigateur_mesuree:false,microphone_mesure:false,perimetre:'Audio synthétique fixe → routes HTTP réelles ASR, conversation et premier clip vocal. Hors silence de fin de parole, réseau du téléphone et haut-parleur. Ordre inversé au second passage ; caches indiqués. Cache de réponse contourné pour mesurer six calculs réels ; cache de voix conservé.',cas:[]};etat.rapport=rapport;
+ const rapport:any={statut:'en_cours',date:new Date().toISOString(),version:(process.env.RENDER_GIT_COMMIT||'').slice(0,12),modele:process.env.BIA_LLM_MODEL,lecture_navigateur_mesuree:false,microphone_mesure:false,perimetre:'Audio synthétique fixe → routes HTTP réelles ASR, conversation et premier clip vocal. Hors silence de fin de parole, réseau du téléphone et haut-parleur. Ordre inversé au second passage ; caches indiqués. Cache de réponse contourné pour mesurer six calculs réels ; cache de voix conservé. Un septième jeu d\u2019échanges, lui, laisse le cache de sélection répondre : c\u2019est le seul qui mesure le chemin appris par la vraie route, et il publie ce qui reste sans nom.',cas:[]};etat.rapport=rapport;
  const code=process.env.BIA_CODE_MAITRE||'',base='https://app.khalam.app';
- const requete=(path:string,body:unknown,signal:AbortSignal,profil?:'sonnet'|'haiku')=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json','x-bia-code':code,'x-bia-diagnostic-latence':'calcul',...(profil?{'x-bia-essai-rapidite':profil}:{})},body:JSON.stringify(body),signal,cache:'no-store'});
+ const requete=(path:string,body:unknown,signal:AbortSignal,profil?:'sonnet'|'haiku',diagnostic:'calcul'|'1'='calcul')=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json','x-bia-code':code,'x-bia-diagnostic-latence':diagnostic,...(profil?{'x-bia-essai-rapidite':profil}:{})},body:JSON.stringify(body),signal,cache:'no-store'});
  try{
   if(!code)throw Error('acces_absent');
   const audios=new Map<string,Buffer>(),transcriptions=new Map<string,string>();
@@ -112,7 +112,52 @@ export function verifierLatenceAutonome(){return etat.travail??=(async()=>{
     await son;c.total_ms=Date.now()-debut;c.ok=true;
    }catch{c.ok=false;}
   }
-  rapport.statut=rapport.cas.every((c:any)=>c.ok)?'termine':'a_verifier';
+  /* ── LE CHEMIN APPRIS, PAR LA VRAIE ROUTE, SANS FORCER LE CALCUL ────────
+
+    docs/DIAGNOSTIC-AUTONOME-2026-10-22.md laisse « environ 3 289 ms après le
+    modèle » à tracer sur la sélection apprise wolof. `reponses_apprises`
+    juste au-dessus mesure les briques EN MÉMOIRE — utile, mais ce n'est pas
+    la fenêtre où le délai a été vu : celle-là va de la fin du modèle à la
+    réponse HTTP complète.
+
+    Et les six échanges ci-dessus ne peuvent pas la voir : ils posent
+    `forcer_calcul`, qui annule exprès la lecture du cache de sélection pour
+    mesurer six calculs neufs. Le chemin le plus emprunté restait donc hors
+    de toute mesure HTTP.
+
+    Ici, on envoie la même transcription avec l'en-tête de diagnostic SANS
+    forcer le calcul : le cache de sélection répond s'il a quelque chose, et
+    `chronometrage` rapporte le chemin pris et ses trois attentes
+    (devoirs, provenance, audio mémorisé). Lecture seule, aucun écrit —
+    `apprentissageTest` reste posé. Si rien n'est en cache, on le dit au lieu
+    de le déduire. */
+ rapport.chemin_appris_http=[];
+ for(const exemple of exemples.filter(e=>e.langue==='wo')){
+  const c:any={scenario:exemple.id};rapport.chemin_appris_http.push(c);
+  try{
+   const question=transcriptions.get(exemple.id);if(!question)throw Error('transcription_absente');
+   const debut=Date.now(),signal=AbortSignal.timeout(30000);
+   const response=await requete('/api/chat',{message:question,history:exemple.history,apprentissageTest:true,diffuse:true},signal,undefined,'1');
+   if(!response.ok||!response.body)throw Error('conversation_indisponible');
+   const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',termine=false;
+   try{for(;;){const p=await reader.read();if(p.done)break;buffer+=decoder.decode(p.value,{stream:true});let cut;
+    while((cut=buffer.indexOf('\n\n'))>=0){const packet=buffer.slice(0,cut);buffer=buffer.slice(cut+2);const nom=packet.match(/^event:\s*(.+)$/m)?.[1],raw=packet.match(/^data:\s*(.+)$/m)?.[1];if(!raw)continue;const e=JSON.parse(raw);
+     if(nom==='texte')c.premier_texte_ms??=Date.now()-debut;
+     if(nom==='fin'){
+      c.reponse_http_complete_ms=Date.now()-debut;c.chronometrage=e.chronometrage;c.source=e.corps?.source;
+      /* CE QUI RESTAIT SANS NOM, maintenant soustrait au lieu d'être deviné :
+         la réponse HTTP complète moins ce que le serveur a su nommer. */
+      const m=e.chronometrage||{};
+      const nomme=(m.preparation_ms||0)+(m.modele_complet_ms||0)+(m.devoirs_ms||0)+(m.origine_ms||0)+(m.audio_memoire_ms||0);
+      c.chemin=m.chemin??'reponse_libre';c.nomme_ms=nomme;c.sans_nom_ms=Math.max(0,(c.reponse_http_complete_ms||0)-nomme);
+      termine=e.statut===200&&!!e.corps?.reply;
+     }
+    }
+   }}finally{await reader.cancel().catch(()=>{});}
+   c.ok=termine;
+  }catch{c.ok=false;c.erreur='chemin_appris_non_confirme';}
+ }
+ rapport.statut=rapport.cas.every((c:any)=>c.ok)?'termine':'a_verifier';
  }catch(e){rapport.statut='echec';rapport.erreur=e instanceof Error&&['acces_absent','audio_temoin_indisponible','Audio incomplet'].includes(e.message)?e.message:'preparation_non_confirmee';}
  rapport.fin=new Date().toISOString();
 })();}

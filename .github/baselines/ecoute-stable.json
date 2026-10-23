@@ -2,10 +2,10 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "66ed36893a22b36d9541a324b739749e86170196ecbad48c69c83a2be2005d3b",
+    "app/page.tsx": "219fc2d3f52b9b47118994fbd1e836cc6416cd375413387537d1342f6f06a917",
     "lib/micro.ts": "225f42ffbe4c66c4c61c97d7ae6376506d94d4b8e3348582e67d7fae30b9f2ce",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
-    "lib/ecoute-locale.ts": "ad34b135d0d3589badf6161afd07df8dce927de633ea9ffc215a07dd26c47f19",
+    "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
     "lib/transport-conversation.ts": "ac8d95016a165bc00abfad385cc2f5c87278775854dfbddbcfbbe4b308e607ce",
     "app/api/ecouter/route.ts": "fa340e8771d8b6abfbfe1440b3547b2da89b5369f6fc4797cd0ade5ae389083c",
     "app/api/ecouter/anticiper/route.ts": "56867d683f1b63e0f57803de17426e4417b717122c8043d3132fa617982f153d",
@@ -146,5 +146,14 @@
     "scope": "Only the authenticated master read-only preloader condition changes in this protected route. Sonnet ordinary speech receives the same nonblocking four readers as the prior optimized trial. No transcription, microphone, endpoint, language or corpus logic changes.",
     "measurements": "Targeted behavior tests and TypeScript pass, including unauthenticated and non-master exclusion, master ASR completion while preloading remains pending, exact output equivalence, immediate source correction, and bounded cache size. Full CI and browser audio checks remain required before merge.",
     "limits": "The once-per-process production comparison measures source filtering only, with actual private references and no model/audio generation. Human phone latency is not inferred from the source benchmark."
+  },
+  "migration_khalam_rapide_20261023": {
+    "autorise": "Lamine, 23 octobre 2026 : Khalam Rapide (la conversation rapide) devient la connexion PAR DÉFAUT pour tout le monde, un bouton visible permet de basculer vers Khalam, le choix est gardé sur le téléphone, et sa latence fin de parole → premier son doit se lire dans /api/etat.",
+    "derive_anterieure": "Ce manifeste était DÉJÀ rouge avant cette migration : app/page.tsx et lib/ecoute-locale.ts avaient dérivé sur main sans mise à jour, parce que tests/stabilite-streaming.test.mjs ne tourne que sur pull_request vers main et que la série du 23 octobre est partie en poussées directes. Les deux empreintes sont donc reprises ici, au commit f8878b0e5067d148b1c14485e2359854c8a86b60 (parent f8878b0). Les huit autres chemins protégés gardent leur valeur exacte.",
+    "perimetre": "Parmi les chemins protégés, seul app/page.tsx change dans cette migration ; lib/ecoute-locale.ts n'est pas touché, son empreinte ne fait que reconnaître la dérive antérieure. Dans app/page.tsx : le choix du moteur à l'entrée de `ecouter` (anciennement réservé au code maître), un bouton de bascule, la mémorisation du choix, et la latence déclarée à /api/mesure. Aucun changement de seuil de micro, d'endpointing, de découpage, de transport de synthèse, de voix, de modèle ni de garde de lecture. Les briques, l'attente de fin de parole et l'ordre des lectures du chemin Khalam sont intacts.",
+    "verification": "Suites exécutées en local, toutes vertes : 367 épreuves du lot conversation (micro-cycle, audio-400ms, briques-cycle, briques-conversation, briques-flux-continu, tour-de-parole, protection-parole, reprise-progressive, ecoute-progressive-silence, focus-locuteur, anticipation-conversation, vitesse-immediate, dialogue-devoirs, salutations, lecture-fidele, continuite-voix…), plus gemini-live et khalam-rapide. tsc --noEmit et npm run build passent. Chromium réel sur le serveur de production local : bouton de bascule visible et étiqueté, choix gardé au rechargement, ?mode=khalam honoré, aucune occurrence de « Gemini » dans le texte de la page, un visiteur non maître ouvre bien Khalam Rapide avec exactement une connexion, latence déclarée 216 ms vers /api/mesure, zéro erreur de page.",
+    "corrections_de_suites": "tests/micro-cycle.test.mjs et tests/audio-400ms.test.mjs échouaient DÉJÀ sur main (ReferenceError: utiliserLiveMaitre is not defined) depuis que la conversation rapide est entrée dans `ecouter` : leur décor demande maintenant explicitement le chemin Khalam. tests/dialogue-devoirs.test.mjs reçoit `chrono`. Aucune assertion n'a été affaiblie.",
+    "metrique": "Nouveau champ public khalam_rapide dans /api/etat : médiane, minimum, maximum et douze derniers relevés de fin de parole → premier son, mesures refusées comptées, basculements comptés des deux côtés. Durées et comptes seulement.",
+    "non_valide": "Rien n'est affirmé sur ce que Lamine entend. Le silence de fin de parole décidé par la détection d'activité de Khalam Rapide, le réseau de son téléphone et son haut-parleur ne sont pas mesurés, et aucun gain avant/après n'est déduit. RÈGLE 1 de AVANT-DE-DIRE-QUE-C-EST-BON.md : ça se mesure dans sa bouche et dans ses oreilles."
   }
 }

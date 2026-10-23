@@ -69,13 +69,13 @@ export class BiaGeminiLive{
   await new Promise<void>((resolve,reject)=>{
    const ws=new WebSocket('wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token='+encodeURIComponent(data.token));this.socket=ws;
    let established=false;
-   const timeout=setTimeout(()=>{ws.close();reject(Error('Gemini Live ne répond pas.'));},12000);
+   const timeout=setTimeout(()=>{ws.close();reject(Error('Khalam Rapide ne répond pas.'));},12000);
    ws.onopen=()=>this.send({setup:data.setup});
    ws.onmessage=async e=>{
     try{
      const d=JSON.parse(typeof e.data==='string'?e.data:await e.data.text());
      if(d.setupComplete){clearTimeout(timeout);established=true;this.ready=true;this.send({clientContent:{turns:this.history,turnComplete:true}});this.events.etat('Je t’écoute');resolve();}
-     if(d.error){this.events.erreur('Gemini Live a refusé la session.');ws.close();return;}
+     if(d.error){this.events.erreur('Khalam Rapide a refusé la session.');ws.close();return;}
      const c=d.serverContent;
      if(c?.interrupted){this.viderSon();this.finirTour();}
      if(c?.inputTranscription?.text){this.userText+=c.inputTranscription.text;this.events.transcription('user',this.userText,false);}
@@ -95,7 +95,7 @@ export class BiaGeminiLive{
    ws.onerror=()=>{clearTimeout(timeout);if(!established)reject(Error('Connexion audio impossible.'));}
    ws.onclose=()=>{
     clearTimeout(timeout);this.ready=false;
-    if(!established){reject(Error('Gemini Live a fermé la connexion.'));return;}
+    if(!established){reject(Error('Khalam Rapide a fermé la connexion.'));return;}
     if(!this.stoppe){this.arreter();this.events.etat('Connexion terminée. Appuie sur Parler pour reprendre.');}
    };
   });

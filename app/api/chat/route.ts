@@ -785,7 +785,7 @@ function detacherCherche(texte:string){
 const PANNE_MOTEUR="Sama moteur bi tontuwul, kon mënuma la tontu bu wóor. Jéemal ci ay simili, walla nga xamal ko KHALAM.";
 const PAS_DE_CLE="Sama moteur bi taxawna : xolal sa crédit bi. Waala nga Wax ko KHALAM.";
 
-type Corps={mesureDiagnostic?:{forcer_calcul?:boolean;preparation_ms?:number;premier_texte_ms?:number;modele_ms?:number;modele_complet_ms?:number;devoirs_ms?:number;origine_ms?:number;audio_memoire_ms?:number;reponse_prete_ms?:number};essaiRapidite?:ProfilRapidite|null;salutationOuverture?:boolean;continuationBriques?:boolean;anticipationId?:string;voixAnticipee?:string;parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
+type Corps={mesureDiagnostic?:{forcer_calcul?:boolean;chemin?:string;preparation_ms?:number;premier_texte_ms?:number;modele_ms?:number;modele_complet_ms?:number;devoirs_ms?:number;origine_ms?:number;audio_memoire_ms?:number;reponse_prete_ms?:number};essaiRapidite?:ProfilRapidite|null;salutationOuverture?:boolean;continuationBriques?:boolean;anticipationId?:string;voixAnticipee?:string;parole?:boolean;suggestionsTranscription?:string[];apprentissageTest?:boolean;message?:string;history?:Array<{role:string;text:string;transcriptionIncertaine?:boolean;gestes?:string[];emotion?:string}>;resume?:string;blaguesDites?:string[];dernierService?:string;diffuse?:boolean;
   /* Ancien choix visuel conservé pour les clients existants ; le nom reste BIA. */
   persona?:string;
   /* ── L'APPRENTISSAGE À LA VOIX ──────────────────────────────────────────
@@ -1367,7 +1367,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     // Owner: recorded greetings answer only at the opening, with either portrait.
     // Later conversation retains its context instead of replaying an opening.
     if(maitre.ok&&!body.apprend&&!body.correctionDevoir&&!body.malDit?.encours){
-      const salut=await reponseSalutation(question,ouvertureSalutation);if(salut)return {corps:salut};
+      const salut=await chrono('salutation',()=>reponseSalutation(question,ouvertureSalutation));if(salut)return {corps:salut};
     }
 
     // Existing browser sessions still send the obsolete repeated fallback.
@@ -1391,15 +1391,41 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       // call selects the exact learned ID itself; never pay for two serial calls.
       const memorisee=body.mesureDiagnostic?.forcer_calcul?null:await chrono('choix_cache',()=>dialoguerAvecDevoirs(question,body.history,{cacheSeulement:true}));
       if(memorisee){
-        // Audio is read from the existing private library, never regenerated.
-        // Reading alongside provenance avoids an extra browser/server round trip.
+        /* ── LES 3,3 SECONDES POUVAIENT ENCORE SE CACHER ICI ──────────────
+
+           docs/DIAGNOSTIC-AUTONOME-2026-10-22.md : « le modèle a terminé la
+           sélection apprise wolof en 1 091 ms après 520 ms de préparation,
+           alors que la réponse HTTP n'est complète qu'à 4 900 ms. Environ
+           3 289 ms après le modèle restent donc à tracer. »
+
+           Le chemin où le MODÈLE choisit (plus bas, `[[replique:`) a reçu ses
+           trois chronomètres. CELUI-CI — la sélection déjà en cache, le plus
+           emprunté des deux — repartait sans aucune mesure. Et le diagnostic
+           autonome ne peut pas le voir : il pose `forcer_calcul`, ce qui
+           annule justement cette lecture de cache, deux lignes plus haut.
+
+           Donc : le chemin le plus rapide de BIA était aussi le seul que
+           personne ne mesurait. Les mêmes trois champs qu'en bas, pour que
+           les deux chemins se comparent — et pour qu'une attente de 3,3 s
+           ne puisse plus repartir sans nom. RÈGLE 3 : on ajoute un compteur,
+           on n'en aveugle aucun.
+
+           Audio is read from the existing private library, never regenerated.
+           Reading alongside provenance avoids an extra browser/server round trip. */
         const audioPromesse=memorisee.dialogue_memorise?Promise.race([audioPourReponse(memorisee.reply,memorisee.langue),new Promise<null>(resolve=>setTimeout(()=>resolve(null),700))]):Promise.resolve(null);
         let origine_devoir:unknown=null;
         if(memorisee.dialogue_memorise){
+          const debutDevoirs=Date.now();
           const d=(await devoirsALire(1500)).devoirs.find(d=>d.id===memorisee.lecon_id);
+          if(body.mesureDiagnostic)body.mesureDiagnostic.devoirs_ms=Date.now()-debutDevoirs;
+          const debutOrigine=Date.now();
           if(d)origine_devoir=origineReplique(d,memorisee.replique_id!,memorisee.langue)||{devoir_id:d.id,indisponible:true};
+          if(body.mesureDiagnostic)body.mesureDiagnostic.origine_ms=Date.now()-debutOrigine;
         }
-        return {corps:{...memorisee,origine_devoir,audio_memorise:await audioPromesse}};
+        const debutAudio=Date.now(),audio_memorise=await audioPromesse;
+        if(body.mesureDiagnostic)body.mesureDiagnostic.audio_memoire_ms=Date.now()-debutAudio;
+        if(body.mesureDiagnostic)body.mesureDiagnostic.chemin='choix_en_cache';
+        return {corps:{...memorisee,origine_devoir,audio_memorise}};
       }
     }
 
@@ -1524,7 +1550,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
            liste de neuf mots et l'absence d'accents — voir langueDe(). */
         const langue=langueDe(question);
         const fr=langue==="fr";
-        const correction=await correctionCourantePour(toute.cle,langue);
+        const correction=await chrono('repertoire_correction',()=>correctionCourantePour(toute.cle,langue));
         return {corps:{
           reply:correction?.texte??(fr?toute.francais:toute.wolof),
           emotion:toute.emotion||"neutre",
@@ -2092,7 +2118,7 @@ quelqu'un parce que le sujet est glissant.`;
        mille, et un repli sur la base entière si rien n'est reconnu. Voir le
        calcul dans lib/relations.ts — et le compteur `relations` de /api/etat,
        qui est ce qui tranchera. */
-    if(estSujetRelation(question,filDitPar))variable+=await consigneRelationsProches(question,filDitPar);
+    if(estSujetRelation(question,filDitPar))variable+=await chrono('relations',()=>consigneRelationsProches(question,filDitPar));
 
     /* ── ET ON RÉCUPÈRE SA MÉMOIRE, MAINTENANT QU'ELLE A EU LE TEMPS ───────
        Lancée bien plus haut. Ce qui en sort, ce sont ses phrases à LUI, mot
@@ -3128,6 +3154,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         if(body.mesureDiagnostic)body.mesureDiagnostic.origine_ms=Date.now()-debutOrigine;
         const debutAudio=Date.now(),audio_memorise=await audioPromesse;
         if(body.mesureDiagnostic)body.mesureDiagnostic.audio_memoire_ms=Date.now()-debutAudio;
+        if(body.mesureDiagnostic)body.mesureDiagnostic.chemin='choix_du_modele';
         return {corps:{...memorisee,origine_devoir,audio_memorise}};
       }
       noterPanne("choix de leçon rejeté","identifiant ou format invalide","chat");
@@ -3155,7 +3182,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
          relus — ne servait que sur une égalité parfaite. */
       const langueChoisie=langueDe(question);
       const enFr=langueChoisie==="fr";
-      const correction=await correctionCourantePour(choisie.cle,langueChoisie);
+      const correction=await chrono('repertoire_correction',()=>correctionCourantePour(choisie.cle,langueChoisie));
       return {corps:{
         reply:correction?.texte??(enFr?choisie.francais:choisie.wolof),
         emotion:choisie.emotion||"neutre",

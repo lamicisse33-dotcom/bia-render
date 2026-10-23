@@ -38,9 +38,18 @@ test('session authentication precedes Google and returns only a constrained ephe
   new Function('module','exports','require',compile('app/api/gemini-live/session/route.ts'))(module,module.exports,n=>dependencies[n]||require(n));
   const request=code=>({headers:new Headers({'x-bia-code':code,origin:'https://app.khalam.app'}),nextUrl:{origin:'https://app.khalam.app'}});
   assert.equal((await module.exports.POST(request('INVALID'))).status,401);assert.equal(calls.length,0);
-  assert.equal((await module.exports.POST(request('VISITOR'))).status,403);
   const foreign=request('MASTER');foreign.headers.set('origin','https://evil.example');
   assert.equal((await module.exports.POST(foreign)).status,403);assert.equal(calls.length,0);
+  /* Khalam Rapide est la connexion par défaut de tout le monde depuis le 23
+     octobre 2026. Un visiteur obtient donc sa session — mais jamais les
+     consignes pédagogiques privées du maître. Le lexique corrigé, lui, est la
+     façon de parler de BIA et part pour tous. */
+  assert.equal((await module.exports.POST(request('VISITOR'))).status,200);
+  const consigneVisiteur=JSON.parse(calls[0].init.body).bidiGenerateContentSetup.systemInstruction.parts[0].text;
+  assert(!consigneVisiteur.includes('Consignes apprises'));
+  assert(consigneVisiteur.includes('corrigé'));
+  assert(consigneVisiteur.includes('Identité de Bia'));
+  calls.length=0;
   const proxy=request('MASTER');proxy.nextUrl.origin='http://localhost:10000';
   assert.equal((await module.exports.POST(proxy)).status,200);
   const response=await module.exports.POST(request('MASTER'));assert.equal(response.status,200);const data=await response.json();
@@ -114,8 +123,8 @@ test('Live reads all lesson and lexicon pages, exact corrections and master inst
  const module={exports:{}};let reads=0;
  const deps={
   'next/server':{NextResponse:{json:(d,o)=>Response.json(d,o)}},
-  '@/lib/codes':{verifierCode:code=>({ok:code==='MASTER',maitre:code==='MASTER'})},
-  '@/lib/devoirs-apprentissage':{contexteDevoirs:async()=>{reads++;return 'Répliques du devoir';},devoirsALire:async()=>{reads++;return {devoirs:[{id:'lesson',texte:'Texte exact du devoir'.repeat(500),valide:true,langue:'wo'}],incomplets:0};}},
+  '@/lib/codes':{verifierCode:code=>({ok:code==='MASTER'||code==='VISITOR',maitre:code==='MASTER'})},
+  '@/lib/devoirs-apprentissage':{contexteDevoirs:async()=>{reads++;return 'Répliques du devoir';},devoirsALire:async()=>{reads++;return {devoirs:[{id:'lesson',texte:'Texte exact du devoir'.repeat(500),valide:true,langue:'wo'},{id:'brouillon',texte:'Devoir en cours de relecture',valide:false,langue:'wo'}],incomplets:1};}},
   '@/lib/dialogue-devoirs':{contexteMaitrises:async()=>{reads++;return 'Lexique partagé';}},
   '@/lib/instructions-apprentissage':{contexteInstructions:async()=>{reads++;return 'Consigne exacte du maître';}},
   '@/lib/lexique':{lexiqueConfig:{actif:true},lectureLexique:()=>({motif:''}),toutes:async()=>{reads++;return Array.from({length:12},(_,i)=>({source:'source'+i,corrigee:'corrigée'+i}));},correctionExacte:async()=>({source:'question',corrigee:'Réponse validée'}),exemplesPour:async()=>[{source:'question',corrigee:'Réponse validée'}],motsCorriges:async()=>[{faux:'ancien',juste:'corrigé'}]}
@@ -123,9 +132,23 @@ test('Live reads all lesson and lexicon pages, exact corrections and master inst
  new Function('module','exports','require',compile('app/api/gemini-live/connaissances/route.ts'))(module,module.exports,n=>deps[n]);
  const request=(body,code='MASTER')=>({headers:new Headers({'x-bia-code':code}),json:async()=>body});
  assert.equal((await module.exports.POST(request({question:'enfants'},'INVALID'))).status,401);assert.equal(reads,0);
+ /* ── LA FRONTIÈRE, MAINTENANT QUE TOUT LE MONDE PASSE PAR LÀ ────────────
+    Khalam Rapide est ouverte à tous depuis le 23 octobre 2026. Un visiteur
+    lit les devoirs validés et le lexique — c'est ce qu'enseigne BIA — mais
+    jamais les consignes pédagogiques de Lamine, ses maîtrises, ni un devoir
+    encore en relecture. */
+ const visiteur=await (await module.exports.POST(request({question:'enfants'},'VISITOR'))).json();
+ assert.equal(visiteur.contexte.instructions,'');
+ assert.equal(visiteur.contexte.maitrises,'');
+ assert.equal(visiteur.acces.instructions_chargees,false);
+ assert.equal(visiteur.contexte.correction_exacte.corrigee,'Réponse validée');
+ const catalogueVisiteur=await (await module.exports.POST(request({action:'lister_devoirs'},'VISITOR'))).json();
+ assert.equal(catalogueVisiteur.total,1);
+ assert.equal((await module.exports.POST(request({action:'lire_devoir',devoir_id:'brouillon'},'VISITOR'))).status,404);
+ assert.equal((await module.exports.POST(request({action:'lire_devoir',devoir_id:'brouillon'}))).status,200);
  const recherche=await (await module.exports.POST(request({question:'enfants'}))).json();
  assert.equal(recherche.contexte.correction_exacte.corrigee,'Réponse validée');assert.equal(recherche.contexte.instructions,'Consigne exacte du maître');assert.equal(recherche.acces.lexique_entrees,12);
- const catalogue=await (await module.exports.POST(request({action:'lister_devoirs'}))).json();assert.equal(catalogue.total,1);
+ const catalogue=await (await module.exports.POST(request({action:'lister_devoirs'}))).json();assert.equal(catalogue.total,2);
  const lecture=await (await module.exports.POST(request({action:'lire_devoir',devoir_id:'lesson',offset:8000}))).json();assert.equal(lecture.devoir.texte,'Texte exact du devoir'.repeat(500).slice(8000));
  const page1=await (await module.exports.POST(request({action:'lister_lexique'}))).json(),page2=await (await module.exports.POST(request({action:'lister_lexique',offset:10}))).json();
  assert.equal(page1.lexique.length,10);assert.equal(page1.suivant,10);assert.equal(page2.lexique.length,2);assert.equal(page2.suivant,null);

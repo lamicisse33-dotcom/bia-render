@@ -8,7 +8,13 @@ const tick=()=>new Promise(r=>setTimeout(r,0));
 function environment(){
  let id=0,starts=0,stops=0;const intervals=new Map(),errors=[],recorders=[];
  const ref=current=>({current});
- const env={conversationRef:ref(false),modeRef:ref('ready'),busyRef:ref(false),ecouterRef:ref(null),ouvertureEcouteRef:ref(null),enregistreurRef:ref(null),nouvelEnregistrement:()=>++id,estCetEnregistrement:n=>n===id,
+ /* Khalam Rapide (la conversation rapide) est le défaut depuis le 23 octobre
+    2026, et `ecouter` sort par là en premier. Ces épreuves-ci mesurent le
+    chemin Khalam — l'enregistreur, la frontière des 400 ms, l'exclusivité du
+    micro : elles le demandent donc explicitement. Le chemin rapide a ses
+    propres épreuves dans tests/gemini-live.test.mjs et
+    tests/interface-maitre-live-browser.cjs. */
+ const env={utiliserLiveMaitre:()=>false,conversationRef:ref(false),modeRef:ref('ready'),busyRef:ref(false),ecouterRef:ref(null),ouvertureEcouteRef:ref(null),enregistreurRef:ref(null),nouvelEnregistrement:()=>++id,estCetEnregistrement:n=>n===id,
   micro:async()=>({flux:{},analyse:{frequencyBinCount:256},analysePeriodique:{fftSize:1024},ctxMicro:{state:'running'}}),
   ouvrirEnregistreur:()=>{const r={state:'inactive',start(){starts++;this.state='recording';},stop(){stops++;this.state='inactive';}};recorders.push(r);return r;},
   creerFiltreDeclenchement:()=>()=>false,suivreLeBruit:()=>({seuil:()=>8}),seuilRef:ref(8),

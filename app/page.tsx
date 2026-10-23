@@ -434,10 +434,47 @@ function phoneticWolof(text: string) {
 
 
 
+/* Le choix de conversation gardé sur CE téléphone. Hors du composant : une
+   clé de rangement n'a pas à être recréée à chaque rendu. */
+const MODE_GARDE='bia-mode-conversation';
+
 export default function Home() {
   const [history, setHistory] = useState<Message[]>([]);
   const liveMaitreRef=useRef<BiaGeminiLive|null>(null);
-  const utiliserLiveMaitre=()=>estMaitreRef.current&&!apprend.current&&new URL(window.location.href).searchParams.get('mode')!=='khalam';
+  /* ── KHALAM RAPIDE, PAR DÉFAUT, POUR TOUT LE MONDE ─────────────────────
+
+     Décidé par Lamine le 23 octobre 2026. Avant ce jour, la connexion rapide
+     était réservée à son code maître ; elle est maintenant celle que trouve
+     n'importe qui en ouvrant l'application, à la première ouverture comme
+     après un redémarrage de Render.
+
+     TROIS CHOSES DÉCIDENT, DANS CET ORDRE :
+       1. `?mode=khalam` dans l'adresse — la consigne écrite gagne toujours,
+          et elle ne touche pas à ce que le téléphone a gardé ;
+       2. le choix gardé sur CE téléphone (bouton « Basculer vers… ») ;
+       3. le défaut, qui est Khalam Rapide.
+
+     L'APPRENTISSAGE RESTE SUR KHALAM : la lecture continue, les corrections
+     de devoirs et l'enregistrement de phrases passent par les briques et le
+     chemin habituel. `apprend.current` sort donc du mode rapide, quel que
+     soit le choix gardé — ce n'est pas une préférence, c'est une capacité.
+
+     L'état de départ est `true` des deux côtés du rendu : le téléphone et le
+     serveur disent la même chose au premier affichage, et l'effet ci-dessous
+     corrige ensuite sans faire clignoter l'écran. */
+  const [khalamRapide,setKhalamRapide]=useState(true);
+  const khalamRapideRef=useRef(true);
+  const poserMode=useCallback((rapide:boolean,garder:boolean)=>{
+    khalamRapideRef.current=rapide;setKhalamRapide(rapide);
+    if(garder)try{localStorage.setItem(MODE_GARDE,rapide?'rapide':'khalam');}catch{}
+  },[]);
+  useEffect(()=>{
+    const demande=new URL(window.location.href).searchParams.get('mode');
+    if(demande==='khalam'||demande==='rapide'){poserMode(demande==='rapide',false);return;}
+    let garde:string|null=null;try{garde=localStorage.getItem(MODE_GARDE);}catch{}
+    poserMode(garde!=='khalam',false);
+  },[poserMode]);
+  const utiliserLiveMaitre=()=>khalamRapideRef.current&&!apprend.current;
   useEffect(()=>()=>{liveMaitreRef.current?.arreter();liveMaitreRef.current=null;},[]);
   const [face, setFace] = useState<Face>("yeux_ouverts");
   /* Le visage qu'on vient de quitter, pour le fondu. Les bouches sont exclues
@@ -4709,7 +4746,20 @@ export default function Home() {
           if(role==='user')langueDuFil.current=estWolof(text)?'wo':'fr';
         },
         parle:actif=>{if(liveMaitreRef.current!==moteur){if(!actif&&!liveMaitreRef.current)bouche(false);return;}bouche(actif);if(!actif&&conversationRef.current){setMode('listening');setFace('ecoute');}},
-        latence:()=>{},erreur:message=>terminer(message),
+        /* ── LA SEULE MESURE QUI COMPTE, ET ELLE PARTAIT À LA POUBELLE ────
+
+           `latence:()=>{}` : le client mesurait déjà la fin de parole → le
+           premier son, et la page jetait le nombre. On ne pouvait donc rien
+           dire de la vitesse de Khalam Rapide sans un chronomètre à la main
+           — exactement ce que la RÈGLE 1 de AVANT-DE-DIRE-QUE-C-EST-BON.md
+           interdit. Elle part maintenant dans /api/etat, champ
+           `khalam_rapide`, et `void` : noter ne retarde pas sa réponse. */
+        latence:ms=>{
+          if(liveMaitreRef.current!==moteur)return;
+          void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},
+            body:JSON.stringify({type:'khalam_rapide',etape:'premier_son',ms}),keepalive:true}).catch(()=>{});
+        },
+        erreur:message=>terminer(message),
       },historyRef.current);
       liveMaitreRef.current=moteur;setPanne('');
       await moteur.demarrer();return;
@@ -6514,6 +6564,27 @@ export default function Home() {
     try { recognitionRef.current.start(); } catch { setMode("error"); }
   }
 
+  /* ── CHANGER DE CONVERSATION, SANS CONNAÎTRE L'ADRESSE ─────────────────
+
+     Demandé par Lamine le 23 octobre 2026 : un bouton visible, et le choix
+     gardé sur le téléphone. `?mode=khalam` continue de marcher par-dessus.
+
+     ON FERME AVANT DE CHANGER. Les deux chemins tiennent un micro, un
+     AudioContext et — pour le rapide — une connexion ouverte. Basculer
+     dessous laisserait deux moteurs écouter la même bouche : on coupe le son,
+     on ferme la conversation, on arrête le moteur rapide s'il tournait, et
+     c'est le prochain appui sur le micro qui ouvre l'autre chemin. */
+  function basculerMode() {
+    const vers = !khalamRapideRef.current;
+    taire();
+    fermerConversation();
+    const live = liveMaitreRef.current; liveMaitreRef.current = null; live?.arreter();
+    poserMode(vers, true);
+    setPanne("");
+    void fetch("/api/mesure", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "khalam_rapide", etape: "bascule", vers: vers ? "rapide" : "khalam" }) }).catch(() => {});
+  }
+
   /* Annuler ce qu'on est en train de dire. On coupe l'enregistreur avec le
      drapeau levé : c'est onstop qui jettera, et le chemin reste unique —
      deux façons d'arrêter un micro finiraient par diverger. */
@@ -8085,6 +8156,12 @@ export default function Home() {
           </button>
         </div>
       ) : null}
+
+      <button className="bascule-mode" type="button" data-mode-actuel={khalamRapide ? "rapide" : "khalam"}
+        onClick={basculerMode}
+        aria-label={khalamRapide ? "Basculer vers Khalam" : "Basculer vers Khalam Rapide"}>
+        {khalamRapide ? "Basculer vers Khalam" : "Basculer vers Khalam Rapide"}
+      </button>
 
       <div className="barre">
         <button className="clavier-ouvrir" type="button"

@@ -282,7 +282,11 @@ test('a new session opening with restored history reaches the actual greeting re
  const api=service(async()=>{throw Error('No selector call');},async()=>{throw Error('No lesson read');});
  const env={...produits,...horloge,...recherche,...salutations,reponseIdentite:()=>null,...repertoire,...services,correctionCourantePour:async()=>undefined,sansRelanceAutomatique:core.sansRelanceAutomatique,dialoguerAvecDevoirs:api.dialoguerAvecDevoirs,
   corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected write')},verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,
-  repertoireActif:()=>true,RELU_BLAGUES:false,noterRate(){},SONS_QUI_DISENT_AUTRE_CHOSE:new Set(),gesteDe:()=>null};
+  repertoireActif:()=>true,RELU_BLAGUES:false,noterRate(){},SONS_QUI_DISENT_AUTRE_CHOSE:new Set(),gesteDe:()=>null,
+  /* `chrono` ne fait que mesurer : il rend ce que la lecture rend, et une
+     épreuve qui l'oublie ferait échouer la salutation sur l'absence du
+     chronomètre, pas sur la salutation. Voir lib/profil-preparation.ts. */
+  chrono:(_nom,lire)=>lire()};
  env.reponseSalutation=(q,ouverture)=>load('lib/reponse-salutation.ts',{'./salutations-dialogue':salutations,'./repertoire':repertoire,'./sons-courants':{lireCatalogueCourant:async()=>{const e=salutations.salutationReconnue(q),langue=repertoire.langueDe(q),p=await env.correctionCourantePour();return p?[{...p,cle:e.cle,langue,audio:{...p.audio,texte:p.texte}}]:[];}}}).reponseSalutation(q,ouverture);
  const run=new Function('env',`with(env){${compile(fn)}return repondre;}`)(env);
  for(const message of ['Salaamaleekum','Nanga def ?','Naka waa kër ga ?']){
