@@ -27,6 +27,7 @@ test('session authentication precedes Google and returns only a constrained ephe
  const dependencies={
   '@/lib/gemini-live-diagnostic':{resumeGeminiLive:()=>({statut:'non_lance'})},
   'next/server':{NextResponse:{json:(d,o)=>Response.json(d,o)}},
+  '@/lib/lexique':{motsCorriges:async()=>[{faux:'ancien',juste:'corrigé',fois:1}]},
   '@/lib/codes':{verifierCode:code=>code==='MASTER'?{ok:true,maitre:true}:code==='VISITOR'?{ok:true,maitre:false}:{ok:false}},
   '@/lib/instructions-apprentissage':{contexteInstructions:async()=>'Consignes apprises'},
   '@/lib/gemini-live-prompt':{BIA_LIVE_CONSIGNES_BASE:'Identité de Bia',BIA_LIVE_LANGUES:'FR_WO_UNIQUEMENT'}
@@ -46,6 +47,7 @@ test('session authentication precedes Google and returns only a constrained ephe
   assert.equal(data.token,'auth_tokens/ephemeral-test');assert(!JSON.stringify(data).includes('FAKE-SERVER-KEY'));
   const body=JSON.parse(calls[0].init.body);assert.equal(body.uses,1);assert.equal(calls[0].init.headers['x-goog-api-key'],'FAKE-SERVER-KEY');
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.includes('Consignes apprises'));
+  assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.includes('corrigé'));
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.startsWith('FR_WO_UNIQUEMENT'));
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.endsWith('FR_WO_UNIQUEMENT'));assert.deepEqual(body.bidiGenerateContentSetup.generationConfig.responseModalities,['AUDIO']);
   assert(Date.parse(body.expireTime)-Date.now()<=600000);
@@ -106,4 +108,28 @@ test('a foreign-script transcript stops queued playback before the same packet c
   await socket.onmessage({data:JSON.stringify({serverContent:{outputTranscription:{text:'مرحبا'},modelTurn:{parts:[{inlineData:{data:'AAAA',mimeType:'audio/pcm;rate=24000'}}]}}})});
   assert.equal(played,0);assert.equal(stopped,1);assert.equal(errors.length,1);assert(errors[0].includes('français et wolof uniquement'));
  }finally{globalThis.fetch=old.fetch;globalThis.WebSocket=old.WebSocket;if(old.localStorage===undefined)delete globalThis.localStorage;else globalThis.localStorage=old.localStorage;}
+});
+
+test('Live reads all lesson and lexicon pages, exact corrections and master instructions without writes',async()=>{
+ const module={exports:{}};let reads=0;
+ const deps={
+  'next/server':{NextResponse:{json:(d,o)=>Response.json(d,o)}},
+  '@/lib/codes':{verifierCode:code=>({ok:code==='MASTER',maitre:code==='MASTER'})},
+  '@/lib/devoirs-apprentissage':{contexteDevoirs:async()=>{reads++;return 'Répliques du devoir';},devoirsALire:async()=>{reads++;return {devoirs:[{id:'lesson',texte:'Texte exact du devoir'.repeat(500),valide:true,langue:'wo'}],incomplets:0};}},
+  '@/lib/dialogue-devoirs':{contexteMaitrises:async()=>{reads++;return 'Lexique partagé';}},
+  '@/lib/instructions-apprentissage':{contexteInstructions:async()=>{reads++;return 'Consigne exacte du maître';}},
+  '@/lib/lexique':{lexiqueConfig:{actif:true},lectureLexique:()=>({motif:''}),toutes:async()=>{reads++;return Array.from({length:12},(_,i)=>({source:'source'+i,corrigee:'corrigée'+i}));},correctionExacte:async()=>({source:'question',corrigee:'Réponse validée'}),exemplesPour:async()=>[{source:'question',corrigee:'Réponse validée'}],motsCorriges:async()=>[{faux:'ancien',juste:'corrigé'}]}
+ };
+ new Function('module','exports','require',compile('app/api/gemini-live/connaissances/route.ts'))(module,module.exports,n=>deps[n]);
+ const request=(body,code='MASTER')=>({headers:new Headers({'x-bia-code':code}),json:async()=>body});
+ assert.equal((await module.exports.POST(request({question:'enfants'},'INVALID'))).status,401);assert.equal(reads,0);
+ const recherche=await (await module.exports.POST(request({question:'enfants'}))).json();
+ assert.equal(recherche.contexte.correction_exacte.corrigee,'Réponse validée');assert.equal(recherche.contexte.instructions,'Consigne exacte du maître');assert.equal(recherche.acces.lexique_entrees,12);
+ const catalogue=await (await module.exports.POST(request({action:'lister_devoirs'}))).json();assert.equal(catalogue.total,1);
+ const lecture=await (await module.exports.POST(request({action:'lire_devoir',devoir_id:'lesson',offset:8000}))).json();assert.equal(lecture.devoir.texte,'Texte exact du devoir'.repeat(500).slice(8000));
+ const page1=await (await module.exports.POST(request({action:'lister_lexique'}))).json(),page2=await (await module.exports.POST(request({action:'lister_lexique',offset:10}))).json();
+ assert.equal(page1.lexique.length,10);assert.equal(page1.suivant,10);assert.equal(page2.lexique.length,2);assert.equal(page2.suivant,null);
+ assert.equal((await module.exports.POST(request({action:'lire_devoir',devoir_id:'absent'}))).status,404);
+ assert.equal((await module.exports.POST(request({action:'supprimer'}))).status,400);
+ assert.equal((await module.exports.POST(request({action:'lister_lexique',offset:-1}))).status,400);
 });

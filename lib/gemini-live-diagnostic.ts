@@ -1,7 +1,7 @@
 type Cas={langue:string;statut:string;entree?:string;jeton_http?:number;fournisseur_http?:number;premier_audio_ms?:number;duree_audio_s?:number;paquets?:number;transcription_entree_caracteres?:number;erreur?:string};
-const g=globalThis as typeof globalThis&{biaGeminiDiagnostic?:{statut:string;date?:string;cas:Cas[];travail?:Promise<void>}};
+const g=globalThis as typeof globalThis&{biaGeminiDiagnostic?:{statut:string;date?:string;cas:Cas[];connaissances?:Record<string,unknown>;travail?:Promise<void>}};
 const etat=g.biaGeminiDiagnostic??={statut:'non_lance',cas:[]};
-export const resumeGeminiLive=()=>({statut:etat.statut,date:etat.date,cas:etat.cas,perimetre:'Question audio synthétique Khalam diffusée en temps réel depuis Render vers Gemini Live. Mesure depuis la fin de cet audio jusqu’au premier paquet de réponse. Hors microphone, réseau du téléphone et haut-parleur.'});
+export const resumeGeminiLive=()=>({statut:etat.statut,date:etat.date,cas:etat.cas,connaissances:etat.connaissances,perimetre:'Question audio synthétique Khalam diffusée en temps réel depuis Render vers Gemini Live. Mesure depuis la fin de cet audio jusqu’au premier paquet de réponse. Hors microphone, réseau du téléphone et haut-parleur.'});
 function pcm16k(wav:Buffer){
  if(wav.toString('ascii',0,4)!=='RIFF'||wav.toString('ascii',8,12)!=='WAVE')throw Error('wav_invalide');
  let rate=0,channels=0,bits=0,format=0,data:Buffer|undefined;
@@ -20,6 +20,18 @@ function pcm16k(wav:Buffer){
 export function verifierGeminiLive(){return etat.travail??=(async()=>{
  etat.date=new Date().toISOString();etat.statut='en_cours';
  if(typeof WebSocket==='undefined'){etat.statut='websocket_serveur_indisponible';return;}
+ try{
+  const consulter=async(body:Record<string,unknown>)=>{
+   const r=await fetch('https://app.khalam.app/api/gemini-live/connaissances',{method:'POST',headers:{'content-type':'application/json','x-bia-code':process.env.BIA_CODE_MAITRE||'',origin:'https://app.khalam.app'},body:JSON.stringify(body),signal:AbortSignal.timeout(25000),cache:'no-store'});
+   const d=await r.json();if(!r.ok)throw Error('connaissances_http_'+r.status);return d;
+  };
+  const recherche=await consulter({question:'Parlons des enfants et des corrections de wolof.'});
+  const catalogue=await consulter({action:'lister_devoirs'});
+  const lexique=await consulter({action:'lister_lexique'});
+  const premier=catalogue.devoirs?.[0];
+  const lecture=premier?await consulter({action:'lire_devoir',devoir_id:premier.id}):null;
+  etat.connaissances={statut:'verifie',date:new Date().toISOString(),http:200,devoirs:catalogue.total,incomplets:catalogue.incomplets,lexique_entrees:lexique.total,mots_corriges:recherche.acces?.mots_corriges,lexique_pagine:Array.isArray(lexique.lexique)&&lexique.lexique.length>0,lecture_devoir:Boolean(lecture?.devoir?.texte),devoirs_transmis:recherche.acces?.devoirs_transmis,maitrises_transmises:recherche.acces?.maitrises_transmises,instructions_chargees:recherche.acces?.instructions_chargees};
+ }catch(e){etat.connaissances={statut:'echec',erreur:e instanceof Error?e.message:'verification_impossible'};}
  const {POST:parler}=await import('../app/api/chatterbox-test/route');
  const {NextRequest}=await import('next/server');
  for(const [langue,texte] of [['fr','Bonjour Bia. Comment vas-tu ?'],['wo','Nanga def Bia ?']]){
