@@ -6,7 +6,7 @@ let browser;
 (async()=>{try{
  for(let n=0;n<40;n++){try{await fetch('http://127.0.0.1:3112/api/acces');break;}catch{await new Promise(r=>setTimeout(r,300));}}
  browser=await chromium.launch({headless:true,args:['--no-sandbox','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
- const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const page=await browser.newPage();const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('pageerror:',e.message);});
  await page.route('**/api/**',async route=>{
   const path=new URL(route.request().url()).pathname;
   let data={};
@@ -36,7 +36,7 @@ let browser;
  await page.goto('http://127.0.0.1:3112/');
  await page.getByRole('button',{name:'Ouvrir le clavier et la conversation écrite'}).waitFor();
  await page.locator('button.microphone').click();
- await page.getByRole('button',{name:"Elle l'a bien dit — à garder et à enregistrer"}).waitFor({timeout:15000});
+ try{await page.getByRole('button',{name:"Elle l'a bien dit — à garder et à enregistrer"}).waitFor({timeout:15000});}catch(e){console.log('État après clic',await page.locator('body').innerText(),await page.evaluate(()=>window.__liveConnections));throw e;}
  assert.equal(await page.evaluate(()=>window.__liveConnections),1);
  await page.getByRole('button',{name:"Elle l'a bien dit — à garder et à enregistrer"}).click();
  assert.equal(await page.locator('.verdict-bien i').innerText(),'1');
