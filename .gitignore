@@ -29,3 +29,7 @@ public/piper/runtime/
 
 # Pinned speaker model fetched and checked during build
 public/locuteur/model.onnx
+
+# Artefact de compilation TypeScript : 209 Ko regenerés à chaque build,
+# modifiés dans douze commits d’affilée. Rien à versionner ici.
+tsconfig.tsbuildinfo
