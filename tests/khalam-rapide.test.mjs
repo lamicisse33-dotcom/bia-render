@@ -185,3 +185,42 @@ test('le filtre retient l’écho et laisse passer une voix franche',()=>{
  assert.equal(passe(0.100,0.050),false,'plancher haut : 0,10 reste de l’écho');
  assert.equal(passe(0.200,0.050),true,'mais une voix franche passe quand même');
 });
+
+/* ── UN ZÉRO QUI N'A JAMAIS ÉTÉ ÉCRIT N'EST PAS UNE MESURE ─────────────────
+
+   Le 24 octobre à 15:35, BIA s'est coupée plusieurs fois et tous les
+   compteurs d'écho valaient zéro. Mon relevé ne partait que sur une
+   interruption de Google : zéro pouvait vouloir dire « pas d'écho » comme
+   « ancien code en cache ». Deux causes, un seul chiffre — donc aucune cause
+   nommée. `mesure_recue` sépare les deux. */
+test('tant qu’aucune mesure n’est arrivée, on ne conclut rien',()=>{
+ const etat=frais();
+ assert.equal(etat.resumeKhalamRapide().echo.mesure_recue,false,'zéro sans mesure ne prouve rien');
+ etat.noterKhalamRapide({etape:'echo',coupures_pendant_parole:0,coupures_au_silence:0,
+  trames_retenues:0,trames_laissees:0,echo_plancher:0});
+ assert.equal(etat.resumeKhalamRapide().echo.mesure_recue,true,'là, un zéro veut dire zéro');
+});
+
+test('chaque arrêt porte son nom, et un nom inventé n’entre pas',()=>{
+ const etat=frais();
+ etat.noterKhalamRapide({etape:'echo',arrets:{fermeture_pendant_parole:2,alphabet:1,veille:3,invente:9},
+  code_fermeture:1011,version:'65e537d04a34'});
+ const e=etat.resumeKhalamRapide().echo;
+ assert.equal(e.arrets.fermeture_pendant_parole,2,'elle s’est arrêtée EN PLEINE RÉPONSE deux fois');
+ assert.equal(e.arrets.alphabet,1,'la garde « français et wolof » a fermé une fois');
+ assert.equal(e.arrets.veille,3);
+ assert.equal(e.arrets.invente,undefined,'un nom inventé par un client bricolé n’entre pas');
+ assert.equal(e.code_fermeture,1011,'le code de fermeture du WebSocket est gardé');
+ assert.deepEqual(e.versions,{'65e537d04a34':1},'et la version que le téléphone a chargée');
+});
+
+test('la version chargée distingue « pas d’écho » de « ancien code »',()=>{
+ const etat=frais();
+ etat.noterKhalamRapide({etape:'echo',version:'65e537d04a34'});
+ etat.noterKhalamRapide({etape:'echo',version:'65e537d04a34'});
+ etat.noterKhalamRapide({etape:'echo',version:'e214b94fefac'});
+ const v=etat.resumeKhalamRapide().echo.versions;
+ assert.deepEqual(v,{'65e537d04a34':2,'e214b94fefac':1},'deux téléphones, deux versions : on le voit');
+ etat.noterKhalamRapide({etape:'echo',version:'pas-une-version'});
+ assert.equal(Object.keys(etat.resumeKhalamRapide().echo.versions).length,2,'rien d’autre n’entre');
+});

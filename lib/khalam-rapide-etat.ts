@@ -17,13 +17,14 @@
    son, aucun code d'accès ne passe par ici. */
 
 type Mesure = { ms: number; quand: string };
-type Echo = { coupures_pendant_parole: number; coupures_au_silence: number; trames_retenues: number; trames_laissees: number; echo_plancher: number; tours: number };
+type Echo = { coupures_pendant_parole: number; coupures_au_silence: number; trames_retenues: number; trames_laissees: number; echo_plancher: number; tours: number; arrets: Record<string, number>; code_fermeture: number; versions: Record<string, number> };
 type Etat = { mesures: Mesure[]; tours: number; refusees: number; doublons: number; vus: Map<string, number>; basculements: { vers_rapide: number; vers_khalam: number }; echo: Echo };
 const g = globalThis as typeof globalThis & { biaKhalamRapide?: Etat };
-const etat: Etat = (g.biaKhalamRapide ??= { mesures: [], tours: 0, refusees: 0, doublons: 0, vus: new Map<string, number>(), basculements: { vers_rapide: 0, vers_khalam: 0 }, echo: { coupures_pendant_parole: 0, coupures_au_silence: 0, trames_retenues: 0, trames_laissees: 0, echo_plancher: 0, tours: 0 } });
+const etat: Etat = (g.biaKhalamRapide ??= { mesures: [], tours: 0, refusees: 0, doublons: 0, vus: new Map<string, number>(), basculements: { vers_rapide: 0, vers_khalam: 0 }, echo: { coupures_pendant_parole: 0, coupures_au_silence: 0, trames_retenues: 0, trames_laissees: 0, echo_plancher: 0, tours: 0, arrets: {}, code_fermeture: 0, versions: {} } });
 
 const BORNE_MS = 60000;
 const SESSIONS_AU_PLUS = 200;
+const NOMS_ARRET = new Set(["alphabet", "fermeture", "fermeture_pendant_parole", "veille", "erreur"]);
 
 /* ── LE FILET, CETTE FOIS SOUS LE BON TROU ─────────────────────────────────
 
@@ -65,6 +66,31 @@ export function noterKhalamRapide(d: Record<string, unknown>) {
       trames_laissees: Math.max(etat.echo.trames_laissees, n("trames_laissees", 10000000)),
       echo_plancher: n("echo_plancher", 1000),
       tours: etat.echo.tours + 1,
+      /* ── CHAQUE ARRÊT PORTE SON NOM ──────────────────────────────────────
+         alphabet, fermeture, fermeture_pendant_parole, veille, erreur. Un
+         arrêt sans nom est un arrêt qu'on cherchera encore demain. */
+      arrets: (() => {
+        const vus = { ...etat.echo.arrets };
+        const recus = d.arrets;
+        if (recus && typeof recus === "object" && !Array.isArray(recus)) {
+          for (const [nom, fois] of Object.entries(recus as Record<string, unknown>)) {
+            if (!NOMS_ARRET.has(nom)) continue;
+            const v = Number(fois);
+            if (Number.isInteger(v) && v >= 0 && v <= 10000) vus[nom] = Math.max(vus[nom] || 0, v);
+          }
+        }
+        return vus;
+      })(),
+      code_fermeture: n("code_fermeture", 5000) || etat.echo.code_fermeture,
+      /* LA VERSION QUE LE TÉLÉPHONE A CHARGÉE. Le 24 octobre, un zéro pouvait
+         vouloir dire « pas d'écho » comme « ancien code en cache » : deux
+         causes, un seul chiffre, donc aucune cause nommée. */
+      versions: (() => {
+        const v = String(d.version || "").slice(0, 20);
+        const vus = { ...etat.echo.versions };
+        if (/^[0-9a-f]{6,20}$/.test(v)) vus[v] = (vus[v] || 0) + 1;
+        return vus;
+      })(),
     };
     return;
   }
@@ -111,7 +137,11 @@ export function resumeKhalamRapide() {
        `coupures_au_silence` = la personne la coupe, et c'est voulu.
        `trames_retenues` = l'écho filtré ; `trames_laissees` = ce qui est passé
        malgré le filtre, donc de vraies voix. */
-    echo: { ...etat.echo, plancher_pour_mille: etat.echo.echo_plancher },
+    echo: { ...etat.echo, plancher_pour_mille: etat.echo.echo_plancher,
+      /* Si `tours` vaut zéro, AUCUNE mesure n'est arrivée : le téléphone n'a
+         pas le code, ou n'a pas fini un tour. Ne rien conclure de zéros qui
+         n'ont jamais été écrits. */
+      mesure_recue: etat.echo.tours > 0 },
     limite:
       "Mesure navigateur déclarée : de la fin de sa parole au premier son, avance de planification audio comprise. " +
       "Une seule mesure par tour, armée par une parole entendue pendant qu'elle se tait : un tour où on lui coupe la parole n'est pas mesuré. " +

@@ -102,9 +102,24 @@ export class BiaGeminiLive{
     on ne saurait pas si le remède marche — ni s'il l'empêche, elle, d'être
     coupée pour de vrai. */
  private echoPlancher=0;private retenues=0;private laissees=0;private coupuresPendantParole=0;private coupuresAuSilence=0;
+ /* ── POURQUOI ELLE S'ARRÊTE, ET IL Y A CINQ CHEMINS ───────────────────────
+
+    Le 24 octobre à 15:35, elle s'est coupée plusieurs fois et TOUS les
+    compteurs d'écho valaient zéro. Mon relevé ne partait que sur une
+    interruption de Google : zéro pouvait vouloir dire « pas d'écho » comme
+    « code pas encore chargé ». Deux causes, un seul chiffre — donc aucune
+    cause nommée. C'est un défaut de la mesure, pas du remède.
+
+    Désormais le relevé part à CHAQUE tour, et chaque arrêt porte son nom :
+      alphabet   — la garde « français et wolof » a fermé la session
+      fermeture  — le WebSocket s'est fermé (avec son code)
+      veille     — 90 secondes de silence
+      erreur     — un message illisible
+    Un arrêt sans nom est un arrêt qu'on cherchera encore demain. */
+ private arrets:Record<string,number>={};private dernierCode=0;
  private sessionMesure=Math.random().toString(36).slice(2,10)+Date.now().toString(36);private tourMesure=0;
  private userText='';private biaText='';private history:Array<{role:string;parts:Array<{text:string}>}>=[];private muted=false;
- constructor(private code:string,private events:LiveEvents,private historique?:Array<{role:'user'|'bia';text:string}>,private tours=40,private personne=''){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');this.tours=Number.isFinite(tours)&&tours>=4&&tours<=80?Math.round(tours):40;}
+ constructor(private code:string,private events:LiveEvents,private historique?:Array<{role:'user'|'bia';text:string}>,private tours=40,private personne='',private version=''){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');this.tours=Number.isFinite(tours)&&tours>=4&&tours<=80?Math.round(tours):40;}
  private send(data:unknown){if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify(data));}
  private viderSon(){for(const n of this.nodes){n.onended=null;try{n.stop();}catch{}}this.nodes.clear();this.next=0;this.finDuSon=performance.now();this.events.parle(false);}
  /* Elle parle, ou elle vient de finir. Les 300 ms de marge couvrent la queue
@@ -147,7 +162,7 @@ export class BiaGeminiLive{
    else try{const saved=JSON.parse(localStorage.getItem('bia-gemini-live-history')||'[]');if(Array.isArray(saved))this.history=saved.slice(-this.tours);}catch{}
    await this.connecter();
    this.finParole=performance.now();
-   this.idle=setInterval(()=>{if(!this.stoppe&&performance.now()-this.finParole>90000){this.arreter();this.events.etat('En pause. Appuie sur Parler pour reprendre.');}},5000);
+   this.idle=setInterval(()=>{if(!this.stoppe&&performance.now()-this.finParole>90000){this.arrets.veille=(this.arrets.veille||0)+1;this.declarerEcho();this.arreter();this.events.etat('En pause. Appuie sur Parler pour reprendre.');}},5000);
   }catch(e){this.arreter();this.events.erreur(e instanceof Error?e.message:'Connexion impossible.');}
  }
  private async connecter(){
@@ -176,6 +191,7 @@ export class BiaGeminiLive{
      }
      if(c?.inputTranscription?.text){this.userText+=c.inputTranscription.text;this.events.transcription('user',this.userText,false);}
      if(c?.outputTranscription?.text&&!alphabetLiveAutorise(c.outputTranscription.text)){
+      this.arrets.alphabet=(this.arrets.alphabet||0)+1;this.declarerEcho();
       this.arreter();this.events.erreur('Réponse interrompue : Bia doit parler français et wolof uniquement. Appuie sur le micro pour reprendre.');return;
      }
      if(c?.outputTranscription?.text){this.biaText+=c.outputTranscription.text;this.events.transcription('bia',this.biaText,false);}
@@ -205,13 +221,19 @@ export class BiaGeminiLive{
       let result;try{const r=await fetch('/api/gemini-live/connaissances',{method:'POST',headers:{'x-bia-code':this.code,'Content-Type':'application/json'},body:JSON.stringify({question:String(call.args?.question||'').slice(0,2000),action:call.args?.action,devoir_id:call.args?.devoir_id,offset:call.args?.offset,historique:this.history.slice(-6).map(m=>({role:m.role==='model'?'bia':'user',text:m.parts.map(p=>p.text).join(' ').slice(0,800)}))}),signal:AbortSignal.timeout(15000)});result=await r.json();}catch{result={erreur:'Mémoire inaccessible. Ne prétends pas l’avoir consultée.'};}
       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:result}]}});
      }
-    }catch{this.events.erreur('Un message audio n’a pas pu être lu.');}
+    }catch{this.arrets.erreur=(this.arrets.erreur||0)+1;this.events.erreur('Un message audio n’a pas pu être lu.');}
    };
    ws.onerror=()=>{clearTimeout(timeout);if(!established)reject(Error('Connexion audio impossible.'));}
-   ws.onclose=()=>{
+   ws.onclose=(e?:{code?:number})=>{
     clearTimeout(timeout);this.ready=false;
     if(!established){reject(Error('Khalam Rapide a fermé la connexion.'));return;}
-    if(!this.stoppe){this.arreter();this.events.etat('Connexion terminée. Appuie sur Parler pour reprendre.');}
+    /* Une fermeture EN PLEINE RÉPONSE est exactement ce que Lamine décrit :
+       elle s'arrête au milieu d'une phrase. On la nomme et on la compte. */
+    if(!this.stoppe){
+     this.arrets[this.elleParle()?'fermeture_pendant_parole':'fermeture']=(this.arrets[this.elleParle()?'fermeture_pendant_parole':'fermeture']||0)+1;
+     this.dernierCode=Number(e?.code)||0;this.declarerEcho();
+     this.arreter();this.events.etat('Connexion terminée. Appuie sur Parler pour reprendre.');
+    }
    };
   });
  }
@@ -243,6 +265,9 @@ export class BiaGeminiLive{
      `void` : écrire ne doit jamais retarder la parole suivante. Un souvenir
      perdu coûte un souvenir ; une seconde d'attente se paie à chaque
      phrase. C'est la règle de lib/souvenirs.ts, appliquée ici aussi. */
+  /* Le relevé part à chaque fin de tour : un zéro ne doit plus pouvoir
+     signifier « rien mesuré ». */
+  this.declarerEcho();
   if(this.personne&&(dit.trim()||repondu.trim())){
    void fetch('/api/gemini-live/souvenir',{method:'POST',keepalive:true,
     headers:{'content-type':'application/json','x-bia-code':this.code},
@@ -266,7 +291,8 @@ export class BiaGeminiLive{
    body:JSON.stringify({type:'khalam_rapide',etape:'echo',
     coupures_pendant_parole:this.coupuresPendantParole,coupures_au_silence:this.coupuresAuSilence,
     trames_retenues:this.retenues,trames_laissees:this.laissees,
-    echo_plancher:Math.round(this.echoPlancher*1000)})}).catch(()=>{});
+    echo_plancher:Math.round(this.echoPlancher*1000),
+    arrets:this.arrets,code_fermeture:this.dernierCode,version:this.version})}).catch(()=>{});
  }
  private async montrerLeChemin(destination:string){
   if(!destination.trim())return {erreur:'Dis-moi d’abord où elle veut aller.'};

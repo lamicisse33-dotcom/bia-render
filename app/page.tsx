@@ -4807,7 +4807,11 @@ export default function Home() {
          serveur (BIA_LIVE_HISTORIQUE), et la personne sert à écrire dans
          khalam_souvenirs — sans elle, Khalam Rapide n'écrivait rien. */
       (moteursRef.current as {reglages_memoire?:{live_historique_tours?:number}}|null)?.reglages_memoire?.live_historique_tours,
-      estMaitreRef.current?'maitre':'');
+      estMaitreRef.current?'maitre':'',
+      /* La version que CE téléphone a chargée. Le 24 octobre, je ne pouvais
+         pas distinguer « pas d'écho » de « ancien code en cache » : les deux
+         donnaient zéro. Maintenant si. */
+      versionChargee.current);
       liveMaitreRef.current=moteur;setPanne('');
       await moteur.demarrer();return;
     }
