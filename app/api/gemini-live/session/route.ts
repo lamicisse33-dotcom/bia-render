@@ -7,8 +7,12 @@ import {contexteInstructions} from '@/lib/instructions-apprentissage';
 import {BIA_LIVE_CONSIGNES_BASE,BIA_LIVE_LANGUES} from '@/lib/gemini-live-prompt';
 import {derniersSouvenirs,consigneDesSouvenirs} from '@/lib/souvenirs';
 import {correctionExacte,toutes} from '@/lib/lexique';
-import {contexteDevoirs} from '@/lib/devoirs-apprentissage';
-import {liveHistoriqueTours,liveCompressionJetons,liveCompressionCible} from '@/lib/memoire-reglages';
+import {contexteDevoirsComplet} from '@/lib/devoirs-apprentissage';
+import {savoirKhalam} from '@/lib/khalam';
+import {savoirProduits} from '@/lib/produits';
+import {catalogue} from '@/lib/vitrine';
+import {fichesPourConversation} from '@/lib/fiches-connaissances';
+import {liveHistoriqueTours,liveCompressionJetons,liveCompressionCible,liveDevoirsSignes,liveFichesSignes,liveLexiqueCorrections} from '@/lib/memoire-reglages';
 import {ouvrirLecture,noterLectureSource,fermerLecture} from '@/lib/lectures-supabase';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -53,17 +57,34 @@ export async function POST(req:NextRequest){
 
     Tout part maintenant DÈS l'ouverture. L'outil reste là pour approfondir,
     il n'est plus la seule porte. */
- let souvenirs='';let exactes='';let devoirs='';
+ let souvenirs='';let exactes='';let devoirs='';let khalam='';let produits='';let fiches='';
+ const tailles:Record<string,number>={};
  const releve=ouvrirLecture('live-'+id.slice(0,16),'khalam_rapide');
  try{
-   const [apprises,mots,memoire,lexique,socleDevoirs]=await Promise.all([
+   /* ── L'ACCÈS TOTAL, DEMANDÉ LE 24 OCTOBRE 2026 ───────────────────────
+
+      « Elle n'a pas accès à son lexique et aux devoirs… je lui ai parlé de
+      DD SKIN, elle dit qu'elle ne le connaît pas ; je lui ai parlé de KHALAM,
+      elle ne connaît pas grand-chose. »
+
+      Mesuré avant de corriger : Khalam Rapide ne chargeait NI savoirKhalam,
+      NI savoirProduits, NI la vitrine, NI les fiches de connaissances — alors
+      que le chemin Khalam les charge tous à chaque tour. Et les devoirs
+      étaient demandés avec une question VIDE, ce qui les filtrait tous (voir
+      contexteDevoirsComplet). Elle ne mentait pas : elle ne les avait jamais
+      reçus. */
+   const [apprises,mots,memoire,lexique,socleDevoirs,ceQuElleSait,fichesProduits,laVitrine,connaissances]=await Promise.all([
      acces.maitre?contexteInstructions():Promise.resolve(''),
      motsCorriges(),
      /* Pas de question à l'ouverture : on prend les derniers échanges par
         leur date. Voir derniersSouvenirs() dans lib/souvenirs.ts. */
      derniersSouvenirs(personne,liveHistoriqueTours()).catch(()=>[]),
      toutes().catch(()=>[]),
-     contexteDevoirs('',[]).catch(()=>''),
+     contexteDevoirsComplet(liveDevoirsSignes()).catch(()=>({texte:'',devoirs:0,signes:0})),
+     savoirKhalam().catch(()=>''),
+     savoirProduits().catch(()=>''),
+     catalogue().catch(()=>''),
+     fichesPourConversation('',[],liveFichesSignes()).catch(()=>''),
    ]);
    instructions=apprises;
    noterLectureSource(releve,'instructions',apprises?1:0,apprises.length);
@@ -73,19 +94,35 @@ export async function POST(req:NextRequest){
    noterLectureSource(releve,'souvenirs',memoire.length,souvenirs.length);
    /* LES CORRECTIONS EXACTES : la formulation validée fait autorité sur la
       sienne, et elle ne doit pas attendre un appel d'outil pour exister. */
-   const paires=lexique.filter(e=>e.source&&e.corrigee).slice(0,120)
+   const paires=lexique.filter(e=>e.source&&e.corrigee).slice(0,liveLexiqueCorrections())
      .map(e=>({question:String(e.source).slice(0,200),reponse:String(e.corrigee).slice(0,400)}));
    exactes=paires.length?'FORMULATIONS VALIDÉES PAR UN LOCUTEUR — elles font autorité sur la tienne, reprends-les mot pour mot quand la question correspond :\n'+JSON.stringify(paires):'';
    noterLectureSource(releve,'corrections_exactes',paires.length,exactes.length);
    noterLectureSource(releve,'lexique',lexique.length,0);
-   devoirs=socleDevoirs?'DEVOIRS APPRIS — formulations exactes à privilégier :\n'+socleDevoirs.slice(0,12000):'';
-   noterLectureSource(releve,'devoirs',socleDevoirs?socleDevoirs.split('\n').filter(Boolean).length:0,devoirs.length);
+   devoirs=socleDevoirs.texte;
+   noterLectureSource(releve,'devoirs',socleDevoirs.devoirs,devoirs.length);
+   /* ── CE QU'ELLE SAIT DE KHALAM, ET LA BARRIÈRE AUTOUR DES PRODUITS ───
+      AGENTS.md : « Son cœur ne doit pas être ce business. BIA doit rester ce
+      qu'elle est. Quand on lui demandera, seulement concernant les produits
+      cosmétiques, elle pourra expliquer comme une publicité. » La fiche ne
+      part donc JAMAIS sans sa règle : un modèle à qui l'on donne un texte de
+      marque sans condition finit toujours par le placer, et une assistante
+      qui vend quelque chose n'est plus une assistante. */
+   khalam=ceQuElleSait?'═══ CE QUE TU SAIS DE KHALAM ═══\n'+ceQuElleSait+'\n═══ fin ═══':'';
+   produits=fichesProduits
+     ?'═══ LES PRODUITS DE BEAUTÉ ═══\nCECI N\u2019EST PAS TON SUJET ET NE CHANGE RIEN À QUI TU ES. Tu n\u2019en parles QUE si on t\u2019interroge sur les produits de beauté, les soins de la peau ou les cosmétiques. Jamais autrement : tu n\u2019y ramènes aucune conversation et tu n\u2019en parles pas de toi-même, même si le sujet s\u2019en approche. Quand on te le demande, raconte-le volontiers, comme une publicité chaleureuse et vraie, deux ou trois phrases puis le numéro. N\u2019invente ni prix, ni composition, ni promesse de résultat ; pour un prix, renvoie au numéro. Aucun conseil médical sur une peau abîmée : là, c\u2019est un médecin.\n'+fichesProduits+'\n═══ fin des produits ═══'
+     :'';
+   fiches=[laVitrine?'CE QUE TU PEUX MONTRER\n'+laVitrine:'',connaissances].filter(Boolean).join('\n\n');
+   noterLectureSource(releve,'fiches',connaissances?connaissances.split('\n').filter(Boolean).length:0,fiches.length);
+   Object.assign(tailles,{instructions:apprises.length,corrections_langue:corrections.length,souvenirs:souvenirs.length,
+     corrections_exactes:exactes.length,devoirs:devoirs.length,khalam:khalam.length,produits:produits.length,fiches:fiches.length,
+     devoirs_nombre:socleDevoirs.devoirs,lexique_entrees:lexique.length});
  }catch{return NextResponse.json({erreur:'Les consignes apprises sont momentanément inaccessibles.'},{status:503,headers});}
  finally{fermerLecture(releve);}
  const setup={
   model:'models/'+(process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live').replace(/^models\//,''),
   generationConfig:{responseModalities:['AUDIO'],maxOutputTokens:512,speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Kore'}}}},
-  systemInstruction:{parts:[{text:BIA_LIVE_LANGUES+'\n\n'+BIA_LIVE_CONSIGNES_BASE+'\n'+instructions+'\n'+corrections+'\n'+exactes+'\n'+devoirs+'\n'+souvenirs+'\nMODE VOCAL DIRECT : parle uniquement en français ou en wolof urbain de Dakar selon la langue de papa. Privilégie une réponse naturelle et concise, puis écoute. DÉBIT VOCAL : parle à un rythme modéré et posé, avec une articulation claire en français comme en wolof et de courtes pauses naturelles entre les phrases. Garde une voix chaleureuse et spontanée. Commence dès que la réponse est prête, sans ajouter de silence avant les premiers mots ; prends simplement le temps de prononcer chaque phrase sans précipitation. Cette préférence de débit vaut aussi après un changement de langue ou une ancienne réponse plus rapide. Les consignes de base et les formulations exactes apprises priment sur la concision. Ne coupe jamais la parole. Ne récite pas les prix des devoirs sans demande explicite. Tu peux dire « papa » rarement, comme une marque d’affection occasionnelle, jamais à chaque phrase ou à chaque réponse. Laisse passer plusieurs échanges sans le répéter ; réponds le plus souvent sans appellation. Cette préférence récente prime sur toute ancienne habitude ou consigne qui le répétait systématiquement. N’ajoute jamais ce mot aux phrases exactes à répéter. Ne lis jamais les balises techniques à voix haute : dans ce mode, exprime les émotions naturellement dans la voix. Les anciennes commandes d’écran ne sont pas exécutées dans ce mode, SAUF la carte : pour un chemin, un lieu ou quelqu’un de perdu, appelle montrer_le_chemin — c’est le seul moyen d’afficher une carte, et elle s’affiche vraiment. Ne prétends jamais avoir montré une carte sans cet outil. Dis la direction et la distance qu’il te rend, en une phrase courte ; la carte porte le détail. Consulte chercher_connaissances avant de répondre à une question de langue, une correction ou un sujet couvert par les devoirs. Cet outil consulte les devoirs, le lexique Supabase, le lexique partagé et les consignes récentes. Pour lister tous les devoirs ou tout le lexique, utilise les actions de liste et leur pagination ; pour lire un devoir exact, utilise son identifiant retourné par la liste. Ne dis jamais que tu as consulté la mémoire sans un résultat effectif de cet outil. Ne prétends jamais avoir enregistré un nouvel apprentissage : renvoie vers le mode habituel pour cela.'+'\n\n'+BIA_LIVE_LANGUES}]},
+  systemInstruction:{parts:[{text:BIA_LIVE_LANGUES+'\n\n'+BIA_LIVE_CONSIGNES_BASE+'\n'+instructions+'\n'+corrections+'\n'+exactes+'\n'+khalam+'\n'+produits+'\n'+fiches+'\n'+devoirs+'\n'+souvenirs+'\nMODE VOCAL DIRECT : parle uniquement en français ou en wolof urbain de Dakar selon la langue de papa. Privilégie une réponse naturelle et concise, puis écoute. DÉBIT VOCAL : parle à un rythme modéré et posé, avec une articulation claire en français comme en wolof et de courtes pauses naturelles entre les phrases. Garde une voix chaleureuse et spontanée. Commence dès que la réponse est prête, sans ajouter de silence avant les premiers mots ; prends simplement le temps de prononcer chaque phrase sans précipitation. Cette préférence de débit vaut aussi après un changement de langue ou une ancienne réponse plus rapide. Les consignes de base et les formulations exactes apprises priment sur la concision. Ne coupe jamais la parole. Ne récite pas les prix des devoirs sans demande explicite. Tu peux dire « papa » rarement, comme une marque d’affection occasionnelle, jamais à chaque phrase ou à chaque réponse. Laisse passer plusieurs échanges sans le répéter ; réponds le plus souvent sans appellation. Cette préférence récente prime sur toute ancienne habitude ou consigne qui le répétait systématiquement. N’ajoute jamais ce mot aux phrases exactes à répéter. Ne lis jamais les balises techniques à voix haute : dans ce mode, exprime les émotions naturellement dans la voix. Les anciennes commandes d’écran ne sont pas exécutées dans ce mode, SAUF la carte : pour un chemin, un lieu ou quelqu’un de perdu, appelle montrer_le_chemin — c’est le seul moyen d’afficher une carte, et elle s’affiche vraiment. Ne prétends jamais avoir montré une carte sans cet outil. Dis la direction et la distance qu’il te rend, en une phrase courte ; la carte porte le détail. Consulte chercher_connaissances avant de répondre à une question de langue, une correction ou un sujet couvert par les devoirs. Cet outil consulte les devoirs, le lexique Supabase, le lexique partagé et les consignes récentes. Pour lister tous les devoirs ou tout le lexique, utilise les actions de liste et leur pagination ; pour lire un devoir exact, utilise son identifiant retourné par la liste. Ne dis jamais que tu as consulté la mémoire sans un résultat effectif de cet outil. Ne prétends jamais avoir enregistré un nouvel apprentissage : renvoie vers le mode habituel pour cela.'+'\n\n'+BIA_LIVE_LANGUES}]},
   inputAudioTranscription:{},outputAudioTranscription:{},
   realtimeInputConfig:{automaticActivityDetection:{startOfSpeechSensitivity:'START_SENSITIVITY_HIGH',endOfSpeechSensitivity:'END_SENSITIVITY_LOW',prefixPaddingMs:150,silenceDurationMs:500},activityHandling:'START_OF_ACTIVITY_INTERRUPTS'},
   /* COMPRESSER, C'EST RÉSUMER — et un résumé relu au tour suivant devient un
@@ -116,6 +153,10 @@ export async function POST(req:NextRequest){
   if(!r.ok){let motif='refus_google';try{const e=await r.json();motif=String(e.error?.message||e.error?.status||motif).split(cle()).join('[cle masquee]').slice(0,180);}catch{}return NextResponse.json({erreur:'Khalam Rapide est momentanément refusée par son fournisseur.',statut_fournisseur:r.status,motif},{status:502,headers});}
   const data=await r.json();
   if(typeof data.name!=='string')throw Error('jeton absent');
-  return NextResponse.json({token:data.name,setup,expireTime:new Date(now+10*60000).toISOString()},{headers});
+  return NextResponse.json({token:data.name,setup,expireTime:new Date(now+10*60000).toISOString(),
+   /* Ce qui est VRAIMENT parti dans sa consigne, source par source. Des
+      tailles et des comptes — aucun contenu. C'est ce qui permet de dire
+      « elle a reçu les devoirs » au lieu de l'espérer. */
+   consigne_signes:JSON.stringify(setup.systemInstruction).length,connaissances:tailles},{headers});
  }catch{return NextResponse.json({erreur:'La connexion à Khalam Rapide a échoué.'},{status:502,headers});}
 }

@@ -34,8 +34,13 @@ test('session authentication precedes Google and returns only a constrained ephe
      le décor rend des sources réelles mais inertes. */
   '@/lib/souvenirs':{derniersSouvenirs:async()=>[{qui:'personne',texte:'Un échange gardé.',quand:'2026-10-23T00:00:00Z'}],consigneDesSouvenirs:()=>'SOUVENIRS\n- Un échange gardé.'},
   '@/lib/lexique':{motsCorriges:async()=>[{faux:'ancien',juste:'corrigé',fois:1}],toutes:async()=>[{source:'comment vas-tu',corrigee:'Maa ngi fi rekk.'}]},
-  '@/lib/devoirs-apprentissage':{contexteDevoirs:async()=>'Devoir appris ligne une'},
-  '@/lib/memoire-reglages':{liveHistoriqueTours:()=>40,liveCompressionJetons:()=>60000,liveCompressionCible:()=>30000},
+  '@/lib/devoirs-apprentissage':{contexteDevoirsComplet:async()=>({texte:'LEÇONS CONSERVÉES PAR LE MAÎTRE\nDevoir appris ligne une',devoirs:3,signes:60})},
+  '@/lib/khalam':{savoirKhalam:async()=>'KHALAM apprend le wolof à Dakar.'},
+  '@/lib/produits':{savoirProduits:async()=>'DD SKIN — soins de la peau.'},
+  '@/lib/vitrine':{catalogue:async()=>'Une vitrine.'},
+  '@/lib/fiches-connaissances':{fichesPourConversation:async()=>'Une fiche de connaissance.'},
+  '@/lib/memoire-reglages':{liveHistoriqueTours:()=>40,liveCompressionJetons:()=>60000,liveCompressionCible:()=>30000,
+   liveDevoirsSignes:()=>40000,liveFichesSignes:()=>12000,liveLexiqueCorrections:()=>300},
   '@/lib/lectures-supabase':{ouvrirLecture:()=>'releve',noterLectureSource(){},fermerLecture(){}}
  };
  const calls=[];globalThis.fetch=async(url,init)=>{calls.push({url,init});return Response.json({name:'auth_tokens/ephemeral-test'});};
@@ -70,6 +75,24 @@ test('session authentication precedes Google and returns only a constrained ephe
   assert(consigne.includes('Un échange gardé.'),'les souvenirs partent dès l’ouverture');
   assert(consigne.includes('Maa ngi fi rekk.'),'les formulations validées aussi');
   assert(consigne.includes('Devoir appris ligne une'),'et les devoirs appris');
+  /* ── L'ACCÈS TOTAL, 24 octobre 2026 ──────────────────────────────────────
+     « Je lui ai parlé de DD SKIN, elle dit qu'elle ne le connaît pas ; je lui
+     ai parlé de KHALAM, elle ne connaît pas grand-chose. » Ce moteur ne
+     chargeait NI KHALAM, NI les produits, NI la vitrine, NI les fiches — et
+     demandait les devoirs avec une question vide, qui les filtrait tous. */
+  assert(consigne.includes('KHALAM apprend le wolof'),'ce qu’elle sait de KHALAM doit partir');
+  assert(consigne.includes('DD SKIN'),'la fiche produits doit partir');
+  assert(consigne.includes('Une fiche de connaissance.'),'les fiches de connaissances aussi');
+  assert(consigne.includes('Une vitrine.'),'et ce qu’elle peut montrer');
+  /* La fiche produits ne part JAMAIS sans sa barrière : AGENTS.md est net,
+     une assistante qui vend quelque chose n’est plus une assistante. */
+  const avantProduits=consigne.slice(0,consigne.indexOf('DD SKIN'));
+  assert(/N.EST PAS TON SUJET/.test(avantProduits),'la règle doit précéder la marque');
+  assert(/que si on t.interroge sur les produits/i.test(avantProduits),'et dire quand elle a le droit d’en parler');
+  /* Et on publie ce qui est VRAIMENT parti, pour ne pas l’espérer. */
+  assert.equal(data.connaissances.devoirs_nombre,3);
+  assert(data.connaissances.khalam>0&&data.connaissances.produits>0&&data.connaissances.fiches>0,JSON.stringify(data.connaissances));
+  assert(data.consigne_signes>consigne.length/2,'la taille de la consigne est publiée');
   assert.equal(body.bidiGenerateContentSetup.contextWindowCompression.triggerTokens,'60000','Google compressait dès 18 000 jetons : compresser, c’est résumer');
   /* ── LA CARTE ÉTAIT INATTEIGNABLE (24 octobre 2026) ──────────────────────
      Khalam Rapide n'avait QU'UN outil, et sa consigne interdisait les

@@ -68,6 +68,23 @@ export const liveHistoriqueTours = () => borne(process.env.BIA_LIVE_HISTORIQUE, 
 export const liveCompressionJetons = () => borne(process.env.BIA_LIVE_COMPRESSION, 60000, 8000, 200000);
 export const liveCompressionCible = () => Math.round(liveCompressionJetons() / 2);
 
+/* ── L'ACCÈS TOTAL DE KHALAM RAPIDE, ET CE QU'IL COÛTE ─────────────────────
+
+   Lamine, 24 octobre 2026 : « elle doit avoir accès TOTAL ». Ces budgets
+   décident ce qui part dans la consigne de session : devoirs, ce qu'elle sait
+   de KHALAM, la fiche produits, la vitrine, les fiches de connaissances.
+
+   CE QUE ÇA COÛTE, et ce n'est pas le même coût que le fil : la consigne de
+   session est payée UNE FOIS à l'ouverture, pas à chaque phrase. Une session
+   plus chère à ouvrir, pas plus chère à tenir. Les tailles réellement parties
+   sont publiées dans /api/gemini-live/session.
+
+   Retour en arrière : BIA_LIVE_DEVOIRS=0 coupe les devoirs, et ainsi de
+   suite — chacun a sa variable. */
+export const liveDevoirsSignes = () => borne(process.env.BIA_LIVE_DEVOIRS, 40000, 0, 200000);
+export const liveFichesSignes = () => borne(process.env.BIA_LIVE_FICHES, 12000, 0, 60000);
+export const liveLexiqueCorrections = () => borne(process.env.BIA_LIVE_CORRECTIONS, 300, 0, 2000);
+
 export const reglagesMemoire = () => ({
   revision: 'memoire-elargie-v1',
   fil_messages: filRapideMessages(),
@@ -78,6 +95,9 @@ export const reglagesMemoire = () => ({
   contexte_signes: contexteSignes(),
   live_historique_tours: liveHistoriqueTours(),
   live_compression_jetons: liveCompressionJetons(),
+  live_devoirs_signes: liveDevoirsSignes(),
+  live_fiches_signes: liveFichesSignes(),
+  live_corrections_exactes: liveLexiqueCorrections(),
   avant_le_24_octobre: {fil_messages: 12, fil_signes: 6000, souvenirs_signes: 1800, lexique_signes: 2200, lecons_signes: 2000, contexte_signes: 1800, live_historique_tours: 12, live_compression_jetons: 18000},
   cout: 'Le socle est mis en cache, le fil ne l’est pas : chaque message gardé en plus est payé plein tarif à chaque tour. Lire depense et memoire_transmise avant de monter davantage.',
 });
