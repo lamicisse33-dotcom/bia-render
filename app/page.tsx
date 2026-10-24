@@ -70,6 +70,8 @@ import { veutArreterLaListe, veutCorrigerLaListe } from "@/lib/mal-dit";
 import { franc, lecture, sorteEvoquee, totauxDe } from "@/lib/documents";
 import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
 import { lireMesures, noterMesure } from "@/lib/chrono";
+import { jetonAppareil, entetesAppareil } from "@/lib/appareil";
+import { abonnerSiDejaAccorde, abonnerSurGeste } from "@/lib/abonner-notifications";
 import { finir as finirLeTour, poser as poserBorne, tourVide, type Bornes } from "@/lib/tour";
 import { fenetreDuFil } from "@/lib/fenetre-du-fil";
 import type { Mesure, Voie } from "@/lib/chrono";
@@ -1201,6 +1203,12 @@ export default function Home() {
   const annuleRef = useRef(false);
   const [annule, setAnnule] = useState(false);
   const moteursRef = useRef<{ voix: string; ecoute: string } | null>(null);
+  /* Ce téléphone reçoit-il les notifications, et a-t-elle des rappels ? Les
+     deux ensemble disent s'il faut demander l'autorisation — et seulement
+     ensemble : demander sans raison, c'est se faire refuser pour toujours. */
+  const notificationsRef = useRef(false);
+  const aDesRappelsRef = useRef(false);
+  const demandeNotifsFaite = useRef(false);
 
   /* ── LE PETIT JOURNAL DE SES TOURS, CÔTÉ KHALAM ──────────────────────────
      « Ajoute un petit journal (heure de début de parole, de fin détectée, de
@@ -1495,6 +1503,22 @@ export default function Home() {
            BIA_SILENCE_FIN_PAROLE_MS la règle sans redéployer. Tant que cette
            réponse n'est pas arrivée, lib/micro.ts garde son repli. */
         reglerSilenceQuiFerme((e as {fin_de_parole?:{silence_fin_parole_ms?:number}})?.fin_de_parole?.silence_fin_parole_ms);
+        /* ── LES RAPPELS DE MÉDICAMENTS ────────────────────────────────────
+           On RÉTABLIT un abonnement déjà accordé, et rien de plus : faire
+           surgir une demande d'autorisation à quelqu'un qui vient juste
+           parler à BIA est le meilleur moyen de se faire refuser pour
+           toujours — un refus sur iOS ne se redemande pas. La demande, elle,
+           part sur un geste, et seulement si elle a déjà un rappel qui ne
+           sonnerait pas. */
+        void (async()=>{
+          const entetes=entetesAppareil(codeRef.current,estMaitreRef.current?'maitre':(profilRef.current||''));
+          const v=await abonnerSiDejaAccorde(entetes);
+          notificationsRef.current=v.ok;
+          try{
+            const r=await fetch('/api/rappels',{headers:entetes,cache:'no-store'});
+            if(r.ok){const d=await r.json() as {rappels?:unknown[]};aDesRappelsRef.current=Boolean(d.rappels?.length);}
+          }catch{}
+        })();
         if (e?.tenue) setTenue(String(e.tenue));
         /* Notre moteur parle déjà posément : le curseur « Débit » se lit
            relativement à lui (voir lib/ralentir.ts). */
@@ -4828,6 +4852,10 @@ export default function Home() {
         /* La carte, enfin atteignable depuis Khalam Rapide (24 octobre 2026) :
            ce moteur n'avait qu'un outil, et la balise [[carte]] de Khalam
            n'était plus jamais atteinte depuis qu'il est devenu le défaut. */
+        /* Un rappel vient d'être posé : au prochain geste, on demandera
+           l'autorisation des notifications. Parler n'est pas un geste sur
+           iPhone, donc on ne peut pas la demander ici. */
+        rappelPose:(sonnera:boolean)=>{aDesRappelsRef.current=true;notificationsRef.current=sonnera;},
         accordPosition:()=>new Promise<boolean>(repondre=>{
           setAccordPosition(()=>(d:boolean)=>{setAccordPosition(null);repondre(d);});
         }),
@@ -4842,11 +4870,20 @@ export default function Home() {
          serveur (BIA_LIVE_HISTORIQUE), et la personne sert à écrire dans
          khalam_souvenirs — sans elle, Khalam Rapide n'écrivait rien. */
       (moteursRef.current as {reglages_memoire?:{live_historique_tours?:number}}|null)?.reglages_memoire?.live_historique_tours,
-      estMaitreRef.current?'maitre':'',
+      /* ── LA MÉMOIRE DES VISITEURS N'EXISTAIT PAS SUR KHALAM RAPIDE ──────
+         On passait 'maitre' ou RIEN : sans identifiant, `garder()` n'écrit
+         pas, donc toute conversation d'un visiteur sur la connexion rapide
+         disparaissait entièrement. Khalam, lui, rangeait déjà par profil
+         depuis le 10 septembre. « Même BIA, mêmes écritures » : on passe le
+         profil actif, comme Khalam. */
+      estMaitreRef.current?'maitre':(profilRef.current||''),
       /* La version que CE téléphone a chargée. Le 24 octobre, je ne pouvais
          pas distinguer « pas d'écho » de « ancien code en cache » : les deux
          donnaient zéro. Maintenant si. */
-      versionChargee.current);
+      versionChargee.current,
+      /* Le jeton de l'appareil, pour que les rappels d'un visiteur restent
+         les siens. Il ne dit pas qui c'est — voir lib/appareil.ts. */
+      jetonAppareil());
       liveMaitreRef.current=moteur;setPanne('');
       await moteur.demarrer();return;
     }
@@ -6663,6 +6700,16 @@ export default function Home() {
   function toggleMicrophone() {
     if (microFerme) return;
     contexte();   // débloque le son du navigateur, sans rien prononcer
+    /* ── LE SEUL MOMENT OÙ ON PEUT DEMANDER LES NOTIFICATIONS ─────────────
+       Sur iPhone, l'autorisation exige un GESTE : impossible au chargement.
+       Celui-ci en est un. Et on ne la demande QUE si elle a déjà un rappel
+       qui ne sonnerait pas — une demande sans raison se fait refuser, et un
+       refus sur iOS ne se redemande pas. Une seule fois par ouverture. */
+    if(aDesRappelsRef.current&&!notificationsRef.current&&!demandeNotifsFaite.current){
+      demandeNotifsFaite.current=true;
+      void abonnerSurGeste(entetesAppareil(codeRef.current,estMaitreRef.current?'maitre':(profilRef.current||'')))
+        .then(v=>{notificationsRef.current=v.ok;if(!v.ok&&v.pourquoi)setPanne(v.pourquoi);});
+    }
 
     const parScribe = moteurs ? moteurs.ecoute !== "navigateur" : false;
     if (parScribe || utiliserLiveMaitre()) {

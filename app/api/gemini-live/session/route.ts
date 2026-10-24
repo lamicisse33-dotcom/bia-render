@@ -161,6 +161,14 @@ export async function POST(req:NextRequest){
       ça écrit dans Supabase. */
    {name:'garder_la_correction',description:'Écrire définitivement une formulation que papa vient de valider : elle rejoint le lexique et les corrections exactes, et le devoir d’origine si la phrase en vient. À appeler UNIQUEMENT après qu’il a confirmé (« c’est bon », « mémorise », « retiens »). Réservé au code maître.',parameters:{type:'OBJECT',properties:{phrase:{type:'STRING',description:'La phrase corrigée, EXACTEMENT comme il l’a dite — aucun mot changé.'},langue:{type:'STRING',enum:['wo','fr']}},required:['phrase']}},
    {name:'montrer_le_chemin',description:'Montrer sur une carte le chemin vers un endroit, et donner la direction et la distance depuis où se trouve la personne. À utiliser dès qu’elle demande son chemin, un lieu, ou dit qu’elle est perdue. Le téléphone demandera son accord pour la position : si elle refuse, dis-le simplement et propose de décrire le chemin autrement.',parameters:{type:'OBJECT',properties:{destination:{type:'STRING',description:'L’endroit où elle veut aller, tel qu’elle le nomme.'}},required:['destination']}},
+   /* ── LES RAPPELS DE MÉDICAMENTS, SUR LES DEUX MOTEURS ─────────────────
+      Lamine, 24 octobre : « création à la voix, liste et suppression à la
+      voix ». Un OUTIL ici, une balise sur Khalam : c'est la même répartition
+      que la carte, et les deux écrivent au même endroit.
+      LA CONSIGNE EST EXPLICITE SUR L'ÉCHEC : si `sonnera` est faux, elle
+      doit le dire. Un rappel de médicament qu'on croit posé et qui ne
+      sonnera jamais est pire que pas de rappel du tout. */
+   {name:'gerer_les_rappels',description:'Poser, lister ou enlever un rappel de médicament ou de soin. À utiliser dès qu’elle demande qu’on lui rappelle quelque chose à une heure, qu’elle veut savoir ses rappels, ou qu’elle veut en enlever un. Réponds ensuite avec ce que rend l’outil : s’il dit que le rappel ne sonnera pas, DIS-LE — qu’il faut installer Bia sur l’écran d’accueil et accepter les notifications. N’annonce jamais un rappel posé sans ça, et n’invente aucune heure qu’elle n’a pas dite.',parameters:{type:'OBJECT',properties:{phrase:{type:'STRING',description:'Sa demande, EXACTEMENT comme elle l’a dite — avec l’heure et ce qu’elle veut qu’on lui rappelle. C’est le serveur qui en tire les heures.'}},required:['phrase']}},
    {name:'chercher_connaissances',description:'Lire les devoirs, corrections et lexiques de Bia dans Supabase. Chercher des références pertinentes, lister tous les devoirs ou le lexique avec pagination, et lire intégralement un devoir par son identifiant. Lecture seule.',parameters:{type:'OBJECT',properties:{question:{type:'STRING'},action:{type:'STRING',enum:['chercher','lister_devoirs','lire_devoir','lister_lexique']},devoir_id:{type:'STRING'},offset:{type:'INTEGER'}},required:['question']}}]}]
  };
  try{

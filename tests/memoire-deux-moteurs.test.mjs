@@ -73,7 +73,16 @@ test('les deux moteurs écrivent et lisent sous la même personne',()=>{
  const page=fs.readFileSync('app/page.tsx','utf8');
  assert(/\?\s*"maitre"\s*$/m.test(chat)||chat.includes('? "maitre"'),'Khalam garde sous « maitre »');
  assert(live.includes("const personne=acces.maitre?'maitre':''"),'Khalam Rapide aussi, au mot près');
- assert(page.includes("estMaitreRef.current?'maitre':''"),'et le téléphone envoie le même mot');
+ /* ── 24 OCTOBRE 2026 : LA MÉMOIRE DES VISITEURS N'EXISTAIT PAS ──────────
+    Le téléphone envoyait 'maitre' ou RIEN. Sans identifiant, garder()
+    n'écrit pas : toute conversation d'un visiteur sur la connexion rapide
+    disparaissait entièrement, alors que Khalam rangeait déjà par profil
+    depuis le 10 septembre. « Même BIA, mêmes écritures » : le téléphone
+    envoie maintenant le profil actif, comme Khalam. */
+ assert(page.includes("estMaitreRef.current?'maitre':(profilRef.current||'')"),
+  'le téléphone envoie « maitre » ou le profil actif, comme Khalam');
+ assert(!page.includes("estMaitreRef.current?'maitre':''"),
+  'plus de visiteur sans mémoire sur la connexion rapide');
  for(const faux of ['maitre-vocal','live-'])assert(!live.includes("?'"+faux),'aucune identité inventée : '+faux);
 });
 

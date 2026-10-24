@@ -213,3 +213,139 @@ test('un identifiant vide ne range rien : un rappel sans propriétaire serait lu
  assert.equal(D.cleDe('Maitre'),'maitre');
  assert.equal(D.cleDe('../autre'),'autre','aucun chemin ne doit pouvoir sortir de sa clé');
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LES ROUTES, DE BOUT EN BOUT, SANS SUPABASE
+
+   Lamine : « ne dis JAMAIS "fait" sans un test réel ». Ici on exécute les
+   vraies routes avec le vrai dépôt — qui, sans SUPABASE_URL, range en
+   mémoire vive et le DIT. C'est exactement ce qui se passera sur le serveur
+   tant que data/rappels.sql n'est pas collé, donc c'est le chemin qu'il faut
+   éprouver. On ne simule pas le dépôt : on le laisse faire.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+function chargerRoute(chemin){
+ const m={exports:{}};
+ const deps={
+  'next/server':{NextResponse:{json:(body,opt)=>({statut:opt?.status||200,corps:body})}},
+  '@/lib/codes':{verifierCode:c=>c==='MASTER'?{ok:true,maitre:true}:c==='VISITEUR'?{ok:true,maitre:false}:{ok:false}},
+  '@/lib/rappels':R,
+  '@/lib/rappels-depot':depot,
+  '@/lib/rappels-horloge':{armerHorloge(){},balayerLesRappels:async()=>{}},
+  '@/lib/push-web':{clePubliquePush:()=>'une-cle'},
+ };
+ new Function('require','module','exports','process',compile(fs.readFileSync(chemin,'utf8')))(
+  id=>{assert(id in deps,chemin+' importe '+id+' : ajoute-le au décor');return deps[id];},m,m.exports,process);
+ return m.exports;
+}
+/* Un dépôt neuf par bloc d'épreuves : les rappels d'un essai ne doivent pas
+   fuir dans le suivant — c'est précisément ce qu'on vérifie du produit. */
+let depot;
+function neuf(){
+ delete globalThis.biaRappelsDepot;
+ depot=charger('lib/rappels-depot.ts',['./lexique','./rappels']);
+ return chargerRoute('app/api/rappels/route.ts');
+}
+/* Le dépôt a besoin d'un lexique : sans URL ni clé, il range en mémoire. */
+const vraiCharger=charger;
+charger=(chemin,permis)=>{
+ if(chemin!=='lib/rappels-depot.ts')return vraiCharger(chemin,permis);
+ const m={exports:{}};
+ new Function('require','module','exports','process',compile(fs.readFileSync(chemin,'utf8')))(
+  id=>id==='./lexique'?{lexiqueConfig:{url:'',cle:'',application:'bia',actif:false}}:id==='./rappels'?R:assert.fail(id),
+  m,m.exports,process);
+ return m.exports;
+};
+
+const demande=(corps,code='MASTER')=>({
+ headers:{get:n=>n==='x-bia-code'?code:null},
+ json:async()=>corps,
+});
+
+test('poser un rappel à la voix, le relire, puis l’enlever — en vrai, par la route',async()=>{
+ const route=neuf();
+ const pose=await route.POST(demande({phrase:'rappelle-moi mon médicament à 8 h et 20 h'}));
+ assert.equal(pose.statut,200);
+ assert.equal(pose.corps.fait,true);
+ assert.deepEqual(pose.corps.rappel.heures,['08:00','20:00']);
+ assert.equal(pose.corps.rappel.quoi,'médicament');
+
+ /* « Si le rappel ne peut pas sonner, BIA doit le dire clairement. » Aucun
+    téléphone n'est abonné dans cette épreuve : la route doit le dire, et la
+    phrase doit nommer l'installation sur l'écran d'accueil. */
+ assert.equal(pose.corps.sonnera,false);
+ assert.match(pose.corps.pourquoi_pas,/écran d'accueil/);
+ assert.match(pose.corps.pourquoi_pas,/notifications/);
+
+ const liste=await route.GET(demande({}));
+ assert.equal(liste.corps.rappels.length,1);
+ assert.match(liste.corps.phrase,/8 heures et 20 heures/);
+ assert.doesNotMatch(liste.corps.phrase,/\d\d:\d\d/,'une heure prononçable, jamais « 08:00 »');
+
+ const parLaVoix=await route.POST(demande({phrase:'quels sont mes rappels'}));
+ assert.equal(parLaVoix.corps.action,'liste');
+ assert.equal(parLaVoix.corps.rappels.length,1);
+
+ const enleve=await route.POST(demande({phrase:'enlève le rappel de mon médicament'}));
+ assert.equal(enleve.corps.fait,true);
+ assert.equal(enleve.corps.rappels.length,0);
+ assert.match(enleve.corps.phrase,/aucun rappel/i);
+});
+
+test('une suppression ambiguë ne supprime rien et redemande',async()=>{
+ const route=neuf();
+ await route.POST(demande({phrase:'rappelle-moi mon médicament à 8 h'}));
+ await route.POST(demande({phrase:'rappelle-moi mes gouttes à 20 h'}));
+ const flou=await route.POST(demande({phrase:'enlève mon rappel'}));
+ assert.equal(flou.corps.fait,false);
+ assert.equal(flou.corps.ambigu,true);
+ assert.equal(flou.corps.rappels.length,2,'rien n’a été supprimé sur un doute');
+ assert.match(flou.corps.raison,/lequel/i);
+});
+
+test('une demande sans heure ne pose rien : elle doit redemander l’heure',async()=>{
+ const route=neuf();
+ const v=await route.POST(demande({phrase:'rappelle-moi mon médicament'}));
+ assert.equal(v.corps.fait,false);
+ assert.match(v.corps.raison,/heure/i);
+ assert.equal((await route.GET(demande({}))).corps.rappels.length,0);
+});
+
+/* ── LE POINT QU'IL A POSÉ EN PREMIER : « JAMAIS VISIBLES D'UN AUTRE » ──── */
+test('les rappels du maître sont invisibles pour un visiteur, et réciproquement',async()=>{
+ const route=neuf();
+ await route.POST(demande({phrase:'rappelle-moi mon médicament à 8 h'},'MASTER'));
+ const visiteur={headers:{get:n=>n==='x-bia-code'?'VISITEUR':n==='x-bia-appareil'?'telephone2':null},json:async()=>({})};
+ const vu=await route.GET(visiteur);
+ assert.equal(vu.corps.rappels.length,0,'un visiteur ne voit pas les rappels du maître');
+ await route.POST({...visiteur,json:async()=>({phrase:'rappelle-moi mes gouttes à 7 h'})});
+ assert.equal((await route.GET(visiteur)).corps.rappels.length,1);
+ const duMaitre=await route.GET(demande({},'MASTER'));
+ assert.equal(duMaitre.corps.rappels.length,1);
+ assert.equal(duMaitre.corps.rappels[0].quoi,'médicament','et le maître ne voit pas les siens');
+});
+
+test('sans code, aucune route de rappel ne répond',async()=>{
+ const route=neuf();
+ assert.equal((await route.GET(demande({},'RIEN'))).statut,401);
+ assert.equal((await route.POST(demande({phrase:'rappelle-moi mon médicament à 8 h'},'RIEN'))).statut,401);
+});
+
+/* Un visiteur sans profil ET sans jeton d'appareil n'a aucun rangement : on
+   refuse plutôt que de tout mettre dans un tas commun où chacun entendrait
+   l'ordonnance du voisin. */
+test('un visiteur sans jeton d’appareil n’a aucun rangement, et on le refuse',async()=>{
+ const route=neuf();
+ const anonyme={headers:{get:n=>n==='x-bia-code'?'VISITEUR':null},json:async()=>({})};
+ assert.equal((await route.GET(anonyme)).statut,401);
+});
+
+test('le dépôt dit toujours où les rappels sont rangés',async()=>{
+ const route=neuf();
+ await route.POST(demande({phrase:'rappelle-moi mon médicament à 8 h'}));
+ const r=depot.resumeDepotRappels();
+ /* Sans SUPABASE_URL, c'est la mémoire vive — et ça doit être DIT, pour
+    qu'on ne confonde jamais « ça marche » avec « c'est gardé ». */
+ assert.equal(r.rangement,'memoire');
+ assert.equal(r.personnes_en_memoire,1);
+});

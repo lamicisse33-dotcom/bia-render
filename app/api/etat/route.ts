@@ -39,6 +39,9 @@ import {resumeDialogueDomaines} from '@/lib/essai-dialogue-domaines';
 import {silenceQuiSuffit} from '@/lib/micro';
 import {reglagesFinDeParole,silenceFinDeParoleMs} from '@/lib/fin-de-parole';
 import {resumeJournalParole} from '@/lib/journal-parole';
+import {resumeDepotRappels} from '@/lib/rappels-depot';
+import {resumeHorloge,armerHorloge,balayerLesRappels} from '@/lib/rappels-horloge';
+import {clePubliquePush} from '@/lib/push-web';
 import {resumeMemoireOrganisee} from '@/lib/memoire-organisee';
 import {resumeConnexionFiches} from "@/lib/essai-fiches";
 import {resumeAccesDevoirs,verifierAccesDevoirs} from "@/lib/essai-acces-devoirs";
@@ -129,6 +132,22 @@ const VERSION = (process.env.RENDER_GIT_COMMIT || "").slice(0, 12)
   || `local-${Math.floor(Date.now() / 1000)}`;
 
 export async function GET(request: Request) {
+  /* ── L'HORLOGE DES RAPPELS NE DOIT PAS DÉPENDRE D'UN SEUL RÉVEIL ────────
+
+     Lamine : « vérifie si l'horloge dépend du passage de 5 min de
+     cron-job.org (un rappel "dans deux minutes" ne doit pas arriver en
+     retard) ». Non : le battement interne est de TRENTE secondes, et il est
+     armé ici comme dans /api/rappels. Le ping extérieur de cinq minutes ne
+     sert qu'à garder l'instance debout — c'est lui qui empêche Render de
+     l'endormir, et reveil.yml n'y est pour rien (son `schedule` a été retiré
+     le 13 septembre, son propre en-tête l'explique).
+
+     On balaie AUSSI à chaque passage ici : si le battement meurt avec
+     l'instance, le premier qui ouvre BIA fait sonner ce qui était dû, et
+     `rappels.horloge.creneaux_perdus` compte ce qui a été manqué. Un rappel
+     raté en silence serait le pire des deux. */
+  armerHorloge();
+  void balayerLesRappels();
   /* ── SES PHRASES NE SORTENT QU'AVEC SON CODE ──────────────────────────────
 
      Cette route reste OUVERTE, et c'est voulu depuis le 12 septembre : le
@@ -174,7 +193,15 @@ export async function GET(request: Request) {
   let auteurs: Record<string, number> | null = null;
   try { auteurs = await parAuteur(); } catch { auteurs = null; }
 
-  return NextResponse.json({fin_de_parole:reglagesFinDeParole(),journal_parole:resumeJournalParole(),orientation:resumeOrientation(),lectures_supabase:resumeLecturesSupabase(),reglages_memoire:reglagesMemoire(),outil_connaissances:resumeOutilConnaissances(),eligibilite_anticipation:resumeEligibilite(),khalam_rapide:resumeKhalamRapide(),essai_rapidite:{...resumeEssaiRapidite(),controle_http:resumeControleRapidite()},file_gpu:resumeFileAnticipation(),reprises_reflexion:resumeReprises(),micro_capture:resumeMicro(),protection_parole:resumeProtectionParole(),briques_conversation:resumeBriques(),anticipation_conversation:{essai:resumeEssaiAnticipation(),...resumeAnticipationReponse(),ecoute:resumeEcouteProgressive()},ecoute_longue:resumeEcouteLongue(),prises_validees:resumePrisesValidees(),
+  return NextResponse.json({fin_de_parole:reglagesFinDeParole(),journal_parole:resumeJournalParole(),
+  /* ── LES RAPPELS DE MÉDICAMENTS ─────────────────────────────────────────
+     `rangement` dit où ils vivent : « supabase » (ils survivent aux
+     redéploiements) ou « memoire » (ils marchent tout de suite et
+     disparaissent au prochain redémarrage, tant que data/rappels.sql n'est
+     pas collé). Ne jamais confondre « ça marche » avec « c'est gardé ».
+     `cle_de_notification` dit si le serveur peut seulement signer un envoi :
+     sans BIA_SECRET, aucun rappel ne sonnera, et il faut le voir. */
+  rappels:{...resumeDepotRappels(),horloge:resumeHorloge(),cle_de_notification:Boolean(clePubliquePush())},orientation:resumeOrientation(),lectures_supabase:resumeLecturesSupabase(),reglages_memoire:reglagesMemoire(),outil_connaissances:resumeOutilConnaissances(),eligibilite_anticipation:resumeEligibilite(),khalam_rapide:resumeKhalamRapide(),essai_rapidite:{...resumeEssaiRapidite(),controle_http:resumeControleRapidite()},file_gpu:resumeFileAnticipation(),reprises_reflexion:resumeReprises(),micro_capture:resumeMicro(),protection_parole:resumeProtectionParole(),briques_conversation:resumeBriques(),anticipation_conversation:{essai:resumeEssaiAnticipation(),...resumeAnticipationReponse(),ecoute:resumeEcouteProgressive()},ecoute_longue:resumeEcouteLongue(),prises_validees:resumePrisesValidees(),
     /* ── LA VERSION EN LIGNE, POUR QUE LE TÉLÉPHONE SE METTE À JOUR SEUL ────
 
        Lamine, le 14 septembre 2026 : « il faut forcer les mises à jour ; dès

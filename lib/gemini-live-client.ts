@@ -12,7 +12,13 @@ export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',t
     `accordPosition` montre la question à l'écran et rend ce qu'elle répond.
     Jamais en silence : sans ces deux rappels, l'outil refuse de partir.
     `carte` ouvre l'écran de guidage sur le lieu trouvé. */
- accordPosition?:()=>Promise<boolean>;carte?:(lieu:{dit:string;lat:number;lon:number;sur?:boolean})=>void};
+ accordPosition?:()=>Promise<boolean>;carte?:(lieu:{dit:string;lat:number;lon:number;sur?:boolean})=>void;
+ /* ── UN RAPPEL VIENT D'ÊTRE POSÉ ─────────────────────────────────────────
+    La page a besoin de le savoir pour demander les notifications au prochain
+    geste : sur iPhone, l'autorisation exige un geste, et parler n'en est pas
+    un. Sans ce signal, le premier rappel de quelqu'un ne sonnerait jamais —
+    la page croirait qu'il n'a aucun rappel et ne demanderait rien. */
+ rappelPose?:(sonnera:boolean)=>void};
 /* Le niveau au-dessus duquel une voix humaine passe DEVANT l'écho, quelle que
    soit la pièce. En dessous, c'est le plancher appris qui décide. */
 const SEUIL_INTERRUPTION=0.06;
@@ -140,7 +146,18 @@ export class BiaGeminiLive{
  private arrets:Record<string,number>={};private dernierCode=0;
  private sessionMesure=Math.random().toString(36).slice(2,10)+Date.now().toString(36);private tourMesure=0;
  private userText='';private biaText='';private history:Array<{role:string;parts:Array<{text:string}>}>=[];private muted=false;
- constructor(private code:string,private events:LiveEvents,private historique?:Array<{role:'user'|'bia';text:string}>,private tours=40,private personne='',private version=''){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');this.tours=Number.isFinite(tours)&&tours>=4&&tours<=80?Math.round(tours):40;}
+ constructor(private code:string,private events:LiveEvents,private historique?:Array<{role:'user'|'bia';text:string}>,private tours=40,private personne='',private version='',private appareil=''){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');this.tours=Number.isFinite(tours)&&tours>=4&&tours<=80?Math.round(tours):40;}
+ /* ── LE RANGEMENT DES RAPPELS, ET POURQUOI LE JETON ARRIVE DE DEHORS ─────
+    Le code pour le maître, un jeton d'appareil pour les autres : sans lui,
+    tous les rappels des visiteurs tomberaient dans le même tas et chacun
+    entendrait l'ordonnance du voisin.
+    CE FICHIER NE PEUT PAS IMPORTER lib/appareil.ts. Neuf épreuves sont
+    parties en rouge quand je l'ai essayé : elles chargent ce module comme
+    `data:`, où un import relatif ne se résout pas. C'est la troisième fois
+    que ce piège se referme, après lib/micro.ts et lib/conversation-groq.ts.
+    Le jeton arrive donc du constructeur — une seule source, lib/appareil.ts,
+    lue par la page. */
+ private entetes(){return {'x-bia-code':this.code,...(this.personne&&this.personne!=='maitre'?{'x-bia-personne':this.personne}:{}),...(this.appareil?{'x-bia-appareil':this.appareil}:{})};}
  private send(data:unknown){if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify(data));}
  private viderSon(){for(const n of this.nodes){n.onended=null;try{n.stop();}catch{}}this.nodes.clear();this.next=0;this.finDuSon=performance.now();this.events.parle(false);}
  /* Elle parle, ou elle vient de finir. Les 300 ms de marge couvrent la queue
@@ -248,6 +265,18 @@ export class BiaGeminiLive{
       }
       if(call.name==='montrer_le_chemin'){
        const reponse=await this.montrerLeChemin(String(call.args?.destination||'').slice(0,160));
+       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
+       continue;
+      }
+      if(call.name==='gerer_les_rappels'){
+       let reponse;
+       try{
+        const r=await fetch('/api/rappels',{method:'POST',signal:AbortSignal.timeout(12000),
+         headers:{'content-type':'application/json',...this.entetes()},
+         body:JSON.stringify({phrase:String(call.args?.phrase||'').slice(0,400)})});
+        reponse=await r.json();
+        if(reponse?.fait)this.events.rappelPose?.(Boolean(reponse.sonnera));
+       }catch{reponse={fait:false,raison:'Les rappels n’ont pas répondu. Ne dis pas que c’est noté.'};}
        this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
        continue;
       }

@@ -16,13 +16,17 @@
    et le moteur. AUCUN texte, aucune transcription, aucun souvenir, aucun
    mot wolof. Un nombre de lignes n'est pas un contenu. */
 
-type Source = 'devoirs'|'lexique'|'mots_corriges'|'corrections_exactes'|'instructions'|'souvenirs'|'fiches'|'lexique_partage'|'maitrises';
+/* « rappels » ajouté le 24 octobre 2026 : ses rappels de médicaments sont
+   une lecture Supabase comme les autres, et Lamine a demandé le nombre de
+   lignes lues par source à chaque tour. Une source non déclarée ici serait
+   lue sans jamais apparaître dans /api/etat. */
+type Source = 'devoirs'|'lexique'|'mots_corriges'|'corrections_exactes'|'instructions'|'souvenirs'|'fiches'|'lexique_partage'|'maitrises'|'rappels';
 type Tour = {moteur:string;lignes:Partial<Record<Source,number>>;signes:Partial<Record<Source,number>>;quand:string};
 type Etat = {tours:Tour[];encours:Map<string,Tour>};
 const g = globalThis as typeof globalThis & {biaLecturesSupabase?:Etat};
 const etat:Etat = (g.biaLecturesSupabase ??= {tours:[],encours:new Map()});
 
-const SOURCES = new Set<string>(['devoirs','lexique','mots_corriges','corrections_exactes','instructions','souvenirs','fiches','lexique_partage','maitrises']);
+const SOURCES = new Set<string>(['devoirs','lexique','mots_corriges','corrections_exactes','instructions','souvenirs','fiches','lexique_partage','maitrises','rappels']);
 
 /** Un tour commence : on ouvre son relevé. Le moteur est dit, jamais deviné. */
 export function ouvrirLecture(tour:string, moteur:'khalam'|'khalam_rapide'){

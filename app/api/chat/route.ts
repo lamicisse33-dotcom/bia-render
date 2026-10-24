@@ -66,6 +66,9 @@ import { peser, peserParTitres, noterLEcart, unTourDePlus } from "@/lib/pesee";
 import { lecconQuiRepond, lecconsActives, leconsSousLaMain } from "@/lib/lecons";
 import { demandeDeNombre, repondreAuNombre } from "@/lib/nombre-demande";
 import { consigneDesSouvenirs, garder, retrouver, souvenirsActifs, type Souvenir } from "@/lib/souvenirs";
+import { intentionRappel, construireRappel, phraseDesRappels, rappelsVises } from "@/lib/rappels";
+import { lire as lireRappels, ecrire as ecrireRappels } from "@/lib/rappels-depot";
+import { armerHorloge, balayerLesRappels } from "@/lib/rappels-horloge";
 import { SERVICES } from "@/lib/services-textes";
 import { cequElleAAppris, retirerCorrection, lexiqueConfig } from "@/lib/lexique";
 import { REGLES_REPERTOIRE, REPERTOIRE_PRET, consigneRepertoireCandidates, dejaDiteJusteAvant, etiquetteSeule, figeeConvient, figeeEncoreBonne, langueDe, normaliser, onSeConnait, repertoireActif, sonDe, trouverDansRepertoire } from "@/lib/repertoire";
@@ -214,6 +217,27 @@ function detacherMicro(texte:string){
        reformulation : je n'écris pas de wolof de ma main ;
      — et elle annonce ce qu'elle garde, pour qu'il puisse le retirer tout de
        suite s'il s'est trompé. La balise d'oubli est là pour ça. */
+/* ── LES RAPPELS DE MÉDICAMENTS, CÔTÉ KHALAM ──────────────────────────────
+
+   Lamine, 24 octobre 2026 : « Khalam Rapide et Khalam = même BIA, mêmes
+   écritures ». Khalam Rapide a un OUTIL (gerer_les_rappels) ; ici c'est une
+   BALISE, comme la carte et le papier, parce que ce chemin-là n'a pas
+   d'appels de fonction. Les deux écrivent au MÊME endroit, avec la même clé
+   de rangement — un rappel posé sur un moteur se relit sur l'autre.
+
+   LA BALISE PORTE SA PHRASE, PAS MON INTERPRÉTATION : c'est le serveur qui
+   en tire les heures (lib/rappels.ts), jamais le modèle. Un modèle qui
+   inventerait « 8 h » parce que ça sonne bien poserait une alarme de
+   médicament à une heure que personne n'a dite.
+
+   ET SA LISTE EST DANS LA CONSIGNE À CHAQUE TOUR. « Quels sont mes rappels »
+   n'a donc besoin d'aucun aller-retour : elle la lit déjà. */
+const RAPPEL=/\[{1,2}\s*rappel\s*[:\-—]\s*([^\]]{2,300}?)\s*\]{1,2}/i;
+function detacherRappel(texte:string){
+  const m=texte.match(RAPPEL);
+  return{texte:texte.replace(new RegExp(RAPPEL.source,"gi"),"").replace(/\n{3,}/g,"\n\n").trim(),
+    rappel:m?m[1].trim():""};
+}
 const RETIENS=/\[{1,2}\s*retiens\s*[:\-—]\s*([^\]]{2,300}?)\s*\]{1,2}/i;
 const OUBLIE=/\[{1,2}\s*oublie\s*[:\-—]\s*([^\]]{2,300}?)\s*\]{1,2}/i;
 function detacherGarde(texte:string){
@@ -967,6 +991,11 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     const laMemoire=souvenirsActifs()&&quiParle
       ? chrono('souvenirs',()=>retrouver(quiParle,question))
       : Promise.resolve([] as Souvenir[]);
+    /* Ses rappels partent en même temps que sa mémoire : une lecture de plus
+       en série aurait ajouté son aller-retour à chaque phrase. */
+    const sesRappels=quiParle
+      ? chrono('rappels',()=>lireRappels(quiParle)).catch(()=>({rappels:[],abonnements:[]}))
+      : Promise.resolve({rappels:[],abonnements:[]});
 
     utiliserChoix=maitre.ok&&!body.apprend&&!body.malDit?.encours
       &&(process.env.BIA_LLM_PROVIDER||"anthropic").toLowerCase()==="anthropic"
@@ -1724,6 +1753,27 @@ quelqu'un parce que le sujet est glissant.`;
     noterLectureSource(releve,'souvenirs',souvenirsLus.length,JSON.stringify(souvenirsLus).length);
     const souvenirsDuTour=consigneDesSouvenirs(souvenirsLus);
     variable+=souvenirsDuTour;
+
+    /* ── SES RAPPELS, DANS LA CONSIGNE À CHAQUE TOUR ──────────────────────
+
+       Elle les lit, donc « quels sont mes rappels » se répond sans aller
+       chercher quoi que ce soit. Et on lui dit AUSSI s'ils sonneront : c'est
+       la demande de Lamine, « si le rappel ne peut pas sonner, BIA doit le
+       dire clairement ». Un rappel de médicament qu'on croit posé et qui ne
+       sonnera jamais est pire que pas de rappel. */
+    const documentRappels=await sesRappels.catch(()=>({rappels:[],abonnements:[]}));
+    const listeRappels=documentRappels.rappels||[];
+    noterLectureSource(releve,'rappels',listeRappels.length,JSON.stringify(listeRappels).length);
+    if(quiParle){
+      const sonnera=(documentRappels.abonnements||[]).length>0;
+      variable+="\n\nSES RAPPELS (lecture seule ici ; pour en poser, enlever ou lister un, voir la balise plus bas)\n"
+        +phraseDesRappels(listeRappels)
+        +(listeRappels.length&&!sonnera
+          ? "\nATTENTION : aucun téléphone n'est abonné aux notifications. Si elle parle de ses rappels, dis-lui "
+            +"clairement qu'ils sont gardés mais qu'ils ne sonneront pas tant que Bia n'est pas installée sur "
+            +"l'écran d'accueil et que les notifications ne sont pas acceptées."
+          : "")+"\n";
+    }
 
     /* ── ET CE QU'ELLE A FAIT ELLE-MÊME ────────────────────────────────────
 
@@ -2813,6 +2863,11 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const {texte:sansVoir,voir}=detacherVoir(sansAppel);
     const {texte:sansCarte,carte}=detacherCarte(sansVoir);
     const {texte:sansRegarde,regarde}=detacherRegarde(sansCarte);
+    /* La balise des rappels, retirée comme les autres : elle ne doit ni
+       s'afficher ni se prononcer. Le 15 septembre, « mail » manquait dans
+       ce filtre et BIA s'est mise à écrire le mail à la main dans la
+       conversation — c'est le seul endroit qui compte. */
+    const {texte:sansRappel,rappel:rappelDemande}=detacherRappel(sansRegarde);
     /* ── ELLE DIT « C'EST PARTI » ET RIEN NE S'OUVRE ──────────────────────
 
        Lamine, le 14 septembre 2026 a 19h : « je lui ai demande de m'amener
@@ -2834,7 +2889,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        main. Les formulations francaises couvrent ce que Lamine et ses
        testeurs emploient ce soir, et les wolof s'ajouteront de SA main. */
     const carteRattrapee = carte || lieuDemandeDans(question);
-    const {texte:reply,cherche:demande}=detacherCherche(sansRegarde);
+    const {texte:reply,cherche:demande}=detacherCherche(sansRappel);
 
     /* ── CE QU'ELLE VIENT DE FAIRE, NOTÉ POUR QU'ELLE PUISSE LE VOIR ───────
 
@@ -2925,6 +2980,50 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
 
        Et si le rangement refuse, elle le dit. Une leçon perdue en silence
        est ce qui nous a coûté deux soirées. */
+    /* ── LE RAPPEL DEMANDÉ PAR LA BALISE ──────────────────────────────────
+
+       Pas réservé au maître : un rappel de médicament sert d'abord à ceux
+       qui en prennent. La seule condition est d'avoir un rangement — sans
+       identifiant, on ne range rien, parce qu'un tas commun ferait entendre
+       l'ordonnance du voisin.
+
+       ET SI L'ÉCRITURE ÉCHOUE, ON LE DIT DANS LA MÊME PHRASE. Elle vient
+       peut-être d'annoncer « c'est noté » : la laisser mentir sur un
+       médicament n'est pas une option. */
+    let noteDuRappel="";
+    if(rappelDemande&&quiParle){
+      armerHorloge();
+      try{
+        const d=await lireRappels(quiParle);
+        const i=intentionRappel(rappelDemande);
+        if(i.action==="ajoute"){
+          const neuf=construireRappel(i);
+          if(!neuf)noteDuRappel=" Je n'ai pas entendu l'heure, redis-la-moi.";
+          else if((d.rappels||[]).length>=20)noteDuRappel=" Tu as déjà vingt rappels : enlève-en un d'abord.";
+          else{
+            d.rappels=[...(d.rappels||[]),neuf];
+            const ecrit=await ecrireRappels(quiParle,d);
+            if(!ecrit)noteDuRappel=" Je n'ai pas pu le garder : le rangement n'a pas répondu.";
+            else if(!(d.abonnements||[]).length)
+              noteDuRappel=" C'est gardé, mais ça ne sonnera pas : il faut installer Bia sur l'écran d'accueil et accepter les notifications.";
+            else void balayerLesRappels();
+          }
+        }else if(i.action==="supprime"){
+          const vises=rappelsVises(d.rappels||[],i);
+          if(!vises.length)noteDuRappel=(d.rappels||[]).length?" Dis-moi lequel enlever : "+phraseDesRappels(d.rappels||[]):" Tu n'as aucun rappel.";
+          else{
+            d.rappels=(d.rappels||[]).filter(r=>!vises.includes(r));
+            if(!await ecrireRappels(quiParle,d))noteDuRappel=" Je n'ai pas pu l'enlever : le rangement n'a pas répondu.";
+          }
+        }
+      }catch(err){
+        noterPanne("rappel (balise)",(err as Error).message,"chat");
+        noteDuRappel=" Je n'ai pas pu toucher à tes rappels : le rangement n'a pas répondu.";
+      }
+    }else if(rappelDemande&&!quiParle){
+      noteDuRappel=" Je ne sais pas encore à qui garder ce rappel : dis-moi ton prénom dans « Moi ».";
+    }
+
     if(!body.apprentissageTest&&verdict.maitre&&(aGarder||aRetirer)){
       const dites=String(reply||"").trim();
       if(aRetirer){
@@ -3117,12 +3216,19 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     noterEmotion(emotion, reply, balise);
     /* La première réponse à une question réutilisable est gardée — sauf si
        elle porte un geste, une recherche, ou le prénom de la personne. */
-    if(reutilisable&&!cherche&&!papier&&!appel&&!voir&&!carteRattrapee&&!film&&!trouve&&!filmRate&&!rayee
+    if(reutilisable&&!cherche&&!papier&&!appel&&!voir&&!carteRattrapee&&!film&&!trouve&&!filmRate&&!rayee&&!rappelDemande
       &&!(Array.isArray(sesGestes)&&sesGestes.length)
       &&!porteUnNomDeLaPersonne(ceQuElleDit,(body.history||[]).filter(h=>h.role!=="bia").map(h=>String(h.text||"")))){
       void garderLaReponse(question,langueDe(question),consigneSignee,ceQuElleDit,String(emotion||"neutre"));
     }
-    return {corps:{reply:ceQuElleDit,emotion,balise,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,...(rayee?{corrigee:rayee}:{}),source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
+    /* ── CE QUE LE RAPPEL A VRAIMENT DONNÉ, DANS LA MÊME PHRASE ───────────
+       Elle vient peut-être d'annoncer « c'est noté ». Si le rangement a
+       refusé, ou si aucun téléphone n'est abonné, on l'ajoute à ce qu'elle
+       dit — la laisser mentir sur un médicament n'est pas une option. Et on
+       ne garde PAS une réponse qui porte cette note : elle est vraie pour ce
+       tour-là seulement. */
+    const ditAvecRappel=noteDuRappel?(ceQuElleDit+noteDuRappel).trim():ceQuElleDit;
+    return {corps:{reply:ditAvecRappel,emotion,balise,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,...(rayee?{corrigee:rayee}:{}),source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message, "chat");

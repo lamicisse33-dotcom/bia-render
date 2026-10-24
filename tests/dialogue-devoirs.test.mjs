@@ -8,6 +8,20 @@ function load(path,deps={},env={}){if(path==='lib/reponse-salutation.ts'){delete
 const core=load('lib/dialogue-devoirs-core.ts'),langue=load('lib/langue.ts');
 const produits=load('lib/contexte-produits.ts');
 const horloge=load('lib/horloge.ts'),recherche=load('lib/recherche.ts',{'./nombre-env':load('lib/nombre-env.ts')});
+/* ── LES RAPPELS DE MÉDICAMENTS, 24 OCTOBRE 2026 ──────────────────────────
+   Ces épreuves extraient le corps de `repondre` et de `GET` et les exécutent
+   dans un décor `with(env)` : tout identifiant libre doit y être. La lecture
+   des rappels et l'horloge en font partie depuis qu'elles sont branchées.
+   On leur donne la VRAIE logique de lecture de phrase (lib/rappels.ts, qui
+   n'importe rien) et des muets pour tout ce qui écrit ou sonne : ces
+   épreuves portent sur les devoirs, et aucune écriture ne doit partir. */
+const rappels={...load('lib/rappels.ts'),
+ lireRappels:async()=>({rappels:[],abonnements:[]}),
+ ecrireRappels:async()=>{throw Error('Unexpected write');},
+ armerHorloge(){},balayerLesRappels(){},
+ resumeDepotRappels:()=>({rangement:'memoire'}),resumeHorloge:()=>({balayages:0}),
+ clePubliquePush:()=>'',
+};
 const normalisation=load('lib/normaliser.ts'),textes=load('lib/repertoire-textes.ts'),services=load('lib/services-textes.ts');
 const salutations=load('lib/salutations-dialogue.ts',{'./normaliser':normalisation,'./repertoire-textes':textes,'./services-textes':services});
 const saved=texte=>({id:'fixture',texte,langue:'wo',valide:true,date:'2026-10-11'});
@@ -157,7 +171,7 @@ test('real chat route gives the authenticated learned dialogue priority over gen
  const source=fs.readFileSync('app/api/chat/route.ts','utf8'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);let fn;
  ast.forEachChild(n=>{if(ts.isFunctionDeclaration(n)&&n.name?.text==='repondre')fn=n.getText(ast);});assert(fn);
  let calls=0;const expected={reply:'Question apprise ?',dialogue_memorise:true};
- const env={souvenirsActifs:()=>false,chrono:(_nom,fn)=>fn(),...produits,...horloge,...recherche,reponseIdentite:()=>null,reponseSalutation:async()=>null,audioPourReponse:async()=>null,corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected write')},devoirsALire:async()=>({devoirs:[]}),verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,dialoguerAvecDevoirs:async(q,h)=>{calls++;assert.equal(q,'Non.');assert.equal(h[0].text,'Question précédente ?');return expected;}};
+ const env={souvenirsActifs:()=>false,chrono:(_nom,fn)=>fn(),...produits,...horloge,...recherche,...rappels,noterPanne(){},noterLectureSource(){},reponseIdentite:()=>null,reponseSalutation:async()=>null,audioPourReponse:async()=>null,corrigerDevoirConversation:async()=>null,corrigerDevoir:async()=>{throw Error('Unexpected write')},devoirsALire:async()=>({devoirs:[]}),verifierCode:()=>({ok:true,maitre:true}),noterPassage(){},parleDeMemoire:()=>false,executerLecon:async()=>null,correctionDuMaitre:()=>null,lireLOrdre:()=>null,repetitionExacteDuMaitre:()=>null,estUnSecours:()=>false,intentionMedia:()=>null,demandeDeNombre:()=>null,dialoguerAvecDevoirs:async(q,h)=>{calls++;assert.equal(q,'Non.');assert.equal(h[0].text,'Question précédente ?');return expected;}};
  env.sansRelanceAutomatique=core.sansRelanceAutomatique;
  const run=new Function('env',`with(env){${compile(fn)}return repondre;}`)(env);
  const r=await run({message:'Non.',history:[{role:'bia',text:'Question précédente ?'}]},'valid-test-code',null);assert.deepEqual(r,{corps:{...expected,origine_devoir:null,audio_memorise:null}});assert.equal(calls,1);
@@ -171,7 +185,7 @@ test('an older learned reply is not repeated after four subsequent exchanges',()
 test('public production diagnostic rejects before any private lesson reaches the selector',async()=>{
  const source=fs.readFileSync('app/api/etat/route.ts','utf8'),ast=ts.createSourceFile('route.ts',source,ts.ScriptTarget.Latest,true);let fn;
  ast.forEachChild(n=>{if(ts.isFunctionDeclaration(n)&&n.name?.text==='GET')fn=n.getText(ast).replace('export ','');});assert(fn);let calls=0;
- const env={URL,verifierCode:()=>({ok:false}),NextResponse:{json:(body,opt)=>({body,...opt})},essayerDialogueDevoirs:async()=>{calls++;}};
+ const env={URL,verifierCode:()=>({ok:false}),NextResponse:{json:(body,opt)=>({body,...opt})},essayerDialogueDevoirs:async()=>{calls++;},...rappels};
  const get=new Function('env',`with(env){${compile(fn)}return GET;}`)(env);
  const r=await get({url:'https://app.khalam.app/api/etat?essai_dialogue=1',headers:{get:()=>null}});assert.equal(r.status,401);assert.equal(calls,0);
 });
