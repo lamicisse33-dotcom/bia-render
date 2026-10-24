@@ -52,16 +52,28 @@ function capture(){
  };
  return {run:make(env),at(t,speech){now=t;voix=speech;step();},stops:()=>stops,slice:()=>slice};
 }
-test('actual recorder starts at 100 ms and closes at the 400 ms boundary, not 399 ms',async()=>{
+/* ── 24 OCTOBRE 2026 : LA FRONTIÈRE PASSE DE 400 À 1 200 MS ───────────────
+   Lamine revient sur ses 400 ms du 20 octobre : « elle ne doit JAMAIS
+   répondre tant que je parle ou que je fais une pause pour réfléchir ». Ces
+   deux épreuves gardaient le nombre d'avant ; elles gardent maintenant la
+   RÈGLE, et le nombre vient de lib/fin-de-parole.ts. Si quelqu'un redescend
+   sous la seconde, la première assertion le dit. */
+const SILENCE=micro.SILENCE_QUI_FERME;
+test('l’enregistreur démarre à 100 ms et ne ferme qu’après le silence exigé, pas une ronde avant',async()=>{
+ assert.ok(SILENCE>1000,'une pause d’une seconde doit survivre : '+SILENCE);
  const c=capture();await c.run();assert.equal(c.slice(),100);
  for(let t=10000;t<=10300;t+=60)c.at(t,true);
- c.at(10699,false);assert.equal(c.stops(),0);
- c.at(10700,false);assert.equal(c.stops(),1);
+ c.at(10300+SILENCE-1,false);assert.equal(c.stops(),0);
+ c.at(10300+SILENCE,false);assert.equal(c.stops(),1);
 });
-test('actual resumed speech resets the 400 ms boundary rather than losing the continuation',async()=>{
+test('une pause d’une seconde au milieu de la phrase ne ferme pas le micro',async()=>{
  const c=capture();await c.run();c.at(10000,true);c.at(10300,true);
- c.at(10400,false);assert.equal(c.stops(),0);c.at(10699,false);assert.equal(c.stops(),0);
- c.at(10700,false);assert.equal(c.stops(),1);
+ /* Exactement ce qu'il décrit : il s'arrête une seconde pour chercher un
+    mot. Avec 400 ms, le micro était déjà fermé et une demi-phrase wolof
+    partait à la transcription. */
+ c.at(11300,false);assert.equal(c.stops(),0,'une seconde de pause ne doit rien fermer');
+ c.at(10300+SILENCE-1,false);assert.equal(c.stops(),0);
+ c.at(10300+SILENCE,false);assert.equal(c.stops(),1);
 });
 test('two minutes of 100 ms uploads remain ordered, complete and bounded',async()=>{
  delete globalThis.biaDepotsParole;

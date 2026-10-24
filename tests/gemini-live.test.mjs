@@ -41,7 +41,13 @@ test('session authentication precedes Google and returns only a constrained ephe
   '@/lib/fiches-connaissances':{fichesPourConversation:async()=>'Une fiche de connaissance.'},
   '@/lib/memoire-reglages':{liveHistoriqueTours:()=>40,liveCompressionJetons:()=>60000,liveCompressionCible:()=>30000,
    liveDevoirsSignes:()=>40000,liveFichesSignes:()=>12000,liveLexiqueCorrections:()=>300},
-  '@/lib/lectures-supabase':{ouvrirLecture:()=>'releve',noterLectureSource(){},fermerLecture(){}}
+  '@/lib/lectures-supabase':{ouvrirLecture:()=>'releve',noterLectureSource(){},fermerLecture(){}},
+  /* La source partagée du silence de fin de parole. On lui donne les VRAIES
+     valeurs : le test vérifie ensuite qu'elles arrivent bien dans le setup
+     envoyé à Google, et non un 500 oublié en dur. */
+  '@/lib/fin-de-parole':{SENSIBILITE_DEBUT:'START_SENSITIVITY_HIGH',SENSIBILITE_FIN:'END_SENSITIVITY_LOW',
+   prefixePartMs:()=>300,silenceFinDeParoleMs:()=>1200,
+   reglagesFinDeParole:()=>({silence_fin_parole_ms:1200,prefixe_parole_ms:300})}
  };
  const calls=[];globalThis.fetch=async(url,init)=>{calls.push({url,init});return Response.json({name:'auth_tokens/ephemeral-test'});};
  process.env.GEMINI_API_KEY='FAKE-SERVER-KEY';delete process.env.GOOGLE_API_KEY;

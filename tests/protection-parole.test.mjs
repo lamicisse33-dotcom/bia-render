@@ -41,13 +41,18 @@ function environment(){
  env.autoriserLaVoix=makeGate(env);
  return {env,ctx,events,now:v=>now=v,speech:v=>speech=v,plays:()=>plays};
 }
-test('an open recorder still holds audio; after closure renewed speech restarts the full 400 ms guard',{timeout:2000},async()=>{
+/* La garde reprend le silence de lib/fin-de-parole.ts : 1 200 ms depuis le
+   24 octobre, et non plus 400. On lit le nombre au lieu de l'écrire, pour
+   que la prochaine décision de Lamine n'ait qu'un seul endroit à changer. */
+test('un enregistreur ouvert retient l’audio ; après fermeture, une reprise de parole relance toute la garde',{timeout:3000},async()=>{
+ const G=silenceQuiSuffit(0,0);
+ assert.ok(G>1000,'une pause d’une seconde doit survivre : '+G);
  const x=environment();x.env.enregistreurRef.current={state:'recording'};let finished=false;
  const pending=x.env.autoriserLaVoix(()=>true).then(v=>{finished=true;return v;});
  x.now(55000);await sleep(80);assert.equal(finished,false);
  x.env.enregistreurRef.current=null;x.speech(true);await sleep(80);assert.equal(finished,false);
- x.speech(false);x.now(55399);await sleep(80);assert.equal(finished,false);
- x.now(55400);assert.equal(await pending,true);assert.equal(x.events.at(-1).etape,'retenue');
+ x.speech(false);x.now(55000+G-1);await sleep(80);assert.equal(finished,false);
+ x.now(55000+G);assert.equal(await pending,true);assert.equal(x.events.at(-1).etape,'retenue');
 });
 test('disappearing React gate cannot release audio while speech continues',{timeout:2000},async()=>{
  const x=environment(),gate=deferred();x.env.porteRef.current={attendre:gate.promise};let finished=false;

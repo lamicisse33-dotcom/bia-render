@@ -9,11 +9,12 @@ const {silenceQuiSuffit} = await load('lib/micro.ts');
 const {ouvrirRepliques}=await load('lib/flux-repliques.ts');
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return {promise, resolve}; };
 
-test('the explicit 400 ms setting also applies to resumed and long speech', () => {
+test('une reprise et une longue phrase gardent le même silence, au-dessus d’une seconde', () => {
   for (const duration of [700, 2500, 7000]) {
-    assert.equal(silenceQuiSuffit(duration),400);
-    assert.equal(silenceQuiSuffit(duration, 2),400);
-    assert.equal(silenceQuiSuffit(duration, 100),400);
+    for (const cuts of [0, 2, 100]) {
+      assert.ok(silenceQuiSuffit(duration, cuts) > 1000);
+      assert.equal(silenceQuiSuffit(duration, cuts), 1200);
+    }
   }
 });
 test('speech containing consonants and two 120 ms gaps still interrupts', () => {

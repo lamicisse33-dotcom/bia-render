@@ -1,4 +1,5 @@
 import {resumeGeminiLive} from '@/lib/gemini-live-diagnostic';
+import {SENSIBILITE_DEBUT,SENSIBILITE_FIN,prefixePartMs,silenceFinDeParoleMs,reglagesFinDeParole} from '@/lib/fin-de-parole';
 import {NextRequest,NextResponse} from 'next/server';
 import {createHash} from 'node:crypto';
 import {verifierCode} from '@/lib/codes';
@@ -124,7 +125,14 @@ export async function POST(req:NextRequest){
   generationConfig:{responseModalities:['AUDIO'],maxOutputTokens:512,speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Kore'}}}},
   systemInstruction:{parts:[{text:BIA_LIVE_LANGUES+'\n\n'+BIA_LIVE_CONSIGNES_BASE+'\n'+instructions+'\n'+corrections+'\n'+exactes+'\n'+khalam+'\n'+produits+'\n'+fiches+'\n'+devoirs+'\n'+souvenirs+'\nMODE VOCAL DIRECT : parle uniquement en français ou en wolof urbain de Dakar selon la langue de papa. Privilégie une réponse naturelle et concise, puis écoute. DÉBIT VOCAL : parle à un rythme modéré et posé, avec une articulation claire en français comme en wolof et de courtes pauses naturelles entre les phrases. Garde une voix chaleureuse et spontanée. Commence dès que la réponse est prête, sans ajouter de silence avant les premiers mots ; prends simplement le temps de prononcer chaque phrase sans précipitation. Cette préférence de débit vaut aussi après un changement de langue ou une ancienne réponse plus rapide. Les consignes de base et les formulations exactes apprises priment sur la concision. Ne coupe jamais la parole. Ne récite pas les prix des devoirs sans demande explicite. Tu peux dire « papa » rarement, comme une marque d’affection occasionnelle, jamais à chaque phrase ou à chaque réponse. Laisse passer plusieurs échanges sans le répéter ; réponds le plus souvent sans appellation. Cette préférence récente prime sur toute ancienne habitude ou consigne qui le répétait systématiquement. N’ajoute jamais ce mot aux phrases exactes à répéter. Ne lis jamais les balises techniques à voix haute : dans ce mode, exprime les émotions naturellement dans la voix. QUAND PAPA TE CORRIGE, TU T’EXÉCUTES TOUT DE SUITE. Il te donne une phrase à répéter : tu la redis MOT POUR MOT, immédiatement, sans discuter, sans reformuler, sans expliquer pourquoi tu avais dit autrement et sans y ajouter « papa ». Pas de « je voulais dire », pas de « en fait ». Tu répètes, point. Quand il confirme — « c’est bon », « mémorise », « retiens » — tu appelles garder_la_correction avec sa phrase EXACTE, puis tu dis en une phrase courte que c’est gardé. Si l’outil répond que ce n’est pas écrit, dis-le : n’annonce JAMAIS une mémorisation qui n’a pas eu lieu. Les anciennes commandes d’écran ne sont pas exécutées dans ce mode, SAUF la carte : pour un chemin, un lieu ou quelqu’un de perdu, appelle montrer_le_chemin — c’est le seul moyen d’afficher une carte, et elle s’affiche vraiment. Ne prétends jamais avoir montré une carte sans cet outil. Dis la direction et la distance qu’il te rend, en une phrase courte ; la carte porte le détail. Consulte chercher_connaissances avant de répondre à une question de langue, une correction ou un sujet couvert par les devoirs. Cet outil consulte les devoirs, le lexique Supabase, le lexique partagé et les consignes récentes. Pour lister tous les devoirs ou tout le lexique, utilise les actions de liste et leur pagination ; pour lire un devoir exact, utilise son identifiant retourné par la liste. Ne dis jamais que tu as consulté la mémoire sans un résultat effectif de cet outil. Ne prétends jamais avoir enregistré un nouvel apprentissage : renvoie vers le mode habituel pour cela.'+'\n\n'+BIA_LIVE_LANGUES}]},
   inputAudioTranscription:{},outputAudioTranscription:{},
-  realtimeInputConfig:{automaticActivityDetection:{startOfSpeechSensitivity:'START_SENSITIVITY_HIGH',endOfSpeechSensitivity:'END_SENSITIVITY_LOW',prefixPaddingMs:150,silenceDurationMs:500},activityHandling:'START_OF_ACTIVITY_INTERRUPTS'},
+  /* ── LA FIN DE SA PAROLE : MÊME RÉGLAGE QUE KHALAM ──────────────────────
+     silenceDurationMs valait 500 et prefixPaddingMs 150. Une pause d'une
+     seconde pour chercher un mot faisait donc partir la réponse. Les deux
+     nombres viennent maintenant de lib/fin-de-parole.ts, partagé avec
+     Khalam : un seul endroit à régler, et les deux moteurs se comportent
+     pareil. `activityHandling` ne bouge PAS — c'est lui qui lui permet, à
+     lui, de la couper quand elle parle. */
+  realtimeInputConfig:{automaticActivityDetection:{startOfSpeechSensitivity:SENSIBILITE_DEBUT,endOfSpeechSensitivity:SENSIBILITE_FIN,prefixPaddingMs:prefixePartMs(),silenceDurationMs:silenceFinDeParoleMs()},activityHandling:'START_OF_ACTIVITY_INTERRUPTS'},
   /* COMPRESSER, C'EST RÉSUMER — et un résumé relu au tour suivant devient un
      souvenir faux, ce que lib/souvenirs.ts refuse depuis le début. On recule
      donc le déclencheur : BIA_LIVE_COMPRESSION le règle depuis Render. */
@@ -164,6 +172,11 @@ export async function POST(req:NextRequest){
    /* Ce qui est VRAIMENT parti dans sa consigne, source par source. Des
       tailles et des comptes — aucun contenu. C'est ce qui permet de dire
       « elle a reçu les devoirs » au lieu de l'espérer. */
-   consigne_signes:JSON.stringify(setup.systemInstruction).length,connaissances:tailles},{headers});
+   consigne_signes:JSON.stringify(setup.systemInstruction).length,connaissances:tailles,
+   /* Le silence exigé, renvoyé au téléphone : c'est lui qui tient le journal,
+      et comparer le silence observé à ce qu'on a DEMANDÉ est le seul moyen de
+      savoir si Google a bien pris le réglage. Un réglage qu'on n'a pas relu
+      n'est pas un réglage. */
+   fin_de_parole:reglagesFinDeParole()},{headers});
  }catch{return NextResponse.json({erreur:'La connexion à Khalam Rapide a échoué.'},{status:502,headers});}
 }

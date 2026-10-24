@@ -37,6 +37,8 @@ import {resumeLatencePipeline} from '@/lib/essai-latence-pipeline';
 import {resumeCommerceContextuel} from '@/lib/essai-commerce-contextuel';
 import {resumeDialogueDomaines} from '@/lib/essai-dialogue-domaines';
 import {silenceQuiSuffit} from '@/lib/micro';
+import {reglagesFinDeParole,silenceFinDeParoleMs} from '@/lib/fin-de-parole';
+import {resumeJournalParole} from '@/lib/journal-parole';
 import {resumeMemoireOrganisee} from '@/lib/memoire-organisee';
 import {resumeConnexionFiches} from "@/lib/essai-fiches";
 import {resumeAccesDevoirs,verifierAccesDevoirs} from "@/lib/essai-acces-devoirs";
@@ -172,7 +174,7 @@ export async function GET(request: Request) {
   let auteurs: Record<string, number> | null = null;
   try { auteurs = await parAuteur(); } catch { auteurs = null; }
 
-  return NextResponse.json({orientation:resumeOrientation(),lectures_supabase:resumeLecturesSupabase(),reglages_memoire:reglagesMemoire(),outil_connaissances:resumeOutilConnaissances(),eligibilite_anticipation:resumeEligibilite(),khalam_rapide:resumeKhalamRapide(),essai_rapidite:{...resumeEssaiRapidite(),controle_http:resumeControleRapidite()},file_gpu:resumeFileAnticipation(),reprises_reflexion:resumeReprises(),micro_capture:resumeMicro(),protection_parole:resumeProtectionParole(),briques_conversation:resumeBriques(),anticipation_conversation:{essai:resumeEssaiAnticipation(),...resumeAnticipationReponse(),ecoute:resumeEcouteProgressive()},ecoute_longue:resumeEcouteLongue(),prises_validees:resumePrisesValidees(),
+  return NextResponse.json({fin_de_parole:reglagesFinDeParole(),journal_parole:resumeJournalParole(),orientation:resumeOrientation(),lectures_supabase:resumeLecturesSupabase(),reglages_memoire:reglagesMemoire(),outil_connaissances:resumeOutilConnaissances(),eligibilite_anticipation:resumeEligibilite(),khalam_rapide:resumeKhalamRapide(),essai_rapidite:{...resumeEssaiRapidite(),controle_http:resumeControleRapidite()},file_gpu:resumeFileAnticipation(),reprises_reflexion:resumeReprises(),micro_capture:resumeMicro(),protection_parole:resumeProtectionParole(),briques_conversation:resumeBriques(),anticipation_conversation:{essai:resumeEssaiAnticipation(),...resumeAnticipationReponse(),ecoute:resumeEcouteProgressive()},ecoute_longue:resumeEcouteLongue(),prises_validees:resumePrisesValidees(),
     /* ── LA VERSION EN LIGNE, POUR QUE LE TÉLÉPHONE SE METTE À JOUR SEUL ────
 
        Lamine, le 14 septembre 2026 : « il faut forcer les mises à jour ; dès
@@ -199,7 +201,7 @@ export async function GET(request: Request) {
     preparation_references:resumePerformanceReferences(),
     diagnostic_latence_autonome:resumeDiagnosticLatence(),
     connexions_gpu:resumePortsGpu(),
-    reglages_rapidite:{silence_court_ms:silenceQuiSuffit(700),silence_phrase_ms:silenceQuiSuffit(2500),silence_recit_ms:silenceQuiSuffit(7000),historique_vocal_max_tours:12,premiere_phrase_courte:true,cache_dialogue_par_sources_pertinentes:true},
+    reglages_rapidite:{silence_court_ms:silenceQuiSuffit(700,0,silenceFinDeParoleMs()),silence_phrase_ms:silenceQuiSuffit(2500,0,silenceFinDeParoleMs()),silence_recit_ms:silenceQuiSuffit(7000,0,silenceFinDeParoleMs()),historique_vocal_max_tours:12,premiere_phrase_courte:true,cache_dialogue_par_sources_pertinentes:true},
     piper_web: resumePiperWeb(),
     // La tenue de BIA — réglable depuis /reglage, lue par tout le monde ici.
     tenue: tenueActuelle(),

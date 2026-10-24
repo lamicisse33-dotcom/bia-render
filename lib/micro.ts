@@ -151,19 +151,74 @@
    moi-même plutôt que de le recevoir. Il reste le sien : si 1,5 s le fait
    attendre à l'oreille, on redescend. */
 
-/** 20 October: Lamine explicitly selects Toftal's fixed 400 ms endpoint.
- * A resumed voice is still captured by the existing thinking/speaking watcher.
- * Keep the historical early-cut counter observable; it no longer stretches
- * this owner-selected setting behind his back. */
-export const SILENCE_QUI_FERME = 400;
-export const SILENCE_LE_PLUS_COURT = 400;
+/* ── 24 OCTOBRE : IL REVIENT SUR SES 400 MS, ET IL A SES RAISONS ──────────
+
+   « Règle absolue : elle ne doit JAMAIS répondre tant que je parle ou que je
+   fais une pause pour réfléchir. Je dois pouvoir, moi, l'interrompre pendant
+   qu'elle parle : ça, ça reste. »
+
+   Le 20 octobre il avait choisi « exactement 400 ms », d'après Toftal, pour
+   aller plus vite. 400 ms, c'est moins qu'une respiration : une pause pour
+   chercher un mot fermait le micro et envoyait une demi-phrase wolof à la
+   transcription — qui ne la transcrit pas, elle la devine.
+
+   LA VALEUR EST MAINTENANT PARTAGÉE AVEC KHALAM RAPIDE, dans
+   lib/fin-de-parole.ts, pour que les deux moteurs se comportent pareil —
+   c'est ce qu'il demande. Mais ce fichier NE PEUT PAS L'IMPORTER : une
+   épreuve le charge comme module `data:`, où un import relatif ne se résout
+   pas, et j'ai déjà cassé l'anticipation entière une fois de cette façon.
+
+   DONC : un littéral de repli ici, la vraie valeur passée en troisième
+   argument par app/page.tsx (qui lit /api/etat), et une épreuve qui vérifie
+   que les deux nombres ne divergent jamais. Un repli qui ment est pire que
+   pas de repli.
+
+   CE QUE ÇA COÛTE, DIT FRANCHEMENT : 800 ms de plus entre sa dernière
+   syllabe et le premier son. C'est l'inverse du travail des quatre derniers
+   jours sur la latence, et c'est lui qui arbitre — il demande d'ailleurs à
+   voir le prix, dans /api/etat → journal_parole.
+
+   Le compteur de coupures trop tôt reste observable, et il n'étire plus ce
+   réglage derrière son dos. */
+/** Repli. DOIT valoir SILENCE_FIN_PAROLE_MS_DEFAUT de lib/fin-de-parole.ts. */
+export const SILENCE_QUI_FERME = 1200;
+export const SILENCE_LE_PLUS_COURT = 1200;
 export const PAROLE_COURTE = 1200;
 export const PAROLE_LONGUE = 4000;
 export const PAS_D_APPRENTISSAGE = 0;
-export const SILENCE_LE_PLUS_LONG = 400;
+export const SILENCE_LE_PLUS_LONG = 1200;
 
-export function silenceQuiSuffit(_dureeDeParole: number, _coupesTropTot = 0): number {
-  return SILENCE_QUI_FERME;
+/* ── LE RÉGLAGE SE POSE UNE FOIS, ET AUCUN APPEL NE CHANGE DE FORME ───────
+
+   Première version : je passais la valeur en troisième argument à chacun des
+   sept appels de app/page.tsx. Trois épreuves sont parties en
+   « silenceDemande is not defined » — les épreuves extraient le callback
+   `ecouter` et lui fournissent son décor nom par nom, donc tout nouveau nom
+   dans ces lignes doit être ajouté dans chaque décor. Sept appels, N
+   épreuves : la prochaine à écrire aurait oublié, et le défaut serait revenu
+   en silence.
+
+   DONC : app/page.tsx pose la valeur UNE fois, quand /api/etat répond, et
+   les appels gardent exactement la forme qu'ils avaient. Il n'y a plus qu'un
+   seul endroit où ce nombre peut se perdre.
+
+   Les bornes sont celles de lib/fin-de-parole.ts : sous 600 ms on retombe
+   dans le défaut qu'on corrige, au-delà de 4 s ce n'est plus une
+   conversation. Une valeur hors bornes ou absente ne casse rien — on reprend
+   le repli, jamais NaN (un seuil NaN avait déjà arrêté toute l'anticipation
+   sans un mot). */
+let silenceDemande: number | undefined;
+
+/** Poser le silence publié par le serveur. Hors bornes = on garde le repli. */
+export function reglerSilenceQuiFerme(ms?: number): number {
+  const n = Number(ms);
+  silenceDemande = Number.isFinite(n) && n >= 600 && n <= 4000 ? Math.round(n) : undefined;
+  return silenceDemande ?? SILENCE_QUI_FERME;
+}
+
+export function silenceQuiSuffit(_dureeDeParole?: number, _coupesTropTot = 0, demandeMs = silenceDemande): number {
+  const n = Number(demandeMs);
+  return Number.isFinite(n) && n >= 600 && n <= 4000 ? Math.round(n) : SILENCE_QUI_FERME;
 }
 
 /* ═══ 2. LE BRUIT DE LA PIÈCE ════════════════════════════════════════════

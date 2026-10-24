@@ -72,6 +72,27 @@ export class BiaGeminiLive{
     trames y arrivent pendant qu'elle parle, donc rien ne s'arme. Mieux vaut
     quatre tours justes que trente faux. */
  private finParoleMesure=0;private mesurePrete=false;private finDuSon=0;
+ /* ── LE PETIT JOURNAL, CÔTÉ KHALAM RAPIDE ────────────────────────────────
+
+    Lamine, 24 octobre : « heure de début de parole, de fin détectée, de
+    premier son, pour que je voie si elle me coupe encore » et « mesure aussi
+    la lenteur, étape par étape ».
+
+    CE QU'ON PEUT OBSERVER ICI, ET CE QU'ON NE PEUT PAS. La fin de parole est
+    décidée par Google, sur l'audio qu'on lui envoie : le client n'en est pas
+    averti. On ne peut donc pas lire le silence qu'il a réellement attendu.
+
+    MAIS UNE CHOSE SE DÉDUIT SANS RISQUE : le temps entre sa dernière trame
+    forte et le PREMIER signe de la réponse contient forcément ce silence,
+    plus le modèle, plus le réseau. Si ce total est SOUS le silence exigé,
+    alors Google n'a pas attendu ce qu'on lui a demandé — le réglage n'a pas
+    pris. C'est un test à sens unique, et il suffit pour répondre à sa
+    question. Dans l'autre sens, on ne sépare pas le silence du modèle, et le
+    champ `limite` de /api/etat le dit.
+
+    LES ÉTAPES : premier texte (le modèle a commencé), premier son (l'audio
+    arrive), démarrage du haut-parleur (l'avance de planification). */
+ private debutParoleMesure=0;private premierTexteMs=0;private silenceExige=0;private journalEnvoye=false;
  /* ── ELLE SE COUPE ELLE-MÊME ───────────────────────────────────────────────
 
     Lamine, le 24 octobre 2026 : « BIA se coupe elle-même parfois. »
@@ -143,7 +164,13 @@ export class BiaGeminiLive{
     const {raw,rms}=e.data as {raw:ArrayBuffer;rms:number};
     if(rms>0.018){
      this.finParole=performance.now();                       // veille : toute activité
-     if(!this.elleParle()){this.finParoleMesure=this.finParole;this.mesurePrete=true;}
+     if(!this.elleParle()){
+      /* Le début de SA parole : la première trame forte d'un tour où elle se
+         tait. Les suivantes ne le déplacent pas — sinon « début de parole »
+         finirait par valoir « fin de parole ». */
+      if(!this.mesurePrete)this.debutParoleMesure=this.finParole;
+      this.finParoleMesure=this.finParole;this.mesurePrete=true;
+     }
     }
     /* ── PENDANT QU'ELLE PARLE, ON FILTRE SON PROPRE ÉCHO ──────────────────
        Le plancher d'écho s'apprend sur les trames entendues pendant sa
@@ -168,6 +195,9 @@ export class BiaGeminiLive{
  private async connecter(){
   const response=await fetch('/api/gemini-live/session',{method:'POST',headers:{'x-bia-code':this.code},signal:AbortSignal.timeout(25000),cache:'no-store'});
   const data=await response.json();if(!response.ok)throw Error(data.erreur||'Connexion refusée.');
+  /* Ce que le serveur a DEMANDÉ à Google d'attendre. Le journal le compare au
+     silence observé : c'est la seule façon de savoir si le réglage a pris. */
+  this.silenceExige=Number(data?.fin_de_parole?.silence_fin_parole_ms)||0;
   try{localStorage.setItem('bia-code',this.code);}catch{}
   if(this.stoppe)return;
   await new Promise<void>((resolve,reject)=>{
@@ -194,7 +224,11 @@ export class BiaGeminiLive{
       this.arrets.alphabet=(this.arrets.alphabet||0)+1;this.declarerEcho();
       this.arreter();this.events.erreur('Réponse interrompue : Bia doit parler français et wolof uniquement. Appuie sur le micro pour reprendre.');return;
      }
-     if(c?.outputTranscription?.text){this.biaText+=c.outputTranscription.text;this.events.transcription('bia',this.biaText,false);}
+     if(c?.outputTranscription?.text){
+      /* Le premier signe que le modèle a commencé : avant l'audio, donc
+         c'est lui qui borne le silence observé. */
+      if(!this.premierTexteMs&&this.mesurePrete)this.premierTexteMs=performance.now();
+      this.biaText+=c.outputTranscription.text;this.events.transcription('bia',this.biaText,false);}
      for(const p of c?.modelTurn?.parts||[]){if(p.inlineData?.data)this.jouer(p.inlineData.data,p.inlineData.mimeType);}
      if(c?.turnComplete){this.finirTour();this.events.etat('Je t’écoute');}
      for(const call of d.toolCall?.functionCalls||[]){
@@ -253,7 +287,9 @@ export class BiaGeminiLive{
   if(this.mesurePrete&&this.finParoleMesure){
    this.mesurePrete=false;this.tourMesure+=1;
    const avance=Math.max(0,(start-ctx.currentTime)*1000);
-   this.events.latence(Math.round(performance.now()-this.finParoleMesure+avance),{session:this.sessionMesure,tour:this.tourMesure});
+   const maintenant=performance.now();
+   this.events.latence(Math.round(maintenant-this.finParoleMesure+avance),{session:this.sessionMesure,tour:this.tourMesure});
+   this.declarerJournal(maintenant,avance);
   }
  }
  private finirTour(){
@@ -274,6 +310,10 @@ export class BiaGeminiLive{
     body:JSON.stringify({personne:this.personne,dit,repondu})}).catch(()=>{});
   }
   this.userText='';this.biaText='';
+  /* Un tour fini, un journal neuf. `journalEnvoye` empêchait un second envoi
+     pour les morceaux suivants du MÊME tour ; il doit retomber ici, sinon un
+     seul tour serait journalisé par session. */
+  this.premierTexteMs=0;this.journalEnvoye=false;this.debutParoleMesure=0;
  }
  /* ── LE CHEMIN : ACCORD, POSITION, LIEU, DIRECTION, CARTE ────────────────
 
@@ -285,6 +325,30 @@ export class BiaGeminiLive{
     dans les souvenirs, ni dans aucun compteur : elle sert à /api/orientation
     et disparaît avec la fonction. Ce qui revient au modèle, c'est une phrase
     et des nombres — jamais les coordonnées. */
+ /* ── UN SEUL ENVOI PAR TOUR, AVEC LES TROIS HEURES ENSEMBLE ─────────────
+    Les heures sont celles de son téléphone : c'est à sa montre qu'il relira
+    son test. Les durées viennent de performance.now(), qui ne saute pas
+    quand l'horloge du système se recale. */
+ private declarerJournal(premierSonMs:number,avanceMs:number){
+  if(this.journalEnvoye)return;
+  const base=Date.now()-performance.now();
+  const h=(t:number)=>new Date(base+t).toTimeString().slice(0,8);
+  const debut=this.debutParoleMesure||this.finParoleMesure;
+  /* Le silence observé : de sa dernière trame forte au premier signe de la
+     réponse — le texte s'il est arrivé, sinon le son. */
+  const premierSigne=this.premierTexteMs||premierSonMs;
+  void fetch('/api/mesure',{method:'POST',keepalive:true,headers:{'content-type':'application/json'},
+   body:JSON.stringify({type:'journal_parole',moteur:'rapide',
+    debut_parole:h(debut),fin_detectee:h(this.finParoleMesure),premier_son:h(premierSonMs),
+    parole_ms:Math.round(Math.max(0,this.finParoleMesure-debut)),
+    silence_exige_ms:this.silenceExige||null,
+    silence_observe_ms:Math.round(Math.max(0,premierSigne-this.finParoleMesure)),
+    attente_ms:Math.round(Math.max(0,premierSonMs-this.finParoleMesure+avanceMs)),
+    texte_ms:this.premierTexteMs?Math.round(this.premierTexteMs-this.finParoleMesure):null,
+    son_ms:Math.round(Math.max(0,premierSonMs-this.finParoleMesure)),
+    demarrage_audio_ms:Math.round(avanceMs)})}).catch(()=>{});
+  this.journalEnvoye=true;
+ }
  /* Ce que l'écho a coûté sur ce tour. Des comptes et un niveau, rien d'autre. */
  private declarerEcho(){
   void fetch('/api/mesure',{method:'POST',keepalive:true,headers:{'content-type':'application/json'},

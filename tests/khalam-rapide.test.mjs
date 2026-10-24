@@ -127,7 +127,7 @@ test('la route de mesure aiguille le type khalam_rapide',async()=>{
   '@/lib/reprise-etat':muet,'@/lib/protection-parole-etat':muet,'@/lib/briques-etat':muet,
   '@/lib/anticipation-etat':muet,'@/lib/ecoute-longue-etat':muet,'@/lib/focus-locuteur-etat':muet,
   '@/lib/piper-web-etat':muet,'@/lib/audio-memoire':muet,'@/lib/sons-courants-etat':muet,
-  '@/lib/lecture-devoirs-etat':muet,'@/lib/attentes-vues':muet,
+  '@/lib/lecture-devoirs-etat':muet,'@/lib/attentes-vues':muet,'@/lib/journal-parole':muet,
  });
  const corps={type:'khalam_rapide',etape:'premier_son',ms:1340,session:'telephone1',tour:3};
  const r=await route.POST({json:async()=>corps});

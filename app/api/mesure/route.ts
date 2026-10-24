@@ -1,5 +1,6 @@
 import {noterRelecture} from "@/lib/relecture-etat";
 import {noterKhalamRapide} from '@/lib/khalam-rapide-etat';
+import {noterTourDeParole} from '@/lib/journal-parole';
 import {noterEligibilite} from '@/lib/eligibilite-etat';
 import {noterTourRapidite,noterPremierSonRapidite} from '@/lib/rapidite-etat';
 import {noterMicro} from '@/lib/micro-etat';
@@ -43,6 +44,10 @@ export async function POST(requete: Request) {
     else if (corps && ["protection_parole","capture_progressive","demarrage_voix"].includes(corps.type)) noterProtectionParole(corps);
     else if (corps && corps.type === "khalam_rapide") noterKhalamRapide(corps);
     else if (corps && corps.type === "eligibilite") noterEligibilite(corps);
+    /* Le petit journal demandé le 24 octobre : début de parole, fin détectée,
+       premier son — sur LES DEUX moteurs, dans le même champ, pour qu'ils se
+       comparent sans calcul de tête. */
+    else if (corps && corps.type === "journal_parole") noterTourDeParole(corps);
     else if (corps && corps.type === "micro_capture") noterMicro(corps);
     else if (corps && corps.type === "reprise_reflexion") noterReprise(corps);
     else if (corps && corps.type === "briques") {noterBriques(corps);noterPremierSonRapidite(corps);}

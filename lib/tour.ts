@@ -71,6 +71,21 @@ export type Bornes = {
   reprises?: number;
   voie: "parole" | "ecrit";
   parole: number;
+  /* ── LE PETIT JOURNAL DU 24 OCTOBRE 2026 ─────────────────────────────────
+     Lamine : « ajoute un petit journal (heure de début de parole, de fin
+     détectée, de premier son) pour que je voie si elle me coupe encore ».
+     Ces trois-là voyagent avec les bornes du tour parce que les bornes sont
+     déjà présentes partout — y compris dans les décors d'épreuve. Un ref de
+     plus aurait été un nom de plus à déclarer dans chacun, donc un nom
+     qu'on aurait oublié.
+       debut_parole     quand il a commencé à parler
+       silence_exige    le silence qu'on demandait avant de clore (ms)
+       silence_observe  celui qui s'est réellement écoulé (ms)
+     Si l'observé est nettement sous l'exigé, le tour s'est fermé avant qu'il
+     ait fini : c'est ÇA, « elle me coupe ». */
+  debut_parole?: number;
+  silence_exige?: number;
+  silence_observe?: number;
   micro: number;
   ecoute: number;
   modele: number;

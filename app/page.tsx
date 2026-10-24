@@ -88,7 +88,7 @@ import { fluxVivant,
   INTERVENTION_MAXIMALE, MICRO_LACHE_ENTRE_LES_TOURS, MICRO_SUR_SON_PROPRE_CONTEXTE, REGLAGES_DU_MICRO,
   SILENCE_QUI_CLÔT_LA_CONVERSATION, TOUR_DE_VEILLE,
   TOURS_MUETS_AVANT_DE_DOUTER, FLUX_DU_GUETTEUR,
-  barreDeCoupure, partVocale, silenceQuiSuffit, suivreLEcho, suivreLeBruit, creerFiltreDeclenchement,
+  barreDeCoupure, partVocale, silenceQuiSuffit, reglerSilenceQuiFerme, suivreLEcho, suivreLeBruit, creerFiltreDeclenchement,
   vautLaPeine, vraimentUneVoix, hauteurDeVoix, HAUTEUR_MINIMALE,
 } from "@/lib/micro";
 import { CLE_VITESSE, VITESSE_POSEE, ralentir, vitesseChoisie, voixDejaPosee } from "@/lib/ralentir";
@@ -1201,6 +1201,34 @@ export default function Home() {
   const annuleRef = useRef(false);
   const [annule, setAnnule] = useState(false);
   const moteursRef = useRef<{ voix: string; ecoute: string } | null>(null);
+
+  /* ── LE PETIT JOURNAL DE SES TOURS, CÔTÉ KHALAM ──────────────────────────
+     « Ajoute un petit journal (heure de début de parole, de fin détectée, de
+     premier son) pour que je voie si elle me coupe encore. »
+     Rempli à la fermeture du micro, envoyé au premier son : un seul envoi
+     par tour, avec les trois heures ensemble. Le chiffre qui tranche n'est
+     pas une heure, c'est `silence_observe_ms` comparé à `silence_exige_ms` —
+     un tour fermé avant son silence est un tour où elle l'a coupé. */
+  const horloge = (t:number) => new Date(t).toTimeString().slice(0,8);
+  /* Les trois heures voyagent dans `bornesRef`, qui porte déjà « parole » et
+     « micro » et qui est présent dans TOUS les décors d'épreuve. Ma première
+     version créait un useRef de plus : trois épreuves sont parties en
+     « journalTourRef is not defined », parce qu'elles extraient le callback
+     `ecouter` et lui fournissent son décor nom par nom. Un nom neuf dans ces
+     lignes est un nom à ajouter dans chaque décor — donc un nom qu'on
+     oubliera. */
+  const envoyerJournalParole = (premierSonA:number, etapes:Record<string,number|null> = {}) => {
+    const b = bornesRef.current;
+    if (!b?.parole || !b.silence_exige) return;
+    const fin = b.parole, debut = b.debut_parole || fin;
+    const exige = b.silence_exige, observe = b.silence_observe ?? null;
+    b.silence_exige = undefined;   // un seul envoi par tour
+    void fetch('/api/mesure',{method:'POST',keepalive:true,headers:{'content-type':'application/json'},
+      body:JSON.stringify({type:'journal_parole',moteur:'khalam',
+        debut_parole:horloge(debut),fin_detectee:horloge(fin),premier_son:horloge(premierSonA),
+        parole_ms:Math.max(0,fin-debut),silence_exige_ms:exige,silence_observe_ms:observe,
+        attente_ms:Math.max(0,premierSonA-fin),...etapes})}).catch(()=>{});
+  };
   /* ── L'INTERRUPTEUR DE L'ESSAI, CÔTÉ SERVEUR ───────────────────────────
      `briques_sur_transcription_finale` est publié par /api/etat et piloté par
      BIA_BRIQUES_FINALES dans Render : Lamine peut revenir au comportement
@@ -1460,6 +1488,13 @@ export default function Home() {
       .then((r) => r.json())
       .then((e) => {
         setMoteurs(e); moteursRef.current = e; versionChargee.current = String(e?.version || "");
+        /* ── LE SILENCE EXIGÉ VIENT DU SERVEUR, LE MÊME POUR LES DEUX ─────
+           Lamine, 24 octobre : « même comportement sur les deux moteurs ».
+           La valeur vit dans lib/fin-de-parole.ts ; Khalam Rapide la pose
+           dans silenceDurationMs, Khalam la pose ici. Un seul endroit, et
+           BIA_SILENCE_FIN_PAROLE_MS la règle sans redéployer. Tant que cette
+           réponse n'est pas arrivée, lib/micro.ts garde son repli. */
+        reglerSilenceQuiFerme((e as {fin_de_parole?:{silence_fin_parole_ms?:number}})?.fin_de_parole?.silence_fin_parole_ms);
         if (e?.tenue) setTenue(String(e.tenue));
         /* Notre moteur parle déjà posément : le curseur « Débit » se lit
            relativement à lui (voir lib/ralentir.ts). */
@@ -5035,6 +5070,11 @@ export default function Home() {
           setEntendParler(false);
           const assez = silenceQuiSuffit(dernierSon - debutParole, coupesTropTotRef.current);
           if (Date.now() - dernierSon >= assez) {
+            /* Le journal : ce qu'on EXIGEAIT et ce qu'on a OBSERVÉ. Les deux,
+               parce qu'un réglage qu'on n'a pas relu n'est pas un réglage. */
+            bornesRef.current.debut_parole = debutParole || dernierSon;
+            bornesRef.current.silence_exige = assez;
+            bornesRef.current.silence_observe = Date.now() - dernierSon;
             /* LA BORNE QUE PERSONNE NE COMPTAIT. `dernierSon` est l'instant
                où il a vraiment fini de parler ; le micro, lui, ne se ferme
                qu'une seconde et demie plus tard. Cette attente-là est à nous,
@@ -5418,7 +5458,12 @@ export default function Home() {
               debutPriseBrique=contexte().currentTime;
               ditesBriques.push(b.texte);
               mesureBriques('debut_brique',Date.now()-debutBriques,{numero:b.numero});
-              if(premierBrique){salutationOuvertureRef.current=false;premierBrique=false;mesureBriques('premier_son',Date.now()-finParoleBriques,{micro_ms:Date.now()-debutBriques});}
+              if(premierBrique){salutationOuvertureRef.current=false;premierBrique=false;mesureBriques('premier_son',Date.now()-finParoleBriques,{micro_ms:Date.now()-debutBriques});
+               /* « Étape par étape » : le micro reste ouvert après sa
+                  dernière syllabe (c'est le silence exigé), puis la voix se
+                  fabrique. Les deux sont séparés ici, sinon on croit que la
+                  lenteur vient du modèle alors qu'elle vient de l'attente. */
+               envoyerJournalParole(Date.now(),{son_ms:Date.now()-finParoleBriques,demarrage_audio_ms:Date.now()-debutBriques});}
               else if(finSonBrique)mesureBriques('blanc',Date.now()-finSonBrique);
             },termine:audio=>{
               // Partial streamed audio is never saved as a validated full take.
