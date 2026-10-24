@@ -553,6 +553,33 @@ export default function Carte({
         });
         carte.current = m as unknown as Record<string, unknown>;
         m.addControl(new maplibre.NavigationControl({ showCompass: false }), "top-left");
+
+        /* ── LE POINT VERT NE DOIT RIEN ATTENDRE ───────────────────────────
+
+           Lamine, le 24 octobre 2026 : « la carte s'affiche, mais avec un
+           seul point bleu, ça doit aussi afficher le point de la destination
+           en vert ».
+
+           Il était créé dans `m.on("load")`. Or `load` ne part QU'UNE FOIS,
+           et seulement si le premier fond a chargé — celui qui justement
+           n'arrive pas à Dakar. Quand on bascule sur l'autre fond par
+           `setStyle`, `load` ne repart pas : le point vert n'était alors
+           jamais créé. Le point bleu, lui, vient d'un effet séparé qui
+           n'attend que la position : d'où un écran avec UN seul point.
+
+           Un marqueur est un élément de page posé par la carte, pas une
+           tuile : il n'a besoin ni du fond, ni du réseau, ni de `load`. On le
+           pose donc tout de suite, avec la carte. */
+        const poserLArrivee = () => {
+          if (marqueurArrivee.current) return;
+          const pastille = document.createElement("div");
+          pastille.className = "pin-arrivee";
+          pastille.setAttribute("aria-label", "La destination");
+          pastille.innerHTML = '<span class="pin-halo"></span><span class="pin-coeur"></span>';
+          marqueurArrivee.current = new maplibre.Marker({ element: pastille, anchor: "center" })
+            .setLngLat([destination.lon, destination.lat]).addTo(m);
+        };
+        poserLArrivee();
         /* Une erreur ne condamne plus la carte : on essaie l'autre fond. */
         const basculer = (pourquoi: string) => {
           if (secours.current || !vivant) return;
@@ -573,6 +600,9 @@ export default function Carte({
           secours.current = true;
           setMotifCarte(pourquoi.slice(0, 80));
           console.error("BIA — fond de carte injoignable, on passe aux images :", pourquoi);
+          /* Le fond change ; les deux points, eux, restent. C'est le chemin
+             par lequel le point vert disparaissait. */
+          poserLArrivee();
           try {
             /* Le secours est maintenant l'autre fond : si les images ne
                viennent pas, on tente le vectoriel — et inversement quand
@@ -614,16 +644,10 @@ export default function Carte({
           /* LE FOND EST PEINT. Les deux points se posent dans les lignes qui
              suivent, sans attendre quoi que ce soit — on peut prevenir. */
           prevenirUneFois();
-          /* L'ARRIVEE, ET SON HALO QUI BAT. Un marqueur immobile se confond
-             avec les cent autres symboles d'une carte ; celui-ci respire,
-             donc l'oeil le trouve tout de suite. Le dessin est a nous : le
-             marqueur par defaut de la bibliotheque ne sait pas battre. */
-          const pastille = document.createElement("div");
-          pastille.className = "pin-arrivee";
-          pastille.setAttribute("aria-label", "La destination");
-          pastille.innerHTML = '<span class="pin-halo"></span><span class="pin-coeur"></span>';
-          marqueurArrivee.current = new maplibre.Marker({ element: pastille, anchor: "center" })
-            .setLngLat([destination.lon, destination.lat]).addTo(m);
+          /* L'ARRIVÉE EST DÉJÀ POSÉE, avec la carte. On repasse quand même :
+             si quelque chose l'a retirée entre-temps, elle revient — et si
+             elle est là, `poserLArrivee` ne fait rien. */
+          poserLArrivee();
         });
 
         /* ── UNE BOÎTE DE ZÉRO PIXEL DONNE LE MÊME ÉCRAN NOIR ────────────

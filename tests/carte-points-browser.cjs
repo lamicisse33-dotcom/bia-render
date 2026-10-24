@@ -65,6 +65,29 @@ const path=require('path');
   assert.equal(trace.or,11,'le trajet doit faire 11 px (7 px avant)');
   assert(trace.liseré>trace.or,'le liseré blanc doit être plus large que le tracé');
 
+  /* ── LE POINT VERT NE DOIT DÉPENDRE D'AUCUN ÉVÉNEMENT ─────────────────
+
+     Lamine, le 24 octobre 2026 : « la carte s'affiche, mais avec un seul
+     point bleu ». Il était créé dans `m.on("load")`, qui ne part qu'une fois
+     et seulement si le premier fond a chargé — celui qui n'arrive pas à
+     Dakar. On vérifie donc dans la SOURCE que les deux points sont posés
+     avec la carte, et non suspendus à un événement de fond. */
+  /* On lit le CODE, pas la prose : le commentaire qui explique le défaut
+     cite `m.on("load")`, et un motif naïf l'attrape avant le vrai. C'est la
+     troisième fois dans la journée — d'où ce nettoyage, une fois pour
+     toutes. */
+  const source=fs.readFileSync('app/carte/Carte.tsx','utf8')
+   .replace(/\/\*[\s\S]*?\*\//g,' ').replace(/(^|[^:])\/\/.*$/gm,'$1');
+  const avantLoad=source.slice(0,source.indexOf('m.on("load"'));
+  assert(avantLoad.includes('poserLArrivee();'),
+   'le point vert doit être posé avec la carte, avant tout événement de fond');
+  assert(!/m\.on\("load"[\s\S]{0,600}?new maplibre\.Marker/.test(source),
+   'aucun marqueur ne doit naître dans `load`');
+  /* Et il doit être reposé après un basculement de fond : c'est le chemin par
+     lequel il disparaissait. */
+  assert(/secours\.current\s*=\s*true[\s\S]{0,600}?poserLArrivee\(\)/.test(source),
+   'le point vert doit survivre au changement de fond');
+
   const dossier=process.env.SORTIE_CAPTURE||require('os').tmpdir();
   const image=path.join(dossier,'carte-points-375px.png');
   await page.screenshot({path:image});
