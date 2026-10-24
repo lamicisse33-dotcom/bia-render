@@ -133,6 +133,20 @@ export class BiaGeminiLive{
      for(const p of c?.modelTurn?.parts||[]){if(p.inlineData?.data)this.jouer(p.inlineData.data,p.inlineData.mimeType);}
      if(c?.turnComplete){this.finirTour();this.events.etat('Je t’écoute');}
      for(const call of d.toolCall?.functionCalls||[]){
+      if(call.name==='garder_la_correction'){
+       /* L'écriture passe par la route qui réutilise les fonctions de Khalam.
+          On lui donne le fil : c'est lui qui porte la provenance. */
+       let reponse;
+       try{
+        const r=await fetch('/api/gemini-live/correction',{method:'POST',signal:AbortSignal.timeout(15000),
+         headers:{'content-type':'application/json','x-bia-code':this.code},
+         body:JSON.stringify({phrase:String(call.args?.phrase||'').slice(0,4000),langue:call.args?.langue,
+          history:this.history.slice(-12).map(m=>({role:m.role==='model'?'bia':'user',text:m.parts.map(p=>p.text).join(' ').slice(0,800)}))})});
+        reponse=await r.json();
+       }catch{reponse={ecrit:false,erreur:'Le rangement n’a pas répondu. Dis-le au lieu d’annoncer une mémorisation.'};}
+       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
+       continue;
+      }
       if(call.name==='montrer_le_chemin'){
        const reponse=await this.montrerLeChemin(String(call.args?.destination||'').slice(0,160));
        this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});

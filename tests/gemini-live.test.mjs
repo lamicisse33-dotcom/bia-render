@@ -118,23 +118,33 @@ test('Live code normalization matches normal Bia before creating HTTP headers',(
  assert.equal(new Headers({'x-bia-code':client.code}).get('x-bia-code'),'MASTER');
 });
 
-test('Live retains the exact native identity and shared base instructions',()=>{
- function literal(path,name){
-  const source=ts.createSourceFile(path,fs.readFileSync(path,'utf8'),ts.ScriptTarget.Latest,true);let value;
-  function visit(node){if(ts.isVariableDeclaration(node)&&node.name.getText(source)===name&&node.initializer&&ts.isNoSubstitutionTemplateLiteral(node.initializer))value=node.initializer.text;ts.forEachChild(node,visit);}
-  visit(source);assert.equal(typeof value,'string',name);return value;
- }
- const identity=literal('app/api/chat/route.ts','system');
- const relations=literal('lib/relations.ts','SOCLE_RELATIONS');
- const comprehensionModule={exports:{}};
- new Function('module','exports',compile('lib/comprehension-conversation.ts'))(comprehensionModule,comprehensionModule.exports);
- const comprehension=comprehensionModule.exports.CONSIGNE_COMPREHENSION;
- const master=literal('lib/conversation-groq.ts','CONSIGNE_MAITRE');
- const deps={'./relations':{SOCLE_RELATIONS:relations},'./comprehension-conversation':{CONSIGNE_COMPREHENSION:comprehension},'./conversation-groq':{CONSIGNE_MAITRE:master}};
- const module={exports:{}};
- new Function('module','exports','require',compile('lib/gemini-live-prompt.ts'))(module,module.exports,n=>deps[n]);
- assert.equal(module.exports.BIA_LIVE_SYSTEM,identity);
- assert.equal(module.exports.BIA_LIVE_CONSIGNES_BASE,[identity,relations,comprehension,master].join('\n\n'));
+test('les deux moteurs partagent UN SEUL socle, pas deux copies',()=>{
+ /* ── IL Y AVAIT DEUX TEXTES, TENUS ÉGAUX À LA MAIN ──────────────────────
+
+    Cette épreuve comparait `BIA_LIVE_SYSTEM` au littéral `system` de
+    app/api/chat/route.ts : deux copies, et l'épreuve servait de scotch. Une
+    copie tenue par une épreuve reste une copie — corriger le caractère d'un
+    côté laissait l'autre inchangé.
+
+    Lamine, le 24 octobre 2026 : « Une seule source de consigne partagée par
+    les deux moteurs (pas de BIA_LIVE_SYSTEM séparé qui dérive). » On ne
+    compare donc plus deux textes : on vérifie qu'il n'y en a QU'UN. */
+ const route=fs.readFileSync('app/api/chat/route.ts','utf8');
+ assert(/const system = SOCLE_BIA;/.test(route),'Khalam doit importer le socle, pas le redéclarer');
+ assert(!/const system = `/.test(route),'aucun socle en dur dans la route');
+ const live=fs.readFileSync('lib/gemini-live-prompt.ts','utf8');
+ assert(/BIA_LIVE_SYSTEM = SOCLE_BIA;/.test(live),'Khalam Rapide doit importer le même socle');
+ assert(!/BIA_LIVE_SYSTEM = `/.test(live),'aucune copie du socle');
+
+ /* Et le caractère demandé y est, à un seul endroit. */
+ const caractere=fs.readFileSync('lib/conversation-groq.ts','utf8');
+ assert(/export const CARACTERE_BIA/.test(caractere),'un seul bloc de caractère');
+ assert(/MEILLEURE AMIE/.test(caractere),'« meilleure amie »');
+ assert(/accompagne tout le monde/.test(caractere),'« une compagnie qui accompagne tout le monde »');
+ assert(/sans te vexer, sans te justifier/.test(caractere),'« accepte la correction sans se vexer »');
+ const socle=fs.readFileSync('lib/socle-bia.ts','utf8');
+ assert(/CARACTERE_BIA/.test(socle),'le socle porte le caractère partagé');
+ assert(!/^TON CARACTÈRE$/m.test(socle),'et ne le redit pas une seconde fois');
 });
 
 test('Latin alphabet guard preserves Wolof and French and refuses foreign scripts',()=>{
