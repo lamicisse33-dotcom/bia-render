@@ -612,6 +612,12 @@ export default function Home() {
      valeur du rendu, et l'outil d'écriture rendrait toujours « pas écrit ».
      Même mécanique que papierPretRef, juste au-dessus. */
   const papierRef = useRef<{ doc: Papier; totaux: Totaux | null } | null>(null);
+  /* Lus dans l'outil de fermeture, qui s'exécute hors du rendu : les états
+     eux-mêmes y seraient figés à leur valeur du rendu, et elle dirait
+     « rien n'était ouvert » sur un écran pourtant affiché. */
+  const carteRef = useRef<unknown>(null);
+  const ecritPleinRef = useRef<SorteEcrit | null>(null);
+  const ecranRef = useRef<unknown>(null);
   /* ── LE DOCUMENT EN PLEIN ÉCRAN ───────────────────────────────────────────
      Lamine, 24 octobre 2026 : « quand BIA rédige un message, un mail, un
      devis ou une facture, elle s'efface et le document s'affiche en PLEIN
@@ -717,6 +723,7 @@ export default function Home() {
     setEcran(v);
   }, []);
   const fermerEcran = useCallback(() => setEcran(null), []);
+
   /* Elle vient de le lire à voix haute et attend un « oui ». Tant que ce
      n'est pas donné, le papier n'est pas un papier : c'est une proposition. */
   const [aValider, setAValider] = useState(false);
@@ -943,6 +950,41 @@ export default function Home() {
     setRallume(true);
     setTimeout(() => setRallume(false), 460);
   }, []);
+  /* ── FERMER CE QUI EST À L'ÉCRAN — UN SEUL CHEMIN POUR LES DEUX MOTEURS ──
+
+     Lamine, 24 octobre : « "ferme la fenêtre du message" : elle répond
+     "c'est fermé" mais la fenêtre reste affichée — elle n'a aucun outil
+     pour fermer, donc elle ment. »
+
+     C'est la même faute que la carte du 23 octobre : elle disait « c'est
+     parti » et rien ne s'ouvrait. Dire sans pouvoir faire est la pire des
+     réponses — il croit l'affaire réglée et elle ne l'est pas.
+
+     Cette fonction est le SEUL chemin : l'outil de Khalam Rapide et la
+     balise de Khalam passent tous les deux par elle, donc les deux moteurs
+     ferment exactement la même chose. Elle rend ce qu'elle a VRAIMENT
+     fermé — jamais une promesse. */
+  const fermerCeQuiEstAffiche = useCallback((quoi: "carte" | "document" | "photo" | "tout") => {
+    const ferme: string[] = [];
+    if (quoi === "carte" || quoi === "tout") {
+      if (carteRef.current) { ferme.push("carte"); revenir(() => setCarte(null)); }
+    }
+    if (quoi === "document" || quoi === "tout") {
+      if (ecritPleinRef.current) ferme.push("document");
+      setEcritPlein(null);
+      /* ── L'ANCIEN DOCUMENT EST EFFACÉ, PAS MIS DE CÔTÉ ──────────────────
+         « Quand je demande ensuite un nouveau message pour un autre
+         destinataire, elle affiche l'ANCIEN. » Un document fermé ne doit
+         plus pouvoir revenir : il reste dans sa boîte, où il se rouvre d'un
+         geste, mais il ne sert plus de réponse à une demande suivante. */
+      setPapier(null); papierRef.current = null; papierOuvertId.current = "";
+      setPapierPret(null); setPapierErreur("");
+    }
+    if (quoi === "photo" || quoi === "tout") {
+      if (ecranRef.current) { ferme.push("photo"); setEcran(null); }
+    }
+    return ferme;
+  }, [revenir]);
 
   /* ── LA VIDÉO QUI PREND TOUT L'ÉCRAN ─────────────────────────────────────
      Lamine, le 12 septembre 2026 : « elle se retire définitivement comme elle
@@ -1412,6 +1454,9 @@ export default function Home() {
   historyRef.current = history;
   papierPretRef.current = papierPret;
   papierRef.current = papier;
+  carteRef.current = carte;
+  ecritPleinRef.current = ecritPlein;
+  ecranRef.current = ecran;
   resumeRef.current = resume;
   codeRef.current = code || "";
   emetteurRef.current = emetteur;
@@ -3847,6 +3892,11 @@ export default function Home() {
          La balise l'ouvre. Le chemin est celui du bouton, inchangé : c'est le
          téléphone qui lit le papier à voix haute, parce que sur Khalam c'est
          lui qui porte la voix. */
+      /* Elle ferme ce qui est affiché — le MÊME chemin que l'outil de
+         Khalam Rapide, donc les deux moteurs ferment la même chose. */
+      const aFermer=(data as {ferme?:string}).ferme;
+      if (aFermer==="carte"||aFermer==="document"||aFermer==="photo"||aFermer==="tout")
+        fermerCeQuiEstAffiche(aFermer);
       if ((data as {photo?:boolean}).photo) {
         setPapierOuvert(false);
         photoRef.current?.click();
@@ -4971,10 +5021,20 @@ export default function Home() {
            diverger. `false` : ce n'est pas lui qui a touché un bouton, donc
            un échec reste silencieux à l'écran — mais il est RENDU à BIA,
            qui le dira. */
-        ecrire:async(sorte)=>{
+        /* Elle ferme VRAIMENT, et rend ce qu'elle a fermé. Une liste vide
+           veut dire que rien n'était ouvert — pas que ça a échoué. */
+        fermer:(quoi)=>fermerCeQuiEstAffiche(quoi),
+        ecrire:async(sorte,consigne)=>{
+          /* ── CHAQUE DEMANDE ÉCRIT DU NEUF ────────────────────────────────
+             « Quand je demande un nouveau message pour un autre
+             destinataire, elle affiche l'ANCIEN. » L'ancien est effacé AVANT
+             de fabriquer : il ne peut plus être affiché, ni servir de
+             réponse à l'outil si la fabrication rate. Il reste dans sa
+             boîte, où il se rouvre d'un geste. */
+          setPapier(null); papierRef.current=null; papierOuvertId.current="";
           setEcritPlein(sorte);
           try{
-            await fabriquerPapier(sorte as Sorte,false);
+            await fabriquerPapier(sorte as Sorte,false,consigne);
             const fait=Boolean(papierRef.current);
             return fait?{ecrit:true,titre:titreDe(papierRef.current!.doc)}
                        :{ecrit:false,erreur:"Le papier n'a pas pu être écrit. Dis-le, et propose de réessayer."};
@@ -7161,7 +7221,7 @@ export default function Home() {
 
      @param demandeParLui vrai s'il a touché un bouton ; faux si c'est le
                           modèle qui a décidé au milieu d'une conversation. */
-  const fabriquerPapier = useCallback(async (sorte: Sorte, demandeParLui = true) => {
+  const fabriquerPapier = useCallback(async (sorte: Sorte, demandeParLui = true, consigne = "") => {
     const jeton = ++demandePapier.current;
     const perime = () => jeton !== demandePapier.current;
     /* Ne rien dire, mais garder une trace : sans ça, un échec silencieux est
@@ -7207,7 +7267,15 @@ export default function Home() {
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
         body: JSON.stringify({
           sorte,
-          history: historyRef.current.slice(-24),
+          /* ── SA DEMANDE EST JOINTE, ET C'EST ELLE QUI MANQUAIT ───────────
+             Sur Khalam Rapide, l'outil est appelé AVANT que la transcription
+             du tour soit versée dans le fil : /api/document ne voyait donc
+             que la conversation d'AVANT, et réécrivait le message précédent,
+             pour l'ancien destinataire. La consigne de l'outil porte la
+             demande en clair ; elle ne dépend d'aucun minutage. */
+          history: consigne
+            ? [...historyRef.current.slice(-24), { role: "user", text: consigne }]
+            : historyRef.current.slice(-24),
           emetteur: emetteurRef.current,
           tva: emetteurRef.current.tva,
         }),

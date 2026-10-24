@@ -37,7 +37,12 @@ export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',t
     les gestes d'écran sauf la carte, et aucun outil ne savait écrire. La
     page fabrique le document par le MÊME chemin que le bouton — /api/document
     et l'écran plein — donc rien n'est dupliqué. */
- ecrire?:(sorte:'message'|'mail'|'devis'|'facture')=>Promise<{ecrit:boolean;titre?:string;erreur?:string}>};
+ ecrire?:(sorte:'message'|'mail'|'devis'|'facture',consigne?:string)=>Promise<{ecrit:boolean;titre?:string;erreur?:string}>;
+ /* ── FERMER, VRAIMENT ────────────────────────────────────────────────────
+    Elle disait « c'est fermé » sans rien fermer : aucun outil ne le faisait.
+    Celui-ci rend la LISTE de ce qu'il a réellement fermé — une liste vide
+    veut dire que rien n'était ouvert, et elle doit le dire ainsi. */
+ fermer?:(quoi:'carte'|'document'|'photo'|'tout')=>string[]};
 /* Le niveau au-dessus duquel une voix humaine passe DEVANT l'écho, quelle que
    soit la pièce. En dessous, c'est le plancher appris qui décide. */
 const SEUIL_INTERRUPTION=0.06;
@@ -332,11 +337,22 @@ export class BiaGeminiLive{
        this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
        continue;
       }
+      if(call.name==='fermer_ecran'){
+       const quoi=['carte','document','photo','tout'].includes(String(call.args?.quoi))
+        ?String(call.args?.quoi) as 'carte'|'document'|'photo'|'tout':'tout';
+       const ferme=this.events.fermer?this.events.fermer(quoi):null;
+       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:
+        ferme===null?{ferme:[],erreur:'La fermeture n’est pas disponible sur cet écran. Ne dis pas que c’est fermé.'}
+        :ferme.length?{ferme,consigne:'Dis en une phrase courte que c’est fermé.'}
+        :{ferme:[],consigne:'RIEN n’était ouvert. Dis-le, et n’annonce pas une fermeture.'}}]}});
+       continue;
+      }
       if(call.name==='ecrire_un_papier'){
        const sorte=['message','mail','devis','facture'].includes(String(call.args?.sorte))
         ?String(call.args?.sorte) as 'message'|'mail'|'devis'|'facture':'message';
+       const consigne=String(call.args?.consigne||'').slice(0,1000);
        const reponse=this.events.ecrire
-        ?await this.events.ecrire(sorte).catch(()=>({ecrit:false,erreur:'Le papier n’a pas pu être écrit.'}))
+        ?await this.events.ecrire(sorte,consigne).catch(()=>({ecrit:false,erreur:'Le papier n’a pas pu être écrit.'}))
         :{ecrit:false,erreur:'L’écriture n’est pas disponible sur cet écran.'};
        this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
        continue;

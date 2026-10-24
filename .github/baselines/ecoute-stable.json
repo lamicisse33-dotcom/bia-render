@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "20451765fae093c973402a6e7e269a93886496277fed8a62103afae61b406a46",
+    "app/page.tsx": "a36be114a2148be987b5b1f0254a8f0f5450007b4801265cdf09fd5a31cc4431",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -325,5 +325,18 @@
     "khalam_intact": "Hors session rapide, la garde ne refuse RIEN : pageeutParler rend vrai et pas une ligne du chemin Khalam ne change. Une epreuve verifie qu apres la fermeture de session la page reparle.",
     "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Cinq epreuves neuves, dont une qui echoue si une seule fermeture de session oubliait sessionRapide(false) — la page resterait muette pour toujours — et une qui verifie qu aucun nom neuf n entre dans speak(). Garde prouvee bout en bout : refusee pendant la session, rendue apres.",
     "non_valide": "Rien dans ses oreilles. Il faut une carte et une ecriture en session rapide, et verifier qu une seule voix parle."
+  },
+  "migration_fermer_et_document_neuf_20261024": {
+    "authorized": "Lamine, 24 octobre : (1) « ferme la fenetre du message » — elle repond « c est ferme » mais la fenetre reste affichee, elle n a aucun outil pour fermer, donc elle ment. (2) Une nouvelle demande d ecriture affiche l ANCIEN message et elle dit « c est deja ecrit ».",
+    "cause_1": "Aucun outil de fermeture n existait. Meme faute que la carte du 23 octobre : dire sans pouvoir faire. Il croit l affaire reglee et l ecran reste devant lui.",
+    "cause_2": "Deux causes. L ancien document restait affichable et servait de reponse a l outil. Et surtout : sur Khalam Rapide, l outil est appele AVANT que la transcription du tour soit versee dans le fil de la page, donc /api/document ne voyait que la conversation d AVANT et reecrivait le message precedent, pour l ancien destinataire. Le minutage decidait du contenu.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change : une fonction de fermeture partagee par les deux moteurs, trois temoins lus hors rendu, l effacement de l ancien document avant chaque ecriture, et la consigne jointe au fil envoye a /api/document. Aucun changement d ASR, de synthese, de modele, de voix ni de micro.",
+    "hash_before": "20451765fae093c973402a6e7e269a93886496277fed8a62103afae61b406a46",
+    "hash_after": "a36be114a2148be987b5b1f0254a8f0f5450007b4801265cdf09fd5a31cc4431",
+    "un_seul_chemin": "L outil fermer_ecran de Khalam Rapide et la balise [[ferme:…]] de Khalam passent par la MEME fonction : deux fermetures separees finiraient par ne pas fermer la meme chose. Elle rend la liste de ce qu elle a REELLEMENT ferme, et ne compte un ecran que s il etait affiche — sinon « c est ferme » redeviendrait un mensonge, poli mais faux.",
+    "la_demande_est_jointe": "L outil reclame maintenant une consigne : ce que le document doit dire et POUR QUI, avec ses mots. Elle est ajoutee au fil envoye a /api/document, donc le contenu ne depend plus d aucun minutage.",
+    "ce_qu_elle_gardait_en_memoire": "Sa propre phrase « c est ecrit » restait dans l historique de session et lui faisait croire que l affaire etait faite. La description de l outil le contredit maintenant en toutes lettres — CHAQUE appel ecrit un document NEUF — et le socle partage l interdit sur les deux moteurs.",
+    "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Sept epreuves neuves, dont : la fermeture rend ce qu elle a vraiment ferme et ne compte que ce qui etait ouvert, l absence d outil interdit l annonce, l ancien document est efface AVANT de fabriquer, la consigne est jointe au fil, et la balise ne se fait pas prononcer ni declencher par « le marche ferme a six heures ».",
+    "non_valide": "Rien dans ses oreilles. Il faut ecrire un message pour quelqu un, le fermer a la voix, puis en demander un autre pour un AUTRE destinataire."
   }
 }
