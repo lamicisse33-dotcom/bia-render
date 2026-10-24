@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "ac285546bc5fd3b0811812db3bd27922ae2e39995116e673eb969a3ec7829155",
+    "app/page.tsx": "db41ac8ac912a66a1a7f6a5bd73b868b94dba8948bc484987a4c6366afb09733",
     "lib/micro.ts": "225f42ffbe4c66c4c61c97d7ae6376506d94d4b8e3348582e67d7fae30b9f2ce",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -226,5 +226,16 @@
     "position_non_ecrite": "La position vit dans une variable locale de montrerLeChemin, part à /api/orientation et disparaît. Ni historique, ni souvenirs, ni compteur. Ce qui revient au modèle est une phrase et des nombres, jamais les coordonnées.",
     "verification": "19 épreuves d'orientation vertes, dont l'ordre des gestes (accord, puis GPS, puis lieu, puis orientation), le refus qui n'ouvre aucune carte et interdit d'insister, le lieu introuvable qui n'ouvre pas de carte au hasard, et la destination vide qui ne touche à rien. tests/gemini-live exige que `montrer_le_chemin` soit déclaré et que la consigne garde son exception. tsc et npm run build passent.",
     "non_valide": "Rien n'est affirmé sur ce que Lamine verra : la chaîne est éprouvée avec un faux GPS et un faux routeur. Il faut une vraie position de Dakar, sur son téléphone, pour dire que ça marche."
+  },
+  "migration_arrets_nommes_20261024": {
+    "authorized": "Lamine, 24 octobre : « elle sest coupee a nouveau plusieurs fois pendant mon test (15:30-15:35) ». Il demande de nommer la cause par les chiffres.",
+    "mesure_avant": "Version servie 65e537d04a34, deployee a 15:28:59, avant son test. Le chunk anti-echo 6955-3f4c44fcd78caa49.js etait bien en ligne, empreinte identique au build local. khalam_rapide.tours_mesures=6, premiers sons horodates 15:33:28 a 15:35:25. Et pourtant khalam_rapide.echo entierement a zero : coupures_pendant_parole 0, coupures_au_silence 0, trames_retenues 0, trames_laissees 0, echo_plancher 0, tours 0.",
+    "defaut_reconnu": "Le defaut est le mien : declarerEcho() ne partait QUE sur un message interrupted de Google. Un zero pouvait donc signifier « aucun echo na coupe » ou « ancien chunk en cache » — deux causes, un chiffre, aucune cause nommable. Je nai pas devine entre les deux et je nai pas touche au seuil decho : regler un seuil sur une mesure absente serait un reglage au hasard.",
+    "scope": "Parmi les fichiers proteges, seul app/page.tsx change, de quatre lignes : il passe au client la version que CE telephone a chargee (versionChargee.current), en nouveau parametre de fin. Aucun changement de micro, de seuil, dASR, de synthese, de modele ni de voix. Les autres empreintes protegees restent identiques.",
+    "hash_before": "ac285546bc5fd3b0811812db3bd27922ae2e39995116e673eb969a3ec7829155",
+    "hash_after": "db41ac8ac912a66a1a7f6a5bd73b868b94dba8948bc484987a4c6366afb09733",
+    "changes": "lib/gemini-live-client.ts : le releve decho part a CHAQUE finirTour(), plus seulement sur interruption ; cinq chemins darret sont nommes et comptes (alphabet, fermeture, fermeture_pendant_parole, veille, erreur) avec le code de fermeture WebSocket. lib/khalam-rapide-etat.ts : liste blanche NOMS_ARRET, carte versions, et mesure_recue = (echo.tours > 0) pour quun zero jamais ecrit ne se lise pas comme une mesure.",
+    "verification": "tsc et npm run build verts. 14 epreuves khalam-rapide vertes, dont trois nouvelles : un zero jamais ecrit ne conclut rien, un nom darret invente est refuse, deux versions de telephone se distinguent.",
+    "non_valide": "La cause de ses coupures nest PAS encore nommee. Cette migration ne corrige pas la coupure : elle rend la cause lisible. Il faut un nouveau test de Lamine, apres rechargement force de la page, puis lire echo.mesure_recue, echo.arrets, echo.code_fermeture et echo.versions."
   }
 }
