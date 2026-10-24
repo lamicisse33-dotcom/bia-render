@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "a36be114a2148be987b5b1f0254a8f0f5450007b4801265cdf09fd5a31cc4431",
+    "app/page.tsx": "2f79ef802bbcd444ffb6cd4cbba6c83f3bfd1eb52bfaa3d138a2f8ebdd557ad5",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -338,5 +338,16 @@
     "ce_qu_elle_gardait_en_memoire": "Sa propre phrase « c est ecrit » restait dans l historique de session et lui faisait croire que l affaire etait faite. La description de l outil le contredit maintenant en toutes lettres — CHAQUE appel ecrit un document NEUF — et le socle partage l interdit sur les deux moteurs.",
     "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Sept epreuves neuves, dont : la fermeture rend ce qu elle a vraiment ferme et ne compte que ce qui etait ouvert, l absence d outil interdit l annonce, l ancien document est efface AVANT de fabriquer, la consigne est jointe au fil, et la balise ne se fait pas prononcer ni declencher par « le marche ferme a six heures ».",
     "non_valide": "Rien dans ses oreilles. Il faut ecrire un message pour quelqu un, le fermer a la voix, puis en demander un autre pour un AUTRE destinataire."
+  },
+  "migration_pharmacies_et_urgences_20261024": {
+    "authorized": "Plan de Lamine du 24 octobre, point (1) : pharmacies de garde et numeros d urgence. « Cherche d abord ce qui existe deja dans les fiches Supabase et data/, Lamine dit que c etait prevu. »",
+    "ce_qui_existait": "Il avait raison. lib/urgences.ts existe depuis le 13 septembre : 333 lignes, numeros recoupes sur plusieurs sources officielles et dates de verification sur chaque ligne. Mais il n etait injecte QUE dans la consigne de Khalam — sur le moteur PAR DEFAUT, BIA n avait aucun numero verifie, et un modele qui ne sait pas un numero en fabrique un qui RESSEMBLE a un numero.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change : la balise [[pharmacie]] de Khalam ouvre la carte sur la plus proche, apres l accord a l ecran et le GPS, dans cet ordre. Aucun changement d ASR, de synthese, de modele, de voix ni de micro.",
+    "hash_before": "a36be114a2148be987b5b1f0254a8f0f5450007b4801265cdf09fd5a31cc4431",
+    "hash_after": "2f79ef802bbcd444ffb6cd4cbba6c83f3bfd1eb52bfaa3d138a2f8ebdd557ad5",
+    "le_fournisseur": "Premiere version : l API Overpass. Elle a rendu huit pharmacies du Plateau au premier essai, puis un 502, puis SIX expirations d affilee sur trois positions. Une pharmacie trouvee une fois sur sept n est pas une fonction. On prend donc Nominatim, que app/api/lieu interroge DEJA en production pour la carte, avec la meme variable CARTE_LIEUX et le meme en-tete d agent. Verifie sur trois positions de Dakar : Fann 6 pharmacies en 452 ms, Plateau 6 en 714 ms, Almadies 6 en 150 ms.",
+    "ce_que_je_ne_sais_pas": "LE TOUR DE GARDE. Quatre sources testees : ordredespharmaciens.sn, pharmaciedegarde.sn et annuaire-pharmacies.sn refusent la connexion ; sante.gouv.sn repond mais ne le publie pas. Et la recherche web ne peut pas suppleer : BRAVE_CLE n est pas posee sur Render — mesure sur /api/etat, « trouver.moteur_images : pas de cle Brave ». garde_connue vaut donc toujours faux, une epreuve le verifie, et la consigne partagee interdit a BIA d affirmer qu une pharmacie est de garde. Envoyer quelqu un la nuit devant un rideau baisse, avec un enfant qui a de la fievre, est pire que de ne rien dire.",
+    "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Huit epreuves neuves, dont : les numeros partent dans les DEUX consignes et depuis la MEME source, garde_connue ne peut pas devenir vrai ailleurs, la distance est juste sur des points reels de Dakar, la position ne laisse aucune trace, et l accord precede le GPS des deux cotes.",
+    "non_valide": "Aucun essai sur son telephone. Il faut demander une pharmacie sur chaque moteur, accepter la position, et verifier que la carte s ouvre sur la plus proche et qu elle DIT qu elle ne sait pas laquelle est de garde."
   }
 }

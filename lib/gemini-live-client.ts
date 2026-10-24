@@ -337,6 +337,11 @@ export class BiaGeminiLive{
        this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
        continue;
       }
+      if(call.name==='trouver_une_pharmacie'){
+       const reponse=await this.trouverUnePharmacie();
+       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
+       continue;
+      }
       if(call.name==='fermer_ecran'){
        const quoi=['carte','document','photo','tout'].includes(String(call.args?.quoi))
         ?String(call.args?.quoi) as 'carte'|'document'|'photo'|'tout':'tout';
@@ -563,6 +568,34 @@ export class BiaGeminiLive{
     trames_retenues:this.retenues,trames_laissees:this.laissees,
     echo_plancher:Math.round(this.echoPlancher*1000),
     arrets:this.arrets,code_fermeture:this.dernierCode,version:this.version})}).catch(()=>{});
+ }
+ /* ── LA PHARMACIE LA PLUS PROCHE ─────────────────────────────────────────
+    Le MÊME ordre que la carte : l'accord d'abord, le GPS ensuite. La
+    position ne quitte pas ce tour — elle n'entre ni dans l'historique, ni
+    dans les souvenirs, ni dans aucun compteur.
+    ET ON NE DIT PAS « DE GARDE ». La route rend `garde_connue`, qui est faux
+    tant qu'aucune source de tour de garde ne répond ; on rend sa consigne au
+    modèle sans la réécrire. */
+ private async trouverUnePharmacie(){
+  if(!this.events.accordPosition||!this.events.carte)return {trouve:false,raison:'La carte n’est pas disponible ici.'};
+  if(!navigator.geolocation)return {trouve:false,raison:'Ce téléphone ne sait pas donner sa position.'};
+  if(!await this.events.accordPosition())
+   return {trouve:false,refus:true,raison:'Elle n’a pas voulu partager sa position. Demande-lui le quartier où elle est, et ne devine pas.'};
+  let ou:GeolocationPosition;
+  try{
+   ou=await new Promise<GeolocationPosition>((ok,non)=>navigator.geolocation.getCurrentPosition(ok,non,
+    {enableHighAccuracy:true,timeout:12000,maximumAge:30000}));
+  }catch{return {trouve:false,raison:'Sa position n’est pas arrivée. Propose de réessayer dehors.'};}
+  try{
+   const r=await fetch('/api/pharmacies',{method:'POST',signal:AbortSignal.timeout(14000),
+    headers:{'content-type':'application/json',...this.entetes()},
+    body:JSON.stringify({lat:ou.coords.latitude,lon:ou.coords.longitude})});
+   const d=await r.json();
+   /* La carte s'ouvre VRAIMENT sur la plus proche : sans ça, elle
+      annoncerait une pharmacie que personne ne verrait. */
+   if(d?.trouve&&d.plus_proche)this.events.carte({dit:d.plus_proche.nom,lat:d.plus_proche.lat,lon:d.plus_proche.lon,sur:true});
+   return d;
+  }catch{return {trouve:false,raison:'La recherche de pharmacies n’a pas répondu. Propose d’appeler le 1515.'};}
  }
  private async montrerLeChemin(destination:string){
   if(!destination.trim())return {erreur:'Dis-moi d’abord où elle veut aller.'};

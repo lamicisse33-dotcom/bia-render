@@ -45,6 +45,10 @@ test('session authentication precedes Google and returns only a constrained ephe
   /* La source partagée du silence de fin de parole. On lui donne les VRAIES
      valeurs : le test vérifie ensuite qu'elles arrivent bien dans le setup
      envoyé à Google, et non un 500 oublié en dur. */
+  /* Les numéros d'urgence : on donne la VRAIE consigne, parce que l'épreuve
+     vérifie ensuite qu'elle arrive bien dans ce qui part chez Google. Sur le
+     moteur par défaut, BIA n'en avait aucun de vérifié. */
+  '@/lib/urgences':{consigneUrgences:()=>'NUMÉROS D’URGENCE VÉRIFIÉS\nPolice 17 · Pompiers 18 · SAMU 1515'},
   '@/lib/fin-de-parole':{SENSIBILITE_DEBUT:'START_SENSITIVITY_HIGH',SENSIBILITE_FIN:'END_SENSITIVITY_LOW',
    prefixePartMs:()=>300,silenceFinDeParoleMs:()=>1200,
    reglagesFinDeParole:()=>({silence_fin_parole_ms:1200,prefixe_parole_ms:300})}
@@ -133,6 +137,12 @@ test('session authentication precedes Google and returns only a constrained ephe
   assert(/TES GESTES D’ÉCRAN PASSENT PAR TES OUTILS/.test(consigne),
    'la consigne doit lister les outils au lieu de les interdire');
   assert(/ecrire_un_papier/.test(consigne),'« écris-moi un message » doit avoir son outil nommé');
+  /* ── LES NUMÉROS D'URGENCE SUR LE MOTEUR PAR DÉFAUT ───────────────────
+     Ils n'étaient que sur Khalam. Un modèle qui ne sait pas un numéro en
+     fabrique un qui RESSEMBLE à un numéro, et un chiffre inventé fait
+     sonner chez un inconnu pendant qu'une maison brûle. */
+  assert(/1515/.test(consigne),'les numéros d’urgence doivent partir dans la consigne');
+  assert(outils.includes('trouver_une_pharmacie'),'et l’outil pharmacie doit être déclaré');
   /* Et aucune balise entre crochets enseignée ici : elle serait PRONONCÉE. */
   assert(/N’écris JAMAIS une balise entre crochets dans ce mode/.test(consigne));
   assert.equal(body.bidiGenerateContentSetup.contextWindowCompression.slidingWindow.targetTokens,'30000');

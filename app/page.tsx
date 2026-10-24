@@ -3894,6 +3894,32 @@ export default function Home() {
          lui qui porte la voix. */
       /* Elle ferme ce qui est affiché — le MÊME chemin que l'outil de
          Khalam Rapide, donc les deux moteurs ferment la même chose. */
+      /* ── LA PHARMACIE LA PLUS PROCHE, CÔTÉ KHALAM ─────────────────────
+         Le MÊME ordre que la carte : l'accord à l'écran d'abord, le GPS
+         ensuite. La position ne quitte pas ce tour. BIA a déjà dit sa
+         phrase ; ici on ouvre la carte sur la plus proche. */
+      if ((data as {pharmacie?:boolean}).pharmacie && navigator.geolocation) {
+        void (async () => {
+          const accorde = await new Promise<boolean>((repondre) => {
+            setAccordPosition(() => (d: boolean) => { setAccordPosition(null); repondre(d); });
+          });
+          if (!accorde) return;
+          try {
+            const ou = await new Promise<GeolocationPosition>((ok, non) =>
+              navigator.geolocation.getCurrentPosition(ok, non, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }));
+            const r = await fetch("/api/pharmacies", {
+              method: "POST", headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+              body: JSON.stringify({ lat: ou.coords.latitude, lon: ou.coords.longitude }),
+            });
+            const d = await r.json() as { trouve?: boolean; plus_proche?: { nom: string; lat: number; lon: number } };
+            if (d.trouve && d.plus_proche) {
+              carteOuverteRef.current = true;
+              microAvantLaCarte.current = conversationRef.current;
+              void eclipser(() => setCarte({ dit: d.plus_proche!.nom, lat: d.plus_proche!.lat, lon: d.plus_proche!.lon, sur: true }));
+            }
+          } catch { /* pas de position : BIA l'a déjà dit, on n'ouvre rien */ }
+        })();
+      }
       const aFermer=(data as {ferme?:string}).ferme;
       if (aFermer==="carte"||aFermer==="document"||aFermer==="photo"||aFermer==="tout")
         fermerCeQuiEstAffiche(aFermer);

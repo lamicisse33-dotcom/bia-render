@@ -250,6 +250,13 @@ function detacherMicro(texte:string){
    moteurs ferment exactement la même chose.
    [[papier:ferme]] existait déjà pour le papier seul : elle reste, et
    celle-ci couvre aussi la carte et les images. */
+/* La pharmacie la plus proche. Khalam Rapide a l'outil ; ici la balise, et
+   les deux passent par la même route et la même carte. */
+const PHARMACIE=/\[{1,2}\s*pharmacie\s*\]{1,2}/i;
+function detacherPharmacie(texte:string){
+  return{texte:texte.replace(new RegExp(PHARMACIE.source,"gi"),"").replace(/\n{3,}/g,"\n\n").trim(),
+    pharmacie:PHARMACIE.test(texte)};
+}
 const FERME=/\[{1,2}\s*ferme\s*[:\-—]\s*(carte|document|photo|tout)\s*\]{1,2}/i;
 function detacherFerme(texte:string){
   const m=texte.match(FERME);
@@ -2899,6 +2906,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     const {texte:sansRappel,rappel:rappelDemande}=detacherRappel(sansRegarde);
     const {texte:sansPhoto,photo:photoDemandee}=detacherPhoto(sansRappel);
     const {texte:sansFerme,ferme:aFermer}=detacherFerme(sansPhoto);
+    const {texte:sansPharmacie,pharmacie:pharmacieDemandee}=detacherPharmacie(sansFerme);
     /* ── ELLE DIT « C'EST PARTI » ET RIEN NE S'OUVRE ──────────────────────
 
        Lamine, le 14 septembre 2026 a 19h : « je lui ai demande de m'amener
@@ -2920,7 +2928,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        main. Les formulations francaises couvrent ce que Lamine et ses
        testeurs emploient ce soir, et les wolof s'ajouteront de SA main. */
     const carteRattrapee = carte || lieuDemandeDans(question);
-    const {texte:reply,cherche:demande}=detacherCherche(sansFerme);
+    const {texte:reply,cherche:demande}=detacherCherche(sansPharmacie);
 
     /* ── CE QU'ELLE VIENT DE FAIRE, NOTÉ POUR QU'ELLE PUISSE LE VOIR ───────
 
@@ -3247,7 +3255,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     noterEmotion(emotion, reply, balise);
     /* La première réponse à une question réutilisable est gardée — sauf si
        elle porte un geste, une recherche, ou le prénom de la personne. */
-    if(reutilisable&&!cherche&&!papier&&!appel&&!voir&&!carteRattrapee&&!film&&!trouve&&!filmRate&&!rayee&&!rappelDemande&&!photoDemandee&&!aFermer
+    if(reutilisable&&!cherche&&!papier&&!appel&&!voir&&!carteRattrapee&&!film&&!trouve&&!filmRate&&!rayee&&!rappelDemande&&!photoDemandee&&!aFermer&&!pharmacieDemandee
       &&!(Array.isArray(sesGestes)&&sesGestes.length)
       &&!porteUnNomDeLaPersonne(ceQuElleDit,(body.history||[]).filter(h=>h.role!=="bia").map(h=>String(h.text||"")))){
       void garderLaReponse(question,langueDe(question),consigneSignee,ceQuElleDit,String(emotion||"neutre"));
@@ -3259,7 +3267,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        ne garde PAS une réponse qui porte cette note : elle est vraie pour ce
        tour-là seulement. */
     const ditAvecRappel=noteDuRappel?(ceQuElleDit+noteDuRappel).trim():ceQuElleDit;
-    return {corps:{reply:ditAvecRappel,emotion,balise,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,...(photoDemandee?{photo:true}:{}),...(aFermer?{ferme:aFermer}:{}),...(rayee?{corrigee:rayee}:{}),source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
+    return {corps:{reply:ditAvecRappel,emotion,balise,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,...(photoDemandee?{photo:true}:{}),...(aFermer?{ferme:aFermer}:{}),...(pharmacieDemandee?{pharmacie:true}:{}),...(rayee?{corrigee:rayee}:{}),source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message, "chat");
