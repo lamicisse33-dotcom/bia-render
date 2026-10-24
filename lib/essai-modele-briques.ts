@@ -28,7 +28,7 @@ import {MODELE_SONNET,modeleBriques} from './cerveau-anthropic';
 
 type Cas={
   devoir:string;replique:string;langue:string;
-  question_signes:number;apprise_signes:number;
+  question_signes:number;apprise_signes:number;history_tours:number;
   modele:Record<string,{brique:boolean;mot_pour_mot:boolean|null;reply_signes:number|null;texte_pret_ms:number|null;preparation_complete_ms:number|null;erreur?:string}>;
 };
 
@@ -58,24 +58,42 @@ export function verifierModeleBriques(){
       const index=await indexDialogue();
       /* Les répliques de Bia dont le wolof est assez long pour qu'une
          reformulation se voie, et dont la question qui précède existe. */
-      const choisies:Array<{devoir:string;replique:string;question:string;apprise:string;langue:string}>=[];
+      /* ── POURQUOI LE PREMIER ESSAI N'A RIEN PU CONCLURE ──────────────────
+
+         00:31 et 00:37 : zéro formulation reproduite mot pour mot, par AUCUN
+         des deux modèles. La cause la plus probable n'est pas le modèle :
+         c'est que je posais la question NUE, sans l'échange qui la précède.
+         `contexteMemoireCommune(texte, history, 6500)` choisit la mémoire à
+         partir des deux ; sans historique, le devoir qui porte la formulation
+         pouvait tout simplement ne pas être retrouvé, et aucun modèle ne peut
+         reprendre mot pour mot ce qu'on ne lui a pas donné.
+
+         On passe donc l'échange réel qui précède, comme un vrai tour, et on
+         prend jusqu'à cinq répliques au lieu de trois. Si le verdict reste
+         `non_concluant` avec ça, alors la sonde est en cause et je le dirai —
+         pas Haiku. */
+      const choisies:Array<{devoir:string;replique:string;question:string;apprise:string;langue:string;history:Array<{role:string;text:string}>}>=[];
       for(const d of index){
         if(d.id.startsWith('lexique:'))continue;
-        for(let i=1;i<d.repliques.length&&choisies.length<3;i++){
+        for(let i=1;i<d.repliques.length&&choisies.length<5;i++){
           const r=d.repliques[i] as {id:string;wo?:string;fr?:string;role?:string};
           const avant=d.repliques[i-1] as {wo?:string;fr?:string;role?:string};
           const apprise=String(r.wo||'').trim(),question=String(avant?.wo||'').trim();
           if(r.role!=='bia'||apprise.length<40||question.length<20)continue;
-          choisies.push({devoir:d.id,replique:r.id,question,apprise,langue:'wo'});
+          const history=(d.repliques.slice(Math.max(0,i-5),i-1) as Array<{wo?:string;role?:string}>)
+            .map(p=>({role:p.role==='bia'?'bia':'user',text:String(p.wo||'').trim()}))
+            .filter(p=>p.text.length>0);
+          choisies.push({devoir:d.id,replique:r.id,question,apprise,langue:'wo',history});
           break;
         }
-        if(choisies.length>=3)break;
+        if(choisies.length>=5)break;
       }
       rapport.repliques_trouvees=choisies.length;
       if(!choisies.length){rapport.statut='aucune_formulation_wolof_assez_longue';return;}
       for(const c of choisies){
         const cas:Cas={devoir:c.devoir,replique:c.replique,langue:c.langue,
-          question_signes:c.question.length,apprise_signes:c.apprise.length,modele:{}};
+          question_signes:c.question.length,apprise_signes:c.apprise.length,
+          history_tours:c.history.length,modele:{}};
         (rapport.cas as Cas[]).push(cas);
         for(const modele of [modeleBriques(),MODELE_SONNET]){
           const debut=Date.now();
@@ -87,7 +105,7 @@ export function verifierModeleBriques(){
           let textePret:number|null=null;
           try{
             const r=await preparerBrique({texte:c.question,tour:'essai-modele-briques-'+c.replique,
-              history:[],resume:'',voice:'female',persona:'bia',modeleEssai:modele},
+              history:c.history,resume:'',voice:'female',persona:'bia',modeleEssai:modele},
               code,true,AbortSignal.timeout(30000),undefined,
               {debut:()=>{textePret??=Date.now()-debut;},morceau:()=>{}});
             const reply=r&&'brique' in r&&r.brique?String(r.brique.texte||''):'';
