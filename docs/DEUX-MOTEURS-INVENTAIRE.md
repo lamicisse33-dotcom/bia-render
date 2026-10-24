@@ -82,3 +82,12 @@ directement de la VOIX.
 - La correction par le maître est écrite ; **elle n'a pas encore été vérifiée
   de bout en bout sur son téléphone**, avec une vraie phrase et une vraie
   relecture Supabase.
+
+## En cours au 24 octobre 2026
+
+- **L'écran d'écriture plein format** (message, mail, devis, facture) :
+  `app/ecrit/Ecrit.tsx` est écrit et compile, mais **n'est encore branché à
+  aucun moteur**. Les quatre formats réutilisent les types et `/api/document`
+  qui existaient déjà ; ce qui est neuf est l'écran plein, parce qu'un panneau
+  latéral et un plein écran ne se dessinent pas pareil. Reste : l'outil sur
+  les deux moteurs, l'ouverture depuis la page, et la vérification à 375 px.

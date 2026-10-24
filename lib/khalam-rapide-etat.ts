@@ -17,9 +17,10 @@
    son, aucun code d'accès ne passe par ici. */
 
 type Mesure = { ms: number; quand: string };
-type Etat = { mesures: Mesure[]; tours: number; refusees: number; doublons: number; vus: Map<string, number>; basculements: { vers_rapide: number; vers_khalam: number } };
+type Echo = { coupures_pendant_parole: number; coupures_au_silence: number; trames_retenues: number; trames_laissees: number; echo_plancher: number; tours: number };
+type Etat = { mesures: Mesure[]; tours: number; refusees: number; doublons: number; vus: Map<string, number>; basculements: { vers_rapide: number; vers_khalam: number }; echo: Echo };
 const g = globalThis as typeof globalThis & { biaKhalamRapide?: Etat };
-const etat: Etat = (g.biaKhalamRapide ??= { mesures: [], tours: 0, refusees: 0, doublons: 0, vus: new Map<string, number>(), basculements: { vers_rapide: 0, vers_khalam: 0 } });
+const etat: Etat = (g.biaKhalamRapide ??= { mesures: [], tours: 0, refusees: 0, doublons: 0, vus: new Map<string, number>(), basculements: { vers_rapide: 0, vers_khalam: 0 }, echo: { coupures_pendant_parole: 0, coupures_au_silence: 0, trames_retenues: 0, trames_laissees: 0, echo_plancher: 0, tours: 0 } });
 
 const BORNE_MS = 60000;
 const SESSIONS_AU_PLUS = 200;
@@ -47,6 +48,24 @@ export function noterKhalamRapide(d: Record<string, unknown>) {
   if (d.etape === "bascule") {
     if (d.vers === "rapide") etat.basculements.vers_rapide += 1;
     else if (d.vers === "khalam") etat.basculements.vers_khalam += 1;
+    return;
+  }
+  /* ── ELLE SE COUPE ELLE-MÊME : LE COMPTE, AVANT LE REMÈDE ────────────────
+     Lamine, 24 octobre 2026. Une coupure survenue PENDANT qu'elle parlait est
+     une interruption d'elle-même jusqu'à preuve du contraire ; une coupure
+     dans le silence vient bien de la personne. Les deux sont comptées à part,
+     sinon on ne saurait pas si le remède soigne ou s'il empêche la personne
+     de la couper pour de vrai. */
+  if (d.etape === "echo") {
+    const n = (k: string, max: number) => { const v = Number(d[k]); return Number.isFinite(v) && v >= 0 && v <= max ? Math.round(v) : 0; };
+    etat.echo = {
+      coupures_pendant_parole: Math.max(etat.echo.coupures_pendant_parole, n("coupures_pendant_parole", 10000)),
+      coupures_au_silence: Math.max(etat.echo.coupures_au_silence, n("coupures_au_silence", 10000)),
+      trames_retenues: Math.max(etat.echo.trames_retenues, n("trames_retenues", 10000000)),
+      trames_laissees: Math.max(etat.echo.trames_laissees, n("trames_laissees", 10000000)),
+      echo_plancher: n("echo_plancher", 1000),
+      tours: etat.echo.tours + 1,
+    };
     return;
   }
   const ms = Number(d.ms);
@@ -88,6 +107,11 @@ export function resumeKhalamRapide() {
       derniers_ms: etat.mesures.slice(-12),
     },
     basculements: { ...etat.basculements },
+    /* `coupures_pendant_parole` élevé = elle se coupe elle-même.
+       `coupures_au_silence` = la personne la coupe, et c'est voulu.
+       `trames_retenues` = l'écho filtré ; `trames_laissees` = ce qui est passé
+       malgré le filtre, donc de vraies voix. */
+    echo: { ...etat.echo, plancher_pour_mille: etat.echo.echo_plancher },
     limite:
       "Mesure navigateur déclarée : de la fin de sa parole au premier son, avance de planification audio comprise. " +
       "Une seule mesure par tour, armée par une parole entendue pendant qu'elle se tait : un tour où on lui coupe la parole n'est pas mesuré. " +

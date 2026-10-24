@@ -134,3 +134,54 @@ test('la route de mesure aiguille le type khalam_rapide',async()=>{
  assert.equal(r.status,200);
  assert.deepEqual(vus,[corps]);
 });
+
+/* ── ELLE SE COUPE ELLE-MÊME : COMPTER AVANT DE SOIGNER ────────────────────
+
+   Lamine, le 24 octobre 2026 : « BIA se coupe elle-même parfois. » Cause
+   probable : le micro capte sa propre voix par le haut-parleur, et la
+   détection d'activité de Google la prend pour une interruption.
+
+   Une coupure survenue PENDANT qu'elle parlait est une interruption d'elle-
+   même jusqu'à preuve du contraire ; une coupure dans le silence vient bien
+   de la personne, et celle-là doit continuer de marcher. Les deux sont
+   comptées à part — sinon on ne saurait pas si le remède soigne, ou s'il
+   empêche la personne de la couper pour de vrai. */
+test('les coupures pendant sa parole et celles au silence sont comptées à part',()=>{
+ const etat=frais();
+ etat.noterKhalamRapide({etape:'echo',coupures_pendant_parole:4,coupures_au_silence:1,
+  trames_retenues:220,trames_laissees:6,echo_plancher:31});
+ const e=etat.resumeKhalamRapide().echo;
+ assert.equal(e.coupures_pendant_parole,4,'elle s’est coupée elle-même quatre fois');
+ assert.equal(e.coupures_au_silence,1,'et la personne l’a coupée une fois — ça doit rester possible');
+ assert.equal(e.trames_retenues,220,'l’écho filtré');
+ assert.equal(e.trames_laissees,6,'et ce qui est passé malgré le filtre : de vraies voix');
+ assert.equal(e.plancher_pour_mille,31);
+ assert.equal(e.tours,1);
+});
+
+test('les compteurs d’écho ne redescendent pas entre deux envois du même tour',()=>{
+ const etat=frais();
+ /* Le téléphone renvoie le cumul du tour à chaque coupure : prendre le
+    maximum évite qu'un envoi tardif efface un compte plus élevé. */
+ etat.noterKhalamRapide({etape:'echo',coupures_pendant_parole:3,coupures_au_silence:0,trames_retenues:100,trames_laissees:2,echo_plancher:28});
+ etat.noterKhalamRapide({etape:'echo',coupures_pendant_parole:1,coupures_au_silence:0,trames_retenues:40,trames_laissees:1,echo_plancher:25});
+ const e=etat.resumeKhalamRapide().echo;
+ assert.equal(e.coupures_pendant_parole,3);
+ assert.equal(e.trames_retenues,100);
+ assert.equal(e.tours,2,'les deux envois sont comptés');
+});
+
+/* Et le filtre lui-même : l'écho est retenu, une vraie voix passe. C'est la
+   règle de décision, éprouvée sans navigateur. */
+test('le filtre retient l’écho et laisse passer une voix franche',()=>{
+ const SEUIL=0.06;
+ const passe=(rms,plancher)=>rms>Math.max(SEUIL,plancher*2.5);
+ /* Son propre écho, dans une pièce ordinaire. */
+ assert.equal(passe(0.020,0.022),false,'l’écho ne doit pas la couper');
+ assert.equal(passe(0.055,0.022),false,'ni un écho un peu fort');
+ /* Quelqu'un qui parle par-dessus. */
+ assert.equal(passe(0.120,0.022),true,'une vraie voix passe');
+ /* Pièce très résonnante : le plancher appris monte, et il décide. */
+ assert.equal(passe(0.100,0.050),false,'plancher haut : 0,10 reste de l’écho');
+ assert.equal(passe(0.200,0.050),true,'mais une voix franche passe quand même');
+});

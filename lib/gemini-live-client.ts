@@ -13,6 +13,9 @@ export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',t
     Jamais en silence : sans ces deux rappels, l'outil refuse de partir.
     `carte` ouvre l'écran de guidage sur le lieu trouvé. */
  accordPosition?:()=>Promise<boolean>;carte?:(lieu:{dit:string;lat:number;lon:number;sur?:boolean})=>void};
+/* Le niveau au-dessus duquel une voix humaine passe DEVANT l'écho, quelle que
+   soit la pièce. En dessous, c'est le plancher appris qui décide. */
+const SEUIL_INTERRUPTION=0.06;
 const WORKLET=`
 class CaptureBia extends AudioWorkletProcessor{
  constructor(){super();this.pending=[];this.offset=0;this.samples=[];}
@@ -69,6 +72,36 @@ export class BiaGeminiLive{
     trames y arrivent pendant qu'elle parle, donc rien ne s'arme. Mieux vaut
     quatre tours justes que trente faux. */
  private finParoleMesure=0;private mesurePrete=false;private finDuSon=0;
+ /* ── ELLE SE COUPE ELLE-MÊME ───────────────────────────────────────────────
+
+    Lamine, le 24 octobre 2026 : « BIA se coupe elle-même parfois. »
+
+    LA CAUSE PROBABLE, ET ELLE EST MESURABLE : le micro capte sa propre voix
+    par le haut-parleur, et la détection d'activité de Google la prend pour
+    une interruption (`START_OF_ACTIVITY_INTERRUPTS`). Elle s'interrompt
+    elle-même, littéralement.
+
+    L'ANNULATION D'ÉCHO EST DÉJÀ DEMANDÉE — echoCancellation,
+    noiseSuppression, autoGainControl sont posés depuis le début sur
+    getUserMedia. Ce levier-là est dépensé : il ne reste rien à activer, et
+    pourtant l'écho passe. C'est le cas ordinaire sur un téléphone tenu à la
+    main, haut-parleur vers soi.
+
+    CE QU'ON FAIT, ET C'EST LE MOINS INTRUSIF QUI RESTE : pendant qu'elle
+    parle, on n'envoie plus à Google les trames dont le niveau ressemble à son
+    propre écho. Une VRAIE interruption — quelqu'un qui parle par-dessus —
+    dépasse nettement ce niveau, et passe. On garde donc la possibilité de la
+    couper en parlant, qui est tout l'intérêt d'une conversation.
+
+    LE PLANCHER EST APPRIS, PAS DEVINÉ : on observe le niveau de l'écho
+    pendant qu'elle parle et on exige de le dépasser franchement. Un seuil
+    fixe marcherait dans une pièce et pas dans l'autre.
+
+    ET ON COMPTE TOUT : les interruptions survenues pendant qu'elle parlait,
+    celles qu'on a laissées passer, et les trames retenues. Sans ces nombres,
+    on ne saurait pas si le remède marche — ni s'il l'empêche, elle, d'être
+    coupée pour de vrai. */
+ private echoPlancher=0;private retenues=0;private laissees=0;private coupuresPendantParole=0;private coupuresAuSilence=0;
  private sessionMesure=Math.random().toString(36).slice(2,10)+Date.now().toString(36);private tourMesure=0;
  private userText='';private biaText='';private history:Array<{role:string;parts:Array<{text:string}>}>=[];private muted=false;
  constructor(private code:string,private events:LiveEvents,private historique?:Array<{role:'user'|'bia';text:string}>,private tours=40,private personne=''){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');this.tours=Number.isFinite(tours)&&tours>=4&&tours<=80?Math.round(tours):40;}
@@ -97,6 +130,15 @@ export class BiaGeminiLive{
      this.finParole=performance.now();                       // veille : toute activité
      if(!this.elleParle()){this.finParoleMesure=this.finParole;this.mesurePrete=true;}
     }
+    /* ── PENDANT QU'ELLE PARLE, ON FILTRE SON PROPRE ÉCHO ──────────────────
+       Le plancher d'écho s'apprend sur les trames entendues pendant sa
+       parole ; il redescend doucement pour qu'une pièce plus calme ne reste
+       pas bloquée sur un ancien niveau. */
+    if(this.elleParle()){
+     this.echoPlancher=Math.max(rms,this.echoPlancher*0.995);
+     if(rms<=Math.max(SEUIL_INTERRUPTION,this.echoPlancher*2.5)){this.retenues++;return;}
+     this.laissees++;
+    }
     let binary='';for(const b of new Uint8Array(raw))binary+=String.fromCharCode(b);
     this.send({realtimeInput:{audio:{data:btoa(binary),mimeType:'audio/pcm;rate=16000'}}});
    };
@@ -124,7 +166,14 @@ export class BiaGeminiLive{
      if(d.setupComplete){clearTimeout(timeout);established=true;this.ready=true;this.send({clientContent:{turns:this.history,turnComplete:true}});this.events.etat('Je t’écoute');resolve();}
      if(d.error){this.events.erreur('Khalam Rapide a refusé la session.');ws.close();return;}
      const c=d.serverContent;
-     if(c?.interrupted){this.viderSon();this.finirTour();}
+     if(c?.interrupted){
+      /* Mesuré avant d'être corrigé : une coupure survenue PENDANT qu'elle
+         parlait est une interruption d'elle-même jusqu'à preuve du contraire ;
+         une coupure dans le silence vient bien de la personne. */
+      if(this.elleParle())this.coupuresPendantParole++;else this.coupuresAuSilence++;
+      this.declarerEcho();
+      this.viderSon();this.finirTour();
+     }
      if(c?.inputTranscription?.text){this.userText+=c.inputTranscription.text;this.events.transcription('user',this.userText,false);}
      if(c?.outputTranscription?.text&&!alphabetLiveAutorise(c.outputTranscription.text)){
       this.arreter();this.events.erreur('Réponse interrompue : Bia doit parler français et wolof uniquement. Appuie sur le micro pour reprendre.');return;
@@ -211,6 +260,14 @@ export class BiaGeminiLive{
     dans les souvenirs, ni dans aucun compteur : elle sert à /api/orientation
     et disparaît avec la fonction. Ce qui revient au modèle, c'est une phrase
     et des nombres — jamais les coordonnées. */
+ /* Ce que l'écho a coûté sur ce tour. Des comptes et un niveau, rien d'autre. */
+ private declarerEcho(){
+  void fetch('/api/mesure',{method:'POST',keepalive:true,headers:{'content-type':'application/json'},
+   body:JSON.stringify({type:'khalam_rapide',etape:'echo',
+    coupures_pendant_parole:this.coupuresPendantParole,coupures_au_silence:this.coupuresAuSilence,
+    trames_retenues:this.retenues,trames_laissees:this.laissees,
+    echo_plancher:Math.round(this.echoPlancher*1000)})}).catch(()=>{});
+ }
  private async montrerLeChemin(destination:string){
   if(!destination.trim())return {erreur:'Dis-moi d’abord où elle veut aller.'};
   if(!this.events.accordPosition||!this.events.carte)return {erreur:'La carte n’est pas disponible ici.'};
