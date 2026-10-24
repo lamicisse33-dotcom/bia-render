@@ -37,6 +37,34 @@
 
 import { lexiqueConfig } from "./lexique";
 
+/* ── CE QUE LA CLÉ PUBLIQUE A DONNÉ LE 24 OCTOBRE 2026, EN LECTURE ────────
+
+   Mesuré depuis le Mac, avec la clé publiable fournie par Lamine :
+
+     khalam_rappels     200, zéro ligne   (service : 0     → indéterminé, vide)
+     khalam_souvenirs   200, zéro ligne   (service : 13048 → FERMÉE, prouvé)
+     khalam_corpus      200, zéro ligne   (service : 11    → FERMÉE, prouvé)
+     bia_lexique        200, zéro ligne   (service : 829   → FERMÉE, prouvé)
+     reglages           200, zéro ligne   (service : non mesuré ce jour-là)
+
+   (« zéro ligne » = l'en-tête Content-Range annonce un total de zéro. Et non,
+   je ne l'écris pas en abrégé : cette abréviation contient la barre-étoile
+   qui FERME un bloc de commentaire, et je viens de me faire prendre pour la
+   deuxième fois dans ce même fichier.)
+
+   Les trois tables qui portent du contenu sont donc bien fermées EN LECTURE,
+   et c'est prouvé par la comparaison, pas par un 200.
+
+   DEUX SONDES QUI NE PROUVENT RIEN, ET JE M'Y SUIS FAIT PRENDRE DEUX FOIS :
+     — une écriture sur une colonne inexistante rend PGRST204, parce que
+       PostgREST lit son cache de schéma AVANT la base : on reçoit cette
+       erreur même sans le moindre privilège ;
+     — l'en-tête `Allow` d'une requête OPTIONS vient du même cache, pas des
+       droits du rôle : il annonce POST sur tout.
+   L'ÉCRITURE RESTE DONC NON TRANCHÉE depuis ici. La réponse ne s'obtient pas
+   par tâtonnement mais par une question directe à la base — voir
+   docs/PORTES-SUPABASE.md. */
+
 export type Porte = {
   table: string;
   publique: { statut: number; lignes: number | null };
@@ -45,11 +73,23 @@ export type Porte = {
   pourquoi: string;
 };
 
+/* ── CE QUE LE TEST DU 24 OCTOBRE A APPRIS SUR LES NOMS ───────────────────
+   `khalam_lexique` N'EXISTE PAS : PostgREST a répondu 404 avec, en toutes
+   lettres, « Perhaps you meant the table public.bia_lexique ». C'est
+   SUPABASE_TABLE_LEXIQUE qui porte le vrai nom sur Render, et le repli écrit
+   ici était donc faux depuis le début — invisible, parce que la variable est
+   toujours posée en production.
+
+   Et `reglages` est ajoutée : elle porte la tenue de BIA, réglable par le
+   maître sans redéploiement (lib/tenue.ts). Elle n'a aucun fichier SQL dans
+   ce dépôt, donc personne n'a jamais écrit `enable row level security`
+   dessus — c'est exactement le genre de table qu'on oublie. */
 const TABLES = () => [
   process.env.SUPABASE_TABLE_RAPPELS || "khalam_rappels",
   process.env.SUPABASE_TABLE_SOUVENIRS || "khalam_souvenirs",
   process.env.SUPABASE_TABLE_CORPUS || "khalam_corpus",
-  process.env.SUPABASE_TABLE_LEXIQUE || "khalam_lexique",
+  process.env.SUPABASE_TABLE_LEXIQUE || "bia_lexique",
+  "reglages",
 ];
 
 /** Le nombre total de lignes qu'une clé donnée peut voir. Aucune ligne lue. */
