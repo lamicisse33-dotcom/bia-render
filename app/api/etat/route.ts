@@ -42,6 +42,7 @@ import {resumeJournalParole} from '@/lib/journal-parole';
 import {resumeDepotRappels} from '@/lib/rappels-depot';
 import {resumeHorloge,armerHorloge,balayerLesRappels} from '@/lib/rappels-horloge';
 import {clePubliquePush} from '@/lib/push-web';
+import {mesurerLesPortes} from '@/lib/portes-supabase';
 import {resumeMemoireOrganisee} from '@/lib/memoire-organisee';
 import {resumeConnexionFiches} from "@/lib/essai-fiches";
 import {resumeAccesDevoirs,verifierAccesDevoirs} from "@/lib/essai-acces-devoirs";
@@ -193,7 +194,15 @@ export async function GET(request: Request) {
   let auteurs: Record<string, number> | null = null;
   try { auteurs = await parAuteur(); } catch { auteurs = null; }
 
-  return NextResponse.json({fin_de_parole:reglagesFinDeParole(),journal_parole:resumeJournalParole(),
+  return NextResponse.json({
+  /* ── LES TABLES PRIVÉES SONT-ELLES FERMÉES ? ────────────────────────────
+     Demandé par Lamine le 24 octobre 2026. On teste avec la clé PUBLIQUE et
+     avec la clé de service, parce qu'une liste vide ne prouve rien toute
+     seule : une table fermée et une table vide rendent le même zéro. Aucune
+     ligne n'est transportée — `limit=0` et le compte dans l'en-tête. Cette
+     mesure ne corrige rien. */
+  portes_supabase:await mesurerLesPortes(),
+  fin_de_parole:reglagesFinDeParole(),journal_parole:resumeJournalParole(),
   /* ── LES RAPPELS DE MÉDICAMENTS ─────────────────────────────────────────
      `rangement` dit où ils vivent : « supabase » (ils survivent aux
      redéploiements) ou « memoire » (ils marchent tout de suite et
