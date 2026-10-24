@@ -1,4 +1,12 @@
 
+/* ── CE QUE KHALAM RAPIDE NE FAISAIT PAS, ET QUI MANQUAIT ──────────────────
+
+   Mesuré le 24 octobre 2026 : `garder()` n'était appelé que par Khalam. Une
+   conversation entière sur la connexion rapide ne laissait aucune ligne dans
+   khalam_souvenirs, et douze tours seulement vivaient dans la session. Elle
+   oubliait donc deux fois : pendant la conversation, et après.
+
+   TOURS_GARDES vient du serveur (BIA_LIVE_HISTORIQUE) ; 40 est le repli. */
 export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',texte:string,fin:boolean)=>void;parle:(v:boolean)=>void;latence:(ms:number,tour:{session:string;tour:number})=>void;erreur:(s:string)=>void};
 const WORKLET=`
 class CaptureBia extends AudioWorkletProcessor{
@@ -58,7 +66,7 @@ export class BiaGeminiLive{
  private finParoleMesure=0;private mesurePrete=false;private finDuSon=0;
  private sessionMesure=Math.random().toString(36).slice(2,10)+Date.now().toString(36);private tourMesure=0;
  private userText='';private biaText='';private history:Array<{role:string;parts:Array<{text:string}>}>=[];private muted=false;
- constructor(private code:string,private events:LiveEvents,private historique?:Array<{role:'user'|'bia';text:string}>){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');}
+ constructor(private code:string,private events:LiveEvents,private historique?:Array<{role:'user'|'bia';text:string}>,private tours=40,private personne=''){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');this.tours=Number.isFinite(tours)&&tours>=4&&tours<=80?Math.round(tours):40;}
  private send(data:unknown){if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify(data));}
  private viderSon(){for(const n of this.nodes){n.onended=null;try{n.stop();}catch{}}this.nodes.clear();this.next=0;this.finDuSon=performance.now();this.events.parle(false);}
  /* Elle parle, ou elle vient de finir. Les 300 ms de marge couvrent la queue
@@ -88,8 +96,8 @@ export class BiaGeminiLive{
     this.send({realtimeInput:{audio:{data:btoa(binary),mimeType:'audio/pcm;rate=16000'}}});
    };
    await this.input.resume();
-   if(this.historique){this.history=this.historique.filter(m=>m.text?.trim()).slice(-12).map(m=>({role:m.role==='bia'?'model':'user',parts:[{text:m.text}]}));}
-   else try{const saved=JSON.parse(localStorage.getItem('bia-gemini-live-history')||'[]');if(Array.isArray(saved))this.history=saved.slice(-12);}catch{}
+   if(this.historique){this.history=this.historique.filter(m=>m.text?.trim()).slice(-this.tours).map(m=>({role:m.role==='bia'?'model':'user',parts:[{text:m.text}]}));}
+   else try{const saved=JSON.parse(localStorage.getItem('bia-gemini-live-history')||'[]');if(Array.isArray(saved))this.history=saved.slice(-this.tours);}catch{}
    await this.connecter();
    this.finParole=performance.now();
    this.idle=setInterval(()=>{if(!this.stoppe&&performance.now()-this.finParole>90000){this.arreter();this.events.etat('En pause. Appuie sur Parler pour reprendre.');}},5000);
@@ -154,9 +162,19 @@ export class BiaGeminiLive{
   }
  }
  private finirTour(){
+  const dit=this.userText,repondu=this.biaText;
   if(this.userText.trim()){this.history.push({role:'user',parts:[{text:this.userText}]});this.events.transcription('user',this.userText,true);}
   if(this.biaText.trim()){this.history.push({role:'model',parts:[{text:this.biaText}]});this.events.transcription('bia',this.biaText,true);}
-  this.history=this.history.slice(-12);try{localStorage.setItem('bia-gemini-live-history',JSON.stringify(this.history));}catch{}
+  this.history=this.history.slice(-this.tours);try{localStorage.setItem('bia-gemini-live-history',JSON.stringify(this.history));}catch{}
+  /* ── LE TOUR EST GARDÉ, COMME SUR KHALAM ─────────────────────────────
+     `void` : écrire ne doit jamais retarder la parole suivante. Un souvenir
+     perdu coûte un souvenir ; une seconde d'attente se paie à chaque
+     phrase. C'est la règle de lib/souvenirs.ts, appliquée ici aussi. */
+  if(this.personne&&(dit.trim()||repondu.trim())){
+   void fetch('/api/gemini-live/souvenir',{method:'POST',keepalive:true,
+    headers:{'content-type':'application/json','x-bia-code':this.code},
+    body:JSON.stringify({personne:this.personne,dit,repondu})}).catch(()=>{});
+  }
   this.userText='';this.biaText='';
  }
  couperMicro(v:boolean){this.muted=v;if(v)this.send({realtimeInput:{audioStreamEnd:true}});}

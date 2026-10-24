@@ -53,18 +53,36 @@ export function extraitsPourTour(texte:string,question:string,budget:number){
  return retenus.sort((a,b)=>a.i-b.i).map(b=>b.t).join('\n');
 }
 
+/** Un réglage absent ou absurde ne doit jamais couper la mémoire en silence. */
+const borneMemoire = (v: number | undefined, defaut: number) =>
+  Number.isFinite(v) && (v as number) > 0 && (v as number) <= 200000 ? Math.round(v as number) : defaut;
+
 export function messagesConversation(o: {
   question: string; history: Array<{role: string; content: string}>;
   contexte?: string; resume?: string; outils?: string; nom?: string; maitre?: boolean;
   suggestionsTranscription?: string[];
   rapide?: boolean;
+  /* ── LES RÉGLAGES DE MÉMOIRE ARRIVENT PAR ICI, PAS PAR UN IMPORT ─────────
+     Ce fichier est chargé comme module `data:` par tests/conversation-groq :
+     un import relatif y est irrésoluble (même leçon que lib/diffusion.ts, le
+     24 octobre 2026). L'appelant lit lib/memoire-reglages.ts et passe les
+     valeurs ; les replis ci-dessous sont les nouveaux défauts. */
+  memoire?: {filMessages?:number;filSignes?:number;souvenirs?:number;lexique?:number;lecons?:number;contexte?:number};
   selection?: boolean;
   fiches?: string; instructions?: string; devoirs?: string; vitrine?: string; produits?: string; souvenirs?: string; lexique?: string; lecons?: string; connaissances?: string; maitrises?: string;
 }): MessageConversation[] {
   if(o.rapide){
+    /* ── LES CISEAUX QUI LUI ONT PRIS SA MÉMOIRE ────────────────────────────
+
+       Mesuré le 24 octobre 2026 sur /api/etat : souvenirs_signes 1799 alors
+       que 12 540 souvenirs existent. Ces quatre nombres étaient en dur ici,
+       et `rapide:true` est posé par le chemin de conversation ORDINAIRE
+       (app/api/chat/route.ts) — donc ils s'appliquaient à tous ses tours, pas
+       à un mode d'essai. Ils sont maintenant réglables et publiés. Voir
+       lib/memoire-reglages.ts, qui porte aussi ce que ça coûte. */
     const q=o.question+' '+o.history.slice(-2).map(m=>m.content).join(' ');
-    o={...o,souvenirs:extraitsPourTour(o.souvenirs||'',q,1800),lexique:extraitsPourTour(o.lexique||'',q,2200),
-      lecons:extraitsPourTour(o.lecons||'',q,2000),contexte:o.contexte?.slice(-1800)};
+    o={...o,souvenirs:extraitsPourTour(o.souvenirs||'',q,borneMemoire(o.memoire?.souvenirs,4500)),lexique:extraitsPourTour(o.lexique||'',q,borneMemoire(o.memoire?.lexique,2800)),
+      lecons:extraitsPourTour(o.lecons||'',q,borneMemoire(o.memoire?.lecons,2800)),contexte:o.contexte?.slice(-borneMemoire(o.memoire?.contexte,3600))};
   }
   // Retrieval must not invalidate the cached personality prefix each turn.
   const systeme = [personnaliteConversation(o.nom, o.maitre), CONSIGNE_COMPREHENSION].filter(Boolean).join("\n\n");
@@ -104,16 +122,25 @@ export function messagesConversation(o: {
     connaissances_khalam_signes: Math.min(o.connaissances?.length || 0, 4000),
   };
   if (contexte) messages.push({role: "system", content: contexte});
-  const recent = o.history.slice(o.rapide?-12:-40).filter(m => m.role === "user" || m.role === "assistant");
+  /* LE FIL : le téléphone en envoie 32 à 40 (lib/fenetre-du-fil.ts) et le
+     serveur n'en gardait que DOUZE en mode rapide, avec 6 000 signes de
+     budget. Le plafond serveur était déjà 40 : on envoyait et on jetait. */
+  const recent = o.history.slice(o.rapide?-borneMemoire(o.memoire?.filMessages,40):-40).filter(m => m.role === "user" || m.role === "assistant");
   const retenus: MessageConversation[] = [];
-  let restant = o.rapide?6000:Math.max(6000, 24000 - systeme.length - outils.length - contexte.length - o.question.length);
+  let restant = o.rapide?borneMemoire(o.memoire?.filSignes,24000):Math.max(6000, 24000 - systeme.length - outils.length - contexte.length - o.question.length);
+  /* Un message trop long ne doit plus faire tomber TOUT ce qui le précède :
+     on le saute et on continue à remonter. Avant, un seul récit de 6 000
+     signes effaçait les onze autres messages d'un coup. */
+  let sautes = 0;
   for (let i = recent.length - 1; i >= 0; i--) {
     const m = recent[i];
-    if (m.content.length > restant) break;
+    if (m.content.length > restant) { sautes++; if (restant <= 0) break; continue; }
     retenus.unshift({role: m.role as "user" | "assistant", content: m.content});
     restant -= m.content.length;
   }
   transmissionMemoire.derniere!.historique_tours=retenus.length;
+  transmissionMemoire.derniere!.historique_recu=recent.length;
+  transmissionMemoire.derniere!.historique_sautes=sautes;
   messages.push(...retenus);
   messages.push({role: "system", content: [
     langueConversation(o.question,o.history)==="wo"

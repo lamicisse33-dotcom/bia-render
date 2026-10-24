@@ -45,6 +45,8 @@ import { chercherImages, chercherVideos, consigneTrouver, imagesActives, videosA
 import { SOCLE_RELATIONS, consigneRelationsProches, estSujetRelation } from "@/lib/relations";
 import { noterPanne, oublierPanne } from "@/lib/panne";
 import { noterEtape } from "@/lib/etapes";
+import { ouvrirLecture, noterLectureSource, fermerLecture } from "@/lib/lectures-supabase";
+import { filRapideMessages, filRapideSignes, souvenirsSignes, lexiqueSignes, leconsSignes, contexteSignes } from "@/lib/memoire-reglages";
 import { noterFil, noterModele } from "@/lib/depense";
 
 import { FIL_AU_PLUS } from "@/lib/fenetre-du-fil";
@@ -1833,13 +1835,19 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
 
     // Start independent read-only context retrieval while personal memory loads.
     // Capture rejection immediately; rethrow at the original consumption point.
+    /* ── CE QUE CHAQUE SOURCE A VRAIMENT RENDU, TOUR PAR TOUR ────────────
+       Demandé par Lamine le 24 octobre 2026. `memoire_transmise` donnait les
+       signes transmis ; il manquait les LIGNES lues par source, et de quoi
+       distinguer « zéro ligne rendue » de « pas lu du tout ». Voir
+       lib/lectures-supabase.ts. */
+    const releve=ouvrirLecture(String(departPreparation),'khalam');
     const contexteEnCours=Promise.all([
       chrono('khalam',()=>savoirKhalam()),chrono('produits',()=>savoirProduits()),chrono('vitrine',()=>catalogue()),
       Promise.all([
-      chrono('devoirs',()=>contexteDevoirs(question,body.history)).catch(()=>{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");return "";}),
-      maitre.ok&&maitre.maitre?chrono('instructions',()=>contexteInstructions()).catch(()=>{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");return "";}):Promise.resolve(""),
-      maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?chrono('maitrises',()=>contexteMaitrises(question,body.history,3000)).catch(()=>""):Promise.resolve(""),
-      chrono('fiches',()=>fichesPourConversation(question,body.history||[],3500)),
+      chrono('devoirs',()=>contexteDevoirs(question,body.history)).then(t=>{noterLectureSource(releve,'devoirs',t?t.split('\n').filter(Boolean).length:0,t.length);return t;}).catch(()=>{noterPanne("mémoire des devoirs","Supabase inaccessible","chat");noterLectureSource(releve,'devoirs',0,0);return "";}),
+      maitre.ok&&maitre.maitre?chrono('instructions',()=>contexteInstructions()).then(t=>{noterLectureSource(releve,'instructions',t?1:0,t.length);return t;}).catch(()=>{noterPanne("instructions pédagogiques","Supabase inaccessible","chat");noterLectureSource(releve,'instructions',0,0);return "";}):Promise.resolve(""),
+      maitre.ok&&!body.apprend&&!body.apprentissageTest&&!body.malDit?.encours?chrono('maitrises',()=>contexteMaitrises(question,body.history,3000)).then(t=>{noterLectureSource(releve,'maitrises',t?t.split('\n').filter(Boolean).length:0,t.length);return t;}).catch(()=>""):Promise.resolve(""),
+      chrono('fiches',()=>fichesPourConversation(question,body.history||[],3500)).then(t=>{noterLectureSource(releve,'fiches',t?t.split('\n').filter(Boolean).length:0,t.length);return t;}),
       utiliserChoix?chrono('choix',()=>choixDuTour(question,body.history)).catch(()=>null):Promise.resolve(null),
       Promise.resolve(''), // BIBA now shares the common memory retrieval.
 
@@ -1848,7 +1856,7 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
       valeurs=>({ok:true as const,valeurs}),
       erreur=>({ok:false as const,erreur}),
     );
-    const motsEnCours=chrono('mots_corriges',()=>motsCorriges()).then(
+    const motsEnCours=chrono('mots_corriges',()=>motsCorriges()).then(v=>{noterLectureSource(releve,'mots_corriges',v.length,JSON.stringify(v).length);return v;}).then(
       valeurs=>({ok:true as const,valeurs}),
       erreur=>({ok:false as const,erreur}),
     );
@@ -2126,7 +2134,9 @@ quelqu'un parce que le sujet est glissant.`;
        reformule, et une reformulation devient un souvenir faux au tour
        suivant. Dans la partie VARIABLE, jamais dans le socle mis en cache :
        ces passages changent à chaque question. */
-    const souvenirsDuTour=consigneDesSouvenirs(await chrono('souvenirs_attente',()=>laMemoire));
+    const souvenirsLus=await chrono('souvenirs_attente',()=>laMemoire);
+    noterLectureSource(releve,'souvenirs',souvenirsLus.length,JSON.stringify(souvenirsLus).length);
+    const souvenirsDuTour=consigneDesSouvenirs(souvenirsLus);
     variable+=souvenirsDuTour;
 
     /* ── ET CE QU'ELLE A FAIT ELLE-MÊME ────────────────────────────────────
@@ -2354,6 +2364,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
       }
 
       const exacte=await chrono('correction_exacte',()=>correctionExacte(question));
+      noterLectureSource(releve,'corrections_exactes',exacte?1:0,exacte?String(exacte.corrigee||'').length:0);
       if(exacte){
         /* ── UNE CORRECTION SE RESSERT TELLE QUELLE ─────────────────────────
 
@@ -2759,6 +2770,8 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
         fiches:[fichesDuTour,bibaDuTour].filter(Boolean).join('\n'),instructions:instructionsDuTour,devoirs:choixIntegre?.consigne?"":devoirs,vitrine:aMontrer,
         produits: produitsDuTour, souvenirs: souvenirsDuTour, lexique: lexiqueDuTour, lecons: leconsDuTour, connaissances: "",
         resume, outils, maitrises:choixIntegre?.consigne||maitrises, nom: "BIA", maitre: verdict.maitre, rapide:true,selection:!!choixIntegre?.consigne,
+        /* Les réglages de mémoire du 24 octobre 2026 : voir lib/memoire-reglages.ts. */
+        memoire:{filMessages:filRapideMessages(),filSignes:filRapideSignes(),souvenirs:souvenirsSignes(),lexique:lexiqueSignes(),lecons:leconsSignes(),contexte:contexteSignes()},
       });
       if(rapiditeOptimisee(body.essaiRapidite))messages.push({role:"system",content:"ESSAI DE RÉACTIVITÉ : commence par une phrase complète, utile et naturelle de 6 à 10 mots environ, puis développe si nécessaire. Pas de formule pour meubler. Conserve intégralement toute formulation apprise, correction ou citation exacte, même plus longue ; ne la coupe jamais pour raccourcir. Les règles de compréhension et de langue restent prioritaires."});
       return messages;
@@ -2895,6 +2908,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     // The voice route still rechecks its normal cache and correction revision.
     if(maitre.ok)anticiperLexiqueVoix();
     const partiModele=Date.now();
+    fermerLecture(releve);
     if(body.mesureDiagnostic)body.mesureDiagnostic.preparation_ms=partiModele-departPreparation;
     noterEtape("preparation",departPreparation,partiModele,partiModele,question.length);
     const premiersReglages={plafond:PLAFOND,avecOutil:cherche,reflexion:(reflechit?"allumee":"eteinte") as Reflexion};

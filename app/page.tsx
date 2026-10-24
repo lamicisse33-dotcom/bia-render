@@ -4780,7 +4780,12 @@ export default function Home() {
             body:JSON.stringify({type:'khalam_rapide',etape:'premier_son',ms,...tour}),keepalive:true}).catch(()=>{});
         },
         erreur:message=>terminer(message),
-      },historyRef.current);
+      },historyRef.current,
+      /* Levier mémoire du 24 octobre 2026 : le nombre de tours gardés vient du
+         serveur (BIA_LIVE_HISTORIQUE), et la personne sert à écrire dans
+         khalam_souvenirs — sans elle, Khalam Rapide n'écrivait rien. */
+      (moteursRef.current as {reglages_memoire?:{live_historique_tours?:number}}|null)?.reglages_memoire?.live_historique_tours,
+      estMaitreRef.current?'maitre':'');
       liveMaitreRef.current=moteur;setPanne('');
       await moteur.demarrer();return;
     }

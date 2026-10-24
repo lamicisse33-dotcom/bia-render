@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "7b31a4fc83d93d3eaf8643c6ce1825ebfe5c541d6ec0c6a5a8c266ec8b17b651",
+    "app/page.tsx": "28a50fb8bd69cde73aca69e3a29b83965339c0c0e99bd889aca594e1903fd31e",
     "lib/micro.ts": "225f42ffbe4c66c4c61c97d7ae6376506d94d4b8e3348582e67d7fae30b9f2ce",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -204,5 +204,18 @@
     "reversible": "BIA_TETE_COURTE_SIGNES=0 rend la tête d'avant ; BIA_PHRASE_LONGUE_SIGNES règle le seuil de phrase longue ; BIA_BRIQUES_FINALES=oui rallume l'essai refusé. Tous publiés dans briques_conversation.",
     "verification": "113 épreuves des lots concernés vertes, dont quatre nouvelles sur la tête courte (phrase courte intacte, virgule trop tôt qui cherche la suivante, « 1,5 » qui n'est pas une pause, réglage à zéro) et une qui rejoue la règle de décision du levier 4 sur les chiffres réels. tsc et npm run build passent.",
     "ce_qui_doit_etre_ecoute": "Un début plus court sur les phrases longues, donc une couture après la première virgule au lieu d'une phrase d'un seul souffle. Si cette couture s'entend mal, BIA_TETE_COURTE_SIGNES=0. Aucun gain n'est annoncé : la fabrication de la voix se relira dans tours.reponse_du_modele."
+  },
+  "migration_memoire_deux_moteurs_20261024": {
+    "autorise": "Lamine, 24 octobre 2026 : « BIA n'a plus de mémoire et se perd dans les discussions. Diagnostique par la mesure, moteur par moteur, puis corrige. »",
+    "diagnostic": "Lu sur /api/etat AVANT de toucher à quoi que ce soit — memoire_transmise.derniere : historique_tours 12 (le téléphone en envoie 32 à 40, lib/fenetre-du-fil.ts), souvenirs_signes 1799 (12 540 souvenirs existent), lexique_signes 1898, lecons_signes 0, devoirs_signes 0 (125 devoirs, 74 actifs), instructions_signes 9111. Souvenirs : gardes 22, cherches 8, retrouves 8, part_qui_retrouve 100 — la recherche marchait, c'est la transmission qui coupait.",
+    "cause": "Un seul drapeau : app/api/chat/route.ts appelle la conversation avec `rapide:true`, et dans ce mode lib/conversation-groq.ts coupait tout en dur — fil aux 12 derniers messages, budget 6 000 signes, souvenirs 1 800, lexique 2 200, leçons 2 000, contexte 1 800. Six échanges de mémoire : c'est mot pour mot « elle se perd dans la discussion ».",
+    "perimetre": "Parmi les chemins protégés, seul app/page.tsx change : il passe à la connexion rapide le nombre de tours publié par le serveur et la personne « maitre », sans quoi Khalam Rapide n'écrivait rien. Aucun changement de micro, d'endpointing, de transport de synthèse, de voix ni de modèle.",
+    "cle_partagee": "LE DÉTAIL QUI DÉCIDE TOUT : app/api/chat/route.ts garde et retrouve sous la personne « maitre ». Khalam Rapide écrit maintenant sous LE MÊME mot. Un « maitre-vocal » ou un hachage du code aurait donné deux mémoires qui ne se parlent pas, et la conversation du soir serait restée invisible le lendemain. Une épreuve l'interdit désormais.",
+    "conversation_groq_sans_import": "lib/conversation-groq.ts ne doit RIEN importer : tests/conversation-groq le charge comme module `data:`, où un import relatif est irrésoluble — même leçon que lib/diffusion.ts le même jour. Les réglages arrivent donc en paramètre `memoire`, avec des replis locaux égaux aux nouveaux défauts.",
+    "reversible": "Une variable Render par ciseau, sans déploiement : BIA_FIL_MESSAGES=12, BIA_FIL_SIGNES=6000, BIA_SOUVENIRS_SIGNES=1800, BIA_LEXIQUE_SIGNES=2200, BIA_LECONS_SIGNES=2000, BIA_CONTEXTE_SIGNES=1800, BIA_LIVE_HISTORIQUE=12, BIA_LIVE_COMPRESSION=18000. Toutes publiées dans reglages_memoire, à côté des valeurs d'avant le 24 octobre.",
+    "cout": "Le socle est mis en cache, le FIL NE L'EST PAS : passer de 12 à 40 messages ajoute 5 000 à 6 000 signes par tour, ~1 500 jetons d'entrée payés plein tarif à chaque phrase. C'est la dépense racontée dans AVANT-DE-DIRE-QUE-C-EST-BON.md. À relire dans depense et memoire_transmise avant de monter davantage.",
+    "preuve": "Nouveau champ lectures_supabase : lignes et signes rendus PAR SOURCE et PAR TOUR, séparés par moteur, avec `tours_a_zero_ligne` qui distingue une source ayant rendu zéro ligne d'une source non lue — les trois causes possibles du « devoirs_signes 0 ». Nouveau champ outil_connaissances : appels réels de chercher_connaissances, par action, refus et réponses sans aucune ligne.",
+    "verification": "405 épreuves vertes, dont cinq nouvelles dans tests/memoire-deux-moteurs.test.mjs (ciseaux et retour par variable, message trop long sauté au lieu d'abandonner le fil, clé de mémoire identique sur les deux moteurs, zéro ligne distingué de source non lue, compteur d'outil) et les assertions ajoutées à tests/gemini-live sur l'injection dès l'ouverture. tsc et npm run build passent.",
+    "non_valide": "Aucun gain n'est annoncé sur ce que Lamine ressent. Ce qui est prouvé : les sources sont lues et transmises, avec leurs comptes. Qu'elle « se souvienne » se juge dans une conversation, pas dans un champ."
   }
 }

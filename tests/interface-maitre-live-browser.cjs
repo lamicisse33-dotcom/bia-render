@@ -107,6 +107,11 @@ let browser;
  assert(vuesRapide.includes('/api/gemini-live/session'),JSON.stringify(vuesRapide));
  assert(!vuesRapide.some(c=>c.startsWith('/api/chatterbox-test')),JSON.stringify(vuesRapide));
  assert(!vuesRapide.includes('/api/ecouter'),JSON.stringify(vuesRapide));
+ /* ── KHALAM RAPIDE ÉCRIT SES SOUVENIRS (24 octobre 2026) ────────────────
+    Avant ce jour, `garder()` n'était appelé que par Khalam : une conversation
+    entière sur la connexion rapide ne laissait AUCUNE ligne dans
+    khalam_souvenirs, et le lendemain BIA ne se rappelait de rien. */
+ assert(vuesRapide.includes('/api/gemini-live/souvenir'),'le tour doit être gardé : '+JSON.stringify(vuesRapide));
 
  /* Et en « Khalam », le même geste n'ouvre AUCUNE connexion rapide. Dans un
     contexte neuf : les panneaux ouverts par la scène précédente recouvrent

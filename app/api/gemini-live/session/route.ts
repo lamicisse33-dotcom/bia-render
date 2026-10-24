@@ -5,12 +5,17 @@ import {verifierCode} from '@/lib/codes';
 import {motsCorriges} from '@/lib/lexique';
 import {contexteInstructions} from '@/lib/instructions-apprentissage';
 import {BIA_LIVE_CONSIGNES_BASE,BIA_LIVE_LANGUES} from '@/lib/gemini-live-prompt';
+import {derniersSouvenirs,consigneDesSouvenirs} from '@/lib/souvenirs';
+import {correctionExacte,toutes} from '@/lib/lexique';
+import {contexteDevoirs} from '@/lib/devoirs-apprentissage';
+import {liveHistoriqueTours,liveCompressionJetons,liveCompressionCible} from '@/lib/memoire-reglages';
+import {ouvrirLecture,noterLectureSource,fermerLecture} from '@/lib/lectures-supabase';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 const sessions=new Map<string,number[]>();
 const headers={'cache-control':'no-store'};
 const cle=()=>process.env.GEMINI_API_KEY||process.env.GOOGLE_API_KEY||'';
-export async function GET(){return NextResponse.json({configure:Boolean(cle()),modele:process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live',langues_autorisees:['fr','wo'],voix:'Kore',consigne_debit:'pose',consignes_base:{empreinte_sha256:createHash('sha256').update(BIA_LIVE_CONSIGNES_BASE).digest('hex'),sources:['identite_et_personnalite_bia','relations','comprehension_conversation','consigne_maitre'],instructions_apprises:true},diagnostic:resumeGeminiLive()},{headers});}
+export async function GET(){return NextResponse.json({configure:Boolean(cle()),historique_tours:liveHistoriqueTours(),compression_jetons:liveCompressionJetons(),modele:process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live',langues_autorisees:['fr','wo'],voix:'Kore',consigne_debit:'pose',consignes_base:{empreinte_sha256:createHash('sha256').update(BIA_LIVE_CONSIGNES_BASE).digest('hex'),sources:['identite_et_personnalite_bia','relations','comprehension_conversation','consigne_maitre'],instructions_apprises:true},diagnostic:resumeGeminiLive()},{headers});}
 export async function POST(req:NextRequest){
  const acces=verifierCode(req.headers.get('x-bia-code'),false);
  if(!acces.ok)return NextResponse.json({erreur:'Code d’accès refusé.'},{status:401,headers});
@@ -19,6 +24,15 @@ export async function POST(req:NextRequest){
  if(origine&&origine!==req.nextUrl.origin&&origine!=='https://app.khalam.app')return NextResponse.json({erreur:'Origine refusée.'},{status:403,headers});
  if(!cle())return NextResponse.json({erreur:'La clé de Khalam Rapide doit être configurée sur le serveur.',motif:'cle_absente'},{status:503,headers});
  const id=createHash('sha256').update(req.headers.get('x-bia-code')||'').digest('hex'),now=Date.now();
+ /* ── LA MÊME CLÉ QUE KHALAM, OU DEUX MÉMOIRES SÉPARÉES ──────────────────
+    app/api/chat/route.ts garde et retrouve sous la personne « maitre » pour
+    le code maître (quiParleIci / quiParle). Écrire ici sous un autre nom
+    aurait donné à Lamine deux mémoires qui ne se parlent pas — et la
+    conversation du soir serait restée invisible le lendemain. C'est exactement
+    le même mot, et c'est voulu.
+    Sans code maître, Khalam ne garde rien faute de personne : on fait pareil
+    plutôt que d'inventer une identité. */
+ const personne=acces.maitre?'maitre':'';
  for(const [k,v] of sessions)if(!v.some(t=>now-t<60000))sessions.delete(k);
  const recent=(sessions.get(id)||[]).filter(t=>now-t<60000);
  if(recent.length>=6)return NextResponse.json({erreur:'Trop de connexions rapprochées. Réessaie dans une minute.'},{status:429,headers});
@@ -28,14 +42,56 @@ export async function POST(req:NextRequest){
     app/api/chat/route.ts : la connexion est ouverte à tous depuis le 23 octobre
     2026, la mémoire privée de Lamine ne l'est pas. Le lexique corrigé, lui, est
     la façon de parler de BIA — il vaut pour tout le monde. */
- try{const [apprises,mots]=await Promise.all([acces.maitre?contexteInstructions():Promise.resolve(''),motsCorriges()]);instructions=apprises;corrections=mots.length?'CORRECTIONS DE LANGUE DU MAÎTRE — leur forme corrigée fait autorité :\n'+JSON.stringify(mots):'';}catch{return NextResponse.json({erreur:'Les consignes apprises sont momentanément inaccessibles.'},{status:503,headers});}
+ /* ── CE QUI MANQUAIT À L'OUVERTURE, ET QUI EXPLIQUE « PLUS DE MÉMOIRE » ──
+
+    Avant le 24 octobre 2026, la session rapide ne recevait QUE les consignes
+    apprises et les mots corrigés. Les souvenirs, les corrections exactes et
+    les devoirs n'arrivaient que SI le modèle appelait `chercher_connaissances`
+    de lui-même — et rien ne l'y obligeait. Lamine parlait donc à une BIA qui
+    ne savait rien de leurs échanges précédents tant qu'elle n'avait pas eu
+    l'idée de demander.
+
+    Tout part maintenant DÈS l'ouverture. L'outil reste là pour approfondir,
+    il n'est plus la seule porte. */
+ let souvenirs='';let exactes='';let devoirs='';
+ const releve=ouvrirLecture('live-'+id.slice(0,16),'khalam_rapide');
+ try{
+   const [apprises,mots,memoire,lexique,socleDevoirs]=await Promise.all([
+     acces.maitre?contexteInstructions():Promise.resolve(''),
+     motsCorriges(),
+     /* Pas de question à l'ouverture : on prend les derniers échanges par
+        leur date. Voir derniersSouvenirs() dans lib/souvenirs.ts. */
+     derniersSouvenirs(personne,liveHistoriqueTours()).catch(()=>[]),
+     toutes().catch(()=>[]),
+     contexteDevoirs('',[]).catch(()=>''),
+   ]);
+   instructions=apprises;
+   noterLectureSource(releve,'instructions',apprises?1:0,apprises.length);
+   corrections=mots.length?'CORRECTIONS DE LANGUE DU MAÎTRE — leur forme corrigée fait autorité :\n'+JSON.stringify(mots):'';
+   noterLectureSource(releve,'mots_corriges',mots.length,corrections.length);
+   souvenirs=consigneDesSouvenirs(memoire);
+   noterLectureSource(releve,'souvenirs',memoire.length,souvenirs.length);
+   /* LES CORRECTIONS EXACTES : la formulation validée fait autorité sur la
+      sienne, et elle ne doit pas attendre un appel d'outil pour exister. */
+   const paires=lexique.filter(e=>e.source&&e.corrigee).slice(0,120)
+     .map(e=>({question:String(e.source).slice(0,200),reponse:String(e.corrigee).slice(0,400)}));
+   exactes=paires.length?'FORMULATIONS VALIDÉES PAR UN LOCUTEUR — elles font autorité sur la tienne, reprends-les mot pour mot quand la question correspond :\n'+JSON.stringify(paires):'';
+   noterLectureSource(releve,'corrections_exactes',paires.length,exactes.length);
+   noterLectureSource(releve,'lexique',lexique.length,0);
+   devoirs=socleDevoirs?'DEVOIRS APPRIS — formulations exactes à privilégier :\n'+socleDevoirs.slice(0,12000):'';
+   noterLectureSource(releve,'devoirs',socleDevoirs?socleDevoirs.split('\n').filter(Boolean).length:0,devoirs.length);
+ }catch{return NextResponse.json({erreur:'Les consignes apprises sont momentanément inaccessibles.'},{status:503,headers});}
+ finally{fermerLecture(releve);}
  const setup={
   model:'models/'+(process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live').replace(/^models\//,''),
   generationConfig:{responseModalities:['AUDIO'],maxOutputTokens:512,speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Kore'}}}},
-  systemInstruction:{parts:[{text:BIA_LIVE_LANGUES+'\n\n'+BIA_LIVE_CONSIGNES_BASE+'\n'+instructions+'\n'+corrections+'\nMODE VOCAL DIRECT : parle uniquement en français ou en wolof urbain de Dakar selon la langue de papa. Privilégie une réponse naturelle et concise, puis écoute. DÉBIT VOCAL : parle à un rythme modéré et posé, avec une articulation claire en français comme en wolof et de courtes pauses naturelles entre les phrases. Garde une voix chaleureuse et spontanée. Commence dès que la réponse est prête, sans ajouter de silence avant les premiers mots ; prends simplement le temps de prononcer chaque phrase sans précipitation. Cette préférence de débit vaut aussi après un changement de langue ou une ancienne réponse plus rapide. Les consignes de base et les formulations exactes apprises priment sur la concision. Ne coupe jamais la parole. Ne récite pas les prix des devoirs sans demande explicite. Tu peux dire « papa » rarement, comme une marque d’affection occasionnelle, jamais à chaque phrase ou à chaque réponse. Laisse passer plusieurs échanges sans le répéter ; réponds le plus souvent sans appellation. Cette préférence récente prime sur toute ancienne habitude ou consigne qui le répétait systématiquement. N’ajoute jamais ce mot aux phrases exactes à répéter. Ne lis jamais les balises techniques à voix haute : dans ce mode, exprime les émotions naturellement dans la voix. Les anciennes commandes d’écran ne sont pas exécutées dans ce mode : ne prétends pas avoir effectué une action. Consulte chercher_connaissances avant de répondre à une question de langue, une correction ou un sujet couvert par les devoirs. Cet outil consulte les devoirs, le lexique Supabase, le lexique partagé et les consignes récentes. Pour lister tous les devoirs ou tout le lexique, utilise les actions de liste et leur pagination ; pour lire un devoir exact, utilise son identifiant retourné par la liste. Ne dis jamais que tu as consulté la mémoire sans un résultat effectif de cet outil. Ne prétends jamais avoir enregistré un nouvel apprentissage : renvoie vers le mode habituel pour cela.'+'\n\n'+BIA_LIVE_LANGUES}]},
+  systemInstruction:{parts:[{text:BIA_LIVE_LANGUES+'\n\n'+BIA_LIVE_CONSIGNES_BASE+'\n'+instructions+'\n'+corrections+'\n'+exactes+'\n'+devoirs+'\n'+souvenirs+'\nMODE VOCAL DIRECT : parle uniquement en français ou en wolof urbain de Dakar selon la langue de papa. Privilégie une réponse naturelle et concise, puis écoute. DÉBIT VOCAL : parle à un rythme modéré et posé, avec une articulation claire en français comme en wolof et de courtes pauses naturelles entre les phrases. Garde une voix chaleureuse et spontanée. Commence dès que la réponse est prête, sans ajouter de silence avant les premiers mots ; prends simplement le temps de prononcer chaque phrase sans précipitation. Cette préférence de débit vaut aussi après un changement de langue ou une ancienne réponse plus rapide. Les consignes de base et les formulations exactes apprises priment sur la concision. Ne coupe jamais la parole. Ne récite pas les prix des devoirs sans demande explicite. Tu peux dire « papa » rarement, comme une marque d’affection occasionnelle, jamais à chaque phrase ou à chaque réponse. Laisse passer plusieurs échanges sans le répéter ; réponds le plus souvent sans appellation. Cette préférence récente prime sur toute ancienne habitude ou consigne qui le répétait systématiquement. N’ajoute jamais ce mot aux phrases exactes à répéter. Ne lis jamais les balises techniques à voix haute : dans ce mode, exprime les émotions naturellement dans la voix. Les anciennes commandes d’écran ne sont pas exécutées dans ce mode : ne prétends pas avoir effectué une action. Consulte chercher_connaissances avant de répondre à une question de langue, une correction ou un sujet couvert par les devoirs. Cet outil consulte les devoirs, le lexique Supabase, le lexique partagé et les consignes récentes. Pour lister tous les devoirs ou tout le lexique, utilise les actions de liste et leur pagination ; pour lire un devoir exact, utilise son identifiant retourné par la liste. Ne dis jamais que tu as consulté la mémoire sans un résultat effectif de cet outil. Ne prétends jamais avoir enregistré un nouvel apprentissage : renvoie vers le mode habituel pour cela.'+'\n\n'+BIA_LIVE_LANGUES}]},
   inputAudioTranscription:{},outputAudioTranscription:{},
   realtimeInputConfig:{automaticActivityDetection:{startOfSpeechSensitivity:'START_SENSITIVITY_HIGH',endOfSpeechSensitivity:'END_SENSITIVITY_LOW',prefixPaddingMs:150,silenceDurationMs:500},activityHandling:'START_OF_ACTIVITY_INTERRUPTS'},
-  contextWindowCompression:{triggerTokens:'18000',slidingWindow:{targetTokens:'9000'}},
+  /* COMPRESSER, C'EST RÉSUMER — et un résumé relu au tour suivant devient un
+     souvenir faux, ce que lib/souvenirs.ts refuse depuis le début. On recule
+     donc le déclencheur : BIA_LIVE_COMPRESSION le règle depuis Render. */
+  contextWindowCompression:{triggerTokens:String(liveCompressionJetons()),slidingWindow:{targetTokens:String(liveCompressionCible())}},
   sessionResumption:{},historyConfig:{initialHistoryInClientContent:true},
   tools:[{functionDeclarations:[{name:'chercher_connaissances',description:'Lire les devoirs, corrections et lexiques de Bia dans Supabase. Chercher des références pertinentes, lister tous les devoirs ou le lexique avec pagination, et lire intégralement un devoir par son identifiant. Lecture seule.',parameters:{type:'OBJECT',properties:{question:{type:'STRING'},action:{type:'STRING',enum:['chercher','lister_devoirs','lire_devoir','lister_lexique']},devoir_id:{type:'STRING'},offset:{type:'INTEGER'}},required:['question']}}]}]
  };

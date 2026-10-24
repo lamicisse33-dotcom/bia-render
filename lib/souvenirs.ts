@@ -243,6 +243,41 @@ export function motsDeLaQuestion(question: string, combien = 8): string | null {
  * que d'échouer : une mémoire qui ne répond pas ne doit pas empêcher BIA de
  * parler.
  */
+/* ── À L'OUVERTURE, IL N'Y A PAS ENCORE DE QUESTION ────────────────────────
+
+   `retrouver()` part des mots de la question : sans question, il rend une
+   liste vide. Khalam Rapide ouvre sa session AVANT le premier mot, donc il
+   n'avait aucun souvenir à y mettre — et Lamine entendait une BIA qui ne se
+   rappelait de rien. On lit donc les derniers échanges par leur date, sans
+   recherche : c'est ce qui remplace la question au premier instant. */
+export async function derniersSouvenirs(personne: string, combien = 30): Promise<Souvenir[]> {
+  if (!souvenirsActifs() || !String(personne || "").trim()) return [];
+  compte.cherches++;
+  try {
+    const n = Math.max(1, Math.min(120, Math.floor(combien)));
+    const r = await fetch(
+      `${lexiqueConfig.url}/rest/v1/${TABLE}?select=role,texte,langue,created_at`
+      + `&application=eq.${encodeURIComponent(lexiqueConfig.application)}`
+      + `&personne=eq.${encodeURIComponent(personne)}`
+      + `&order=created_at.desc&limit=${n}`,
+      { headers: entetes(), cache: "no-store", signal: AbortSignal.timeout(6000) },
+    );
+    if (!r.ok) throw Error(`Supabase ${r.status}`);
+    const lignes = await r.json() as Array<{ role: string; texte: string; langue: string | null; created_at: string }>;
+    if (!Array.isArray(lignes)) throw Error("Souvenirs invalides");
+    compte.retrouves++;
+    /* Du plus ancien au plus récent : un fil se lit dans l'ordre où il a été dit. */
+    return lignes.reverse().map((l) => ({
+      qui: l.role === "bia" ? "bia" as const : "personne" as const,
+      texte: String(l.texte || ""),
+      quand: l.created_at,
+    }));
+  } catch (e) {
+    compte.pannes++; compte.dernierMotif = (e as Error).message.slice(0, 80);
+    return [];
+  }
+}
+
 export async function retrouver(
   personne: string, question: string, combien = 6,
 ): Promise<Souvenir[]> {

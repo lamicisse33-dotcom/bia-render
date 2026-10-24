@@ -27,10 +27,16 @@ test('session authentication precedes Google and returns only a constrained ephe
  const dependencies={
   '@/lib/gemini-live-diagnostic':{resumeGeminiLive:()=>({statut:'non_lance'})},
   'next/server':{NextResponse:{json:(d,o)=>Response.json(d,o)}},
-  '@/lib/lexique':{motsCorriges:async()=>[{faux:'ancien',juste:'corrigé',fois:1}]},
   '@/lib/codes':{verifierCode:code=>code==='MASTER'?{ok:true,maitre:true}:code==='VISITOR'?{ok:true,maitre:false}:{ok:false}},
   '@/lib/instructions-apprentissage':{contexteInstructions:async()=>'Consignes apprises'},
-  '@/lib/gemini-live-prompt':{BIA_LIVE_CONSIGNES_BASE:'Identité de Bia',BIA_LIVE_LANGUES:'FR_WO_UNIQUEMENT'}
+  '@/lib/gemini-live-prompt':{BIA_LIVE_CONSIGNES_BASE:'Identité de Bia',BIA_LIVE_LANGUES:'FR_WO_UNIQUEMENT'},
+  /* La mémoire part désormais DÈS l'ouverture de session (24 octobre 2026) :
+     le décor rend des sources réelles mais inertes. */
+  '@/lib/souvenirs':{derniersSouvenirs:async()=>[{qui:'personne',texte:'Un échange gardé.',quand:'2026-10-23T00:00:00Z'}],consigneDesSouvenirs:()=>'SOUVENIRS\n- Un échange gardé.'},
+  '@/lib/lexique':{motsCorriges:async()=>[{faux:'ancien',juste:'corrigé',fois:1}],toutes:async()=>[{source:'comment vas-tu',corrigee:'Maa ngi fi rekk.'}]},
+  '@/lib/devoirs-apprentissage':{contexteDevoirs:async()=>'Devoir appris ligne une'},
+  '@/lib/memoire-reglages':{liveHistoriqueTours:()=>40,liveCompressionJetons:()=>60000,liveCompressionCible:()=>30000},
+  '@/lib/lectures-supabase':{ouvrirLecture:()=>'releve',noterLectureSource(){},fermerLecture(){}}
  };
  const calls=[];globalThis.fetch=async(url,init)=>{calls.push({url,init});return Response.json({name:'auth_tokens/ephemeral-test'});};
  process.env.GEMINI_API_KEY='FAKE-SERVER-KEY';delete process.env.GOOGLE_API_KEY;
@@ -57,6 +63,15 @@ test('session authentication precedes Google and returns only a constrained ephe
   const body=JSON.parse(calls[0].init.body);assert.equal(body.uses,1);assert.equal(calls[0].init.headers['x-goog-api-key'],'FAKE-SERVER-KEY');
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.includes('Consignes apprises'));
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.includes('corrigé'));
+  /* ── CE QUI MANQUAIT À L'OUVERTURE, ET QUI EXPLIQUE « PLUS DE MÉMOIRE » ──
+     Avant le 24 octobre 2026, souvenirs, corrections exactes et devoirs
+     n'arrivaient QUE si le modèle appelait l'outil de lui-même. */
+  const consigne=body.bidiGenerateContentSetup.systemInstruction.parts[0].text;
+  assert(consigne.includes('Un échange gardé.'),'les souvenirs partent dès l’ouverture');
+  assert(consigne.includes('Maa ngi fi rekk.'),'les formulations validées aussi');
+  assert(consigne.includes('Devoir appris ligne une'),'et les devoirs appris');
+  assert.equal(body.bidiGenerateContentSetup.contextWindowCompression.triggerTokens,'60000','Google compressait dès 18 000 jetons : compresser, c’est résumer');
+  assert.equal(body.bidiGenerateContentSetup.contextWindowCompression.slidingWindow.targetTokens,'30000');
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.startsWith('FR_WO_UNIQUEMENT'));
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.endsWith('FR_WO_UNIQUEMENT'));assert.deepEqual(body.bidiGenerateContentSetup.generationConfig.responseModalities,['AUDIO']);
   assert(Date.parse(body.expireTime)-Date.now()<=600000);
@@ -127,6 +142,7 @@ test('Live reads all lesson and lexicon pages, exact corrections and master inst
   '@/lib/devoirs-apprentissage':{contexteDevoirs:async()=>{reads++;return 'Répliques du devoir';},devoirsALire:async()=>{reads++;return {devoirs:[{id:'lesson',texte:'Texte exact du devoir'.repeat(500),valide:true,langue:'wo'},{id:'brouillon',texte:'Devoir en cours de relecture',valide:false,langue:'wo'}],incomplets:1};}},
   '@/lib/dialogue-devoirs':{contexteMaitrises:async()=>{reads++;return 'Lexique partagé';}},
   '@/lib/instructions-apprentissage':{contexteInstructions:async()=>{reads++;return 'Consigne exacte du maître';}},
+  '@/lib/outil-connaissances-etat':{noterOutilConnaissances(){}},
   '@/lib/lexique':{lexiqueConfig:{actif:true},lectureLexique:()=>({motif:''}),toutes:async()=>{reads++;return Array.from({length:12},(_,i)=>({source:'source'+i,corrigee:'corrigée'+i}));},correctionExacte:async()=>({source:'question',corrigee:'Réponse validée'}),exemplesPour:async()=>[{source:'question',corrigee:'Réponse validée'}],motsCorriges:async()=>[{faux:'ancien',juste:'corrigé'}]}
  };
  new Function('module','exports','require',compile('app/api/gemini-live/connaissances/route.ts'))(module,module.exports,n=>deps[n]);

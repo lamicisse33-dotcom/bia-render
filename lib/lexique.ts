@@ -96,7 +96,12 @@ export async function ajouterCorrection(e: Entree, remplacement?:{ancienne:strin
    l'escalier : avec proposee d'abord, sans si Supabase refuse — et dans ce
    cas /api/etat le dit (lexique_lecture). */
 let lectureDuLexique = { colonnes: "", motif: "" };
-export function lectureLexique() { return { ...lectureDuLexique }; }
+export function lectureLexique() { return { ...lectureDuLexique, lignes_lues: lignesLues }; }
+/* Combien de lignes la dernière lecture complète a rendues. `devoirs_signes 0`
+   du 24 octobre a montré qu'un zéro de signes ne dit pas si la source a rendu
+   zéro ligne ou n'a pas été lue : on compte donc les lignes à la source. */
+let lignesLues = 0;
+const noterLignesLexique = (n: number) => { lignesLues = n; };
 
 let chargement:Promise<Entree[]>|null=null;
 export async function toutes(): Promise<Entree[]> {
@@ -114,7 +119,7 @@ export async function toutes(): Promise<Entree[]> {
      if(!r.ok){if(r.status===400&&curseur===undefined)break;throw Error('Supabase '+r.status);}
      const page=await r.json() as Array<Entree&{id:number|string}>;if(!Array.isArray(page))throw Error('Lexique invalide');
      valeurs.push(...page.filter(e=>e.application!=="bia-apprentissage-v1"&&e.application!=="verification-correction-prioritaire"));
-     if(!page.length){valeurs.sort((a,b)=>Number(!!b.proposee&&['maitre-correction','maitre-vocal'].includes(b.auteur||''))-Number(!!a.proposee&&['maitre-correction','maitre-vocal'].includes(a.auteur||'')));cache={valeurs,jusqua:Date.now()+60000};lectureDuLexique={colonnes,motif:''};return valeurs;}
+     if(!page.length){lectureDuLexique={colonnes,motif:''};noterLignesLexique(valeurs.length);valeurs.sort((a,b)=>Number(!!b.proposee&&['maitre-correction','maitre-vocal'].includes(b.auteur||''))-Number(!!a.proposee&&['maitre-correction','maitre-vocal'].includes(a.auteur||'')));cache={valeurs,jusqua:Date.now()+60000};lectureDuLexique={colonnes,motif:''};return valeurs;}
      const fin=String(page.at(-1)?.id);if(!/^[0-9a-f-]{1,64}$/i.test(fin)||vus.has(fin))throw Error('Pagination invalide');vus.add(fin);curseur=fin;
     }
    }catch{lectureDuLexique={colonnes,motif:'Lecture complète indisponible — dernier index conservé'};cache={valeurs:cache?.valeurs||[],jusqua:Date.now()+15000};return cache.valeurs;}
