@@ -25,7 +25,13 @@ export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',t
     l'appareil photo — donc « lis-moi ce papier » n'avait pas de réponse.
     La page ouvre le champ de fichier, envoie l'image, et rend le texte À
     BIA, qui le dira elle-même : le prononcer ici aussi ferait deux voix. */
- photo?:()=>Promise<{titre?:string;francais?:string;wolof?:string;erreur?:string}>};
+ photo?:()=>Promise<{titre?:string;francais?:string;wolof?:string;erreur?:string}>;
+ /* ── MONTRER DES IMAGES OU UNE VIDÉO ─────────────────────────────────────
+    Khalam les montre depuis septembre par ses balises d'écran ; Khalam
+    Rapide n'avait rien. La page les affiche — mêmes quotas, même cache,
+    même fournisseur : lib/trouver.ts est appelé une seule fois pour les
+    deux moteurs. */
+ montrer?:(v:{sorte:'image'|'video';requete:string;pieces:Array<Record<string,unknown>>})=>void};
 /* Le niveau au-dessus duquel une voix humaine passe DEVANT l'écho, quelle que
    soit la pièce. En dessous, c'est le plancher appris qui décide. */
 const SEUIL_INTERRUPTION=0.06;
@@ -272,6 +278,25 @@ export class BiaGeminiLive{
       }
       if(call.name==='montrer_le_chemin'){
        const reponse=await this.montrerLeChemin(String(call.args?.destination||'').slice(0,160));
+       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
+       continue;
+      }
+      if(call.name==='montrer_des_images'){
+       const quoi=String(call.args?.quoi||'').slice(0,160);
+       const sorte=call.args?.sorte==='video'?'video':'image';
+       let reponse;
+       try{
+        const r=await fetch('/api/trouver',{method:'POST',signal:AbortSignal.timeout(15000),
+         headers:{'content-type':'application/json',...this.entetes()},
+         body:JSON.stringify({quoi,sorte})});
+        reponse=await r.json();
+        /* L'ÉCRAN S'OUVRE VRAIMENT. Sans ça, elle annoncerait des images que
+           personne ne verrait — c'est exactement ce qui est arrivé à la
+           carte le 23 octobre, et la consigne lui interdit de le dire sans
+           cet outil. */
+        if(reponse?.trouve&&this.events.montrer)this.events.montrer({sorte,requete:quoi,pieces:reponse.pieces||[]});
+        else if(reponse?.trouve)reponse={trouve:false,raison:'L’écran n’est pas disponible ici : ne promets pas d’image.'};
+       }catch{reponse={trouve:false,raison:'La recherche n’a pas répondu. Dis-le et propose de réessayer.'};}
        this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
        continue;
       }

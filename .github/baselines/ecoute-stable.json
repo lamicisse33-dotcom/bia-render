@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "4562c754def4309e9eda38e6d1a7a68f54e8df013bd1c923b277930d971f1e34",
+    "app/page.tsx": "bd0831c779c072c8fdd1f4c12056ff16d210c8e708b41c80e532eec9bcfd886d",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -289,5 +289,16 @@
     "ce_qui_n_est_pas_un_direct": "Le modele rend le document d un bloc : il n y a pas de flux de jetons a suivre. Ce qui est montre est un DEVOILEMENT progressif du document recu, au rythme d une main qui ecrit. Pretendre suivre le modele en direct serait un mensonge d affichage, et c est ecrit en tete de Ecrit.tsx. Un telephone regle sur « moins d animations » recoit le document entier tout de suite.",
     "verification": "tsc et npm run build verts. tests/ecrit-plein-browser.cjs execute les QUATRE formats dans une fenetre de 375 x 667 avec la vraie feuille de style : page 375 px sur fenetre 375 px (aucun debordement lateral), texte 16 px (en dessous iOS zoome tout seul), deux boutons de 48 px (en dessous un pouce rate, et « Revenir a BIA » est la seule sortie), etiquette du haut visible sur le message, tableau du devis qui ne deborde pas. Quatre images rendues dans /tmp/bia-ecrit-375. Un workflow borne par chemins le rejoue a chaque changement. Suite complete : aucune nouvelle rupture par rapport a HEAD.",
     "non_valide": "Aucun essai sur son telephone. Il faut dicter une conversation, toucher le bouton du format, et verifier que le document couvre tout l ecran, qu il se devoile, que « Copier le texte » colle bien dans WhatsApp, et que « Revenir a BIA » retrouve la conversation ou elle en etait."
+  },
+  "migration_images_khalam_rapide_20261024": {
+    "authorized": "Lamine, 24 octobre 2026 : « Recherche vocale et recherche d images/videos : verifier, reparer. »",
+    "verification_avant": "Khalam montre des images et des videos depuis septembre ([[cherche-image]], [[regarde]]), et lib/trouver.ts porte les quotas journaliers, le cache de trente minutes et les deux fournisseurs. Khalam Rapide n avait AUCUN geste d ecran en dehors de la carte : « montre-moi » n avait pas de reponse.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change, d UNE ligne : l evenement `montrer` du client rapide appelle montrerSurEcran(versEcran(...)), l afficheur que Khalam utilise deja. Aucun second afficheur qui derivernait du premier. Aucun changement d ASR, de synthese, de modele, de voix ni de micro.",
+    "hash_before": "4562c754def4309e9eda38e6d1a7a68f54e8df013bd1c923b277930d971f1e34",
+    "hash_after": "bd0831c779c072c8fdd1f4c12056ff16d210c8e708b41c80e532eec9bcfd886d",
+    "rien_n_est_duplique": "app/api/trouver/route.ts appelle chercherImages et chercherVideos de lib/trouver.ts — donc les MEMES quotas et le MEME cache pour les deux moteurs ensemble. Une epreuve verifie qu aucun fournisseur n est appele en double et que la route n ecrit rien.",
+    "l_ecran_s_ouvre_vraiment": "C est la faute du 23 octobre avec la carte : elle disait « c est parti » et rien ne s ouvrait. Si l ecran manque, l outil REND un refus au lieu de laisser le modele annoncer des images que personne ne verra, et la consigne partagee lui interdit de le dire sans l outil.",
+    "verification": "tsc, build, 9 epreuves dans tests/papier-et-traduction.test.mjs. Suite complete : aucune nouvelle rupture par rapport a HEAD.",
+    "non_valide": "Aucun essai reel. Il faut dire « montre-moi le marche Sandaga » sur la connexion rapide et verifier que l ecran s ouvre, puis qu elle dit UNE phrase au lieu de decrire les images une par une."
   }
 }

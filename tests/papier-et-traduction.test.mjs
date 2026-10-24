@@ -95,3 +95,41 @@ test('la photo rendue à BIA n’est pas prononcée deux fois',()=>{
  assert.match(corps,/setHistory/,'mais elle garde le français dans le fil, comme le bouton');
  assert.match(corps,/120000/,'et elle lâche la promesse au bout de deux minutes');
 });
+
+/* ── « RECHERCHE D'IMAGES / VIDÉOS : VÉRIFIER, RÉPARER » ───────────────────
+   Vérifié : Khalam les montre depuis septembre par ses balises d'écran, et
+   lib/trouver.ts porte les quotas, le cache et les deux fournisseurs. Khalam
+   Rapide n'avait AUCUN geste d'écran en dehors de la carte. */
+
+test('Khalam Rapide peut enfin montrer des images, par la MÊME route que Khalam',()=>{
+ const session=lire('app/api/gemini-live/session/route.ts');
+ const client=lire('lib/gemini-live-client.ts');
+ const route=lire('app/api/trouver/route.ts');
+ assert.match(session,/name:'montrer_des_images'/,'l’outil doit être déclaré');
+ assert.match(client,/'\/api\/trouver'/,'et servi par le client');
+ /* Rien n'est dupliqué : la route appelle les fonctions de lib/trouver.ts,
+    donc les mêmes quotas journaliers et le même cache de trente minutes. */
+ assert.match(route,/chercherImages|chercherVideos/,'la route réutilise lib/trouver.ts');
+ assert.doesNotMatch(route,/api\.search\.brave|googleapis/,'aucun fournisseur appelé en double');
+ /* Lecture seule : une recherche n’écrit rien. */
+ for(const interdit of ['garder(','rest/v1','lexiqueConfig'])
+  assert.ok(!route.includes(interdit),'la recherche ne doit pas contenir : '+interdit);
+});
+
+test('l’écran s’ouvre VRAIMENT, sinon elle ne doit rien promettre',()=>{
+ const client=lire('lib/gemini-live-client.ts');
+ const page=lire('app/page.tsx');
+ /* La faute du 23 octobre avec la carte : elle disait « c’est parti » et
+    rien ne s’ouvrait. Si l’écran manque, l’outil doit RENDRE un refus. */
+ assert.match(client,/this\.events\.montrer\(/,'l’outil doit ouvrir l’écran');
+ assert.match(client,/ne promets pas d’image/,'et refuser quand l’écran manque');
+ /* Et la page réutilise l’afficheur existant, pas un second qui dériverait. */
+ assert.match(page,/montrer:\(v\)=>\{[^}]*montrerSurEcran\(versEcran\(/,
+  'les images de la connexion rapide passent par le MÊME écran que celles de Khalam');
+});
+
+test('la consigne partagée interdit d’annoncer un écran qu’on n’a pas ouvert',()=>{
+ const socle=fs.readFileSync('lib/socle-bia.ts','utf8').replace(/\s+/g,' ');
+ assert.match(socle,/NE DIS JAMAIS QUE TU MONTRES SANS AVOIR OUVERT L'ÉCRAN/);
+ assert.match(socle,/montrer_des_images/,'l’outil est nommé dans le socle partagé');
+});

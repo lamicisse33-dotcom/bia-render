@@ -4944,6 +4944,10 @@ export default function Home() {
            texte. C'est elle qui le dira — le prononcer ici aussi ferait deux
            voix par-dessus l'autre. */
         photo:()=>photographierPourBia(),
+        /* Les images s'ouvrent sur le MÊME écran que celles de Khalam :
+           versEcran() et montrerSurEcran() existaient déjà, on ne refait pas
+           un deuxième afficheur qui dériverait du premier. */
+        montrer:(v)=>{setClavier(false);montrerSurEcran(versEcran(v as unknown as Parameters<typeof versEcran>[0]));},
         accordPosition:()=>new Promise<boolean>(repondre=>{
           setAccordPosition(()=>(d:boolean)=>{setAccordPosition(null);repondre(d);});
         }),
