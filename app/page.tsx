@@ -1206,6 +1206,14 @@ export default function Home() {
   /* Ce téléphone reçoit-il les notifications, et a-t-elle des rappels ? Les
      deux ensemble disent s'il faut demander l'autorisation — et seulement
      ensemble : demander sans raison, c'est se faire refuser pour toujours. */
+  /* ── QUAND C'EST BIA QUI DEMANDE LA PHOTO ────────────────────────────────
+     Lamine, 24 octobre : « Lecture de documents : vérifier si elle marche ;
+     sinon la construire. » Vérifié : elle marche, mais SEULEMENT par le
+     bouton — donc elle ne sait pas le faire quand on le lui demande à voix
+     haute, et sur Khalam Rapide elle n'avait aucun moyen de l'ouvrir.
+     Ce témoin porte la promesse en attente : quand il est posé, le même
+     champ de fichier rend son résultat à BIA au lieu de le lire lui-même. */
+  const attentePhotoRef = useRef<((f: File | null) => void) | null>(null);
   const notificationsRef = useRef(false);
   const aDesRappelsRef = useRef(false);
   const demandeNotifsFaite = useRef(false);
@@ -3796,6 +3804,16 @@ export default function Home() {
          pose maintenant [[papier:ferme]] et tout s'en va : le bouton qui
          propose d'écrire, le papier déjà écrit, et l'erreur s'il y en avait
          une. C'est le seul de ses gestes qui ne fabrique rien. */
+      /* ── ELLE OUVRE L'APPAREIL PHOTO QUAND ON LE LUI DEMANDE ─────────────
+         Vérifié le 24 octobre : la lecture de papier marchait, mais seulement
+         derrière un bouton — donc elle ne savait pas le faire à la voix.
+         La balise l'ouvre. Le chemin est celui du bouton, inchangé : c'est le
+         téléphone qui lit le papier à voix haute, parce que sur Khalam c'est
+         lui qui porte la voix. */
+      if ((data as {photo?:boolean}).photo) {
+        setPapierOuvert(false);
+        photoRef.current?.click();
+      }
       if (data.papier === "ferme") {
         setPapierPret(null);
         setPapier(null);
@@ -4155,6 +4173,51 @@ export default function Home() {
       busyRef.current = false;
     }
   }, [speak]);
+
+  /* ── PRENDRE UNE PHOTO ET RENDRE SON TEXTE, SANS LE DIRE ─────────────────
+
+     Sur Khalam Rapide, c'est BIA qui parle : si on prononçait le texte ici
+     AUSSI, deux voix se chevaucheraient. Cette fonction rend donc le papier
+     au moteur, qui le dira lui-même.
+
+     DEUX MINUTES D'ATTENTE AU PLUS. Quelqu'un qui ouvre l'appareil photo
+     cadre, reprend, hésite. Mais une promesse qui n'est jamais tenue bloque
+     l'outil pour toujours : on la libère, et on dit pourquoi. */
+  const photographierPourBia = useCallback(async (): Promise<{titre?: string; francais?: string; wolof?: string; erreur?: string}> => {
+    const champ = photoRef.current;
+    if (!champ) return { erreur: "L'appareil photo n'est pas disponible ici." };
+    /* Une demande déjà en cours : on ne superpose pas deux prises. */
+    if (attentePhotoRef.current) return { erreur: "Une photo est déjà attendue." };
+    setPapierOuvert(false);
+    const fichier = await new Promise<File | null>((resoudre) => {
+      const minuteur = setTimeout(() => { attentePhotoRef.current = null; resoudre(null); }, 120000);
+      attentePhotoRef.current = (f) => { clearTimeout(minuteur); resoudre(f); };
+      champ.click();
+    });
+    if (!fichier) return { erreur: "Aucune photo n'est arrivée. Dis-le-lui simplement et propose de réessayer." };
+    try {
+      const { images, type } = await decouperPhoto(fichier);
+      const r = await fetch("/api/papier-photo", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bia-code": codeRef.current },
+        body: JSON.stringify({ images, type }),
+      });
+      const d = await r.json() as { sorte?: string; titre?: string; francais?: string; wolof?: string; erreur?: string };
+      if (!r.ok || !d.wolof)
+        return { erreur: d.erreur === "photo trop lourde"
+          ? "L'image est trop lourde. Demande-lui de la reprendre d'un peu plus loin."
+          : "L'image n'a pas pu être lue. Propose de réessayer." };
+      /* LE FRANÇAIS EST GARDÉ DANS LE FIL, comme pour le bouton : c'est la
+         trace du papier, relisible et corrigeable. Ne garder que le wolof
+         reviendrait à perdre le document. */
+      const marque = d.sorte === "image" ? "🖼" : "📄";
+      const trace = [d.titre ? `${marque} ${d.titre}` : `${marque} Image`, d.francais].filter(Boolean).join("\n\n");
+      setHistory((items) => [...items, { role: "user", text: trace }]);
+      return { titre: d.titre, francais: d.francais, wolof: d.wolof };
+    } catch {
+      return { erreur: "La photo n'a pas pu être envoyée." };
+    }
+  }, []);
 
   /* Pendant qu'elle réfléchit, le visage ne doit pas se figer — mais il ne
      doit pas s'agiter non plus.
@@ -4856,6 +4919,10 @@ export default function Home() {
            l'autorisation des notifications. Parler n'est pas un geste sur
            iPhone, donc on ne peut pas la demander ici. */
         rappelPose:(sonnera:boolean)=>{aDesRappelsRef.current=true;notificationsRef.current=sonnera;},
+        /* Elle demande une photo : on ouvre le champ, et on lui rend le
+           texte. C'est elle qui le dira — le prononcer ici aussi ferait deux
+           voix par-dessus l'autre. */
+        photo:()=>photographierPourBia(),
         accordPosition:()=>new Promise<boolean>(repondre=>{
           setAccordPosition(()=>(d:boolean)=>{setAccordPosition(null);repondre(d);});
         }),
@@ -8506,6 +8573,15 @@ export default function Home() {
             onChange={(e) => {
               const f = e.target.files?.[0];
               e.target.value = "";
+              /* BIA attend cette photo : elle la lira elle-même. Ce chemin
+                 passe DEVANT le bouton, sinon le texte serait prononcé deux
+                 fois — une par le téléphone, une par elle. */
+              if (attentePhotoRef.current) {
+                const rendre = attentePhotoRef.current;
+                attentePhotoRef.current = null;
+                rendre(f ?? null);
+                return;
+              }
               if (f) { setPapierOuvert(false); void lirePapierPhoto(f); }
             }} />
           <button type="button" onClick={() => void askBia(saisie)} disabled={!saisie.trim()} aria-label="Envoyer">

@@ -98,13 +98,43 @@ export async function mesurerLesPortes(): Promise<{
   const url = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
   const publique = process.env.SUPABASE_ANON_KEY || "";
   const service = lexiqueConfig.cle;
-  if (!url || !publique || !service)
+  if (!url || !service)
     return {
       mesurable: false, portes: [], ouvertes: [],
       pourquoi_pas: !url ? "SUPABASE_URL absent"
-        : !publique ? "SUPABASE_ANON_KEY absent : impossible de tester avec la clé publique"
         : "clé de service absente : impossible de distinguer une table fermée d'une table vide",
     };
+
+  /* ── SANS LA CLÉ PUBLIQUE, ON NE REND PAS UNE PAGE VIDE ──────────────────
+
+     SUPABASE_ANON_KEY n'est pas posée sur Render — mesuré le 24 octobre
+     2026 : BIA n'utilise que la clé de service, et c'est plutôt une bonne
+     nouvelle (aucune clé publique ne circule dans l'application). Mais ça
+     rend la moitié du test impossible, et une réponse vide ne dirait pas
+     laquelle.
+
+     On rend donc quand même ce que la clé de service voit : ça prouve que
+     les tables existent et portent des lignes, et ça prépare le verdict dès
+     que la clé publique sera disponible. Un « non mesurable » qui ne montre
+     rien laisse croire qu'on n'a rien cherché. */
+  if (!publique) {
+    const partiel = await Promise.all(TABLES().map(async (table) => {
+      const srv = await compter(url, table, service);
+      return {
+        table, publique: { statut: -1, lignes: null }, service: srv,
+        verdict: "non_mesurable" as const,
+        pourquoi: `La clé de service voit ${srv.lignes ?? "?"} ligne(s). La moitié publique du test n'a pas pu être faite.`,
+      };
+    }));
+    return {
+      mesurable: false, portes: partiel, ouvertes: [],
+      pourquoi_pas:
+        "SUPABASE_ANON_KEY n'est pas posée sur Render : impossible de tester avec la clé publique. " +
+        "BIA n'en a pas besoin pour fonctionner — elle n'utilise que la clé de service — donc rien n'est cassé. " +
+        "Pour trancher la question, il faut poser SUPABASE_ANON_KEY (la clé « anon public » du tableau de bord Supabase, " +
+        "faite pour être publique) et relire ce champ. Je ne la pose pas moi-même.",
+    };
+  }
 
   const portes = await Promise.all(TABLES().map(async (table) =>
     juger({ table, publique: await compter(url, table, publique), service: await compter(url, table, service) })));

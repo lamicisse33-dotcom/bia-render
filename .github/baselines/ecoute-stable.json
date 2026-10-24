@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "3c82875847274b6d932e0e2d4e57acc0d5a02c2902260b64ae4664b82634ca42",
+    "app/page.tsx": "72e4a32e533fb0096f1b5295f9d32ee2d3d25689313e446af4090377dd1301f8",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -265,5 +265,17 @@
     "autorisation_demandee_avec_parcimonie": "L autorisation des notifications n est demandee QUE sur un geste et QUE si la personne a deja un rappel qui ne sonnerait pas. Une demande sans raison se fait refuser, et un refus sur iOS ne se redemande pas.",
     "verification": "tsc et npm run build verts. 22 epreuves dans tests/rappels.test.mjs, dont les routes executees en VRAI avec le vrai depot : poser un rappel a la voix puis le relire et l enlever, une suppression ambigue qui ne supprime rien et redemande, une demande sans heure qui ne pose rien, et surtout — « jamais visibles d un autre » — les rappels du maitre invisibles pour un visiteur et reciproquement. Le chiffrement du push est prouve en le DECHIFFRANT (RFC 8291) : un bloc chiffre qui part ne prouve rien, le service de push ne dira jamais qu il etait illisible. Suite complete : aucune nouvelle rupture par rapport a HEAD.",
     "non_valide": "AUCUN test sur un vrai iPhone ni sur un vrai Android — je n ai pas d appareil ici, et c est la verification qui compte. Il faut : installer BIA sur l ecran d accueil, dicter « rappelle-moi mon medicament dans deux minutes », accepter la demande de notification au geste suivant, fermer BIA, et attendre. Et data/rappels.sql n est PAS colle : tant qu il ne l est pas, /api/etat -> rappels.rangement dit « memoire » et les rappels disparaissent au prochain redemarrage de Render."
+  },
+  "migration_papier_et_traduction_20261024": {
+    "authorized": "Lamine, 24 octobre 2026 : « Traduction wolof <-> francais : l ouvrir dans la conversation, pas seulement par le bouton » et « Lecture de documents : verifier si elle marche ; sinon la construire ».",
+    "verification_avant": "Les deux routes marchent depuis septembre — /api/papier-photo et /api/traduire — et exigent le code. Mais elles n etaient atteignables QUE par un bouton : app/page.tsx etait leur seul appelant. A la voix, « lis-moi ce papier » n avait aucune reponse, ni sur Khalam ni sur Khalam Rapide, et Khalam Rapide n avait aucun moyen d ouvrir l appareil photo.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change, et de trois endroits : une fonction photographierPourBia() qui ouvre le champ de fichier et REND le texte au lieu de le dire, un aiguillage dans le onChange du champ (la promesse en attente passe devant le bouton), et la lecture du drapeau photo de /api/chat pour ouvrir l appareil. Aucun changement d ASR, de synthese, de modele, de voix, de seuil de micro ni de garde de lecture.",
+    "hash_before": "3c82875847274b6d932e0e2d4e57acc0d5a02c2902260b64ae4664b82634ca42",
+    "hash_after": "72e4a32e533fb0096f1b5295f9d32ee2d3d25689313e446af4090377dd1301f8",
+    "pourquoi_elle_ne_prononce_pas": "Sur Khalam Rapide c est BIA qui parle. Si la page prononcait AUSSI le texte du papier, deux voix se chevaucheraient. photographierPourBia ne parle donc jamais — une epreuve verifie qu elle ne contient aucun appel a speak() — mais elle garde le francais dans le fil, comme le bouton : c est la trace du papier, relisible et corrigeable.",
+    "pourquoi_passer_par_la_route_pour_traduire": "Elle SAIT traduire. Mais /api/traduire porte une consigne que la conversation n a pas : dire le papier et RIEN DE PLUS, « elle ne repond pas, elle ne commente pas, elle ne conseille pas ». Sur un courrier d administration, un mot ajoute peut couter cher a quelqu un. La meme interdiction est maintenant dans le socle PARTAGE, donc sur les deux moteurs.",
+    "photo_ou_phototheque": "La balise [[photo]] n a aucun argument et le champ de fichier garde accept=image/* SANS capture — c est la decision de Lamine du 18 septembre, ecrite en commentaire a cote : il voulait pouvoir envoyer une capture d ecran. Forcer l appareil photo seul retirerait cette possibilite. Rien n a ete change la-dessus.",
+    "verification": "tsc et npm run build verts. 6 epreuves dans tests/papier-et-traduction.test.mjs, dont : la balise est reconnue ET retiree du texte parle (le 15 septembre, « mail » manquait dans ce filtre et BIA s est mise a ecrire le mail a la main dans la conversation), une phrase ordinaire qui parle de photo ne declenche RIEN, les deux outils sont declares et servis, et photographierPourBia ne parle jamais. Suite complete : aucune nouvelle rupture par rapport a HEAD.",
+    "non_valide": "Aucun essai sur un vrai telephone. Il faut dire « lis-moi ce papier » sur chaque moteur, cadrer une ordonnance, et verifier qu elle dit le wolof SANS commenter — et qu elle ne le dit pas deux fois."
   }
 }

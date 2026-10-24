@@ -232,6 +232,22 @@ function detacherMicro(texte:string){
 
    ET SA LISTE EST DANS LA CONSIGNE À CHAQUE TOUR. « Quels sont mes rappels »
    n'a donc besoin d'aucun aller-retour : elle la lit déjà. */
+/* ── LIRE UN PAPIER, DEMANDÉ À LA VOIX ────────────────────────────────────
+
+   Vérifié le 24 octobre 2026 : /api/papier-photo marche depuis septembre,
+   mais UNIQUEMENT derrière un bouton. À la voix, « lis-moi ce papier »
+   n'avait aucune réponse — ni sur Khalam, ni sur Khalam Rapide.
+
+   Khalam Rapide reçoit l'outil `lire_un_papier` ; ici c'est une balise, comme
+   la carte. Elle n'a pas d'argument : la photo, c'est la personne qui la
+   cadre, et le téléphone lui laisse le choix entre l'appareil et sa
+   photothèque — c'est la décision de Lamine du 18 septembre, pour pouvoir
+   envoyer une capture d'écran. */
+const PHOTO=/\[{1,2}\s*photo\s*\]{1,2}/i;
+function detacherPhoto(texte:string){
+  return{texte:texte.replace(new RegExp(PHOTO.source,"gi"),"").replace(/\n{3,}/g,"\n\n").trim(),
+    photo:PHOTO.test(texte)};
+}
 const RAPPEL=/\[{1,2}\s*rappel\s*[:\-—]\s*([^\]]{2,300}?)\s*\]{1,2}/i;
 function detacherRappel(texte:string){
   const m=texte.match(RAPPEL);
@@ -2868,6 +2884,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        ce filtre et BIA s'est mise à écrire le mail à la main dans la
        conversation — c'est le seul endroit qui compte. */
     const {texte:sansRappel,rappel:rappelDemande}=detacherRappel(sansRegarde);
+    const {texte:sansPhoto,photo:photoDemandee}=detacherPhoto(sansRappel);
     /* ── ELLE DIT « C'EST PARTI » ET RIEN NE S'OUVRE ──────────────────────
 
        Lamine, le 14 septembre 2026 a 19h : « je lui ai demande de m'amener
@@ -2889,7 +2906,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        main. Les formulations francaises couvrent ce que Lamine et ses
        testeurs emploient ce soir, et les wolof s'ajouteront de SA main. */
     const carteRattrapee = carte || lieuDemandeDans(question);
-    const {texte:reply,cherche:demande}=detacherCherche(sansRappel);
+    const {texte:reply,cherche:demande}=detacherCherche(sansPhoto);
 
     /* ── CE QU'ELLE VIENT DE FAIRE, NOTÉ POUR QU'ELLE PUISSE LE VOIR ───────
 
@@ -3216,7 +3233,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
     noterEmotion(emotion, reply, balise);
     /* La première réponse à une question réutilisable est gardée — sauf si
        elle porte un geste, une recherche, ou le prénom de la personne. */
-    if(reutilisable&&!cherche&&!papier&&!appel&&!voir&&!carteRattrapee&&!film&&!trouve&&!filmRate&&!rayee&&!rappelDemande
+    if(reutilisable&&!cherche&&!papier&&!appel&&!voir&&!carteRattrapee&&!film&&!trouve&&!filmRate&&!rayee&&!rappelDemande&&!photoDemandee
       &&!(Array.isArray(sesGestes)&&sesGestes.length)
       &&!porteUnNomDeLaPersonne(ceQuElleDit,(body.history||[]).filter(h=>h.role!=="bia").map(h=>String(h.text||"")))){
       void garderLaReponse(question,langueDe(question),consigneSignee,ceQuElleDit,String(emotion||"neutre"));
@@ -3228,7 +3245,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        ne garde PAS une réponse qui porte cette note : elle est vraie pour ce
        tour-là seulement. */
     const ditAvecRappel=noteDuRappel?(ceQuElleDit+noteDuRappel).trim():ceQuElleDit;
-    return {corps:{reply:ditAvecRappel,emotion,balise,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,...(rayee?{corrigee:rayee}:{}),source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
+    return {corps:{reply:ditAvecRappel,emotion,balise,papier,appel,voir,carte:carteRattrapee,film,trouve,gestes:sesGestes,...(photoDemandee?{photo:true}:{}),...(rayee?{corrigee:rayee}:{}),source:cherche?"BIA intelligente + internet":"BIA intelligente"}};
   }catch(err){
     console.error("BIA — erreur inattendue :",(err as Error).message);
     noterPanne("exception",(err as Error).message, "chat");

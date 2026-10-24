@@ -18,7 +18,14 @@ export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',t
     geste : sur iPhone, l'autorisation exige un geste, et parler n'en est pas
     un. Sans ce signal, le premier rappel de quelqu'un ne sonnerait jamais —
     la page croirait qu'il n'a aucun rappel et ne demanderait rien. */
- rappelPose?:(sonnera:boolean)=>void};
+ rappelPose?:(sonnera:boolean)=>void;
+ /* ── LIRE UN PAPIER, DEMANDÉ À LA VOIX ───────────────────────────────────
+    Vérifié le 24 octobre : /api/papier-photo marche depuis septembre, mais
+    seulement derrière un bouton. Khalam Rapide n'avait AUCUN moyen d'ouvrir
+    l'appareil photo — donc « lis-moi ce papier » n'avait pas de réponse.
+    La page ouvre le champ de fichier, envoie l'image, et rend le texte À
+    BIA, qui le dira elle-même : le prononcer ici aussi ferait deux voix. */
+ photo?:()=>Promise<{titre?:string;francais?:string;wolof?:string;erreur?:string}>};
 /* Le niveau au-dessus duquel une voix humaine passe DEVANT l'écho, quelle que
    soit la pièce. En dessous, c'est le plancher appris qui décide. */
 const SEUIL_INTERRUPTION=0.06;
@@ -265,6 +272,33 @@ export class BiaGeminiLive{
       }
       if(call.name==='montrer_le_chemin'){
        const reponse=await this.montrerLeChemin(String(call.args?.destination||'').slice(0,160));
+       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
+       continue;
+      }
+      if(call.name==='lire_un_papier'){
+       const reponse=this.events.photo
+        ?await this.events.photo().catch(()=>({erreur:'La photo n’a pas pu être prise.'}))
+        :{erreur:'L’appareil photo n’est pas disponible sur cet écran.'};
+       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
+       continue;
+      }
+      if(call.name==='lire_en_wolof'){
+       /* ── POURQUOI PASSER PAR LA ROUTE PLUTÔT QUE TRADUIRE ELLE-MÊME ─────
+          Elle SAIT traduire — mais /api/traduire porte une consigne que la
+          conversation n'a pas : dire le papier et RIEN DE PLUS. « Ce n'est
+          pas une conversation : elle ne répond pas, elle ne commente pas,
+          elle ne conseille pas. » Sur un courrier d'administration, un mot
+          ajouté peut coûter cher à quelqu'un. */
+       let reponse;
+       try{
+        const r=await fetch('/api/traduire',{method:'POST',signal:AbortSignal.timeout(20000),
+         headers:{'content-type':'application/json',...this.entetes()},
+         body:JSON.stringify({texte:String(call.args?.texte||'').slice(0,4000)})});
+        const d=await r.json();
+        reponse=r.ok&&d?.wolof
+         ?{a_dire:d.wolof,consigne:'Dis `a_dire` tel quel. N’ajoute ni commentaire ni conseil : c’est le papier qui parle, pas toi.'}
+         :{erreur:'La lecture en wolof n’a pas abouti. Dis-le et propose de réessayer.'};
+       }catch{reponse={erreur:'La lecture en wolof n’a pas répondu.'};}
        this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
        continue;
       }
