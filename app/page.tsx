@@ -71,6 +71,7 @@ import { franc, lecture, sorteEvoquee, totauxDe } from "@/lib/documents";
 import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } from "@/lib/documents";
 import { lireMesures, noterMesure } from "@/lib/chrono";
 import { jetonAppareil, entetesAppareil } from "@/lib/appareil";
+import Ecrit, { type SorteEcrit } from "@/app/ecrit/Ecrit";
 import { abonnerSiDejaAccorde, abonnerSurGeste } from "@/lib/abonner-notifications";
 import { finir as finirLeTour, poser as poserBorne, tourVide, type Bornes } from "@/lib/tour";
 import { fenetreDuFil } from "@/lib/fenetre-du-fil";
@@ -606,6 +607,23 @@ export default function Home() {
   const appuiLong = useRef(false);
   const [papierOuvert, setPapierOuvert] = useState(false);
   const [papier, setPapier] = useState<{ doc: Papier; totaux: Totaux | null } | null>(null);
+  /* ── LE DOCUMENT EN PLEIN ÉCRAN ───────────────────────────────────────────
+     Lamine, 24 octobre 2026 : « quand BIA rédige un message, un mail, un
+     devis ou une facture, elle s'efface et le document s'affiche en PLEIN
+     ÉCRAN, et la personne le voit s'écrire en direct. »
+
+     QUATRE FORMATS, PAS UN DE PLUS : la lettre garde son panneau, parce qu'il
+     a écrit « quatre formats, pas un de plus » et que « tout autre texte
+     reste dans la conversation ».
+
+     ET ÇA NE RÉTABLIT PAS LA FABRICATION AUTOMATIQUE. Le 13 septembre il a
+     retiré lui-même l'appel automatique au modèle : fabriquer un papier est
+     un second appel, le plus cher de l'application, et il payait des devis
+     que personne ne voulait — « le soir où son crédit est tombé à zéro ».
+     Le bouton reste donc le déclencheur. Ce qui change, c'est ce qui se
+     passe APRÈS l'appui : plein écran au lieu d'un panneau. Si tu veux que
+     ça part tout seul, c'est une ligne, et c'est ton argent. */
+  const [ecritPlein, setEcritPlein] = useState<SorteEcrit | null>(null);
   /* Tous les papiers déjà écrits par cette personne. Ils survivent au
      rechargement, au changement de service et à la question suivante. */
   const [papiers, setPapiers] = useState<PapierGarde[]>([]);
@@ -1437,6 +1455,9 @@ export default function Home() {
   useEffect(() => {
     const auClavier = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      /* Le plein écran passe devant : c'est lui qui couvre tout, donc c'est
+         lui qu'on veut refermer d'abord. */
+      if (ecritPlein) { setEcritPlein(null); return; }
       if (corrige !== null) { setCorrige(null); setCorrection(""); setPropositions([]); return; }
       if (quiParle) { setQuiParle(false); return; }
       if (papierOuvert) { setPapierOuvert(false); return; }
@@ -1444,7 +1465,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", auClavier);
     return () => window.removeEventListener("keydown", auClavier);
-  }, [corrige, papierOuvert, quiParle, clavier]);
+  }, [corrige, papierOuvert, quiParle, clavier, ecritPlein]);
 
   useEffect(() => {
     mesuresRef.current = lireMesures();
@@ -7108,6 +7129,10 @@ export default function Home() {
     /* Ne rien dire, mais garder une trace : sans ça, un échec silencieux est
        un échec invisible, et on ne saura jamais que ça rate. */
     const echouer = (quoi: string) => {
+      /* Le plein écran se referme : laisser « BIA écrit… » sur un papier qui
+         ne viendra jamais est la pire des réponses — il attendrait sans
+         raison, et l'erreur, elle, est derrière l'écran. */
+      setEcritPlein(null);
       if (demandeParLui) { setPapierErreur(quoi); return; }
       console.warn(`BIA — papier « ${sorte} » proposé par elle, non fabriqué : ${quoi}`);
       setPapierPret(null);
@@ -7121,6 +7146,12 @@ export default function Home() {
        Trois signes partent donc ensemble : elle le DIT (une phrase
        enregistrée, si elle est là), on l'ENTEND taper, et on la VOIT taper
        sur le petit clavier à côté du bouton. */
+    /* Le plein écran s'ouvre AVANT la réponse du modèle : c'est lui qui dit
+       « BIA écrit… » pendant la dizaine de secondes de fabrication. L'ouvrir
+       après laisserait l'écran vide pendant tout ce temps, exactement ce
+       qu'il reprochait le 10 septembre. */
+    if (sorte === "message" || sorte === "mail" || sorte === "devis" || sorte === "facture")
+      setEcritPlein(sorte as SorteEcrit);
     void direEnregistre("jecris");
     // Le contexte de la page, jamais un deuxième : sur iPhone, en ouvrir un
     // second pendant qu'elle parle interrompt le son en cours.
@@ -8294,6 +8325,21 @@ export default function Home() {
   return (
     <main className="bia-presence" data-mode={mode} data-clavier={clavier ? "ouvert" : "ferme"} data-ecran={ecran ? "ouvert" : "ferme"}>
       <EssaiRapiditeBadge actif={estMaitre} />
+      {/* ── LE DOCUMENT EN PLEIN ÉCRAN, ET BIA S'EFFACE DERRIÈRE ───────────
+          « Elle s'efface et le document s'affiche en PLEIN ÉCRAN sur l'écran
+          principal, comme la carte ou la vidéo. » Il est posé EN PREMIER dans
+          la page et couvre tout (position fixed, z-index 60) : son visage,
+          le fil et le micro restent où ils sont, simplement cachés — donc
+          rien n'est démonté, et « Revenir à BIA » retrouve la conversation
+          exactement où elle était. */}
+      {ecritPlein ? (
+        <Ecrit
+          doc={papier?.doc ?? null}
+          sorte={ecritPlein}
+          enCours={papierOccupe || !papier}
+          onFermer={() => setEcritPlein(null)}
+        />
+      ) : null}
       <a href="/?changer-code=1" aria-label="Changer de code d’accès" style={{position:'absolute',top:'max(12px, env(safe-area-inset-top))',left:12,zIndex:8,color:'#d4af37',background:'#101014dd',borderRadius:18,padding:'10px 14px',textDecoration:'none'}}>Code d’accès</a>
       <div className={eclipse ? "portrait eclipse" : rallume ? "portrait rallume" : "portrait"}
         aria-hidden="true" data-tenue={tenue} data-persona={persona}>

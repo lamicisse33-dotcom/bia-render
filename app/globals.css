@@ -3013,3 +3013,145 @@ button { font: inherit; touch-action: manipulation; }
 }
 .accord-boutons .oui { background: #d4af37; color: #111; border-color: transparent; font-weight: 600; }
 .accord-boutons .pale { background: rgba(255,255,255,.08); color: rgba(255,255,255,.82); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LE DOCUMENT EN PLEIN ÉCRAN — message, mail, devis, facture
+
+   Lamine, le 24 octobre 2026 : « elle s'efface et le document s'affiche en
+   PLEIN ÉCRAN sur l'écran principal, comme la carte ou la vidéo, et la
+   personne le voit s'écrire en direct. »
+
+   TOUT EST DESSINÉ POUR 375 px DE LARGE, parce que c'est l'écran sur lequel
+   ça sera lu. Un devis se lit mal sur un téléphone dès qu'on lui met trois
+   colonnes larges : le tableau peut donc défiler tout seul, dans son propre
+   cadre, sans que la page entière parte de côté.
+
+   ET LA FEUILLE EST CLAIRE SUR FOND SOMBRE. Le reste de BIA est sombre ;
+   un papier, lui, est blanc — c'est ce qui le fait lire comme un document et
+   non comme un écran de plus. Le texte est en noir sur blanc, au contraste
+   maximum : beaucoup de ces papiers seront lus en plein soleil.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.ecrit-plein {
+  position: fixed;
+  inset: 0;
+  z-index: 60;                 /* au-dessus de la conversation, comme la carte */
+  background: #050507;
+  display: flex;
+  flex-direction: column;
+  /* L'encoche de l'iPhone et la barre du bas : sans ça, le bouton
+     « Revenir à BIA » tombe sous le trait de navigation. */
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  gap: 12px;
+}
+
+.ecrit-feuille {
+  flex: 1;
+  min-height: 0;               /* sans lui, le défilement interne ne marche pas */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #fffdf7;
+  color: #121212;
+  border-radius: 14px;
+  padding: 18px 16px 24px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .55);
+  font-size: 16px;             /* 16 px : en dessous, iOS zoome tout seul */
+  line-height: 1.5;
+}
+
+.ecrit-attente {
+  margin: 0;
+  padding: 40px 0;
+  text-align: center;
+  color: #6b6b6b;
+  font-style: italic;
+}
+
+/* ── L'ÉTIQUETTE DU HAUT, QU'IL A DEMANDÉE NOMMÉMENT ─────────────────────
+   « MESSAGE (étiquette en haut « Message WhatsApp » ou le canal dit) ». */
+.ecrit-canal {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #0f6b3f;
+}
+.ecrit-mail .ecrit-canal { color: #1d4ed8; }
+
+.ecrit-pour { margin: 0 0 8px; font-size: 14px; color: #444; }
+.ecrit-objet { margin: 0 0 12px; font-size: 15px; }
+
+/* Un message se lit dans une bulle : c'est la forme qu'il aura sur WhatsApp,
+   et la voir ici dit tout de suite ce que c'est. */
+.ecrit-bulle {
+  background: #d9fdd3;
+  border-radius: 12px 12px 12px 3px;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;     /* un numéro ou un lien ne doit pas déborder */
+}
+
+.ecrit-corps { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ── LE DEVIS ET LA FACTURE ─────────────────────────────────────────────── */
+.ecrit-chiffre h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.ecrit-chiffre header { border-bottom: 2px solid #121212; padding-bottom: 8px; margin-bottom: 14px; }
+.ecrit-reference { margin: 4px 0 0; font-size: 14px; color: #555; }
+.ecrit-client { margin: 0 0 14px; font-size: 15px; }
+.ecrit-client b { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #666; }
+
+/* Le tableau défile DANS son cadre. Sur 375 px, trois colonnes de prix ne
+   tiennent pas sans pousser la page entière de côté. */
+.ecrit-chiffre table {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.ecrit-chiffre th, .ecrit-chiffre td { padding: 7px 10px 7px 0; text-align: left; }
+.ecrit-chiffre th {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: #666; border-bottom: 1px solid #ccc;
+}
+.ecrit-chiffre td { border-bottom: 1px solid #eee; }
+.ecrit-chiffre td:first-child { white-space: normal; min-width: 150px; }
+.ecrit-chiffre td:nth-child(2), .ecrit-chiffre th:nth-child(2) { text-align: right; }
+.ecrit-chiffre td:last-child, .ecrit-chiffre th:last-child { text-align: right; padding-right: 0; }
+
+.ecrit-total {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin: 18px 0 0; padding-top: 12px;
+  border-top: 2px solid #121212;
+  font-size: 18px;
+}
+.ecrit-total b { font-size: 22px; }
+
+/* ── LES DEUX BOUTONS QU'IL A DEMANDÉS ───────────────────────────────────
+   « Bouton pour fermer et revenir à BIA, et pour copier le texte. »
+   48 px de haut : c'est la hauteur en dessous de laquelle un pouce rate. */
+.ecrit-barre { display: flex; gap: 10px; }
+.ecrit-barre button {
+  flex: 1;
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  background: #FFF7DC;
+  color: #121212;
+}
+.ecrit-barre button.pale { background: rgba(255, 247, 220, .14); color: #FFF7DC; }
+.ecrit-barre button:disabled { opacity: .45; }
+
+@media (max-width: 380px) {
+  .ecrit-feuille { padding: 14px 12px 20px; }
+  .ecrit-chiffre h1 { font-size: 22px; }
+}

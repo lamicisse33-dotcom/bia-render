@@ -1,0 +1,32 @@
+# Les quatre formats du document en plein écran, mesurés sur 375 px.
+# Demandé par Lamine le 24 octobre 2026 : « Rendu vérifié à 375 px sur les
+# quatre formats » — message, mail, devis, facture.
+#
+# Ce que l'épreuve refuse : une page qui part de côté (un devis qu'on pousse
+# est illisible), un bouton sous 44 px (un pouce le rate, et « Revenir à BIA »
+# est la seule sortie), un texte sous 16 px (iOS zoome tout seul), et
+# l'étiquette du haut manquante sur un message.
+#
+# Borné par chemins : chaque exécution est comptée à la minute entamée.
+name: Validate full-screen document on a phone screen
+on:
+  push:
+    paths:
+      - app/globals.css
+      - app/ecrit/Ecrit.tsx
+      - tests/ecrit-plein-browser.cjs
+      - .github/workflows/validation-ecrit-plein.yml
+    branches: [main]
+permissions: {contents: read}
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/ecrit-plein-browser.cjs

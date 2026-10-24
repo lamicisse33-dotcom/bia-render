@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "72e4a32e533fb0096f1b5295f9d32ee2d3d25689313e446af4090377dd1301f8",
+    "app/page.tsx": "4562c754def4309e9eda38e6d1a7a68f54e8df013bd1c923b277930d971f1e34",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -277,5 +277,17 @@
     "photo_ou_phototheque": "La balise [[photo]] n a aucun argument et le champ de fichier garde accept=image/* SANS capture — c est la decision de Lamine du 18 septembre, ecrite en commentaire a cote : il voulait pouvoir envoyer une capture d ecran. Forcer l appareil photo seul retirerait cette possibilite. Rien n a ete change la-dessus.",
     "verification": "tsc et npm run build verts. 6 epreuves dans tests/papier-et-traduction.test.mjs, dont : la balise est reconnue ET retiree du texte parle (le 15 septembre, « mail » manquait dans ce filtre et BIA s est mise a ecrire le mail a la main dans la conversation), une phrase ordinaire qui parle de photo ne declenche RIEN, les deux outils sont declares et servis, et photographierPourBia ne parle jamais. Suite complete : aucune nouvelle rupture par rapport a HEAD.",
     "non_valide": "Aucun essai sur un vrai telephone. Il faut dire « lis-moi ce papier » sur chaque moteur, cadrer une ordonnance, et verifier qu elle dit le wolof SANS commenter — et qu elle ne le dit pas deux fois."
+  },
+  "migration_ecrit_plein_ecran_20261024": {
+    "authorized": "Lamine, 24 octobre 2026 : « quand BIA redige un message, un mail, un devis ou une facture, elle s efface et le document s affiche en PLEIN ECRAN sur l ecran principal, comme la carte ou la video, et la personne le voit s ecrire en direct. Quatre formats, pas un de plus. Bouton pour fermer et revenir a BIA, et pour copier le texte. Rendu verifie a 375 px sur les quatre formats. »",
+    "etat_avant": "app/ecrit/Ecrit.tsx existait, compilait, et n etait reference NULLE PART — et sa feuille de style n existait pas du tout : zero occurrence de .ecrit- dans app/globals.css. Il se serait affiche sans aucune mise en forme.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change, et de cinq endroits : l import du composant, l etat ecritPlein, l ouverture du plein ecran au debut de fabriquerPapier, sa fermeture sur echec et sur Echap, et le montage du composant en tete du JSX. Aucun changement d ASR, de synthese, de modele, de voix, de seuil de micro ni de garde de lecture.",
+    "hash_before": "72e4a32e533fb0096f1b5295f9d32ee2d3d25689313e446af4090377dd1301f8",
+    "hash_after": "4562c754def4309e9eda38e6d1a7a68f54e8df013bd1c923b277930d971f1e34",
+    "ce_que_je_n_ai_pas_retabli": "La fabrication AUTOMATIQUE du papier. Le 13 septembre il l a retiree lui-meme : fabriquer un papier est un second appel au modele, le plus cher de l application, et il payait des devis que personne ne voulait — « le soir ou son credit est tombe a zero ». Le bouton reste le declencheur ; ce qui change est ce qui se passe APRES l appui. Sa demande du 24 octobre decrit l affichage, pas le declenchement. Si c est l inverse qu il veut, c est une ligne, et c est son argent.",
+    "pourquoi_le_plein_ecran_s_ouvre_avant_le_document": "Il s ouvre au DEBUT de la fabrication et dit « BIA ecrit… » pendant la dizaine de secondes d attente. L ouvrir apres laisserait l ecran vide tout ce temps — exactement ce qu il reprochait le 10 septembre : « entre la demande et le papier, il ne se passait rien ». Et un echec le referme : laisser « BIA ecrit… » sur un papier qui ne viendra jamais serait la pire des reponses.",
+    "ce_qui_n_est_pas_un_direct": "Le modele rend le document d un bloc : il n y a pas de flux de jetons a suivre. Ce qui est montre est un DEVOILEMENT progressif du document recu, au rythme d une main qui ecrit. Pretendre suivre le modele en direct serait un mensonge d affichage, et c est ecrit en tete de Ecrit.tsx. Un telephone regle sur « moins d animations » recoit le document entier tout de suite.",
+    "verification": "tsc et npm run build verts. tests/ecrit-plein-browser.cjs execute les QUATRE formats dans une fenetre de 375 x 667 avec la vraie feuille de style : page 375 px sur fenetre 375 px (aucun debordement lateral), texte 16 px (en dessous iOS zoome tout seul), deux boutons de 48 px (en dessous un pouce rate, et « Revenir a BIA » est la seule sortie), etiquette du haut visible sur le message, tableau du devis qui ne deborde pas. Quatre images rendues dans /tmp/bia-ecrit-375. Un workflow borne par chemins le rejoue a chaque changement. Suite complete : aucune nouvelle rupture par rapport a HEAD.",
+    "non_valide": "Aucun essai sur son telephone. Il faut dicter une conversation, toucher le bouton du format, et verifier que le document couvre tout l ecran, qu il se devoile, que « Copier le texte » colle bien dans WhatsApp, et que « Revenir a BIA » retrouve la conversation ou elle en etait."
   }
 }

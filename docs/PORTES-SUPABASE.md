@@ -37,7 +37,29 @@ table public.bia_lexique »*. Le vrai nom est `bia_lexique`, porté par
 depuis le début — invisible, parce que la variable est toujours posée en
 production. Corrigé.
 
-## L'écriture : NON TRANCHÉE, et je ne veux pas deviner
+## VERDICT FINAL — 24 octobre 2026, vérifié par Lamine
+
+Il a exécuté la requête 1 dans Supabase : **`securite_activee = true` sur les
+cinq tables.** Rien à corriger.
+
+Ce que ça règle, et ça règle TOUT :
+
+- la **lecture** était déjà prouvée fermée par la comparaison des compteurs ;
+- l'**écriture** l'est maintenant aussi, et sans avoir eu à écrire quoi que ce
+  soit : la sécurité par ligne s'applique à `INSERT`, `UPDATE` et `DELETE`
+  autant qu'à `SELECT`. Activée **et sans aucune règle permissive**, elle
+  refuse tout ce que la clé publique tenterait. C'est pour ça que les trois
+  requêtes valent mieux qu'une sonde — elles répondent sur les quatre verbes
+  d'un coup, là où mes tâtonnements ne répondaient sur aucun.
+
+Les cinq tables sont donc **fermées à la clé publique, en lecture comme en
+écriture.** `reglages`, qui n'a pourtant aucun fichier SQL dans ce dépôt,
+porte bien la sécurité : quelqu'un l'a activée à la main, et c'était juste.
+
+La section qui suit garde la trace de ce qui m'a fait tourner en rond, pour
+qu'on ne refasse pas le chemin.
+
+## L'écriture vue depuis le réseau : deux sondes qui mentent
 
 C'est la question qui reste, et c'est la plus importante : une table fermée en
 lecture mais ouverte en écriture laisserait n'importe qui injecter un faux
