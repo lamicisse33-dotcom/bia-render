@@ -268,6 +268,17 @@ export class BiaGeminiLive{
        this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
        continue;
       }
+      if(call.name==='dire_un_nombre_en_wolof'){
+       let reponse;
+       try{
+        const r=await fetch('/api/nombre',{method:'POST',signal:AbortSignal.timeout(8000),
+         headers:{'content-type':'application/json',...this.entetes()},
+         body:JSON.stringify({phrase:String(call.args?.phrase||'').slice(0,300)})});
+        reponse=await r.json();
+       }catch{reponse={trouve:false,raison:'La table des nombres n’a pas répondu. Donne le nombre en français, n’invente pas de wolof.'};}
+       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
+       continue;
+      }
       if(call.name==='gerer_les_rappels'){
        let reponse;
        try{

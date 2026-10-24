@@ -138,7 +138,25 @@ export async function POST(req:NextRequest){
      donc le déclencheur : BIA_LIVE_COMPRESSION le règle depuis Render. */
   contextWindowCompression:{triggerTokens:String(liveCompressionJetons()),slidingWindow:{targetTokens:String(liveCompressionCible())}},
   sessionResumption:{},historyConfig:{initialHistoryInClientContent:true},
-  tools:[{functionDeclarations:[
+  /* ── LA RECHERCHE N'EXISTAIT PAS SUR KHALAM RAPIDE ──────────────────────
+
+     Lamine, 24 octobre 2026 : « Recherche vocale et recherche d'images /
+     vidéos : vérifier, réparer. » Vérifié : Khalam a l'outil de recherche
+     d'Anthropic, ouvert selon la question (lib/recherche.ts), et les balises
+     [[cherche-image]] / [[regarde]]. Khalam Rapide n'avait RIEN — zéro
+     occurrence. Elle répondait donc de mémoire à « quel temps fait-il
+     aujourd'hui », ce qui est exactement ce que la consigne lui interdit.
+
+     On lui donne la recherche de son propre fournisseur, qui est intégrée :
+     rien à payer en plus de la session, rien à brancher, et c'est le modèle
+     qui décide de s'en servir. Ce n'est PAS l'équivalent exact de Khalam —
+     la recherche d'images et de vidéos, elle, passe par des balises d'écran
+     que ce moteur n'a pas, et c'est écrit dans docs/DEUX-MOTEURS-INVENTAIRE.
+
+     CE QUE ÇA COÛTE : du temps sur les tours où elle cherche, et des jetons
+     de contexte pour ce qu'elle rapporte. Elle ne cherche pas à chaque
+     phrase — c'est le modèle qui tranche, comme sur Khalam. */
+  tools:[{googleSearch:{}},{functionDeclarations:[
    /* ── LA CARTE ÉTAIT INATTEIGNABLE DEPUIS LE 23 OCTOBRE 2026 ─────────────
 
       Lamine, le 24 : « toujours pas la carte pour une indication ». Trouvé en
@@ -169,6 +187,12 @@ export async function POST(req:NextRequest){
       doit le dire. Un rappel de médicament qu'on croit posé et qui ne
       sonnera jamais est pire que pas de rappel du tout. */
    {name:'gerer_les_rappels',description:'Poser, lister ou enlever un rappel de médicament ou de soin. À utiliser dès qu’elle demande qu’on lui rappelle quelque chose à une heure, qu’elle veut savoir ses rappels, ou qu’elle veut en enlever un. Réponds ensuite avec ce que rend l’outil : s’il dit que le rappel ne sonnera pas, DIS-LE — qu’il faut installer Bia sur l’écran d’accueil et accepter les notifications. N’annonce jamais un rappel posé sans ça, et n’invente aucune heure qu’elle n’a pas dite.',parameters:{type:'OBJECT',properties:{phrase:{type:'STRING',description:'Sa demande, EXACTEMENT comme elle l’a dite — avec l’heure et ce qu’elle veut qu’on lui rappelle. C’est le serveur qui en tire les heures.'}},required:['phrase']}},
+   /* ── LES NOMBRES EN WOLOF N'EXISTAIENT PAS ICI ────────────────────────
+      Khalam court-circuite le modèle depuis septembre (demandeDeNombre) ;
+      Khalam Rapide n'avait rien, et le socle lui INTERDIT de composer un
+      nombre en wolof elle-même. La question n'avait donc aucune réponse sur
+      la connexion rapide. L'outil rend la table relue par Lamine. */
+   {name:'dire_un_nombre_en_wolof',description:'Donner un nombre ou un montant en wolof. À utiliser DÈS QU’on demande comment se dit un nombre, un prix ou un pourcentage en wolof — tu ne dois jamais le composer toi-même. Dis ensuite « a_dire » MOT POUR MOT. Si l’outil dit qu’il ne trouve pas, dis-le simplement et donne le nombre en français, sans inventer un seul mot wolof.',parameters:{type:'OBJECT',properties:{phrase:{type:'STRING',description:'Sa question entière, telle qu’elle l’a dite, avec le nombre.'}},required:['phrase']}},
    {name:'chercher_connaissances',description:'Lire les devoirs, corrections et lexiques de Bia dans Supabase. Chercher des références pertinentes, lister tous les devoirs ou le lexique avec pagination, et lire intégralement un devoir par son identifiant. Lecture seule.',parameters:{type:'OBJECT',properties:{question:{type:'STRING'},action:{type:'STRING',enum:['chercher','lister_devoirs','lire_devoir','lister_lexique']},devoir_id:{type:'STRING'},offset:{type:'INTEGER'}},required:['question']}}]}]
  };
  try{

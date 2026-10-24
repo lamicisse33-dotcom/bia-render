@@ -104,9 +104,19 @@ test('session authentication precedes Google and returns only a constrained ephe
      Khalam Rapide n'avait QU'UN outil, et sa consigne interdisait les
      commandes d'écran. Depuis qu'il est le moteur par défaut, plus personne
      ne pouvait obtenir une carte sans basculer à la main. */
-  const outils=body.bidiGenerateContentSetup.tools[0].functionDeclarations.map(f=>f.name);
+  /* On cherche les outils DANS la liste, sans supposer leur rang : depuis le
+     24 octobre la recherche intégrée du fournisseur occupe une entrée à part,
+     et un index en dur a cassé cette épreuve à l'instant où on l'a ajoutée.
+     Un index est une hypothèse ; un nom est un fait. */
+  const entrees=body.bidiGenerateContentSetup.tools;
+  const outils=entrees.flatMap(t=>t.functionDeclarations||[]).map(f=>f.name);
   assert(outils.includes('montrer_le_chemin'),'l’outil carte doit être déclaré : '+outils.join(', '));
   assert(outils.includes('chercher_connaissances'),'et la mémoire reste');
+  assert(outils.includes('gerer_les_rappels'),'et les rappels de médicaments');
+  /* « Recherche vocale : vérifier, réparer. » Khalam Rapide n'avait AUCUNE
+     recherche : elle répondait de mémoire à « quel temps fait-il aujourd'hui »,
+     ce que sa consigne lui interdit. */
+  assert(entrees.some(t=>t.googleSearch),'la recherche doit être donnée à Khalam Rapide');
   assert(consigne.includes('montrer_le_chemin'),'la consigne doit dire par où passer pour une carte');
   assert(/SAUF la carte/.test(consigne),'l’interdiction des gestes d’écran garde son exception');
   assert.equal(body.bidiGenerateContentSetup.contextWindowCompression.slidingWindow.targetTokens,'30000');
