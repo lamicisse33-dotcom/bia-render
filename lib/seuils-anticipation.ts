@@ -17,9 +17,13 @@
      1. PREMIER_SEGMENT_MS — il faut cette durée de PAROLE pour qu'un segment
         part pendant qu'il parle. Mesuré sur neuf tours réels, `parole_ms`
         valait 300, 358, 420, 702, 767, 838, 1151, 1498 et 2686 ms : à 1 500,
-        UNE SEULE sur neuf qualifiait — 1 498 passait juste en dessous. À 700,
-        six sur neuf. (À 1 000, trois : le palier n'est pas linéaire, et c'est
-        pourquoi on mesure au lieu de choisir un chiffre rond.)
+        UNE SEULE sur neuf qualifiait — 1 498 passait juste en dessous.
+
+        Lamine a tranché 1 000 ms le 24 octobre 2026, après avoir lu les deux
+        chiffres : à 700 six phrases sur neuf qualifiaient, à 1 000 trois. Il
+        prend le palier prudent — moins de fragments préparés pour rien, donc
+        moins de replis payés, et l'anticipation ne part que quand il y a
+        vraiment quelque chose à anticiper.
      2. SIGNES_ANTICIPATION — le texte doit atteindre cette longueur. Un
         segment de 700 ms rend 15 à 30 signes : à 35, la porte se contentait
         de passer de `jamais_de_texte` à `trop_court`. Les deux doivent
@@ -49,7 +53,7 @@ const borne = (v: string | undefined, defaut: number, min: number, max: number) 
 
 /** Durée de PAROLE avant le premier segment. Révertible : BIA_PREMIER_SEGMENT_MS. */
 export const premierSegmentMs = () =>
-  borne(process.env.BIA_PREMIER_SEGMENT_MS, 700, 500, 4000);
+  borne(process.env.BIA_PREMIER_SEGMENT_MS, 1000, 500, 4000);
 
 /** Longueur minimale du texte pour préparer. Révertible : BIA_SIGNES_ANTICIPATION. */
 export const signesAnticipation = () =>

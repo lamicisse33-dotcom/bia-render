@@ -98,7 +98,7 @@ test('les deux seuils ont leurs nouvelles valeurs par défaut, et reviennent par
  try{
   delete process.env.BIA_PREMIER_SEGMENT_MS;delete process.env.BIA_SIGNES_ANTICIPATION;
   const d=seuils();
-  assert.equal(d.premierSegmentMs(),700,'premier segment : 700 ms de parole');
+  assert.equal(d.premierSegmentMs(),1000,'premier segment : 1 000 ms de parole, tranché par Lamine');
   assert.equal(d.signesAnticipation(),20,'plancher de texte : 20 signes');
   /* Le retour au comportement du 23 octobre, sans déploiement. */
   process.env.BIA_PREMIER_SEGMENT_MS='1500';process.env.BIA_SIGNES_ANTICIPATION='35';
@@ -118,7 +118,7 @@ test('une valeur absurde ne peut pas s’installer : on garde le défaut',()=>{
      préparerait sur un soupir. Les bornes sont là pour ça. */
   for(const mauvais of ['0','100','99999','abc','']){
    process.env.BIA_PREMIER_SEGMENT_MS=mauvais;
-   assert.equal(d.premierSegmentMs(),700,'premier segment refuse '+JSON.stringify(mauvais));
+   assert.equal(d.premierSegmentMs(),1000,'premier segment refuse '+JSON.stringify(mauvais));
   }
   for(const mauvais of ['0','5','99999','abc','']){
    process.env.BIA_SIGNES_ANTICIPATION=mauvais;
@@ -138,12 +138,68 @@ test('une valeur absurde ne peut pas s’installer : on garde le défaut',()=>{
 /* Et la porte de 700 ms remise à l'épreuve des durées réelles : sur les neuf
    `parole_ms` mesurés, sept qualifient au lieu de deux. C'est le gain attendu
    du levier 1, écrit en chiffres avant de l'annoncer. */
-test('sur les neuf durées de parole mesurées, six franchissent 700 ms au lieu d’une',()=>{
+test('sur les neuf durées de parole mesurées, trois franchissent 1 000 ms au lieu d’une',()=>{
  const PAROLE_REELLE=[300,358,420,702,767,838,1151,1498,2686];
  /* 1 498 ms passait JUSTE en dessous de 1 500 : une seule phrase sur neuf
     atteignait l'ancien seuil. Le segment vu sur ce tour-là venait du silence
     de fin de parole, pas du seuil — ce qui colle aux compteurs publiés. */
  assert.equal(PAROLE_REELLE.filter(ms=>ms>=1500).length,1,'avec l’ancien seuil');
- assert.equal(PAROLE_REELLE.filter(ms=>ms>=700).length,6,'avec le nouveau');
- assert.equal(PAROLE_REELLE.filter(ms=>ms>=1000).length,3,'ce qu’un seuil à 1 s aurait donné');
+ assert.equal(PAROLE_REELLE.filter(ms=>ms>=1000).length,3,'avec le nouveau, tranché par Lamine');
+ assert.equal(PAROLE_REELLE.filter(ms=>ms>=700).length,6,'ce qu’un seuil à 0,7 s aurait donné : plus de fragments, plus de replis');
+});
+
+/* ── LEVIER 2 : LE MODÈLE DES BRIQUES, ET LA PROMESSE DE RÉVERSIBILITÉ ─────
+
+   Lamine, 24 octobre 2026 : « Haiku pour le texte des briques, wolof appris
+   vérifié sur mes phrases réelles, réversible par variable Render. »
+
+   Le piège était que `BIA_LLM_MODEL` est posé dans Render (claude-sonnet-5-5)
+   et pilotait aussi les briques : laissé devant, le levier aurait été inerte.
+   Cette épreuve vérifie qu'il ne l'est plus, et que la variable dédiée ramène
+   exactement Sonnet. */
+function cerveau(){const m={exports:{}};
+ new Function('require','module','exports',compile(fs.readFileSync('lib/cerveau-anthropic.ts','utf8')))(
+  id=>({'./panne':{noterPanne(){}},'./depense':{noterModele(){}},'./latence-cache-anthropic':{entetesCacheAnthropic:()=>({})}})[id]??{},m,m.exports);
+ return m.exports;}
+
+test('le modèle des briques est Haiku par défaut et revient à Sonnet par variable Render',()=>{
+ const vieux={b:process.env.BIA_BRIQUES_MODEL,l:process.env.BIA_LLM_MODEL};
+ try{
+  const c=cerveau();
+  delete process.env.BIA_BRIQUES_MODEL;
+  /* Le piège : la variable globale est posée en production. Elle ne doit plus
+     décider du modèle des briques, sinon le levier ne fait rien. */
+  process.env.BIA_LLM_MODEL='claude-sonnet-5-5';
+  assert.equal(c.modeleBriques(),c.MODELE_HAIKU,'BIA_LLM_MODEL ne pilote plus les briques');
+  assert.equal(c.MODELE_HAIKU,'claude-haiku-5-5');
+  /* Et le retour en arrière, sans déploiement. */
+  process.env.BIA_BRIQUES_MODEL='claude-sonnet-5-5';
+  assert.equal(c.modeleBriques(),c.MODELE_SONNET);
+ }finally{
+  if(vieux.b===undefined)delete process.env.BIA_BRIQUES_MODEL;else process.env.BIA_BRIQUES_MODEL=vieux.b;
+  if(vieux.l===undefined)delete process.env.BIA_LLM_MODEL;else process.env.BIA_LLM_MODEL=vieux.l;
+ }
+});
+
+/* Le verdict de l'essai est volontairement sévère, et c'est le cœur de la
+   garantie : un gain de temps payé par une reformulation wolof n'est pas un
+   gain. On éprouve la règle de décision, pas le modèle. */
+test('le verdict refuse Haiku s’il préserve moins de formulations que Sonnet',()=>{
+ const verdict=(configure,temoin)=>configure>=temoin;
+ assert.equal(verdict(3,3),true,'autant : on garde');
+ assert.equal(verdict(3,2),true,'mieux : on garde');
+ assert.equal(verdict(2,3),false,'moins : on refuse, même si c’est plus rapide');
+ assert.equal(verdict(0,0),true,'aucune formulation en jeu : rien à conclure sur le wolof');
+});
+
+/* Et la normalisation qui décide du « mot pour mot » : la ponctuation et les
+   apostrophes typographiques ne doivent pas faire échouer une formulation
+   réellement reprise, ni faire passer une reformulation. */
+test('le mot-pour-mot tolère la ponctuation, jamais une reformulation',()=>{
+ const normaliser=s=>String(s||'').normalize('NFC').toLowerCase()
+  .replace(/[’']/g,"'").replace(/[.,!?;:()«»"…—–-]/g,' ').replace(/\s+/g,' ').trim();
+ const apprise='waaw, dama ko xam bu baax';
+ assert(normaliser('Waaw — dama ko xam bu baax !').includes(normaliser(apprise)));
+ assert(normaliser('Oui papa. Waaw, dama ko xam bu baax.').includes(normaliser(apprise)));
+ assert(!normaliser('Waaw, xam naa ko bu baax').includes(normaliser(apprise)),'une reformulation échoue');
 });

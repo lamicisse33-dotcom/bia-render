@@ -32,7 +32,7 @@ test('draft ownership, single consumption and changed intent are enforced withou
  if(id==='./seuils-anticipation')return {premierSegmentMs:()=>700,signesAnticipation:()=>20};
  if(id==='./eligibilite-etat')return {noterRefusServeur(){},noterEligibilite(){},resumeEligibilite:()=>({})};
  if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
- if(id==='./cerveau-anthropic')return {MODELE_SONNET:'test',MODELE_HAIKU:'test-haiku',messagesAnthropic:messages=>({messages}),contenuAnthropic:d=>d.text,fetchAnthropic:async()=>{modeles++;return Response.json({text:JSON.stringify({eligible:true,reply:'Écoute ton ami et demande-lui ce qui lui ferait du bien.',valide:false})});}};
+ if(id==='./cerveau-anthropic')return {MODELE_SONNET:'test',MODELE_HAIKU:'test-haiku',modeleBriques:()=>'test-haiku',MODELE_HAIKU:'test-haiku',messagesAnthropic:messages=>({messages}),contenuAnthropic:d=>d.text,fetchAnthropic:async()=>{modeles++;return Response.json({text:JSON.stringify({eligible:true,reply:'Écoute ton ami et demande-lui ce qui lui ferait du bien.',valide:false})});}};
  if(id==='./conversation-groq')return {messagesConversation:()=>[]};if(id==='./memoire-organisee')return {contexteMemoireCommune:async()=>''};if(id==='./instructions-apprentissage')return {contexteInstructions:async()=>''};if(id==='./langue')return {detecterLangue:()=> 'fr'};if(id==='./assembler-sons-courants')return {assemblerSonsCourants:()=>({wav:new ArrayBuffer(1200)})};
  if(id.includes('chatterbox-test'))return {POST:async()=>{syntheses++;return Response.json({audio:Buffer.alloc(1200).toString('base64'),partie:0,parties:1,empreinte:'fixed',voice:'female'});}};throw Error(id);
  });

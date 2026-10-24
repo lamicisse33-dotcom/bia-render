@@ -4,7 +4,7 @@ import {modeleRapidite,profilRapidite,type ProfilRapidite} from './rapidite-core
 import {noterModeleRapidite} from './rapidite-etat';
 import {NextRequest} from 'next/server';
 import {verifierCode} from './codes';
-import {fetchAnthropic,messagesAnthropic,contenuAnthropic,MODELE_SONNET} from './cerveau-anthropic';
+import {fetchAnthropic,messagesAnthropic,contenuAnthropic,modeleBriques} from './cerveau-anthropic';
 import {messagesConversation} from './conversation-groq';
 import {messagesBriques,enchainerBrique} from './briques-prompt';
 import {lireAudioBrique} from './briques-audio';
@@ -21,17 +21,17 @@ import {garder} from './souvenirs';
 import {salutationReconnue} from './salutations-dialogue';
 import {identiteReconnue} from './identite-core';
 
-type Session={profil:ProfilRapidite|null;id:string;owner:string;tour:string;history:ReturnType<typeof contexteAnticipation>;resume:string;voice:'female'|'male';maitre:boolean;expire:number;traite:string;dernier:string;briques:BriqueAudio[];occupe:boolean;fermee:boolean;appels:number;livree?:boolean;suite?:SuiteTexte};
+type Session={modeleEssai?:string;profil:ProfilRapidite|null;id:string;owner:string;tour:string;history:ReturnType<typeof contexteAnticipation>;resume:string;voice:'female'|'male';maitre:boolean;expire:number;traite:string;dernier:string;briques:BriqueAudio[];occupe:boolean;fermee:boolean;appels:number;livree?:boolean;suite?:SuiteTexte};
 const g=globalThis as typeof globalThis&{biaBriques?:Map<string,Session>};
 const sessions=g.biaBriques??=new Map<string,Session>();
 const nettoyer=()=>{for(const [id,s] of sessions)if(s.expire<Date.now()&&!s.occupe){oublierSuite(s);sessions.delete(id);}if(sessions.size>=32)for(const [id,s] of sessions){if(s.fermee&&!s.occupe){oublierSuite(s);sessions.delete(id);}if(sessions.size<32)break;}};
 function resultat(s:Session,brique?:BriqueAudio,normal=false){return {id:s.id,brique,termine:s.fermee,normal,continuer:!!brique&&!s.fermee&&s.briques.length<5&&s.appels<10&&s.dernier.length-s.traite.length>=signesAnticipation()};}
 
-type VueTexte=Pick<Session,'history'|'resume'|'traite'|'profil'>&{briques:Array<Pick<BriqueAudio,'texte'>>};
+type VueTexte=Pick<Session,'history'|'resume'|'traite'|'profil'>&{briques:Array<Pick<BriqueAudio,'texte'>>;modeleEssai?:string};
 type TexteBrique={traite:string;reply:string};
 type SuiteTexte={texte:string;prefixe:string;numero:number;final:boolean;abort:AbortController;resultat:Promise<{texte:TexteBrique|null;mesure:MesureTexte}|null>};
 type MesureTexte={contexte_ms:number;modele_ms:number;entree_signes:number;sortie_signes:number};
-async function preparerTexte(s:VueTexte,texte:string,final:boolean,maitre:boolean,signal:AbortSignal,mesure:MesureTexte,diagnosticAncien=false){
+async function preparerTexte(s:VueTexte,texte:string,final:boolean,maitre:boolean,signal:AbortSignal,mesure:MesureTexte,diagnosticAncien=false,modeleEssai?:string){
  signal.throwIfAborted();const debutPreparation=Date.now();
     const [memoire,instructions]=await Promise.all([contexteMemoireCommune(texte,s.history,6500),maitre?contexteInstructions():Promise.resolve('')]);
     const messages=diagnosticAncien?messagesConversation({question:texte,history:s.history,resume:s.resume,maitre,fiches:memoire,instructions,rapide:true}):messagesBriques({history:s.history,resume:s.resume,maitre,memoire,instructions});
@@ -46,7 +46,10 @@ async function preparerTexte(s:VueTexte,texte:string,final:boolean,maitre:boolea
     const debutModele=Date.now();
     const schema={type:'object',properties:{eligible:{type:'boolean'},reply:{type:'string'},traite:{type:diagnosticAncien?'string':'integer'}},required:['eligible','reply','traite'],additionalProperties:false};
     if((process.env.BIA_LLM_PROVIDER||'anthropic')!=='anthropic')throw Error('Fournisseur incompatible');
-    const model=modeleRapidite(s.profil,process.env.BIA_LLM_MODEL||MODELE_SONNET);noterModeleRapidite(s.profil,model);
+    /* Le modèle des briques a sa propre variable : voir modeleBriques(). Un
+       essai peut en forcer un autre, et seulement un essai. */
+    const model=modeleRapidite(s.profil,modeleEssai||s.modeleEssai||modeleBriques());noterModeleRapidite(s.profil,model);
+    etatBriques.modele_briques=model;
     const r=await fetchAnthropic((process.env.ANTHROPIC_BASE_URL||'https://api.anthropic.com')+'/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01'},body:JSON.stringify({model,max_tokens:3000,output_config:{format:{type:'json_schema',schema}},...messagesAnthropic(messages)}),signal},Date.now()+15000);
     if(!r.ok)throw Error('Modèle indisponible');const data=await r.json();if(data.stop_reason==='max_tokens')throw Error('JSON incomplet');
     mesure.modele_ms=Date.now()-debutModele;mesure.sortie_signes=contenuAnthropic(data).length;
@@ -93,7 +96,7 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
     if(! /^[a-zA-Z0-9_-]{8,80}$/.test(String(body.tour||''))){noterRefusServeur('tour_invalide');return null;}
     if(sessions.size>=32||[...sessions.values()].filter(x=>x.owner===owner&&!x.fermee).length>=4){noterRefusServeur('limite_personne');return null;}
     const v=verifierCode(code,false);if(!v.ok)return null;
-    s={profil:profilRapidite(body.essaiRapidite),id:randomUUID(),owner,tour:body.tour,history:contexteAnticipation(body.history.map((m:any)=>({...m,role:m.role==='bia'?'assistant':m.role}))),resume:String(body.resume||'').slice(0,6000),voice:body.voice,maitre,expire:Date.now()+240000,traite:'',dernier:'',briques:[],occupe:false,fermee:false,appels:0};
+    s={modeleEssai:typeof body.modeleEssai==='string'&&/^claude-[a-z0-9.-]{3,60}$/.test(body.modeleEssai)?body.modeleEssai:undefined,profil:profilRapidite(body.essaiRapidite),id:randomUUID(),owner,tour:body.tour,history:contexteAnticipation(body.history.map((m:any)=>({...m,role:m.role==='bia'?'assistant':m.role}))),resume:String(body.resume||'').slice(0,6000),voice:body.voice,maitre,expire:Date.now()+240000,traite:'',dernier:'',briques:[],occupe:false,fermee:false,appels:0};
     sessions.set(s.id,s);etatBriques.sessions++;
   }
   if(body.action==='annuler'){oublierSuite(s);s.fermee=true;s.expire=Date.now();return resultat(s);}

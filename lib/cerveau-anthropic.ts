@@ -1,5 +1,28 @@
 export const MODELE_SONNET="claude-sonnet-5-5";
 export const MODELE_HAIKU="claude-haiku-5-5";
+/* ── LEVIER 2 : LE TEXTE DES BRIQUES PASSE À HAIKU ─────────────────────────
+
+   Demandé par Lamine le 24 octobre 2026, dans le plan −2 s. Mesuré la veille,
+   le modèle prend 1 372 ms sur le chemin ordinaire — le plus gros poste après
+   la voix. Les briques n'ont pas besoin du même cerveau que la conversation
+   entière : chacune produit UNE phrase de 6 à 10 mots sur un point achevé,
+   avec les formulations apprises déjà fournies dans sa consigne.
+
+   ATTENTION, CE N'EST PAS `BIA_LLM_MODEL`. Cette variable est posée dans
+   Render (claude-sonnet-5-5) et pilotait aussi les briques : la laisser
+   devant aurait rendu ce levier inerte. Les briques suivent désormais leur
+   propre variable, et c'est dit plutôt que découvert — un futur changement
+   global de cerveau ne les emportera plus.
+
+   RÉVERSIBLE SANS DÉPLOIEMENT : BIA_BRIQUES_MODEL=claude-sonnet-5-5 ramène
+   exactement le comportement d'avant. Le modèle RÉELLEMENT utilisé est publié
+   dans briques_conversation.modele_briques — pas l'intention, l'usage.
+
+   CE QUI RESTE À PROUVER, et qui n'est pas une opinion : le wolof appris.
+   Haiku doit reprendre les formulations validées MOT POUR MOT. C'est
+   lib/essai-modele-briques.ts qui le mesure sur les devoirs réels, et le
+   verdict se lit dans briques_conversation.essai_modele. */
+export const modeleBriques=()=>process.env.BIA_BRIQUES_MODEL||MODELE_HAIKU;
 // The native conversion is the body actually sent by chat and by bricks.
 // Keep the intended hour-long cache here too; the older chat body is replaced.
 export const CACHE_CONTEXTE_ANTHROPIC={type:"ephemeral",ttl:"1h"} as const;
