@@ -157,6 +157,23 @@ export class BiaGeminiLive{
       erreur     — un message illisible
     Un arrêt sans nom est un arrêt qu'on cherchera encore demain. */
  private arrets:Record<string,number>={};private dernierCode=0;
+ /* ── LE SEUL CAS OÙ GOOGLE NOUS DIT POURQUOI, ET JE LE JETAIS ────────────
+
+    Lamine, le 24 octobre 2026 : « Khalam Rapide a fermé la connexion » et
+    plus rien. Cette phrase sort d'ICI, d'une fermeture survenue AVANT
+    `setupComplete` — donc d'un setup que Google refuse.
+
+    Et la ligne qui la produisait était :
+        if(!established){reject(Error('Khalam Rapide a fermé la connexion.'));return;}
+    Pas de code, pas de motif, rien de remonté. Le seul moment où Google
+    explique son refus était précisément celui qu'on jetait. On ne pouvait
+    donc que deviner — et deviner sur un serveur qu'on ne contrôle pas, c'est
+    ne rien savoir du tout.
+
+    Désormais le code ET le motif de fermeture remontent, avec le fait que
+    c'était avant ou après la poignée de main. Un 1007 qui porte un message
+    et un 1006 muet ne se soignent pas pareil. */
+ private motifFermeture='';private erreurGoogle='';
  private sessionMesure=Math.random().toString(36).slice(2,10)+Date.now().toString(36);private tourMesure=0;
  private userText='';private biaText='';private history:Array<{role:string;parts:Array<{text:string}>}>=[];private muted=false;
  constructor(private code:string,private events:LiveEvents,private historique?:Array<{role:'user'|'bia';text:string}>,private tours=40,private personne='',private version='',private appareil=''){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');this.tours=Number.isFinite(tours)&&tours>=4&&tours<=80?Math.round(tours):40;}
@@ -239,7 +256,13 @@ export class BiaGeminiLive{
     try{
      const d=JSON.parse(typeof e.data==='string'?e.data:await e.data.text());
      if(d.setupComplete){clearTimeout(timeout);established=true;this.ready=true;this.send({clientContent:{turns:this.history,turnComplete:true}});this.events.etat('Je t’écoute');resolve();}
-     if(d.error){this.events.erreur('Khalam Rapide a refusé la session.');ws.close();return;}
+     if(d.error){
+      /* Le message de Google est la réponse à « pourquoi ». On le garde, on
+         le remonte, et on le MONTRE : « a refusé la session » tout seul
+         n'apprend rien à personne. */
+      this.erreurGoogle=String(d.error?.message||d.error?.status||'refus sans message').slice(0,300);
+      this.declarerFermeture(0,this.erreurGoogle,!established);
+      this.events.erreur('Khalam Rapide a refusé la session : '+this.erreurGoogle);ws.close();return;}
      const c=d.serverContent;
      if(c?.interrupted){
       /* Mesuré avant d'être corrigé : une coupure survenue PENDANT qu'elle
@@ -357,9 +380,21 @@ export class BiaGeminiLive{
     }catch{this.arrets.erreur=(this.arrets.erreur||0)+1;this.events.erreur('Un message audio n’a pas pu être lu.');}
    };
    ws.onerror=()=>{clearTimeout(timeout);if(!established)reject(Error('Connexion audio impossible.'));}
-   ws.onclose=(e?:{code?:number})=>{
+   ws.onclose=(e?:{code?:number;reason?:string})=>{
     clearTimeout(timeout);this.ready=false;
-    if(!established){reject(Error('Khalam Rapide a fermé la connexion.'));return;}
+    const code=Number(e?.code)||0,motif=String(e?.reason||'').slice(0,300);
+    this.dernierCode=code;this.motifFermeture=motif;
+    if(!established){
+     /* AVANT la poignée de main : c'est le setup qui est refusé. On remonte
+        le code et le motif, et on les met dans la phrase — sans eux, il n'y
+        a rien à chercher. */
+     this.declarerFermeture(code,motif||this.erreurGoogle,true);
+     reject(Error('Khalam Rapide a fermé la connexion'
+      +(code?` (code ${code})`:'')
+      +(motif?` : ${motif}`:this.erreurGoogle?` : ${this.erreurGoogle}`:'.')));
+     return;
+    }
+    this.declarerFermeture(code,motif,false);
     /* Une fermeture EN PLEINE RÉPONSE est exactement ce que Lamine décrit :
        elle s'arrête au milieu d'une phrase. On la nomme et on la compte. */
     if(!this.stoppe){
@@ -447,6 +482,14 @@ export class BiaGeminiLive{
     son_ms:Math.round(Math.max(0,premierSonMs-this.finParoleMesure)),
     demarrage_audio_ms:Math.round(avanceMs)})}).catch(()=>{});
   this.journalEnvoye=true;
+ }
+ /* Le code et le motif d'une fermeture. `avant_setup` dit si Google a refusé
+    la configuration ou s'il a coupé une session déjà établie : ce sont deux
+    pannes différentes, et un seul chiffre pour les deux n'en soigne aucune. */
+ private declarerFermeture(code:number,motif:string,avantSetup:boolean){
+  void fetch('/api/mesure',{method:'POST',keepalive:true,headers:{'content-type':'application/json'},
+   body:JSON.stringify({type:'khalam_rapide',etape:'fermeture',code,motif:String(motif||'').slice(0,300),
+    avant_setup:avantSetup,version:this.version})}).catch(()=>{});
  }
  /* Ce que l'écho a coûté sur ce tour. Des comptes et un niveau, rien d'autre. */
  private declarerEcho(){

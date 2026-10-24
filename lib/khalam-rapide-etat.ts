@@ -18,9 +18,16 @@
 
 type Mesure = { ms: number; quand: string };
 type Echo = { coupures_pendant_parole: number; coupures_au_silence: number; trames_retenues: number; trames_laissees: number; echo_plancher: number; tours: number; arrets: Record<string, number>; code_fermeture: number; versions: Record<string, number> };
-type Etat = { mesures: Mesure[]; tours: number; refusees: number; doublons: number; vus: Map<string, number>; basculements: { vers_rapide: number; vers_khalam: number }; echo: Echo };
+/* ── POURQUOI LA CONNEXION SE FERME, AVEC LE MOTIF DE GOOGLE ──────────────
+   Le 24 octobre 2026, « Khalam Rapide a fermé la connexion » est arrivé sans
+   aucun chiffre : le client jetait le code et le motif quand la fermeture
+   survenait AVANT la poignée de main — c'est-à-dire exactement quand Google
+   explique son refus. `avant_setup` sépare les deux pannes : un setup refusé
+   et une session coupée en cours ne se soignent pas pareil. */
+type Fermeture = { code: number; motif: string; avant_setup: boolean; fois: number; quand: string };
+type Etat = { mesures: Mesure[]; tours: number; refusees: number; doublons: number; vus: Map<string, number>; basculements: { vers_rapide: number; vers_khalam: number }; echo: Echo; fermetures: Fermeture[] };
 const g = globalThis as typeof globalThis & { biaKhalamRapide?: Etat };
-const etat: Etat = (g.biaKhalamRapide ??= { mesures: [], tours: 0, refusees: 0, doublons: 0, vus: new Map<string, number>(), basculements: { vers_rapide: 0, vers_khalam: 0 }, echo: { coupures_pendant_parole: 0, coupures_au_silence: 0, trames_retenues: 0, trames_laissees: 0, echo_plancher: 0, tours: 0, arrets: {}, code_fermeture: 0, versions: {} } });
+const etat: Etat = (g.biaKhalamRapide ??= { mesures: [], tours: 0, refusees: 0, doublons: 0, vus: new Map<string, number>(), basculements: { vers_rapide: 0, vers_khalam: 0 }, echo: { coupures_pendant_parole: 0, coupures_au_silence: 0, trames_retenues: 0, trames_laissees: 0, echo_plancher: 0, tours: 0, arrets: {}, code_fermeture: 0, versions: {} }, fermetures: [] });
 
 const BORNE_MS = 60000;
 const SESSIONS_AU_PLUS = 200;
@@ -57,6 +64,19 @@ export function noterKhalamRapide(d: Record<string, unknown>) {
      dans le silence vient bien de la personne. Les deux sont comptées à part,
      sinon on ne saurait pas si le remède soigne ou s'il empêche la personne
      de la couper pour de vrai. */
+  /* Le code ET le motif rendus par Google. Les fermetures identiques sont
+     regroupées : vingt fois le même refus est UNE cause, pas vingt. */
+  if (d.etape === "fermeture") {
+    const code = Number(d.code);
+    const motif = String(d.motif ?? "").slice(0, 300);
+    const avant = d.avant_setup === true;
+    if (!Number.isInteger(code) || code < 0 || code > 5000) { etat.refusees += 1; return; }
+    const vue = etat.fermetures.find((f) => f.code === code && f.motif === motif && f.avant_setup === avant);
+    if (vue) { vue.fois += 1; vue.quand = new Date().toISOString(); }
+    else etat.fermetures.push({ code, motif, avant_setup: avant, fois: 1, quand: new Date().toISOString() });
+    etat.fermetures = etat.fermetures.slice(-20);
+    return;
+  }
   if (d.etape === "echo") {
     const n = (k: string, max: number) => { const v = Number(d[k]); return Number.isFinite(v) && v >= 0 && v <= max ? Math.round(v) : 0; };
     etat.echo = {
@@ -133,6 +153,12 @@ export function resumeKhalamRapide() {
       derniers_ms: etat.mesures.slice(-12),
     },
     basculements: { ...etat.basculements },
+    /* `avant_setup: true` = Google refuse la CONFIGURATION ; le motif dit
+       laquelle. `false` = la session était établie et a été coupée en cours.
+       Une liste vide ne veut pas dire « aucune fermeture » : elle veut dire
+       qu'aucun téléphone n'en a déclaré — voir `mesure_recue`. */
+    fermetures: etat.fermetures.map((f) => ({ ...f })),
+    fermetures_avant_setup: etat.fermetures.filter((f) => f.avant_setup).reduce((n, f) => n + f.fois, 0),
     /* `coupures_pendant_parole` élevé = elle se coupe elle-même.
        `coupures_au_silence` = la personne la coupe, et c'est voulu.
        `trames_retenues` = l'écho filtré ; `trames_laissees` = ce qui est passé
