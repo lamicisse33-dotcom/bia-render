@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "bd0831c779c072c8fdd1f4c12056ff16d210c8e708b41c80e532eec9bcfd886d",
+    "app/page.tsx": "7377e7c204877d29d9e724659cbcaabc1c2482d3299ec23ad892a570899ee939",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -300,5 +300,18 @@
     "l_ecran_s_ouvre_vraiment": "C est la faute du 23 octobre avec la carte : elle disait « c est parti » et rien ne s ouvrait. Si l ecran manque, l outil REND un refus au lieu de laisser le modele annoncer des images que personne ne verra, et la consigne partagee lui interdit de le dire sans l outil.",
     "verification": "tsc, build, 9 epreuves dans tests/papier-et-traduction.test.mjs. Suite complete : aucune nouvelle rupture par rapport a HEAD.",
     "non_valide": "Aucun essai reel. Il faut dire « montre-moi le marche Sandaga » sur la connexion rapide et verifier que l ecran s ouvre, puis qu elle dit UNE phrase au lieu de decrire les images une par une."
+  },
+  "migration_memoire_et_gestes_rapide_20261024_soir": {
+    "authorized": "Lamine, 24 octobre au soir : sur Khalam Rapide, « ecris-moi un message » n est pas compris, et BIA semble sans memoire, sans lexique, sans devoirs. Il demande de verifier d abord si retirer la recherche n a pas casse les autres outils, et de brancher la recherche de Khalam (Brave) plutot que le Google payant.",
+    "reponse_a_sa_premiere_question": "NON, retirer la recherche n a rien casse. Les huit outils etaient tous declares, verifie dans la configuration exacte envoyee a Google : garder_la_correction, montrer_le_chemin, gerer_les_rappels, montrer_des_images, lire_un_papier, lire_en_wolof, dire_un_nombre_en_wolof, chercher_connaissances. Les vraies causes sont ailleurs, et il y en a deux.",
+    "cause_1_la_consigne_interdisait": "La consigne du mode vocal disait que les anciennes commandes d ecran ne sont pas executees dans ce mode, SAUF la carte — pendant qu on lui donnait des outils pour ecrire, photographier, rappeler et montrer. L interdiction gagnait contre les outils. Remplacee par la LISTE des outils, et par l interdiction d ecrire une balise entre crochets, qui serait PRONONCEE a voix haute.",
+    "cause_2_la_memoire_etait_morte": "Lu sur /api/etat -> lectures_supabase.khalam_rapide : devoirs 21 lignes, lexique 659, mots corriges 40, corrections exactes 300, instructions 1, fiches 1 — et SOUVENIRS ZERO, trois tours sur trois, pendant que la table en porte treize mille. derniersSouvenirs() demandait les colonnes role et created_at ; la table a qui et quand, elle n a JAMAIS eu les deux autres. PostgREST repondait 400 a chaque appel et le catch de la session rendait une liste vide. Morte depuis le premier jour, sans un message. Khalam n etait pas touche : il passe par la fonction chercher_souvenirs, qui nomme les bonnes colonnes.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change : un temoin papierRef pose a la fabrication (l etat serait fige dans la fonction asynchrone de l outil), et l evenement ecrire qui ouvre le plein ecran par le MEME chemin que le bouton. Aucun changement d ASR, de synthese, de modele, de voix ni de micro.",
+    "hash_before": "bd0831c779c072c8fdd1f4c12056ff16d210c8e708b41c80e532eec9bcfd886d",
+    "hash_after": "7377e7c204877d29d9e724659cbcaabc1c2482d3299ec23ad892a570899ee939",
+    "interruption_retablie": "Mesure du 24 octobre sur 43 tours servis : trames_retenues 1 924, trames_laissees ZERO. Pas une seule trame ne passait pendant qu elle parlait — donc sa voix a lui non plus. Le plancher appris etait monte a 0,122 et la barre valait 0,305 : il aurait fallu crier. Le remede contre l echo avait mange la regle « je dois pouvoir l interrompre ». Le plancher et la barre sont maintenant bornes, et une epreuve rejoue la regle du client dans une piece bruyante pour verifier qu une voix franche passe toujours.",
+    "recherche": "Brave, par lib/actions-internet.ts — la meme cle, le meme pays, le meme nombre de resultats que Khalam. Celle de Google reste eteinte derriere BIA_LIVE_RECHERCHE : elle faisait refuser chaque session avec le code 1011.",
+    "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture par rapport a HEAD. Epreuves neuves : les colonnes demandees par derniersSouvenirs doivent toutes exister dans data/souvenirs.sql (et le tri aussi), une panne de souvenirs ne peut plus se taire, les dix outils sont declares ET servis, l interdiction des gestes d ecran a disparu, et une voix franche passe toujours apres une longue parole en piece bruyante.",
+    "non_valide": "Rien n est verifie dans ses oreilles. Il faut un nouveau deploiement, puis ses phrases."
   }
 }

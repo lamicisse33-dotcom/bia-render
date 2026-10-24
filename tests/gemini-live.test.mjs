@@ -122,7 +122,19 @@ test('session authentication precedes Google and returns only a constrained ephe
   assert(!entrees.some(t=>t.googleSearch),
    'la recherche ne doit PAS partir par défaut : elle a refusé toutes les sessions');
   assert(consigne.includes('montrer_le_chemin'),'la consigne doit dire par où passer pour une carte');
-  assert(/SAUF la carte/.test(consigne),'l’interdiction des gestes d’écran garde son exception');
+  /* ── 24 OCTOBRE AU SOIR : L'INTERDICTION ÉTAIT LA PANNE ────────────────
+     La consigne disait « les anciennes commandes d'écran ne sont pas
+     exécutées dans ce mode, SAUF la carte » — pendant qu'on lui donnait des
+     outils pour écrire, photographier, rappeler et montrer. Lamine :
+     « "écris-moi un message" n'est pas compris ». L'interdiction gagnait
+     contre les outils. Elle est remplacée par la LISTE des outils. */
+  assert(!/Les anciennes commandes d’écran ne sont pas exécutées/.test(consigne),
+   'l’interdiction des gestes d’écran doit avoir disparu');
+  assert(/TES GESTES D’ÉCRAN PASSENT PAR TES OUTILS/.test(consigne),
+   'la consigne doit lister les outils au lieu de les interdire');
+  assert(/ecrire_un_papier/.test(consigne),'« écris-moi un message » doit avoir son outil nommé');
+  /* Et aucune balise entre crochets enseignée ici : elle serait PRONONCÉE. */
+  assert(/N’écris JAMAIS une balise entre crochets dans ce mode/.test(consigne));
   assert.equal(body.bidiGenerateContentSetup.contextWindowCompression.slidingWindow.targetTokens,'30000');
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.startsWith('FR_WO_UNIQUEMENT'));
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.endsWith('FR_WO_UNIQUEMENT'));assert.deepEqual(body.bidiGenerateContentSetup.generationConfig.responseModalities,['AUDIO']);

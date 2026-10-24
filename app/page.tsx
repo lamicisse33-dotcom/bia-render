@@ -607,6 +607,10 @@ export default function Home() {
   const appuiLong = useRef(false);
   const [papierOuvert, setPapierOuvert] = useState(false);
   const [papier, setPapier] = useState<{ doc: Papier; totaux: Totaux | null } | null>(null);
+  /* Lu dans une fonction asynchrone : l'état lui-même y serait figé à sa
+     valeur du rendu, et l'outil d'écriture rendrait toujours « pas écrit ».
+     Même mécanique que papierPretRef, juste au-dessus. */
+  const papierRef = useRef<{ doc: Papier; totaux: Totaux | null } | null>(null);
   /* ── LE DOCUMENT EN PLEIN ÉCRAN ───────────────────────────────────────────
      Lamine, 24 octobre 2026 : « quand BIA rédige un message, un mail, un
      devis ou une facture, elle s'efface et le document s'affiche en PLEIN
@@ -1406,6 +1410,7 @@ export default function Home() {
 
   historyRef.current = history;
   papierPretRef.current = papierPret;
+  papierRef.current = papier;
   resumeRef.current = resume;
   codeRef.current = code || "";
   emetteurRef.current = emetteur;
@@ -4948,6 +4953,24 @@ export default function Home() {
            versEcran() et montrerSurEcran() existaient déjà, on ne refait pas
            un deuxième afficheur qui dériverait du premier. */
         montrer:(v)=>{setClavier(false);montrerSurEcran(versEcran(v as unknown as Parameters<typeof versEcran>[0]));},
+        /* ── ELLE ÉCRIT, ET LE PAPIER S'OUVRE EN PLEIN ÉCRAN ──────────────
+           Le MÊME chemin que le bouton : fabriquerPapier appelle
+           /api/document, range le papier dans sa boîte et ouvre l'écran.
+           Rien n'est dupliqué, donc les deux chemins ne peuvent pas
+           diverger. `false` : ce n'est pas lui qui a touché un bouton, donc
+           un échec reste silencieux à l'écran — mais il est RENDU à BIA,
+           qui le dira. */
+        ecrire:async(sorte)=>{
+          setEcritPlein(sorte);
+          try{
+            await fabriquerPapier(sorte as Sorte,false);
+            const fait=Boolean(papierRef.current);
+            return fait?{ecrit:true,titre:titreDe(papierRef.current!.doc)}
+                       :{ecrit:false,erreur:"Le papier n'a pas pu être écrit. Dis-le, et propose de réessayer."};
+          }catch{
+            return {ecrit:false,erreur:"Le papier n'a pas pu être écrit."};
+          }
+        },
         accordPosition:()=>new Promise<boolean>(repondre=>{
           setAccordPosition(()=>(d:boolean)=>{setAccordPosition(null);repondre(d);});
         }),
@@ -7137,6 +7160,9 @@ export default function Home() {
          ne viendra jamais est la pire des réponses — il attendrait sans
          raison, et l'erreur, elle, est derrière l'écran. */
       setEcritPlein(null);
+      /* Et on efface le témoin : garder l'ancien papier ferait dire à
+         l'outil « c'est écrit » sur une fabrication qui vient d'échouer. */
+      papierRef.current = null;
       if (demandeParLui) { setPapierErreur(quoi); return; }
       console.warn(`BIA — papier « ${sorte} » proposé par elle, non fabriqué : ${quoi}`);
       setPapierPret(null);
@@ -7211,6 +7237,10 @@ export default function Home() {
       };
       setPapiers(garderPapier(profilRef.current, garde));
       setHistory((items) => [...items, { role: "bia", text: garde.titre, papier: id }]);
+      /* Le témoin est posé ICI, pas au rendu suivant : l'outil d'écriture de
+         Khalam Rapide lit juste après l'await, avant que React ait rendu,
+         et il rendrait « pas écrit » sur un papier pourtant fabriqué. */
+      papierRef.current = { doc: d.document, totaux: d.totaux ?? null };
       setPapier({ doc: d.document, totaux: d.totaux ?? null });
       /* Fini. Si l'écran des papiers est déjà ouvert, on le voit arriver et
          il n'y a rien à annoncer. Sinon ça sonne, et le petit clavier

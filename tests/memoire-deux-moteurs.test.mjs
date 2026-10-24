@@ -129,3 +129,48 @@ test('le compteur de l’outil sépare les appels, les refus et les réponses vi
  assert.equal(r.acces_refuses,1);
  assert.equal(r.reponses_sans_aucune_ligne,1);
 });
+
+/* ── LA MÉMOIRE DE KHALAM RAPIDE ÉTAIT MORTE DEPUIS LE PREMIER JOUR ───────
+
+   Lamine, 24 octobre 2026 : « BIA semble sans mémoire ». Lu sur /api/etat →
+   lectures_supabase.khalam_rapide : devoirs 21 lignes, lexique 659,
+   corrections exactes 300… et SOUVENIRS ZÉRO, trois tours sur trois, pendant
+   que la table en porte treize mille.
+
+   La cause : derniersSouvenirs() demandait les colonnes `role` et
+   `created_at`. La table a `qui` et `quand` — elle n'a JAMAIS eu les deux
+   autres. PostgREST répondait 400 à chaque appel, et le .catch(()=>[]) de la
+   session rendait une liste vide. Sans un message, sans un compteur rouge. */
+test('derniersSouvenirs demande les colonnes qui existent vraiment',()=>{
+ const code=fs.readFileSync('lib/souvenirs.ts','utf8');
+ const sql=fs.readFileSync('data/souvenirs.sql','utf8');
+ /* Les commentaires sont retirés : celui qui explique la panne NOMME les
+    deux colonnes fautives, et mon motif les relisait comme du code. Un motif
+    qui lit de la prose n'éprouve rien — sixième fois. */
+ const sansCommentaires=t=>t.replace(/\/\*[\s\S]*?\*\//g,' ').replace(/(^|[^:])\/\/.*$/gm,'$1');
+ const bloc=sansCommentaires(code.slice(code.indexOf('export async function derniersSouvenirs')));
+ const requete=bloc.slice(0,bloc.indexOf('const lignes'));
+
+ /* Les colonnes demandées doivent toutes exister dans le schéma. */
+ const demandees=(requete.match(/select=([a-z_,]+)/)||[])[1]?.split(',')||[];
+ assert.ok(demandees.length,'la requête doit sélectionner des colonnes');
+ for(const c of demandees)
+  assert.ok(new RegExp('^\\s+'+c+'\\s','m').test(sql),
+   'colonne demandée mais absente de data/souvenirs.sql : '+c);
+
+ /* Et l’ordre doit porter sur une colonne qui existe aussi. */
+ const ordre=(requete.match(/order=([a-z_]+)\./)||[])[1];
+ assert.ok(ordre,'la requête doit ordonner');
+ assert.ok(new RegExp('^\\s+'+ordre+'\\s','m').test(sql),
+  'tri sur une colonne absente du schéma : '+ordre);
+
+ /* Les deux noms fautifs ne doivent plus apparaître nulle part ici. */
+ assert.ok(!requete.includes('created_at'),'created_at n’existe pas dans cette table');
+ assert.ok(!requete.includes('role'),'role n’existe pas dans cette table');
+});
+
+test('une panne de souvenirs ne peut plus se taire',()=>{
+ const code=fs.readFileSync('lib/souvenirs.ts','utf8');
+ assert.match(code,/derniereDate/,'la date de la dernière panne doit être gardée');
+ assert.match(code,/dernierMotif: ""/, 'et son motif publié dans le résumé');
+});

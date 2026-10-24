@@ -31,10 +31,22 @@ export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',t
     Rapide n'avait rien. La page les affiche — mêmes quotas, même cache,
     même fournisseur : lib/trouver.ts est appelé une seule fois pour les
     deux moteurs. */
- montrer?:(v:{sorte:'image'|'video';requete:string;pieces:Array<Record<string,unknown>>})=>void};
+ montrer?:(v:{sorte:'image'|'video';requete:string;pieces:Array<Record<string,unknown>>})=>void;
+ /* ── ÉCRIRE UN PAPIER ────────────────────────────────────────────────────
+    « Écris-moi un message » n'était pas compris : la consigne interdisait
+    les gestes d'écran sauf la carte, et aucun outil ne savait écrire. La
+    page fabrique le document par le MÊME chemin que le bouton — /api/document
+    et l'écran plein — donc rien n'est dupliqué. */
+ ecrire?:(sorte:'message'|'mail'|'devis'|'facture')=>Promise<{ecrit:boolean;titre?:string;erreur?:string}>};
 /* Le niveau au-dessus duquel une voix humaine passe DEVANT l'écho, quelle que
    soit la pièce. En dessous, c'est le plancher appris qui décide. */
 const SEUIL_INTERRUPTION=0.06;
+/* Le plancher appris ne monte pas au-delà, et la barre à franchir non plus :
+   sans ces deux bornes, une pièce bruyante rend BIA ininterrompable, et c'est
+   exactement ce que les compteurs du 24 octobre ont montré (zéro trame
+   laissée sur 43 tours). */
+const PLAFOND_ECHO=0.08;
+const PLAFOND_INTERRUPTION=0.16;
 const WORKLET=`
 class CaptureBia extends AudioWorkletProcessor{
  constructor(){super();this.pending=[];this.offset=0;this.samples=[];}
@@ -224,8 +236,24 @@ export class BiaGeminiLive{
        parole ; il redescend doucement pour qu'une pièce plus calme ne reste
        pas bloquée sur un ancien niveau. */
     if(this.elleParle()){
-     this.echoPlancher=Math.max(rms,this.echoPlancher*0.995);
-     if(rms<=Math.max(SEUIL_INTERRUPTION,this.echoPlancher*2.5)){this.retenues++;return;}
+     /* ── IL NE POUVAIT PLUS LA COUPER, ET LE CHIFFRE LE DISAIT ───────────
+
+        Mesuré le 24 octobre sur 43 tours : trames_retenues 1 924,
+        trames_laissees ZÉRO. Pas une seule trame n'est passée pendant
+        qu'elle parlait — donc sa voix à lui non plus. Le plancher appris
+        était monté à 0,122 et la barre à franchir valait 0,122 × 2,5 =
+        0,305 : il aurait fallu crier.
+
+        « Je dois pouvoir, moi, l'interrompre pendant qu'elle parle : ça, ça
+        reste. » Le remède contre l'écho avait mangé la règle qu'il fallait
+        garder — un filet posé si haut qu'il attrape aussi ce qu'on voulait
+        laisser passer.
+
+        LE PLANCHER EST DONC BORNÉ. Au-delà de PLAFOND_ECHO, on ne monte
+        plus : une pièce bruyante ne doit pas pouvoir rendre BIA
+        ininterrompable. Et une voix franche passe toujours à SEUIL_INTERRUPTION. */
+     this.echoPlancher=Math.min(PLAFOND_ECHO,Math.max(rms,this.echoPlancher*0.995));
+     if(rms<=Math.min(PLAFOND_INTERRUPTION,Math.max(SEUIL_INTERRUPTION,this.echoPlancher*2.5))){this.retenues++;return;}
      this.laissees++;
     }
     let binary='';for(const b of new Uint8Array(raw))binary+=String.fromCharCode(b);
@@ -301,6 +329,26 @@ export class BiaGeminiLive{
       }
       if(call.name==='montrer_le_chemin'){
        const reponse=await this.montrerLeChemin(String(call.args?.destination||'').slice(0,160));
+       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
+       continue;
+      }
+      if(call.name==='ecrire_un_papier'){
+       const sorte=['message','mail','devis','facture'].includes(String(call.args?.sorte))
+        ?String(call.args?.sorte) as 'message'|'mail'|'devis'|'facture':'message';
+       const reponse=this.events.ecrire
+        ?await this.events.ecrire(sorte).catch(()=>({ecrit:false,erreur:'Le papier n’a pas pu être écrit.'}))
+        :{ecrit:false,erreur:'L’écriture n’est pas disponible sur cet écran.'};
+       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
+       continue;
+      }
+      if(call.name==='chercher_sur_internet'){
+       let reponse;
+       try{
+        const r=await fetch('/api/chercher',{method:'POST',signal:AbortSignal.timeout(20000),
+         headers:{'content-type':'application/json',...this.entetes()},
+         body:JSON.stringify({question:String(call.args?.question||'').slice(0,300)})});
+        reponse=await r.json();
+       }catch{reponse={trouve:false,raison:'La recherche n’a pas répondu. Dis-le et propose de réessayer.'};}
        this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
        continue;
       }

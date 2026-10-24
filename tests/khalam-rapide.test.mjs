@@ -224,3 +224,51 @@ test('la version chargée distingue « pas d’écho » de « ancien code »',()
  etat.noterKhalamRapide({etape:'echo',version:'pas-une-version'});
  assert.equal(Object.keys(etat.resumeKhalamRapide().echo.versions).length,2,'rien d’autre n’entre');
 });
+
+/* ── IL DOIT POUVOIR LA COUPER, ET LE CHIFFRE DISAIT QUE NON ──────────────
+   Mesuré le 24 octobre sur 43 tours servis : trames_retenues 1 924,
+   trames_laissees ZÉRO. Le plancher appris était monté à 0,122 et la barre
+   valait 0,122 × 2,5 = 0,305 : il aurait fallu crier. Le remède contre
+   l'écho avait mangé la règle qu'il fallait garder. */
+test('une voix franche passe TOUJOURS, même après une longue parole dans une pièce bruyante',()=>{
+ const code=fs.readFileSync('lib/gemini-live-client.ts','utf8');
+ const PLAFOND_ECHO=Number(code.match(/const PLAFOND_ECHO=([\d.]+)/)[1]);
+ const PLAFOND_INT=Number(code.match(/const PLAFOND_INTERRUPTION=([\d.]+)/)[1]);
+ const SEUIL=Number(code.match(/const SEUIL_INTERRUPTION=([\d.]+)/)[1]);
+
+ /* On rejoue la règle exacte du client, en laissant le plancher monter au
+    maximum comme dans une pièce bruyante. */
+ let plancher=0;
+ for(let i=0;i<5000;i++)plancher=Math.min(PLAFOND_ECHO,Math.max(0.5,plancher*0.995));
+ const barre=Math.min(PLAFOND_INT,Math.max(SEUIL,plancher*2.5));
+
+ assert.ok(plancher<=PLAFOND_ECHO,'le plancher appris doit être borné');
+ assert.ok(barre<=PLAFOND_INT,'la barre à franchir doit être bornée : '+barre);
+ /* 0,305 était la barre du 24 octobre : elle ne doit plus être atteignable. */
+ assert.ok(barre<0.3,'une pièce bruyante ne doit pas rendre BIA ininterrompable : barre '+barre);
+ /* Une voix franche — nettement au-dessus du seuil — passe. */
+ assert.ok(0.2>barre,'une voix franche à 0,2 doit passer, barre = '+barre);
+ /* Et l’écho ordinaire, lui, est toujours retenu. */
+ assert.ok(0.05<=barre,'un écho faible doit rester retenu');
+});
+
+test('les outils de Khalam Rapide sont tous déclarés, et l’écriture en fait partie',()=>{
+ const session=fs.readFileSync('app/api/gemini-live/session/route.ts','utf8');
+ const client=fs.readFileSync('lib/gemini-live-client.ts','utf8');
+ const attendus=['garder_la_correction','montrer_le_chemin','ecrire_un_papier',
+  'chercher_sur_internet','montrer_des_images','lire_un_papier','lire_en_wolof',
+  'gerer_les_rappels','dire_un_nombre_en_wolof','chercher_connaissances'];
+ for(const nom of attendus){
+  assert.ok(session.includes("{name:'"+nom+"'"),'outil non déclaré : '+nom);
+  assert.ok(client.includes(nom),'outil non servi par le client : '+nom);
+ }
+ /* Et la consigne ne doit PLUS interdire les gestes d’écran : c’est elle qui
+    faisait refuser « écris-moi un message » alors que l’outil existait. */
+ assert.ok(!session.includes('Les anciennes commandes d’écran ne sont pas exécutées'),
+  'l’interdiction des gestes d’écran doit avoir disparu');
+ assert.ok(session.includes('TES GESTES D’ÉCRAN PASSENT PAR TES OUTILS'),
+  'la consigne doit lister les outils au lieu de les interdire');
+ /* Aucune balise entre crochets ne doit être enseignée à ce moteur : elle
+    serait PRONONCÉE à voix haute. */
+ assert.ok(session.includes('N’écris JAMAIS une balise entre crochets dans ce mode'));
+});

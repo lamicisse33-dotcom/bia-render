@@ -63,7 +63,7 @@ export const souvenirsActifs = () => Boolean(lexiqueConfig.url && lexiqueConfig.
    n'arrivaient pas au rangement, puis ses leçons qui n'en ressortaient pas —
    les deux introuvables tant que rien ne les regardait. Une chose qu'on ne
    mesure pas est une chose dont on discute au lieu de la savoir. */
-let compte = { gardes: 0, refuses: 0, cherches: 0, retrouves: 0, pannes: 0, dernierMotif: "" };
+let compte = { gardes: 0, refuses: 0, cherches: 0, retrouves: 0, pannes: 0, dernierMotif: "", derniereDate: "" };
 export function resumeSouvenirs() {
   if (!souvenirsActifs()) return null;
   return {
@@ -256,24 +256,47 @@ export async function derniersSouvenirs(personne: string, combien = 30): Promise
   try {
     const n = Math.max(1, Math.min(120, Math.floor(combien)));
     const r = await fetch(
-      `${lexiqueConfig.url}/rest/v1/${TABLE}?select=role,texte,langue,created_at`
+      /* ── LES COLONNES N'ONT JAMAIS EXISTÉ, ET PERSONNE NE L'A VU ──────────
+
+         Le 24 octobre 2026, Lamine : « sur Khalam Rapide, BIA semble sans
+         mémoire ». Lu sur /api/etat → lectures_supabase.khalam_rapide :
+         devoirs 21 lignes, lexique 659, corrections exactes 300… et
+         SOUVENIRS ZÉRO, trois tours sur trois, pendant que la table en porte
+         treize mille.
+
+         LA CAUSE EST ICI. Cette requête demandait `role` et `created_at`.
+         La table, elle, a `qui` et `quand` — voir data/souvenirs.sql, elle
+         n'a jamais eu les deux autres. PostgREST répondait donc 400 à CHAQUE
+         appel, le `throw` partait, et le `.catch(()=>[])` de la session
+         rendait une liste vide. Une mémoire morte depuis le premier jour,
+         sans un message, sans un compteur rouge.
+
+         Khalam, lui, n'était pas touché : il passe par la fonction
+         chercher_souvenirs, qui nomme les bonnes colonnes. D'où une mémoire
+         d'un côté et pas de l'autre — exactement ce qu'il décrit. */
+      `${lexiqueConfig.url}/rest/v1/${TABLE}?select=qui,texte,langue,quand`
       + `&application=eq.${encodeURIComponent(lexiqueConfig.application)}`
       + `&personne=eq.${encodeURIComponent(personne)}`
-      + `&order=created_at.desc&limit=${n}`,
+      + `&order=quand.desc&limit=${n}`,
       { headers: entetes(), cache: "no-store", signal: AbortSignal.timeout(6000) },
     );
     if (!r.ok) throw Error(`Supabase ${r.status}`);
-    const lignes = await r.json() as Array<{ role: string; texte: string; langue: string | null; created_at: string }>;
+    const lignes = await r.json() as Array<{ qui: string; texte: string; langue: string | null; quand: string }>;
     if (!Array.isArray(lignes)) throw Error("Souvenirs invalides");
     compte.retrouves++;
     /* Du plus ancien au plus récent : un fil se lit dans l'ordre où il a été dit. */
     return lignes.reverse().map((l) => ({
-      qui: l.role === "bia" ? "bia" as const : "personne" as const,
+      qui: l.qui === "bia" ? "bia" as const : "personne" as const,
       texte: String(l.texte || ""),
-      quand: l.created_at,
+      quand: l.quand,
     }));
   } catch (e) {
-    compte.pannes++; compte.dernierMotif = (e as Error).message.slice(0, 80);
+    /* Le motif est GARDÉ et publié. Pendant des semaines, « Supabase 400 »
+       est tombé ici et n'est ressorti nulle part : la session avalait
+       l'exception et BIA se taisait sur sa propre mémoire. Un relevé qui ne
+       sort pas ne vaut pas mieux que pas de relevé. */
+    compte.pannes++; compte.dernierMotif = (e as Error).message.slice(0, 120);
+    compte.derniereDate = new Date().toISOString();
     return [];
   }
 }
