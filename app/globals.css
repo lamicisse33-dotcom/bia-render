@@ -2983,3 +2983,33 @@ button { font: inherit; touch-action: manipulation; }
 }
 [data-clavier="ouvert"] .mode-actuel,
 [data-ecran="ouvert"] .mode-actuel { opacity: 0; }
+
+/* ── LA QUESTION DE LA POSITION, IMPOSSIBLE À MANQUER ──────────────────────
+
+   Demandée par Lamine le 24 octobre 2026 : « avec son accord explicite à
+   l'écran, jamais en silence ». Elle couvre l'écran, elle a deux boutons
+   francs, et elle dit ce qu'on fait de la position — sans quoi « oui » ne
+   veut rien dire. Même taille de doigt que les autres boutons de BIA. */
+.accord-position {
+  position: fixed;
+  z-index: 60;
+  left: 16px; right: 16px;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  padding: 20px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 22px;
+  background: rgba(13,13,18,.94);
+  color: rgba(255,255,255,.92);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 10px 40px rgba(0,0,0,.55);
+}
+.accord-position p { margin: 0 0 8px; font-size: 15px; line-height: 1.45; }
+.accord-position .accord-note { color: rgba(255,255,255,.66); font-size: 13px; }
+.accord-boutons { display: flex; gap: 12px; margin-top: 16px; }
+.accord-boutons button {
+  flex: 1; min-height: 52px;
+  border-radius: 16px; border: 1px solid rgba(255,255,255,.18);
+  font: inherit; font-size: 15px; cursor: pointer;
+}
+.accord-boutons .oui { background: #d4af37; color: #111; border-color: transparent; font-weight: 600; }
+.accord-boutons .pale { background: rgba(255,255,255,.08); color: rgba(255,255,255,.82); }

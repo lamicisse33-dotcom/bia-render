@@ -7,7 +7,12 @@
    oubliait donc deux fois : pendant la conversation, et après.
 
    TOURS_GARDES vient du serveur (BIA_LIVE_HISTORIQUE) ; 40 est le repli. */
-export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',texte:string,fin:boolean)=>void;parle:(v:boolean)=>void;latence:(ms:number,tour:{session:string;tour:number})=>void;erreur:(s:string)=>void};
+export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',texte:string,fin:boolean)=>void;parle:(v:boolean)=>void;latence:(ms:number,tour:{session:string;tour:number})=>void;erreur:(s:string)=>void;
+ /* ── LA CARTE, ET L'ACCORD QUI LA PRÉCÈDE ────────────────────────────────
+    `accordPosition` montre la question à l'écran et rend ce qu'elle répond.
+    Jamais en silence : sans ces deux rappels, l'outil refuse de partir.
+    `carte` ouvre l'écran de guidage sur le lieu trouvé. */
+ accordPosition?:()=>Promise<boolean>;carte?:(lieu:{dit:string;lat:number;lon:number;sur?:boolean})=>void};
 const WORKLET=`
 class CaptureBia extends AudioWorkletProcessor{
  constructor(){super();this.pending=[];this.offset=0;this.samples=[];}
@@ -128,6 +133,11 @@ export class BiaGeminiLive{
      for(const p of c?.modelTurn?.parts||[]){if(p.inlineData?.data)this.jouer(p.inlineData.data,p.inlineData.mimeType);}
      if(c?.turnComplete){this.finirTour();this.events.etat('Je t’écoute');}
      for(const call of d.toolCall?.functionCalls||[]){
+      if(call.name==='montrer_le_chemin'){
+       const reponse=await this.montrerLeChemin(String(call.args?.destination||'').slice(0,160));
+       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:reponse}]}});
+       continue;
+      }
       if(call.name!=='chercher_connaissances'){this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:{erreur:'Outil indisponible'}}]}});continue;}
       let result;try{const r=await fetch('/api/gemini-live/connaissances',{method:'POST',headers:{'x-bia-code':this.code,'Content-Type':'application/json'},body:JSON.stringify({question:String(call.args?.question||'').slice(0,2000),action:call.args?.action,devoir_id:call.args?.devoir_id,offset:call.args?.offset,historique:this.history.slice(-6).map(m=>({role:m.role==='model'?'bia':'user',text:m.parts.map(p=>p.text).join(' ').slice(0,800)}))}),signal:AbortSignal.timeout(15000)});result=await r.json();}catch{result={erreur:'Mémoire inaccessible. Ne prétends pas l’avoir consultée.'};}
       this.send({toolResponse:{functionResponses:[{id:call.id,name:call.name,response:result}]}});
@@ -176,6 +186,53 @@ export class BiaGeminiLive{
     body:JSON.stringify({personne:this.personne,dit,repondu})}).catch(()=>{});
   }
   this.userText='';this.biaText='';
+ }
+ /* ── LE CHEMIN : ACCORD, POSITION, LIEU, DIRECTION, CARTE ────────────────
+
+    L'ordre compte. On demande l'accord AVANT de toucher au GPS : la
+    permission du navigateur n'est pas une question posée par BIA, et Lamine
+    a demandé « son accord explicite à l'écran, jamais en silence ».
+
+    LA POSITION NE QUITTE PAS CE TOUR. Elle n'entre ni dans l'historique, ni
+    dans les souvenirs, ni dans aucun compteur : elle sert à /api/orientation
+    et disparaît avec la fonction. Ce qui revient au modèle, c'est une phrase
+    et des nombres — jamais les coordonnées. */
+ private async montrerLeChemin(destination:string){
+  if(!destination.trim())return {erreur:'Dis-moi d’abord où elle veut aller.'};
+  if(!this.events.accordPosition||!this.events.carte)return {erreur:'La carte n’est pas disponible ici.'};
+  if(!navigator.geolocation)return {erreur:'Ce téléphone ne sait pas donner sa position.'};
+  if(!await this.events.accordPosition())
+   return {refus:true,erreur:'Elle n’a pas voulu partager sa position. Ne la redemande pas ; propose de décrire le chemin avec des repères qu’elle connaît.'};
+  let ou:GeolocationPosition;
+  try{
+   ou=await new Promise<GeolocationPosition>((ok,non)=>navigator.geolocation.getCurrentPosition(ok,non,
+    {enableHighAccuracy:true,timeout:12000,maximumAge:30000}));
+  }catch{return {erreur:'Sa position n’est pas arrivée. Propose de réessayer dehors, ou de décrire le chemin autrement.'};}
+  const de={lat:ou.coords.latitude,lon:ou.coords.longitude};
+  const entetes={'content-type':'application/json','x-bia-code':this.code};
+  try{
+   const r=await fetch(`/api/lieu?quoi=${encodeURIComponent(destination)}`,{headers:{'x-bia-code':this.code},signal:AbortSignal.timeout(12000)});
+   const d=await r.json() as {candidats?:Array<{dit:string;lat:number;lon:number;sur?:boolean}>;panne?:boolean};
+   const lieu=(d.candidats||[])[0];
+   if(!lieu)return {erreur:d.panne?'La recherche de lieux ne répond pas. Dis-le-lui et propose de réessayer.':`Je ne trouve pas « ${destination} ». Demande-lui un repère connu à côté.`};
+   const o=await fetch('/api/orientation',{method:'POST',headers:entetes,signal:AbortSignal.timeout(12000),
+    body:JSON.stringify({de,vers:{lat:lieu.lat,lon:lieu.lon,nom:lieu.dit},langue:'fr'})});
+   const chemin=await o.json() as {phrase?:string;direction?:string;distance_m?:number;marche_minutes?:number;par_les_rues?:boolean};
+   /* La carte s'ouvre VRAIMENT : c'est ce qui manquait, et la consigne
+      interdit au modèle de dire qu'il l'a montrée sans cet outil. */
+   this.events.carte(lieu);
+   return {
+    carte_affichee:true,
+    destination:lieu.dit,
+    sur:lieu.sur!==false,
+    direction:chemin.direction,
+    distance_m:chemin.distance_m,
+    marche_minutes:chemin.marche_minutes,
+    distance_par_les_rues:chemin.par_les_rues===true,
+    a_dire:chemin.phrase,
+    instruction:'Dis `a_dire` en une phrase courte, dans sa langue. La carte est déjà à l’écran. Si `sur` est faux, préviens que tu n’es pas certaine de cet endroit. Ne donne pas de durée en voiture.',
+   };
+  }catch{return {erreur:'Le chemin n’a pas pu être calculé. Dis-le simplement.'};}
  }
  couperMicro(v:boolean){this.muted=v;if(v)this.send({realtimeInput:{audioStreamEnd:true}});}
  arreter(){

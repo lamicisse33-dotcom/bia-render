@@ -770,6 +770,17 @@ export default function Home() {
      posée PAR-DESSUS. Le micro, l'historique, sa voix, tout continue de
      tourner dessous. C'est ce qui fait qu'on peut lui parler sans la voir. */
   const [carte, setCarte] = useState<Lieu | null>(null);
+  /* ── L'ACCORD POUR LA POSITION, À L'ÉCRAN ET JAMAIS EN SILENCE ──────────
+
+     Lamine, le 24 octobre 2026 : « avec son accord explicite à l'écran,
+     jamais en silence ». La permission du navigateur n'est pas une question
+     posée par BIA : elle arrive sans contexte, et on ne sait pas ce qu'on
+     accepte. On pose donc NOTRE question d'abord, en français clair, et on ne
+     touche au GPS que si elle dit oui.
+
+     La promesse est écrite dans la question elle-même : la position sert à ce
+     trajet et n'est gardée nulle part. */
+  const [accordPosition, setAccordPosition] = useState<((d: boolean) => void) | null>(null);
   /* ── CARTE OUVERTE : BIA SE TAIT ─────────────────────────────────────────
 
      Règle donnée par Lamine le 14 septembre 2026 : « dès que BIA dit ok je
@@ -4779,6 +4790,17 @@ export default function Home() {
           void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},
             body:JSON.stringify({type:'khalam_rapide',etape:'premier_son',ms,...tour}),keepalive:true}).catch(()=>{});
         },
+        /* La carte, enfin atteignable depuis Khalam Rapide (24 octobre 2026) :
+           ce moteur n'avait qu'un outil, et la balise [[carte]] de Khalam
+           n'était plus jamais atteinte depuis qu'il est devenu le défaut. */
+        accordPosition:()=>new Promise<boolean>(repondre=>{
+          setAccordPosition(()=>(d:boolean)=>{setAccordPosition(null);repondre(d);});
+        }),
+        carte:lieu=>{
+          carteOuverteRef.current=true;
+          microAvantLaCarte.current=conversationRef.current;
+          void eclipser(()=>setCarte(lieu));
+        },
         erreur:message=>terminer(message),
       },historyRef.current,
       /* Levier mémoire du 24 octobre 2026 : le nombre de tours gardés vient du
@@ -8207,6 +8229,17 @@ export default function Home() {
             <b>Mal dit</b><i>{compteVerdicts.mal}</i>
           </button>
         </div>
+      ) : null}
+
+      {accordPosition ? (
+        <section className="accord-position" role="dialog" aria-modal="true" aria-label="Partager ta position">
+          <p><b>BIA peut te guider.</b> Elle a besoin de savoir où tu es, maintenant.</p>
+          <p className="accord-note">Ta position sert à ce trajet et n’est gardée nulle part — ni chez BIA, ni ailleurs.</p>
+          <div className="accord-boutons">
+            <button type="button" className="oui" onClick={() => accordPosition(true)}>Oui, guide-moi</button>
+            <button type="button" className="pale" onClick={() => accordPosition(false)}>Non</button>
+          </div>
+        </section>
       ) : null}
 
       <button className="bascule-mode" type="button" data-mode-actuel={khalamRapide ? "rapide" : "khalam"}

@@ -218,3 +218,90 @@ test('la route ne peut rien écrire : ni souvenir, ni Supabase, ni fil',()=>{
  for(const interdit of ['lat','lon','nom','phrase'])
   assert(!new RegExp('\\b'+interdit+'\\s*[:=]').test(etat),'le compteur ne doit pas porter : '+interdit);
 });
+
+/* ── L'OUTIL DE KHALAM RAPIDE : L'ORDRE DES GESTES ─────────────────────────
+
+   Lamine, le 24 octobre 2026 : « toujours pas la carte pour une indication ».
+   La cause : ce moteur n'avait qu'un outil et sa consigne interdisait les
+   commandes d'écran — depuis qu'il est le défaut, la carte était devenue
+   inatteignable pour tout le monde.
+
+   Ce qui est éprouvé ici, c'est l'ORDRE : l'accord d'abord, le GPS seulement
+   après, et rien du tout si elle dit non. */
+function moteurRapide({accord,position,lieu,orientation}){
+ const mod={exports:{}};
+ new Function('module','exports',compile(fs.readFileSync('lib/gemini-live-client.ts','utf8')))(mod,mod.exports);
+ const journal=[],cartes=[];
+ /* `navigator` n'a qu'un accesseur dans Node : on le redéfinit, on ne
+    l'affecte pas. */
+ const vieux={fetch:globalThis.fetch,geo:Object.getOwnPropertyDescriptor(globalThis,'navigator')};
+ Object.defineProperty(globalThis,'navigator',{configurable:true,writable:true,
+  value:{geolocation:{getCurrentPosition:(ok,non)=>{
+   journal.push('gps');
+   position?ok({coords:position}):non(new Error('refus'));
+  }}}});
+ globalThis.fetch=async(url)=>{
+  const chemin=String(url);
+  journal.push(chemin.split('?')[0]);
+  if(chemin.startsWith('/api/lieu'))return {ok:true,json:async()=>lieu};
+  if(chemin.startsWith('/api/orientation'))return {ok:true,json:async()=>orientation};
+  throw new Error('appel non prévu : '+chemin);
+ };
+ const client=new mod.exports.BiaGeminiLive('CODE',{
+  etat(){},transcription(){},parle(){},latence(){},erreur(){},
+  accordPosition:async()=>{journal.push('accord');return accord;},
+  carte:(l)=>{cartes.push(l);},
+ });
+ return {journal,cartes,
+  appeler:(destination)=>client.montrerLeChemin(destination),
+  rendre:()=>{globalThis.fetch=vieux.fetch;
+   if(vieux.geo)Object.defineProperty(globalThis,'navigator',vieux.geo);
+   else delete globalThis.navigator;}};
+}
+
+test('l’accord est demandé AVANT le GPS, et un non arrête tout',async()=>{
+ const m=moteurRapide({accord:false,position:{latitude:14.683,longitude:-17.453}});
+ try{
+  const r=await m.appeler('Ouakam');
+  assert.equal(r.refus,true);
+  assert.deepEqual(m.journal,['accord'],'le GPS n’est JAMAIS touché après un refus');
+  assert.equal(m.cartes.length,0,'et aucune carte ne s’ouvre');
+  assert(/ne la redemande pas/i.test(r.erreur),'et BIA ne doit pas insister : '+r.erreur);
+ }finally{m.rendre();}
+});
+
+test('sur un oui, la carte s’ouvre vraiment et BIA reçoit une phrase à dire',async()=>{
+ const m=moteurRapide({accord:true,position:{latitude:14.683,longitude:-17.453},
+  lieu:{candidats:[{dit:'Ouakam',lat:14.723,lon:-17.490,sur:true}]},
+  orientation:{phrase:'Ouakam, c’est vers le nord-ouest, à 6,7 kilomètres. À pied, environ 90 minutes.',
+   direction:'le nord-ouest',distance_m:6720,marche_minutes:90,par_les_rues:true}});
+ try{
+  const r=await m.appeler('Ouakam');
+  assert.deepEqual(m.journal,['accord','gps','/api/lieu','/api/orientation'],'l’ordre des gestes');
+  assert.equal(r.carte_affichee,true);
+  assert.equal(m.cartes.length,1,'la carte s’ouvre VRAIMENT');
+  assert.deepEqual(m.cartes[0],{dit:'Ouakam',lat:14.723,lon:-17.490,sur:true});
+  assert.equal(r.direction,'le nord-ouest');
+  assert.equal(r.marche_minutes,90);
+  assert(r.a_dire.includes('nord-ouest'),r.a_dire);
+  assert(/Ne donne pas de durée en voiture/.test(r.instruction),'la durée du routeur reste interdite');
+ }finally{m.rendre();}
+});
+
+test('un lieu introuvable le dit, sans ouvrir de carte au hasard',async()=>{
+ const m=moteurRapide({accord:true,position:{latitude:14.683,longitude:-17.453},lieu:{candidats:[]}});
+ try{
+  const r=await m.appeler('Un endroit qui n’existe pas');
+  assert.equal(m.cartes.length,0);
+  assert(/je ne trouve pas/i.test(r.erreur),r.erreur);
+ }finally{m.rendre();}
+});
+
+test('sans destination, on ne demande ni accord ni position',async()=>{
+ const m=moteurRapide({accord:true});
+ try{
+  const r=await m.appeler('   ');
+  assert.deepEqual(m.journal,[],'rien n’est touché');
+  assert(r.erreur);
+ }finally{m.rendre();}
+});

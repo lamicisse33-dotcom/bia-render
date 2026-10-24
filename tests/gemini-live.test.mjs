@@ -71,6 +71,15 @@ test('session authentication precedes Google and returns only a constrained ephe
   assert(consigne.includes('Maa ngi fi rekk.'),'les formulations validées aussi');
   assert(consigne.includes('Devoir appris ligne une'),'et les devoirs appris');
   assert.equal(body.bidiGenerateContentSetup.contextWindowCompression.triggerTokens,'60000','Google compressait dès 18 000 jetons : compresser, c’est résumer');
+  /* ── LA CARTE ÉTAIT INATTEIGNABLE (24 octobre 2026) ──────────────────────
+     Khalam Rapide n'avait QU'UN outil, et sa consigne interdisait les
+     commandes d'écran. Depuis qu'il est le moteur par défaut, plus personne
+     ne pouvait obtenir une carte sans basculer à la main. */
+  const outils=body.bidiGenerateContentSetup.tools[0].functionDeclarations.map(f=>f.name);
+  assert(outils.includes('montrer_le_chemin'),'l’outil carte doit être déclaré : '+outils.join(', '));
+  assert(outils.includes('chercher_connaissances'),'et la mémoire reste');
+  assert(consigne.includes('montrer_le_chemin'),'la consigne doit dire par où passer pour une carte');
+  assert(/SAUF la carte/.test(consigne),'l’interdiction des gestes d’écran garde son exception');
   assert.equal(body.bidiGenerateContentSetup.contextWindowCompression.slidingWindow.targetTokens,'30000');
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.startsWith('FR_WO_UNIQUEMENT'));
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.endsWith('FR_WO_UNIQUEMENT'));assert.deepEqual(body.bidiGenerateContentSetup.generationConfig.responseModalities,['AUDIO']);
