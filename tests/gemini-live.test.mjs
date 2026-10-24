@@ -113,10 +113,14 @@ test('session authentication precedes Google and returns only a constrained ephe
   assert(outils.includes('montrer_le_chemin'),'l’outil carte doit être déclaré : '+outils.join(', '));
   assert(outils.includes('chercher_connaissances'),'et la mémoire reste');
   assert(outils.includes('gerer_les_rappels'),'et les rappels de médicaments');
-  /* « Recherche vocale : vérifier, réparer. » Khalam Rapide n'avait AUCUNE
-     recherche : elle répondait de mémoire à « quel temps fait-il aujourd'hui »,
-     ce que sa consigne lui interdit. */
-  assert(entrees.some(t=>t.googleSearch),'la recherche doit être donnée à Khalam Rapide');
+  /* ── LA RECHERCHE EST ÉTEINTE, ET CE N'EST PAS UN OUBLI ─────────────────
+     Le 24 octobre au soir, elle faisait refuser CHAQUE session : code 1011,
+     « You exceeded your current quota ». Mesuré variante par variante par
+     /api/gemini-live/essai, pendant que silence_1200 passait sans broncher.
+     Posée dans chaque session, elle empêchait toute conversation de
+     s'ouvrir. Elle ne revient que par BIA_LIVE_RECHERCHE=1. */
+  assert(!entrees.some(t=>t.googleSearch),
+   'la recherche ne doit PAS partir par défaut : elle a refusé toutes les sessions');
   assert(consigne.includes('montrer_le_chemin'),'la consigne doit dire par où passer pour une carte');
   assert(/SAUF la carte/.test(consigne),'l’interdiction des gestes d’écran garde son exception');
   assert.equal(body.bidiGenerateContentSetup.contextWindowCompression.slidingWindow.targetTokens,'30000');
@@ -305,4 +309,18 @@ test('one measurement per turn: playback echo cannot re-arm it, and turns are nu
   parole();client.arreter();
   assert.equal(client.mesurePrete,false,'arrêter ferme la mesure en cours');
  }finally{performance.now=perf;}
+});
+
+/* ── L'INTERRUPTEUR DE LA RECHERCHE ───────────────────────────────────────
+   Un outil capable d'empêcher TOUTE conversation de s'ouvrir ne doit pas
+   pouvoir revenir par inadvertance. Il faut une variable posée exprès. */
+test('la recherche ne part que si BIA_LIVE_RECHERCHE vaut 1',()=>{
+ const code=fs.readFileSync('app/api/gemini-live/session/route.ts','utf8')
+  .replace(/\/\*[\s\S]*?\*\//g,' ');
+ assert.match(code,/rechercheLiveActive\(\)\?\[\{googleSearch:\{\}\}\]:\[\]/,
+  'la recherche doit être derrière l’interrupteur');
+ assert.match(code,/BIA_LIVE_RECHERCHE/,'et l’interrupteur doit être nommé');
+ /* Par défaut éteinte : la comparaison est stricte à « 1 », pour qu’une
+    variable laissée à « false » ou « 0 » ne la rallume pas. */
+ assert.match(code,/BIA_LIVE_RECHERCHE\|\|''\)\.trim\(\)==='1'/);
 });

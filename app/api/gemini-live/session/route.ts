@@ -1,5 +1,8 @@
 import {resumeGeminiLive} from '@/lib/gemini-live-diagnostic';
 import {SENSIBILITE_DEBUT,SENSIBILITE_FIN,prefixePartMs,silenceFinDeParoleMs,reglagesFinDeParole} from '@/lib/fin-de-parole';
+/* Éteinte par défaut : elle a refusé toutes les sessions le 24 octobre
+   (code 1011, quota). BIA_LIVE_RECHERCHE=1 la rallume quand le quota existe. */
+const rechercheLiveActive=()=>String(process.env.BIA_LIVE_RECHERCHE||'').trim()==='1';
 import {NextRequest,NextResponse} from 'next/server';
 import {createHash} from 'node:crypto';
 import {verifierCode} from '@/lib/codes';
@@ -138,25 +141,44 @@ export async function POST(req:NextRequest){
      donc le déclencheur : BIA_LIVE_COMPRESSION le règle depuis Render. */
   contextWindowCompression:{triggerTokens:String(liveCompressionJetons()),slidingWindow:{targetTokens:String(liveCompressionCible())}},
   sessionResumption:{},historyConfig:{initialHistoryInClientContent:true},
-  /* ── LA RECHERCHE N'EXISTAIT PAS SUR KHALAM RAPIDE ──────────────────────
+  /* ── LA RECHERCHE CASSAIT TOUTES LES SESSIONS, ET C'EST MA FAUTE ────────
 
-     Lamine, 24 octobre 2026 : « Recherche vocale et recherche d'images /
-     vidéos : vérifier, réparer. » Vérifié : Khalam a l'outil de recherche
-     d'Anthropic, ouvert selon la question (lib/recherche.ts), et les balises
-     [[cherche-image]] / [[regarde]]. Khalam Rapide n'avait RIEN — zéro
-     occurrence. Elle répondait donc de mémoire à « quel temps fait-il
-     aujourd'hui », ce qui est exactement ce que la consigne lui interdit.
+     Le 24 octobre au soir, Lamine : « Khalam Rapide affiche "Khalam Rapide a
+     fermé la connexion" et ne répond plus. » Il l'attribuait au silence à
+     1 200 ms, et c'était raisonnable — c'est ce que je venais d'annoncer.
 
-     On lui donne la recherche de son propre fournisseur, qui est intégrée :
-     rien à payer en plus de la session, rien à brancher, et c'est le modèle
-     qui décide de s'en servir. Ce n'est PAS l'équivalent exact de Khalam —
-     la recherche d'images et de vidéos, elle, passe par des balises d'écran
-     que ce moteur n'a pas, et c'est écrit dans docs/DEUX-MOTEURS-INVENTAIRE.
+     LA MESURE DIT AUTRE CHOSE, et elle est sans ambiguïté
+     (/api/gemini-live/essai, neuf variantes, une seule chose change à la
+     fois) :
 
-     CE QUE ÇA COÛTE : du temps sur les tours où elle cherche, et des jetons
-     de contexte pour ce qu'elle rapporte. Elle ne cherche pas à chaque
-     phrase — c'est le modèle qui tranche, comme sur Khalam. */
-  tools:[{googleSearch:{}},{functionDeclarations:[
+       silence_1200             ACCEPTÉ
+       silence_1200 sans préfixe ACCEPTÉ
+       outil_seul               ACCEPTÉ
+       compression              ACCEPTÉ
+       reprise_et_historique    ACCEPTÉ
+       recherche_seule          REFUSÉ, code 1011
+         « You exceeded your current quota, please check your plan and
+           billing details »
+       recherche_plus_outil     REFUSÉ, code 1011
+
+     La recherche intégrée du fournisseur a son PROPRE quota, et ce projet
+     ne l'a pas. Comme je l'avais posée dans CHAQUE session, chaque session
+     était refusée avant même la poignée de main : plus une seule
+     conversation ne s'ouvrait. Le silence à 1 200 ms, lui, n'y était pour
+     rien — et il reste.
+
+     ELLE NE REVIENDRA PAS TOUTE SEULE. BIA_LIVE_RECHERCHE=1 la rallume, une
+     fois le quota disponible, et /api/gemini-live/essai?variante=recherche_seule
+     le dit en dix secondes sans toucher à la production. Par défaut elle est
+     éteinte : un outil qui empêche TOUTE conversation de s'ouvrir ne doit
+     pas pouvoir revenir par inadvertance.
+
+     CE QUE ÇA COÛTE, DIT FRANCHEMENT : sur Khalam Rapide, elle n'a de
+     nouveau aucune recherche — elle répondra de mémoire à « quel temps
+     fait-il aujourd'hui ». Khalam, lui, garde la sienne. C'est une
+     inégalité entre les deux moteurs, elle est écrite dans
+     docs/DEUX-MOTEURS-INVENTAIRE.md, et elle tient à un quota, pas à moi. */
+  tools:[...(rechercheLiveActive()?[{googleSearch:{}}]:[]),{functionDeclarations:[
    /* ── LA CARTE ÉTAIT INATTEIGNABLE DEPUIS LE 23 OCTOBRE 2026 ─────────────
 
       Lamine, le 24 : « toujours pas la carte pour une indication ». Trouvé en
