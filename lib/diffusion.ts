@@ -132,6 +132,33 @@ export const SIGNES_AVANT_DE_PARLER = 0;
     deux-points et le point-virgule en font partie : dans une énumération, la
     voix marque la pause de toute façon. */
 const FIN_DE_PHRASE = /[.!?…:;](?=\s|$)|\n/g;
+/* ── LEVIER 3 : LA VIRGULE, POUR LES PHRASES LONGUES SEULEMENT ─────────────
+
+   Demandé par Lamine le 24 octobre 2026 : un premier son à ~0,5 s de
+   fabrication. Mesuré la veille, la fabrication de la voix vaut 1 813 ms
+   médians — et ce n'est pas un pod froid (file_gpu : attente_ms 0, santé 200,
+   exécution 993 à 1 415 ms). C'est la LONGUEUR du premier clip qui coûte :
+   la tête était la première phrase complète, soit 80 à 90 signes sur une
+   phrase longue.
+
+   On autorise donc une coupe à la première virgule — mais SEULEMENT quand la
+   phrase naturelle dépasse phraseLongueSignes(). Les phrases courtes gardent
+   leur mélodie d'un seul souffle, intacte : c'est ce qui évite de hacher
+   toutes ses réponses pour gagner sur celles qui sont longues.
+
+   La virgule doit être suivie d'une espace : « 1,5 » n'est pas une pause. */
+const VIRGULE = /,(?=\s)/g;
+/* ── CE FICHIER NE DOIT RIEN IMPORTER ─────────────────────────────────────
+
+   tests/vitesse-immediate.test.mjs le charge comme module `data:` en base64 :
+   un import relatif y est irrésoluble, et l'épreuve tombe avec « Invalid
+   relative URL ». C'est arrivé le 24 octobre 2026 en voulant lire les
+   réglages ici. Les deux valeurs sont donc des REPLIS locaux ; la valeur qui
+   décide en production vient du serveur, publiée dans
+   briques_conversation.tete_courte_signes et passée en paramètre par
+   app/page.tsx. Source unique du réglage : lib/seuils-anticipation.ts. */
+const TETE_COURTE_SIGNES = 20;
+const PHRASE_LONGUE_SIGNES = 70;
 
 /** Les balises que le modèle sème et qui ne doivent JAMAIS être prononcées.
     Elles sont toutes demandées en PREMIÈRE ligne — l'émotion comme les gestes
@@ -188,7 +215,7 @@ const UN_GESTE = /\[{1,2}\s*(?!\s*[ée]motion\b)[a-zà-ÿ-]{3,}\s*[:\-—]/i;
  * @param recu  tout ce que le modèle a écrit jusqu'ici, balises comprises
  * @returns     la tête à dire, ou "" s'il faut encore attendre
  */
-export function teteDeLaReponse(recu: string): string {
+export function teteDeLaReponse(recu: string, coupeCourte = TETE_COURTE_SIGNES, phraseLongue = PHRASE_LONGUE_SIGNES): string {
   /* ── LE TROU QUI LA FAISAIT PARLER DE TRAVERS ──────────────────────────
 
      Lamine, le 13 septembre 2026 : « je lui ai demandé en français, elle m'a
@@ -246,11 +273,25 @@ export function teteDeLaReponse(recu: string): string {
 
      Le « jamais celle qui s'écrit encore » du commentaire d'origine reste
      vrai et reste la règle : on ne coupe que sur une fin de phrase vue. */
-  for (const m of propre.matchAll(FIN_DE_PHRASE)) {
-    const tete = propre.slice(0, m.index + m[0].length).trim();
-    if (tete.length >= MORCEAU_MINIMAL) return tete;
-  }
-  return "";
+  const premiere = (texte: string, motif: RegExp, plancher = MORCEAU_MINIMAL) => {
+    for (const m of texte.matchAll(motif)) {
+      const tete = texte.slice(0, m.index + m[0].length).trim();
+      if (tete.length >= plancher) return tete;
+    }
+    return "";
+  };
+  const phrase = premiere(propre, FIN_DE_PHRASE);
+  /* Pas de phrase complète en vue, ou une phrase déjà courte : rien à
+     raccourcir, et sa mélodie reste d'un seul souffle. */
+  if (!phrase || !coupeCourte || phrase.length <= phraseLongue) return phrase;
+  /* On ne cherche la virgule QUE dans la phrase déjà trouvée : jamais au-delà,
+     donc jamais une coupe qui dépasserait ce qu'on aurait dit de toute façon. */
+  /* Le plancher est passé DANS le balayage : une première virgule trop tôt
+     (« D’accord papa, » : deux mots) ne doit pas faire abandonner la coupe,
+     elle doit faire chercher la suivante. Sans ça le levier ne partait
+     presque jamais. */
+  const clause = premiere(propre.slice(0, phrase.length), VIRGULE, coupeCourte);
+  return clause && clause.length < phrase.length ? clause : phrase;
 }
 
 /**

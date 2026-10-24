@@ -58,3 +58,32 @@ export const premierSegmentMs = () =>
 /** Longueur minimale du texte pour préparer. Révertible : BIA_SIGNES_ANTICIPATION. */
 export const signesAnticipation = () =>
   borne(process.env.BIA_SIGNES_ANTICIPATION, 20, 10, 200);
+
+/* ── LEVIER 3 : LE PREMIER CLIP PARLÉ, COURT ───────────────────────────────
+
+   Lamine, 24 octobre 2026 : « première brique très courte (4-5 mots) et pod
+   Chatterbox maintenu chaud, pour un premier son à ~0,5 s de fabrication ».
+
+   LE POD EST DÉJÀ CHAUD, et c'est mesuré : file_gpu donne `attente_ms: 0` sur
+   tous les travaux, la santé HTTP répond 200 en 291 ms, et l'exécution vaut
+   993 à 1 415 ms. Ces 1,8 s de fabrication médiane ne sont pas un réveil :
+   c'est de la vraie synthèse. Rien à gagner à le chauffer davantage, et je le
+   dis plutôt que de livrer un réchauffeur inutile.
+
+   CE QUI RESTE, ET QUI EST LE VRAI LEVIER : la LONGUEUR du premier clip. La
+   tête était la première phrase COMPLÈTE ; sur une phrase longue, cela fait
+   80 à 90 signes à synthétiser avant le premier son. On autorise donc une
+   coupe à la première VIRGULE, et seulement quand la phrase naturelle
+   dépasse PHRASE_LONGUE_SIGNES — les phrases courtes gardent leur mélodie
+   entière, intacte.
+
+   CE QUE ÇA CHANGE POUR SON OREILLE, et il faut l'écouter : un début plus
+   court, donc une couture après « D'accord papa, » au lieu d'une phrase
+   d'un seul souffle. Le texte dit est le MÊME, seul l'endroit de la coupe
+   change ; la suite se fabrique pendant qu'elle dit le début.
+
+   RÉVERSIBLE : BIA_TETE_COURTE_SIGNES=0 rend la tête d'avant. */
+export const teteCourteSignes = () =>
+  borne(process.env.BIA_TETE_COURTE_SIGNES, 20, 0, 120);
+export const phraseLongueSignes = () =>
+  borne(process.env.BIA_PHRASE_LONGUE_SIGNES, 70, 20, 400);

@@ -1,5 +1,5 @@
 import {REFLEXION_COURTE} from "./reflexion-courte";
-import {premierSegmentMs,signesAnticipation} from "./seuils-anticipation";
+import {premierSegmentMs,signesAnticipation,teteCourteSignes} from "./seuils-anticipation";
 const g=globalThis as typeof globalThis&{biaBriquesEtat?:any};
 const etat=g.biaBriquesEtat??={sessions:0,preparees:0,finalisees:0,erreurs:0,lectures:0,dernier_premier_son_ms:null,dernier_depuis_micro_ms:null,dernier_blanc_ms:null,blanc_max_ms:0,reflexions:0,dernier_echec:null};
 export const etatBriques=etat;
@@ -24,8 +24,30 @@ export const etatBriques=etat;
    L'ATTENTE DE FIN DE PAROLE N'EST PAS TOUCHÉE : `finirAttente` reste dans le
    rappel `jouer`, qui ne s'exécute que si une brique arrive vraiment. Un
    démarrage à vide ne prononce rien et n'avance aucune lecture. */
-export const briquesSurTranscriptionFinale=()=>(process.env.BIA_BRIQUES_FINALES||'oui')!=='non';
-export const resumeBriques=()=>({mode:'briques_texte_verrouillees_audio_progressif',revision:'stream-continu-priorite-ecoute-v1',premier_segment_apres_ms:premierSegmentMs(),seuil_signes_anticipation:signesAnticipation(),modele_briques_configure:process.env.BIA_BRIQUES_MODEL||'defaut',briques_sur_transcription_finale:briquesSurTranscriptionFinale(),pause_transcription_ms:400,capture_pcm_ms:100,morceau_enregistrement_ms:100,livraison_audio:'progressive_ndjson',anticipation_texte:'pendant_parole_et_fin',ordonnancement_audio:'par_morceau_ecoute_prioritaire',...etat,son_reflexion:'mmm_khalam_convertis_20261020',reflexion_seuil_initial_ms:REFLEXION_COURTE.attente_ms,reflexion_seuil_suite_ms:null,politique_reflexion:REFLEXION_COURTE});
+/* ── VERDICT DU 24 OCTOBRE 2026 : L'ESSAI EST REFUSÉ, CHIFFRES EN MAIN ─────
+
+   Quatre tours de Lamine sur Khalam, lus sur /api/etat à 00:51 :
+
+     departs            sur_transcription_finale 10
+     chaines            10        replis  7
+     tours (ordinaire)  vecu_ms médian 6 340 ms   (4 322 avant l'essai)
+     dont le modèle     2 837 ms                  (1 372 avant)
+
+   SEPT CHAÎNES SUR DIX SONT PARTIES EN REPLI. Et le repli n'est pas gratuit :
+   le chemin ordinaire ne redémarre qu'APRÈS, ce qui est mot pour mot le
+   risque écrit dans la décision d'origine — « an entire rejected model call
+   before ordinary chat starts ». Le chemin ordinaire a donc empiré de deux
+   secondes pendant l'essai.
+
+   LE DÉFAUT REPASSE À NON. La règle que j'avais écrite pour trancher était :
+   « si replis grimpe sans que premier_son_median_ms descende, l'essai coûte
+   plus qu'il ne rend ». premier_son_median_ms vaut 6 749 ms, au-dessus du
+   chemin ordinaire. La règle a parlé.
+
+   BIA_BRIQUES_FINALES=oui le rallume, pour qu'on puisse le reprendre si les
+   briques finissent par se préparer pendant la parole. */
+export const briquesSurTranscriptionFinale=()=>(process.env.BIA_BRIQUES_FINALES||'non')==='oui';
+export const resumeBriques=()=>({mode:'briques_texte_verrouillees_audio_progressif',revision:'stream-continu-priorite-ecoute-v1',premier_segment_apres_ms:premierSegmentMs(),seuil_signes_anticipation:signesAnticipation(),modele_briques_configure:process.env.BIA_BRIQUES_MODEL||'defaut',tete_courte_signes:teteCourteSignes(),briques_sur_transcription_finale:briquesSurTranscriptionFinale(),pause_transcription_ms:400,capture_pcm_ms:100,morceau_enregistrement_ms:100,livraison_audio:'progressive_ndjson',anticipation_texte:'pendant_parole_et_fin',ordonnancement_audio:'par_morceau_ecoute_prioritaire',...etat,son_reflexion:'mmm_khalam_convertis_20261020',reflexion_seuil_initial_ms:REFLEXION_COURTE.attente_ms,reflexion_seuil_suite_ms:null,politique_reflexion:REFLEXION_COURTE});
 export function noterBriques(d:Record<string,unknown>){
   const ms=Number(d.ms);if(!Number.isFinite(ms)||ms<0||ms>180000)return;
   if(d.etape==='reflexion_prechargee'){

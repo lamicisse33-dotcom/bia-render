@@ -220,3 +220,65 @@ test('le mot-pour-mot tolère la ponctuation, jamais une reformulation',()=>{
  assert(normaliser('Oui papa. Waaw, dama ko xam bu baax.').includes(normaliser(apprise)));
  assert(!normaliser('Waaw, xam naa ko bu baax').includes(normaliser(apprise)),'une reformulation échoue');
 });
+
+/* ── LEVIER 3 : LA TÊTE COURTE, ET CE QU'ELLE NE DOIT PAS HACHER ───────────
+
+   Lamine, 24 octobre 2026 : premier son à ~0,5 s de fabrication. Le pod est
+   déjà chaud (file_gpu attente_ms 0, santé 200) : ce qui coûte, c'est la
+   LONGUEUR du premier clip. On coupe à la virgule — mais seulement sur une
+   phrase longue, sinon on hacherait toutes ses réponses. */
+function diffusion(){const m={exports:{}};
+ new Function('require','module','exports',compile(fs.readFileSync('lib/diffusion.ts','utf8')))(
+  id=>assert.fail('lib/diffusion.ts ne doit rien importer : '+id),m,m.exports);
+ return m.exports;}
+
+test('une phrase courte garde sa mélodie entière, une phrase longue est coupée à la virgule',()=>{
+ const {teteDeLaReponse}=diffusion();
+ /* Courte : rien ne change, c'est la phrase entière. */
+ const courte='Waaw papa, dama ko xam. Te suite.';
+ assert.equal(teteDeLaReponse(courte),'Waaw papa, dama ko xam.');
+ /* Longue : on coupe à la virgule qui donne au moins 20 signes, et le reste
+    part au clip suivant pendant qu'elle dit le début. */
+ const longue='Je comprends très bien ce que tu dis, et je vais te répondre franchement sur ce point. Suite.';
+ assert.equal(teteDeLaReponse(longue),'Je comprends très bien ce que tu dis,');
+ /* Et le texte dit reste le MÊME : seule la coupe change. */
+ assert(longue.startsWith(teteDeLaReponse(longue)));
+
+ /* Une virgule trop tôt — deux mots — ne fait pas abandonner la coupe : on
+    cherche la suivante. S'il n'y en a pas, la phrase entière part, et sa
+    mélodie reste intacte. */
+ const tropTot='D’accord papa, je vais regarder ça tout de suite et je te dis ce que j’en pense. Suite.';
+ assert.equal(teteDeLaReponse(tropTot),'D’accord papa, je vais regarder ça tout de suite et je te dis ce que j’en pense.');
+ const deuxVirgules='D’accord papa, je regarde ça maintenant, et je te réponds franchement sur ce point. Suite.';
+ assert.equal(teteDeLaReponse(deuxVirgules),'D’accord papa, je regarde ça maintenant,');
+});
+
+test('la tête courte ne coupe jamais au-delà de ce qu’on aurait dit, ni sur un nombre',()=>{
+ const {teteDeLaReponse}=diffusion();
+ /* La virgule est cherchée DANS la phrase trouvée, jamais après : ici elle
+    n'arrive qu'après le point, donc la phrase entière part. */
+ const apres='Bonjour papa comment vas-tu aujourd’hui mon cher ami de toujours. Ensuite, autre chose.';
+ assert.equal(teteDeLaReponse(apres),'Bonjour papa comment vas-tu aujourd’hui mon cher ami de toujours.');
+ /* « 1,5 » n'est pas une pause : la virgule doit être suivie d'une espace. */
+ const nombre='Ça fait 1,5 million de francs et ça reste beaucoup trop cher pour ce service. Suite.';
+ assert.equal(teteDeLaReponse(nombre),'Ça fait 1,5 million de francs et ça reste beaucoup trop cher pour ce service.');
+});
+
+test('le réglage à zéro rend exactement la tête d’avant',()=>{
+ const {teteDeLaReponse}=diffusion();
+ const longue='D’accord papa, je vais regarder ça tout de suite et je te dis ce que j’en pense vraiment. Suite.';
+ assert.equal(teteDeLaReponse(longue,0),'D’accord papa, je vais regarder ça tout de suite et je te dis ce que j’en pense vraiment.');
+});
+
+/* Le verdict du levier 4, écrit en chiffres : c'est la règle que j'avais posée
+   avant de lancer l'essai, appliquée aux nombres réels de ses quatre tours. */
+test('la règle de l’essai briques finales condamne l’essai sur ses chiffres réels',()=>{
+ const juger=({replis,chaines,premierSonMedian,vecuOrdinaire})=>
+   ({part_replis:Math.round((replis/chaines)*100),garder:premierSonMedian!==null&&premierSonMedian<vecuOrdinaire});
+ /* 24 octobre, 00:51 : 7 replis sur 10 chaînes, premier son par briques
+    6 749 ms contre 6 340 ms au chemin ordinaire. */
+ assert.deepEqual(juger({replis:7,chaines:10,premierSonMedian:6749,vecuOrdinaire:6340}),
+  {part_replis:70,garder:false});
+ /* Et ce qu'il aurait fallu pour le garder. */
+ assert.equal(juger({replis:1,chaines:10,premierSonMedian:3000,vecuOrdinaire:6340}).garder,true);
+});

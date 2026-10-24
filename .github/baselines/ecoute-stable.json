@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "df57f54e616e47e1b87b201a7e0b88136862f8ed7d193b75d7c119cab2e2a539",
+    "app/page.tsx": "7b31a4fc83d93d3eaf8643c6ce1825ebfe5c541d6ec0c6a5a8c266ec8b17b651",
     "lib/micro.ts": "225f42ffbe4c66c4c61c97d7ae6376506d94d4b8e3348582e67d7fae30b9f2ce",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -193,5 +193,16 @@
     "ce_que_ca_coute": "Une transcription de plus sur presque chaque tour, et des préparations de briques sur des fragments, donc des replis. briques_conversation.replis et chaines le disent. Si les replis grimpent sans que premier_son_median_ms descende, ce levier coûte plus qu'il ne rend et on remet 1500/35.",
     "verification": "390 épreuves vertes, dont trois nouvelles sur les seuils (défauts, retour par variable Render, bornes) et une sur les neuf durées réelles. tsc et npm run build passent. Les décors de micro-cycle et audio-400ms déclarent explicitement les anciennes valeurs : ils mesurent le cycle du micro, pas l'anticipation.",
     "non_valide": "Aucun gain n'est annoncé. Le levier 1 ne fait qu'ouvrir la porte : les −2 s visés dépendent des leviers 2 (Haiku pour le texte des briques) et 3 (première brique courte, pod chaud), qui ne sont PAS dans ce commit — un levier à la fois, comme demandé. RÈGLE 1 : ça se mesure dans les oreilles de Lamine."
+  },
+  "migration_leviers_3_et_4_20261024": {
+    "autorise": "Lamine, 24 octobre 2026 : plan −2 s, leviers 3 (première brique très courte, pod Chatterbox chaud) et 4 (verdict chiffré sur briques_sur_transcription_finale).",
+    "verdict_levier_4": "L'ESSAI EST REFUSÉ, chiffres de ses quatre tours : departs.sur_transcription_finale 10, chaines 10, replis 7, premier_son_median_ms 6 749 contre un chemin ordinaire à 6 340 ms — et le chemin ordinaire avait empiré de 4 322 à 6 340 ms pendant l'essai, le modèle de 1 372 à 2 837 ms. Sept chaînes sur dix en repli, et le repli fait redémarrer le chemin ordinaire APRÈS : c'est mot pour mot le risque écrit dans la décision d'origine. Le défaut repasse à `non` ; BIA_BRIQUES_FINALES=oui le rallume.",
+    "levier_3_pod": "LE POD EST DÉJÀ CHAUD, mesuré : file_gpu donne attente_ms 0 sur tous les travaux, la santé HTTP répond 200 en 291 ms, l'exécution vaut 993 à 1 415 ms. Les 1 813 ms de fabrication médiane sont de la vraie synthèse, pas un réveil. Aucun réchauffeur n'est ajouté : il n'y avait rien à gagner, et je le dis plutôt que de livrer un réglage inutile.",
+    "levier_3_tete_courte": "Ce qui reste est la LONGUEUR du premier clip. La tête était la première phrase complète, 80 à 90 signes sur une phrase longue. On autorise une coupe à la première virgule qui donne au moins 20 signes, et SEULEMENT quand la phrase naturelle dépasse 70 signes : les phrases courtes gardent leur mélodie d'un seul souffle. Le texte dit est le MÊME, seul l'endroit de la coupe change.",
+    "perimetre": "Parmi les chemins protégés, seul app/page.tsx change : il relaie le réglage publié au choix de la tête. La coupe est dans lib/diffusion.ts, hors manifeste. Aucun changement de seuil de micro, d'endpointing, de transport de synthèse, de voix, de modèle.",
+    "diffusion_sans_import": "lib/diffusion.ts ne doit RIEN importer : tests/vitesse-immediate.test.mjs le charge comme module `data:` en base64, où un import relatif est irrésoluble. En voulant y lire les réglages, j'ai cassé cette épreuve ; les deux valeurs sont redevenues des replis locaux et une épreuve interdit désormais tout import dans ce fichier. La valeur qui décide en production vient du serveur.",
+    "reversible": "BIA_TETE_COURTE_SIGNES=0 rend la tête d'avant ; BIA_PHRASE_LONGUE_SIGNES règle le seuil de phrase longue ; BIA_BRIQUES_FINALES=oui rallume l'essai refusé. Tous publiés dans briques_conversation.",
+    "verification": "113 épreuves des lots concernés vertes, dont quatre nouvelles sur la tête courte (phrase courte intacte, virgule trop tôt qui cherche la suivante, « 1,5 » qui n'est pas une pause, réglage à zéro) et une qui rejoue la règle de décision du levier 4 sur les chiffres réels. tsc et npm run build passent.",
+    "ce_qui_doit_etre_ecoute": "Un début plus court sur les phrases longues, donc une couture après la première virgule au lieu d'une phrase d'un seul souffle. Si cette couture s'entend mal, BIA_TETE_COURTE_SIGNES=0. Aucun gain n'est annoncé : la fabrication de la voix se relira dans tours.reponse_du_modele."
   }
 }
