@@ -39,6 +39,7 @@ import {resumeDialogueDomaines} from '@/lib/essai-dialogue-domaines';
 import {silenceQuiSuffit} from '@/lib/micro';
 import {reglagesFinDeParole,silenceFinDeParoleMs} from '@/lib/fin-de-parole';
 import {resumeJournalParole} from '@/lib/journal-parole';
+import {resumeVoixPage} from '@/lib/voix-page';
 import {resumeDepotRappels} from '@/lib/rappels-depot';
 import {resumeHorloge,armerHorloge,balayerLesRappels} from '@/lib/rappels-horloge';
 import {clePubliquePush} from '@/lib/push-web';
@@ -201,6 +202,12 @@ export async function GET(request: Request) {
      seule : une table fermée et une table vide rendent le même zéro. Aucune
      ligne n'est transportée — `limit=0` et le compte dans l'en-tête. Cette
      mesure ne corrige rien. */
+  /* ── UNE SEULE VOIX ─────────────────────────────────────────────────────
+     Un chemin qui apparaît dans `par_chemin` a tenté de prononcer quelque
+     chose pendant une session Khalam Rapide : il a été refusé, et l'écran
+     s'est affiché sans voix. Hors session rapide, cette garde ne refuse
+     rien — Khalam garde sa voix entière. */
+  voix_page:resumeVoixPage(),
   portes_supabase:await mesurerLesPortes(),
   fin_de_parole:reglagesFinDeParole(),journal_parole:resumeJournalParole(),
   /* ── LES RAPPELS DE MÉDICAMENTS ─────────────────────────────────────────

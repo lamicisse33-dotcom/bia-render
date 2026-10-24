@@ -73,6 +73,7 @@ import { lireMesures, noterMesure } from "@/lib/chrono";
 import { jetonAppareil, entetesAppareil } from "@/lib/appareil";
 import Ecrit, { type SorteEcrit } from "@/app/ecrit/Ecrit";
 import { abonnerSiDejaAccorde, abonnerSurGeste } from "@/lib/abonner-notifications";
+import { sessionRapide } from "@/lib/voix-page";
 import { finir as finirLeTour, poser as poserBorne, tourVide, type Bornes } from "@/lib/tour";
 import { fenetreDuFil } from "@/lib/fenetre-du-fil";
 import type { Mesure, Voie } from "@/lib/chrono";
@@ -478,7 +479,7 @@ export default function Home() {
     poserMode(garde!=='khalam',false);
   },[poserMode]);
   const utiliserLiveMaitre=()=>khalamRapideRef.current&&!apprend.current;
-  useEffect(()=>()=>{liveMaitreRef.current?.arreter();liveMaitreRef.current=null;},[]);
+  useEffect(()=>()=>{liveMaitreRef.current?.arreter();liveMaitreRef.current=null;sessionRapide(false);},[]);
   const [face, setFace] = useState<Face>("yeux_ouverts");
   /* Le visage qu'on vient de quitter, pour le fondu. Les bouches sont exclues
      des deux côtés : la parole reste nette. */
@@ -2386,6 +2387,11 @@ export default function Home() {
      plaint pas. Le bruit de frappe et le petit clavier suffisent déjà à
      montrer qu'elle travaille. */
   const direEnregistre = useCallback(async (quoi: string) => {
+    /* ── UNE SEULE VOIX SUR KHALAM RAPIDE ─────────────────────────────────
+       « J'écris » pendant la fabrication d'un papier était dit avec la voix
+       de Kha PAR-DESSUS celle de la conversation rapide. L'écran s'affiche,
+       il ne parle pas. Voir lib/voix-page.ts. */
+    if ((globalThis as {biaVoixPage?:{peutParler?:(q:string)=>boolean}}).biaVoixPage?.peutParler?.("son_enregistre:" + quoi) === false) return;
     if (essaiChatterboxActif() || piperWebActif()) return;
     try {
       const fichier = `/sons/${quoi}.mp3`;
@@ -2810,6 +2816,11 @@ export default function Home() {
        règle écrite près de `carteOuverteRef`. Ce qui arrive ici en retard —
        la fin d'une réponse, une phrase d'attente — meurt sans bruit. */
     if (carteOuverteRef.current && ou !== "guidage") return;
+    /* ── ET SUR KHALAM RAPIDE, LA PAGE NE PARLE JAMAIS ────────────────────
+       Sa voix est celle de la session ; toute autre voix se télescope avec
+       elle. Un seul interrupteur pour tous les chemins — carte, papier,
+       rappels, recherche, et ceux de demain. */
+    if ((globalThis as {biaVoixPage?:{peutParler?:(q:string)=>boolean}}).biaVoixPage?.peutParler?.("voix:" + ou) === false) return;
     /* PRENDRE LA PAROLE N'EST PAS COUPER LA PAROLE.
 
        Ce bloc était en tête de la fonction : le son mourait à l'instant où le
@@ -4818,7 +4829,7 @@ export default function Home() {
      la page. On coupe le fil AVANT le micro, pour qu'aucune veille ne
      redémarre un tour sur un flux qu'on vient d'éteindre. */
   const fermerConversation = useCallback(() => {
-    const live=liveMaitreRef.current;liveMaitreRef.current=null;live?.arreter();
+    const live=liveMaitreRef.current;liveMaitreRef.current=null;sessionRapide(false);live?.arreter();
     focusLocuteurRef.current?.terminer();
     conversationRef.current = false;
     /* ── FERMER LA CONVERSATION, C'EST TUER CE QUI EST EN VOL ──────────────
@@ -4902,7 +4913,7 @@ export default function Home() {
       if(liveMaitreRef.current)return;
       const terminer=(erreur?:string)=>{
         if(liveMaitreRef.current!==moteur)return;
-        liveMaitreRef.current=null;conversationRef.current=false;setConversation(false);
+        liveMaitreRef.current=null;sessionRapide(false);conversationRef.current=false;setConversation(false);
         bouche(false);setEntendParler(false);
         if(erreur){setPanne(erreur);setClavier(true);setMode('error');}
       };
@@ -4999,7 +5010,7 @@ export default function Home() {
       /* Le jeton de l'appareil, pour que les rappels d'un visiteur restent
          les siens. Il ne dit pas qui c'est — voir lib/appareil.ts. */
       jetonAppareil());
-      liveMaitreRef.current=moteur;setPanne('');
+      liveMaitreRef.current=moteur;sessionRapide(true);setPanne('');
       await moteur.demarrer();return;
     }
 
@@ -6032,7 +6043,7 @@ export default function Home() {
      elle finissait sa phrase par-dessus l'échange suivant, et les deux voix
      se chevauchaient. Les deux jetons doivent tomber ensemble. */
   const taire = useCallback(() => {
-    const live=liveMaitreRef.current;liveMaitreRef.current=null;live?.arreter();
+    const live=liveMaitreRef.current;liveMaitreRef.current=null;sessionRapide(false);live?.arreter();
     window.speechSynthesis?.cancel();
     couperSon();
     tourRef.current = null;

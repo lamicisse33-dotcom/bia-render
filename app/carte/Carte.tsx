@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { pageeutParler } from "@/lib/voix-page";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Chemin } from "@/lib/carte";
 import { ECART_HORS_CHEMIN, annonceA, surLeChemin, metresEntre } from "@/lib/carte";
@@ -238,6 +239,27 @@ export default function Carte({
   const dire = useCallback(async (cles: string[]) => {
     const utiles = cles.filter(Boolean);
     if (!utiles.length) return;
+    /* ── SUR KHALAM RAPIDE, LA CARTE SE TAIT ──────────────────────────────
+
+       Lamine, 24 octobre 2026 : « quand la carte s'affiche, la voix de Kha
+       parle EN MÊME TEMPS que la voix de Khalam Rapide ».
+
+       Le guidage de la carte a sa propre voix — les sons enregistrés de Kha
+       — et c'est juste sur Khalam, où c'est LA MÊME voix que la
+       conversation. Sur la connexion rapide, la conversation a la sienne, et
+       les deux se télescopaient.
+
+       Les instructions restent AFFICHÉES : `onDitTexte` les écrit à l'écran
+       par le chemin de secours. On ne perd donc pas le virage, on perd la
+       voix qui le doublait. Et BIA, elle, a déjà dit la direction — c'est
+       l'outil montrer_le_chemin qui la lui rend. */
+    if (!pageeutParler("carte:guidage")) {
+      const dit = utiles.map((c) => TEXTE_DE.get(c))
+        .map((p) => (p ? (langue === "fr" ? p.francais : p.wolof) : ""))
+        .filter(Boolean).join(" ");
+      if (dit) onDitTexte(dit);
+      return;
+    }
 
     const mien = ++jeton.current;
     sonEnCours.current?.pause();
