@@ -2,6 +2,7 @@ import {resumeControleRapidite} from '@/lib/rapidite-controle-http';
 import {resumeKhalamRapide} from '@/lib/khalam-rapide-etat';
 import {resumeEligibilite} from '@/lib/eligibilite-etat';
 import {resumeLecturesSupabase} from '@/lib/lectures-supabase';
+import {resumeOrientation} from '@/lib/orientation-etat';
 import {resumeOutilConnaissances} from '@/lib/outil-connaissances-etat';
 import {reglagesMemoire} from '@/lib/memoire-reglages';
 import {resumeContexteAppris} from '@/lib/essai-contexte-appris';
@@ -171,7 +172,7 @@ export async function GET(request: Request) {
   let auteurs: Record<string, number> | null = null;
   try { auteurs = await parAuteur(); } catch { auteurs = null; }
 
-  return NextResponse.json({lectures_supabase:resumeLecturesSupabase(),reglages_memoire:reglagesMemoire(),outil_connaissances:resumeOutilConnaissances(),eligibilite_anticipation:resumeEligibilite(),khalam_rapide:resumeKhalamRapide(),essai_rapidite:{...resumeEssaiRapidite(),controle_http:resumeControleRapidite()},file_gpu:resumeFileAnticipation(),reprises_reflexion:resumeReprises(),micro_capture:resumeMicro(),protection_parole:resumeProtectionParole(),briques_conversation:resumeBriques(),anticipation_conversation:{essai:resumeEssaiAnticipation(),...resumeAnticipationReponse(),ecoute:resumeEcouteProgressive()},ecoute_longue:resumeEcouteLongue(),prises_validees:resumePrisesValidees(),
+  return NextResponse.json({orientation:resumeOrientation(),lectures_supabase:resumeLecturesSupabase(),reglages_memoire:reglagesMemoire(),outil_connaissances:resumeOutilConnaissances(),eligibilite_anticipation:resumeEligibilite(),khalam_rapide:resumeKhalamRapide(),essai_rapidite:{...resumeEssaiRapidite(),controle_http:resumeControleRapidite()},file_gpu:resumeFileAnticipation(),reprises_reflexion:resumeReprises(),micro_capture:resumeMicro(),protection_parole:resumeProtectionParole(),briques_conversation:resumeBriques(),anticipation_conversation:{essai:resumeEssaiAnticipation(),...resumeAnticipationReponse(),ecoute:resumeEcouteProgressive()},ecoute_longue:resumeEcouteLongue(),prises_validees:resumePrisesValidees(),
     /* ── LA VERSION EN LIGNE, POUR QUE LE TÉLÉPHONE SE METTE À JOUR SEUL ────
 
        Lamine, le 14 septembre 2026 : « il faut forcer les mises à jour ; dès
