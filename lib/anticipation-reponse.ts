@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {signesAnticipation} from './seuils-anticipation';
 import {NextRequest} from 'next/server';
 import {fetchAnthropic,messagesAnthropic,contenuAnthropic,MODELE_HAIKU} from './cerveau-anthropic';
 import {messagesConversation} from './conversation-groq';
@@ -29,7 +30,7 @@ export async function preparerReponseAnticipee(body:any,code:string,maitre:boole
  /* Même règle qu'au-dessus : un refus sans nom est un refus qu'on cherchera
     encore dans six jours. */
  if(!/^[a-zA-Z0-9_-]{8,80}$/.test(tour)){noterRefusServeur('tour_invalide');return null;}
- if(question.length<35||question.length>6000){noterRefusServeur('texte_court',question.length);return null;}
+ if(question.length<signesAnticipation()||question.length>6000){noterRefusServeur('texte_court',question.length);return null;}
  if(!eligibleAnticipation(question)){noterRefusServeur('texte_action',question.length);return null;}
  if(body.persona==='rara'){noterRefusServeur('persona_rara');return null;}
  if(body.apprend){noterRefusServeur('apprentissage');return null;}

@@ -22,6 +22,8 @@
    une longueur n'est pas un contenu. Aucune transcription, aucun texte,
    aucun code d'accès. */
 
+import { signesAnticipation } from "./seuils-anticipation";
+
 type Refus = { porte: string; fois: number; dernier_signes: number | null; quand: string };
 type Etat = {
   cote_telephone: Record<string, Refus>;
@@ -98,7 +100,7 @@ export function resumeEligibilite() {
   const tel = classer(etat.cote_telephone), srv = classer(etat.cote_serveur);
   return {
     revision: "portes-eligibilite-v1",
-    seuil_signes: 35,
+    seuil_signes: signesAnticipation(),
     tours_declares: etat.tours_declares,
     tours_sans_aucun_texte: etat.tours_sans_aucun_texte,
     /* La porte qui refuse le plus. Côté téléphone d'abord : si le téléphone

@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import ts from 'typescript';import crypto from 'node:crypto';import vm from 'node:vm';
 function load(path,req=()=>{throw Error('unexpected dependency')}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(req,m,m.exports);return m.exports;}
-const long=load('lib/ecoute-longue.ts'),core=load('lib/anticipation-core.ts',()=>crypto);
+const long=load('lib/ecoute-longue.ts'),core=load('lib/anticipation-core.ts',id=>id==='./seuils-anticipation'?{signesAnticipation:()=>20}:crypto);
 const progressive=()=>load('lib/ecoute-progressive.ts',()=>long);
 test('two minutes: one ordered ASR queue, complete PCM coverage, and progress before stop',async()=>{
  let active=0,max=0,frames=0,progress=0;const received=[];
@@ -29,6 +29,7 @@ test('draft ownership, single consumption and changed intent are enforced withou
  delete globalThis.biaAnticipationReponse;let syntheses=0,modeles=0;
  const api=load('lib/anticipation-reponse.ts',id=>{
  if(id==='node:crypto')return crypto;if(id==='next/server')return {NextRequest:Request};if(id==='./anticipation-core')return core;
+ if(id==='./seuils-anticipation')return {premierSegmentMs:()=>700,signesAnticipation:()=>20};
  if(id==='./eligibilite-etat')return {noterRefusServeur(){},noterEligibilite(){},resumeEligibilite:()=>({})};
  if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
  if(id==='./cerveau-anthropic')return {MODELE_SONNET:'test',MODELE_HAIKU:'test-haiku',messagesAnthropic:messages=>({messages}),contenuAnthropic:d=>d.text,fetchAnthropic:async()=>{modeles++;return Response.json({text:JSON.stringify({eligible:true,reply:'Écoute ton ami et demande-lui ce qui lui ferait du bien.',valide:false})});}};

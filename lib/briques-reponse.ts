@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {signesAnticipation} from './seuils-anticipation';
 import {modeleRapidite,profilRapidite,type ProfilRapidite} from './rapidite-core';
 import {noterModeleRapidite} from './rapidite-etat';
 import {NextRequest} from 'next/server';
@@ -24,7 +25,7 @@ type Session={profil:ProfilRapidite|null;id:string;owner:string;tour:string;hist
 const g=globalThis as typeof globalThis&{biaBriques?:Map<string,Session>};
 const sessions=g.biaBriques??=new Map<string,Session>();
 const nettoyer=()=>{for(const [id,s] of sessions)if(s.expire<Date.now()&&!s.occupe){oublierSuite(s);sessions.delete(id);}if(sessions.size>=32)for(const [id,s] of sessions){if(s.fermee&&!s.occupe){oublierSuite(s);sessions.delete(id);}if(sessions.size<32)break;}};
-function resultat(s:Session,brique?:BriqueAudio,normal=false){return {id:s.id,brique,termine:s.fermee,normal,continuer:!!brique&&!s.fermee&&s.briques.length<5&&s.appels<10&&s.dernier.length-s.traite.length>=35};}
+function resultat(s:Session,brique?:BriqueAudio,normal=false){return {id:s.id,brique,termine:s.fermee,normal,continuer:!!brique&&!s.fermee&&s.briques.length<5&&s.appels<10&&s.dernier.length-s.traite.length>=signesAnticipation()};}
 
 type VueTexte=Pick<Session,'history'|'resume'|'traite'|'profil'>&{briques:Array<Pick<BriqueAudio,'texte'>>};
 type TexteBrique={traite:string;reply:string};
@@ -82,7 +83,7 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
        `null`, sans trace. Le 23 octobre, `sessions: 0` et `preparations: 0`
        ne disaient donc rien de la cause. Même ordre, même décision, mais
        chaque porte se nomme avant de se fermer. Voir lib/eligibilite-etat.ts. */
-    if(texte.length<35||texte.length>6000){noterRefusServeur('texte_court',texte.length);return null;}
+    if(texte.length<signesAnticipation()||texte.length>6000){noterRefusServeur('texte_court',texte.length);return null;}
     if(!eligibleBriques(texte)){noterRefusServeur('texte_action',texte.length);return null;}
     if(salutationReconnue(texte)){noterRefusServeur('salutation',texte.length);return null;}
     if(identiteReconnue(texte)){noterRefusServeur('identite',texte.length);return null;}
@@ -111,7 +112,7 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
     oublierSuite(s);if(final)s.fermee=true;
     return resultat(s,undefined,final);
   }
-  if(!final&&(s.briques.length>=5||s.appels>=10||texte.length-s.traite.length<35))return resultat(s);
+  if(!final&&(s.briques.length>=5||s.appels>=10||texte.length-s.traite.length<signesAnticipation()))return resultat(s);
   if(final&&texte===s.traite){oublierSuite(s);if(!verifierCode(code,true).ok)return resultat(s,undefined,true);s.fermee=true;etatBriques.finalisees++;return resultat(s);}
   s.occupe=true;s.appels++;s.dernier=texte;
   let etape='contexte';const debutPreparation=Date.now();

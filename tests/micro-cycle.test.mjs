@@ -19,6 +19,10 @@ function environment(){
      le serveur : ces épreuves-ci mesurent le cycle du micro, pas les briques.
      Son propre comportement est éprouvé dans tests/eligibilite-anticipation. */
   briquesFinalesPermises:()=>false,
+  /* Levier 1 du 24 octobre 2026 : la page relaie les deux seuils publiés
+     par le serveur. Ces épreuves mesurent le cycle du micro ; elles s'en
+     tiennent aux valeurs d'avant, éprouvées ailleurs. */
+  reglagesAnticipation:()=>({premier_segment_apres_ms:1500,seuil_signes_anticipation:35}),
  conversationRef:ref(false),modeRef:ref('ready'),busyRef:ref(false),ecouterRef:ref(null),ouvertureEcouteRef:ref(null),enregistreurRef:ref(null),nouvelEnregistrement:()=>++id,estCetEnregistrement:n=>n===id,
   micro:async()=>({flux:{},analyse:{frequencyBinCount:256},analysePeriodique:{fftSize:1024},ctxMicro:{state:'running'}}),
   ouvrirEnregistreur:()=>{const r={state:'inactive',start(){starts++;this.state='recording';},stop(){stops++;this.state='inactive';}};recorders.push(r);return r;},

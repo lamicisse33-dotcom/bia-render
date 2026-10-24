@@ -11,6 +11,7 @@ function load(path,deps={}){
   if(id==='./rapidite-core')return load('lib/rapidite-core.ts');
   if(id==='./briques-file')return load('lib/briques-file.ts');
   if(id==='./premier-segment')return load('lib/premier-segment.ts');
+  if(id==='./seuils-anticipation')return load('lib/seuils-anticipation.ts');
   assert.fail('dépendance non prévue : '+id);
  },m,m.exports);
  return m.exports;

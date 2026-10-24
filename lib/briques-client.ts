@@ -1,6 +1,6 @@
 import {creerFileBriques,creerFluxBrique,type BriqueAudio} from './briques-file';
 import {entetesRapidite} from './rapidite-core';
-export function creerProducteurBriques(o:{code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;actuel:()=>boolean;segments?:()=>number;surTranscriptionFinale?:boolean}){
+export function creerProducteurBriques(o:{code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;actuel:()=>boolean;segments?:()=>number;surTranscriptionFinale?:boolean;seuilSignes?:number}){
  const file=creerFileBriques(),abort=new AbortController();
  const headers={'content-type':'application/json','x-bia-code':o.code,...entetesRapidite()};
  let id:string|undefined,dernier='',enCours:Promise<void>|null=null,ecoute=true,annule=false,commence=false,normal=false,termine=false,ajout=false;
@@ -73,7 +73,9 @@ export function creerProducteurBriques(o:{code:string;tour:string;history:unknow
   if(!ecoute){porte('ecoute_fermee');return;}
   if(annule){porte('annule');return;}
   if(!o.actuel()){porte('tour_perime');return;}
-  if(dernier.length<35){porte('trop_court');return;}
+  /* Le plancher vient du serveur (BIA_SIGNES_ANTICIPATION) ; 35 reste le
+     repli, c'est-a-dire le comportement d'avant le 24 octobre 2026. */
+  if(dernier.length<(o.seuilSignes&&o.seuilSignes>=10&&o.seuilSignes<=200?o.seuilSignes:35)){porte('trop_court');return;}
   const texte=dernier;
   let continuer=false;
   enCours=demander(texte).then(suite=>{continuer=!!suite;}).catch(()=>{}).finally(()=>{enCours=null;if(ecoute&&(dernier!==texte||continuer))lancer();});

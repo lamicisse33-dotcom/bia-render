@@ -84,3 +84,66 @@ test('le champ déclare qu’aucun seuil n’est touché, et ne porte aucun son'
  const brut=JSON.stringify(r);
  for(const secret of ['phrase privée','AAAA'])assert(!brut.includes(secret),secret);
 });
+
+/* ── LES DEUX SEUILS DE L'ANTICIPATION : DÉFAUTS, BORNES, RETOUR EN ARRIÈRE ─
+
+   Levier 1 du 24 octobre 2026. Ce qui est éprouvé ici, c'est la promesse de
+   réversibilité : deux variables Render ramènent EXACTEMENT les valeurs du
+   23 octobre, et une valeur absurde ne peut pas s'installer. */
+function seuils(){const m={exports:{}};
+ new Function('require','module','exports',compile(fs.readFileSync('lib/seuils-anticipation.ts','utf8')))(id=>assert.fail(id),m,m.exports);return m.exports;}
+
+test('les deux seuils ont leurs nouvelles valeurs par défaut, et reviennent par variable Render',()=>{
+ const vieux={p:process.env.BIA_PREMIER_SEGMENT_MS,s:process.env.BIA_SIGNES_ANTICIPATION};
+ try{
+  delete process.env.BIA_PREMIER_SEGMENT_MS;delete process.env.BIA_SIGNES_ANTICIPATION;
+  const d=seuils();
+  assert.equal(d.premierSegmentMs(),700,'premier segment : 700 ms de parole');
+  assert.equal(d.signesAnticipation(),20,'plancher de texte : 20 signes');
+  /* Le retour au comportement du 23 octobre, sans déploiement. */
+  process.env.BIA_PREMIER_SEGMENT_MS='1500';process.env.BIA_SIGNES_ANTICIPATION='35';
+  assert.equal(d.premierSegmentMs(),1500);
+  assert.equal(d.signesAnticipation(),35);
+ }finally{
+  if(vieux.p===undefined)delete process.env.BIA_PREMIER_SEGMENT_MS;else process.env.BIA_PREMIER_SEGMENT_MS=vieux.p;
+  if(vieux.s===undefined)delete process.env.BIA_SIGNES_ANTICIPATION;else process.env.BIA_SIGNES_ANTICIPATION=vieux.s;
+ }
+});
+
+test('une valeur absurde ne peut pas s’installer : on garde le défaut',()=>{
+ const vieux={p:process.env.BIA_PREMIER_SEGMENT_MS,s:process.env.BIA_SIGNES_ANTICIPATION};
+ try{
+  const d=seuils();
+  /* 100 ms de parole enverrait des fragments de silence à l'ASR, et 0 signe
+     préparerait sur un soupir. Les bornes sont là pour ça. */
+  for(const mauvais of ['0','100','99999','abc','']){
+   process.env.BIA_PREMIER_SEGMENT_MS=mauvais;
+   assert.equal(d.premierSegmentMs(),700,'premier segment refuse '+JSON.stringify(mauvais));
+  }
+  for(const mauvais of ['0','5','99999','abc','']){
+   process.env.BIA_SIGNES_ANTICIPATION=mauvais;
+   assert.equal(d.signesAnticipation(),20,'plancher refuse '+JSON.stringify(mauvais));
+  }
+  /* Les bornes elles-mêmes restent acceptées. */
+  process.env.BIA_PREMIER_SEGMENT_MS='500';assert.equal(d.premierSegmentMs(),500);
+  process.env.BIA_PREMIER_SEGMENT_MS='4000';assert.equal(d.premierSegmentMs(),4000);
+  process.env.BIA_SIGNES_ANTICIPATION='10';assert.equal(d.signesAnticipation(),10);
+  process.env.BIA_SIGNES_ANTICIPATION='200';assert.equal(d.signesAnticipation(),200);
+ }finally{
+  if(vieux.p===undefined)delete process.env.BIA_PREMIER_SEGMENT_MS;else process.env.BIA_PREMIER_SEGMENT_MS=vieux.p;
+  if(vieux.s===undefined)delete process.env.BIA_SIGNES_ANTICIPATION;else process.env.BIA_SIGNES_ANTICIPATION=vieux.s;
+ }
+});
+
+/* Et la porte de 700 ms remise à l'épreuve des durées réelles : sur les neuf
+   `parole_ms` mesurés, sept qualifient au lieu de deux. C'est le gain attendu
+   du levier 1, écrit en chiffres avant de l'annoncer. */
+test('sur les neuf durées de parole mesurées, six franchissent 700 ms au lieu d’une',()=>{
+ const PAROLE_REELLE=[300,358,420,702,767,838,1151,1498,2686];
+ /* 1 498 ms passait JUSTE en dessous de 1 500 : une seule phrase sur neuf
+    atteignait l'ancien seuil. Le segment vu sur ce tour-là venait du silence
+    de fin de parole, pas du seuil — ce qui colle aux compteurs publiés. */
+ assert.equal(PAROLE_REELLE.filter(ms=>ms>=1500).length,1,'avec l’ancien seuil');
+ assert.equal(PAROLE_REELLE.filter(ms=>ms>=700).length,6,'avec le nouveau');
+ assert.equal(PAROLE_REELLE.filter(ms=>ms>=1000).length,3,'ce qu’un seuil à 1 s aurait donné');
+});

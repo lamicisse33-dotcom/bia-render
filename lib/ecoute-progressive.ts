@@ -1,13 +1,16 @@
 import {wavLong} from './ecoute-longue';
 import {PREMIER_SEGMENT_MS} from './premier-segment';
 /** A single ordered ASR queue; only complete decoded PCM is sent. */
-export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,indice:()=>string,actuel:()=>boolean,progression:(texte:string)=>void,segmentMs=4000,porte?:(nom:string)=>void){
+export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,indice:()=>string,actuel:()=>boolean,progression:(texte:string)=>void,segmentMs=4000,porte?:(nom:string)=>void,premierMsDemande?:number){
  const tailleSegment=segmentMs===1500?24000:segmentMs===2500?40000:64000;
  /* Le premier segment part après PREMIER_SEGMENT_MS de PAROLE, jamais plus
     tard que les suivants. Le repli à 1 500 ne rattrape pas une erreur : il
     rend NaN impossible, et un seuil NaN arrête toute l'anticipation sans un
     mot. Voir lib/premier-segment.ts. */
- const premierMs=Number(PREMIER_SEGMENT_MS)>0?Number(PREMIER_SEGMENT_MS):1500;
+ /* Le seuil vient du serveur quand il l'a publie (reversible par variable
+    Render) ; sinon le repli du module, qui ne peut pas valoir NaN. */
+ const demande=Number(premierMsDemande);
+ const premierMs=demande>=500&&demande<=4000?demande:(Number(PREMIER_SEGMENT_MS)>0?Number(PREMIER_SEGMENT_MS):1500);
  let taillePremierSegment=Math.min(tailleSegment,premierMs*16);
  let buffer=new Float32Array(0),chaine:Promise<void>=Promise.resolve(),erreur:unknown=null,segments=0,total=0,commence=false,clos=false,silence=0,paroleDansBuffer=false,finParole=0;
  const textes:string[]=[],bruts:string[]=[],suggestions:string[]=[];
@@ -45,7 +48,7 @@ export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,i
  // Give the first completed thought to the producer while speech continues.
  // Keep every sample and a little look-ahead around the quietest cut.
  const seuil=segments===0?taillePremierSegment:tailleSegment;
- if(paroleDansBuffer&&buffer.length>=seuil){let end=seuil-4000,best=Infinity;for(let i=seuil-16000;i<seuil-4000;i+=320){let e=0;for(let j=i;j<i+320;j++)e+=buffer[j]*buffer[j];if(e<best){best=e;end=i+160;}}const part=buffer.slice(0,end);buffer=buffer.slice(end);finParole=Math.max(0,finParole-end);paroleDansBuffer=finParole>0;segment(part);}
+ if(paroleDansBuffer&&buffer.length>=seuil){let end=seuil-4000,best=Infinity;for(let i=Math.max(0,seuil-16000);i<seuil-4000;i+=320){let e=0;for(let j=i;j<i+320;j++)e+=buffer[j]*buffer[j];if(e<best){best=e;end=i+160;}}const part=buffer.slice(0,end);buffer=buffer.slice(end);finParole=Math.max(0,finParole-end);paroleDansBuffer=finParole>0;segment(part);}
  },
  get segmentsCommences(){return segments;},
  // A quiet remainder after an already recognized utterance is not a new

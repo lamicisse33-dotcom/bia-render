@@ -40,7 +40,7 @@ test('interrupting a waiting queue immediately releases it and prevents future b
 
 function server(answer,options={}){
  delete globalThis.biaBriques;const models=[],syntheses=[],state={},saved=[];let quota=0;
- const core=load('lib/anticipation-core.ts',()=>crypto);
+ const core=load('lib/anticipation-core.ts',id=>id==='./seuils-anticipation'?{signesAnticipation:()=>20}:crypto);
  const api=load('lib/briques-reponse.ts',id=>{
   if(id==='node:crypto')return crypto;if(id==='next/server')return {NextRequest:Request};
   if(id==='./codes')return {verifierCode:(code,compter)=>{if(compter)quota++;return {ok:true,maitre:true};}};
@@ -48,6 +48,7 @@ function server(answer,options={}){
   if(id==='./identite-core')return load('lib/identite-core.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./salutations-dialogue')return load('lib/salutations-dialogue.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./anticipation-core')return core;
+  if(id==='./seuils-anticipation')return {premierSegmentMs:()=>700,signesAnticipation:()=>20};
   if(id==='./eligibilite-etat')return {noterRefusServeur(){},noterEligibilite(){},resumeEligibilite:()=>({})};
   if(id==='./briques-etat')return {etatBriques:state};
   if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
@@ -214,7 +215,7 @@ test('server drains an unprocessed point from the same transcript and accepts a 
  assert.equal(last.brique.numero,2);assert(last.termine);assert.equal(last.normal,false);assert.equal(JSON.stringify(first.brique),locked);
 });
 test('buying a charger in a story remains eligible, while instructions still retain normal routing',async()=>{
- const core=load('lib/anticipation-core.ts',()=>crypto);
+ const core=load('lib/anticipation-core.ts',id=>id==='./seuils-anticipation'?{signesAnticipation:()=>20}:crypto);
  assert(core.eligibleBriques('Après le coiffeur je suis parti au marché pour acheter un chargeur.'));
  assert(core.eligibleBriques('Finalement, le chargeur coûtait trois mille francs.'));
  assert(core.eligibleBriques('Je me corrige : le chargeur coûtait trois mille francs.'));
@@ -223,9 +224,14 @@ test('buying a charger in a story remains eligible, while instructions still ret
  const s=server(),r=await s.preparerBrique({...body,texte:question+' Je suis ensuite allé acheter un chargeur.'},'owner',true,new AbortController().signal);assert(r.brique);
 });
 test('departure telemetry separates ready, still running, and absent preparation',()=>{
- delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts',()=>load('lib/reflexion-courte.ts'));
+ delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts',id=>id==='./seuils-anticipation'?{premierSegmentMs:()=>700,signesAnticipation:()=>20}:load('lib/reflexion-courte.ts'));
+ /* Le quatrième choix du 23 octobre : un départ qui parie sur la
+    transcription finale ne doit pas se confondre avec `sans_preparation`. */
+ a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:0,finale:1});
  a.noterBriques({etape:'depart',ms:0,pretes:2,en_cours:1});a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:1});a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:0});
- assert.deepEqual(a.resumeBriques().departs,{prete:1,en_fabrication:1,sans_preparation:1});
+ assert.deepEqual(a.resumeBriques().departs,{sur_transcription_finale:1,prete:1,en_fabrication:1,sans_preparation:1});
+ assert.equal(a.resumeBriques().premier_segment_apres_ms,700);
+ assert.equal(a.resumeBriques().seuil_signes_anticipation,20);
 });
 
 test('compact word positions reject invalid boundaries before synthesis and keep exact Unicode words',async()=>{

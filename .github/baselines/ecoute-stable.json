@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "0ce4d6bb3b09ee2aab2098fa6c5d11454bc7d903573669d10b4b8c692b9b6fe7",
+    "app/page.tsx": "df57f54e616e47e1b87b201a7e0b88136862f8ed7d193b75d7c119cab2e2a539",
     "lib/micro.ts": "225f42ffbe4c66c4c61c97d7ae6376506d94d4b8e3348582e67d7fae30b9f2ce",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -183,5 +183,15 @@
     "erreur_de_lecture_corrigee": "`parole_ms` est un ÉCART, de la première à la dernière trame vocale ; `duree_ms` est la durée d'ENREGISTREMENT et contient en plus le silence d'avant qu'il parle et les 400 ms de fin. Sur ses quatre tours, le temps avant la première trame vocale valait 1 263, 1 563, 1 322 et 543 ms. Lire « 838 ms de parole pour 2 522 ms » comme une détection sévère était une erreur de lecture, et le champ la rend impossible à refaire.",
     "verification": "159 épreuves des lots micro, audio, briques et anticipation vertes, dont quatre nouvelles dans tests/micro-etages.test.mjs bâties sur les nombres RÉELS publiés par /api/etat le 23 octobre à 23:36. tsc et npm run build passent.",
     "non_valide": "Rien n'est affirmé sur ce que Lamine entend, et aucun gain n'est annoncé : cette migration n'ajoute que des compteurs. La décision de baisser ou non un seuil viendra de ces chiffres, après ses tours — et un seuil plus bas attrape plus de bruit, ce qui sera dit avant d'être fait."
+  },
+  "migration_levier1_seuils_anticipation_20261024": {
+    "autorise": "Lamine, 24 octobre 2026 : objectif −2 s sur le premier son de Khalam (4,3 → ~2,3 s), un levier à la fois, chacun mesuré sur quatre tours avant le suivant. Levier 1 : « seuil du micro jusqu'à ce que porte_qui_refuse disparaisse et que l'anticipation serve ».",
+    "cible_corrigee": "CE N'EST PAS LE SEUIL DU MICRO, et c'est mesuré : la part des trames reconnues à l'intérieur de l'écart de parole valait 89, 86, 75 et 66 %, et les creux manquants ne coûtent rien parce que le pipeline reçoit `parle = aParle && maintenant - dernierSon < 240`. Baisser le seuil de bruit attraperait plus de rue SANS produire un segment de plus. Aucun seuil de détection n'est touché ; micro_capture.detection_inchangee reste vrai.",
+    "ce_qui_change": "Les deux seuils qui refusaient vraiment : premier segment 1500 → 700 ms de PAROLE, et plancher de texte 35 → 20 signes. Ils descendent ENSEMBLE — seul, le premier n'aurait fait passer la porte de `jamais_de_texte` à `trop_court`. Sur les neuf `parole_ms` mesurés, six franchissent 700 ms au lieu d'une seule (1 498 passait juste sous 1 500).",
+    "perimetre": "Parmi les chemins protégés, seul app/page.tsx change : il relaie les deux valeurs publiées par le serveur au pipeline d'écoute et au producteur de briques. Le navigateur ne lit pas process.env. Correction nécessaire au passage dans lib/ecoute-progressive.ts, hors manifeste : la recherche du point le plus silencieux partait d'un index négatif à seuil bas (Math.max(0, …)). Aucun changement d'endpointing, de transport de synthèse, de voix, de modèle ni de garde de lecture.",
+    "reversible": "BIA_PREMIER_SEGMENT_MS=1500 et BIA_SIGNES_ANTICIPATION=35 dans Render ramènent exactement le comportement du 23 octobre, sans déploiement, au prochain chargement de la page. Les deux valeurs sont publiées dans briques_conversation (premier_segment_apres_ms, seuil_signes_anticipation) et dans eligibilite_anticipation.seuil_signes, pour qu'on sache toujours laquelle on mesure. Bornes : 500–4000 ms et 10–200 signes ; une valeur absurde garde le défaut, éprouvé.",
+    "ce_que_ca_coute": "Une transcription de plus sur presque chaque tour, et des préparations de briques sur des fragments, donc des replis. briques_conversation.replis et chaines le disent. Si les replis grimpent sans que premier_son_median_ms descende, ce levier coûte plus qu'il ne rend et on remet 1500/35.",
+    "verification": "390 épreuves vertes, dont trois nouvelles sur les seuils (défauts, retour par variable Render, bornes) et une sur les neuf durées réelles. tsc et npm run build passent. Les décors de micro-cycle et audio-400ms déclarent explicitement les anciennes valeurs : ils mesurent le cycle du micro, pas l'anticipation.",
+    "non_valide": "Aucun gain n'est annoncé. Le levier 1 ne fait qu'ouvrir la porte : les −2 s visés dépendent des leviers 2 (Haiku pour le texte des briques) et 3 (première brique courte, pod chaud), qui ne sont PAS dans ce commit — un levier à la fois, comme demandé. RÈGLE 1 : ça se mesure dans les oreilles de Lamine."
   }
 }
