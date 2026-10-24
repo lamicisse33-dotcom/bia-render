@@ -4836,6 +4836,14 @@ export default function Home() {
          On prend donc le contexte de la page, et on ne le ferme jamais : on se
          contente de débrancher, comme le fait déjà lib/frappe.ts. */
       const tampon = new Uint8Array(analyse.frequencyBinCount);
+      /* ── LES ÉTAGES DE LA DÉTECTION, COMPTÉS ET RIEN DE PLUS ────────────
+
+         Demandé par Lamine le 23 octobre 2026. AUCUNE DÉCISION NE CHANGE
+         ICI : quatre étages décident qu'une trame est de la parole — volume,
+         bande vocale, anti-scintillement, guetteur de locuteur — et aucun ne
+         disait combien il refusait. On compte, on publie, on ne touche à
+         aucun seuil. Rien n'attrape plus de bruit qu'avant. */
+      let audiblesMicro = 0, bandeVocaleMicro = 0, candidatesMicro = 0, periodiquesMicro = 0, refusFocusMicro = 0, vocalesDansLaParole = 0;
       let aParle = false;
       let progressive:Awaited<ReturnType<typeof brancherAnticipation>>=null;
       let fermetureProgressive:Promise<void>|null=null;
@@ -4938,10 +4946,18 @@ export default function Home() {
           proportionVocale = partVocale(spectre, ctxMicro.sampleRate);
         } catch { /* L'écoute reste utilisable sans analyse fréquentielle. */ }
         const candidateVocale=filtrerDeclenchement(audible, proportionVocale);
+        if(audible)audiblesMicro++;
+        if(proportionVocale===null||proportionVocale>=0.2)bandeVocaleMicro++;
+        if(candidateVocale)candidatesMicro++;
         let voixPeriodique=false,hauteurCandidate=0;
         if(candidateVocale){try{analysePeriodique.getByteTimeDomainData(tamponPeriodique);hauteurCandidate=hauteurDeVoix(tamponPeriodique,ctxMicro.sampleRate);voixPeriodique=hauteurCandidate>=HAUTEUR_MINIMALE;}catch{}}
         focusLocuteurRef.current?.observer(candidateVocale,voixPeriodique);
         const uneVoix=candidateVocale&&(focusLocuteurRef.current?.autoriser()??true);
+        if(voixPeriodique)periodiquesMicro++;
+        if(candidateVocale&&!uneVoix)refusFocusMicro++;
+        /* Les trames reconnues À L'INTÉRIEUR de l'écart de parole : c'est ce
+           nombre, et lui seul, qui dit si le seuil hache une phrase. */
+        if(uneVoix&&aParle)vocalesDansLaParole++;
         if(candidateVocale)dernierSignalParoleRef.current={quand:Date.now(),delai:silenceQuiSuffit(debutParole?Date.now()-debutParole:0,coupesTropTotRef.current)};
         seuilRef.current = bruit.seuil();
 
@@ -5056,7 +5072,10 @@ export default function Home() {
       };
       enregistreur.onstop = async () => {
         const finMicroBriques=Date.now();
-        void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'micro_capture',cause:causeArret,duree_ms:Date.now()-ouverture,parole_ms:debutParole?dernierSon-debutParole:0,silence_ms:dernierSon?Date.now()-dernierSon:0,pic:picMicro,mesures:mesuresMicro,vocales:mesuresVocales,plat:analyseurMort,actuel:estCetEnregistrement(idEnr),contexte:ctxMicro.state}),keepalive:true}).catch(()=>{});
+        void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'micro_capture',cause:causeArret,duree_ms:Date.now()-ouverture,parole_ms:debutParole?dernierSon-debutParole:0,silence_ms:dernierSon?Date.now()-dernierSon:0,pic:picMicro,mesures:mesuresMicro,vocales:mesuresVocales,
+          audibles:audiblesMicro,bande_vocale_ok:bandeVocaleMicro,candidates:candidatesMicro,periodiques:periodiquesMicro,refus_focus:refusFocusMicro,
+          vocales_dans_la_parole:vocalesDansLaParole+(debutParole?1:0),intervalle_ms:mesuresMicro?Math.round((Date.now()-ouverture)/mesuresMicro):0,seuil:Math.round(seuilRef.current||0),
+          plat:analyseurMort,actuel:estCetEnregistrement(idEnr),contexte:ctxMicro.state}),keepalive:true}).catch(()=>{});
         fermetureProgressive=progressive?.fermerCapture().catch(()=>{captureProgressiveValide=false;})||null;
 
         /* ── LA PLACE SE LIBÈRE D'ABORD, LE SORT DE L'ENREGISTREMENT ENSUITE ─

@@ -382,3 +382,76 @@ Si `replis` grimpe avec `departs.sur_transcription_finale` et que
 `premier_son_median_ms` reste au-dessus de `tours.reponse_du_modele.vecu_ms`,
 l'essai coûte plus qu'il ne rend, et l'interrupteur se ferme. Aucun gain n'est
 annoncé d'avance.
+
+---
+
+# Addendum 4 : le seuil du micro n'est pas le coupable
+
+Demande de Lamine : creuser le seuil de parole détectée, mesurer avant/après,
+**et ne rien changer qui attrape plus de bruit sans le dire**.
+
+**Je n'ai touché à aucun seuil.** Ce qui suit n'ajoute que des compteurs, et
+le champ public le déclare : `micro_capture.detection_inchangee: true`.
+
+## Mon erreur de lecture, d'abord
+
+J'avais écrit : « 2,5 s au micro ne comptent que 838 ms de parole ». C'était
+faux, et la faute est à moi. `duree_ms` est la durée d'**enregistrement** ;
+`parole_ms` est l'**écart** de la première à la dernière trame vocale. Entre
+les deux il y a le silence d'avant qu'il parle, et les 400 ms de fin. Sur ses
+quatre tours :
+
+| enregistrement | avant la 1ʳᵉ voix | parole | silence de fin |
+|---|---|---|---|
+| 2 522 | **1 263** | 838 | 421 |
+| 2 343 | **1 563** | 358 | 422 |
+| 2 161 | **1 322** | 420 | 419 |
+| 2 462 | **543** | 1 498 | 421 |
+
+Le micro s'ouvre une à une seconde et demie avant qu'il parle. **Ses phrases
+duraient réellement 0,36 à 1,5 s de parole.** Le seuil ne lui a rien volé.
+
+## Le seuil hache-t-il la phrase ? Non
+
+En reprenant `mesures` et `vocales` déjà publiés, l'intervalle d'analyse est de
+60 ms, et la part des trames reconnues **à l'intérieur** de l'écart de parole :
+
+| parole | trames attendues | reconnues | part |
+|---|---|---|---|
+| 838 ms | ~14,6 | 13 | **89 %** |
+| 358 ms | ~7,0 | 6 | **86 %** |
+| 420 ms | ~8,0 | 6 | **75 %** |
+| 1 498 ms | ~25,9 | 17 | **66 %** |
+
+Les 11 à 34 % manquants sont les creux entre les mots. **Et ils ne coûtent
+rien à l'anticipation** : le pipeline reçoit `parle = aParle && Date.now() −
+dernierSon < 240`, donc un creux de moins de 240 ms compte encore comme de la
+parole. La détection ne hache pas ce que l'écoute progressive voit.
+
+## Donc ce qui prive l'anticipation de ses segments
+
+Ce n'est pas le seuil. C'est que **`parole_ms` vaut 0,36 à 1,5 s**, et que le
+premier segment en demande 1,5. Six tours sur huit n'ont produit aucun segment
+pour cette seule raison.
+
+Deux leviers, et aucun des deux n'est une question de bruit :
+
+1. **Des phrases plus longues.** Au-delà de 1,5 s de parole, l'anticipation
+   part — c'est déjà mesuré sur le tour à 1 498 ms et sur celui à 2 686 ms.
+2. **Descendre le premier segment sous 1,5 s.** Ça coûte une transcription de
+   plus par tour, sur des phrases où il y a de moins en moins à anticiper.
+   À 1,0 s, trois tours sur neuf auraient qualifié au lieu de deux.
+
+**Je n'ai pris ni l'un ni l'autre sans son accord**, parce que le second est
+une dépense et pas un réglage.
+
+## Ce qui est désormais lisible
+
+`micro_capture.etages_de_detection` : `parole_ms_mediane`,
+`enregistrement_ms_median`, `avant_la_premiere_voix_ms_median`,
+`intervalle_ms_median`, `part_reconnue_dans_la_parole_pourcent`,
+`refus_par_etage_median` (volume, bande vocale, anti-scintillement, guetteur)
+et `seuil_median`.
+
+Un téléphone qui n'a pas encore la nouvelle page reste compté sans fausser les
+médianes : `tours_detailles` dit combien de tours ont les quatre étages.

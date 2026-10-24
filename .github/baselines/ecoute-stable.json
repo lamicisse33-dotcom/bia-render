@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "c1ffcd319564583ba62a0bf15c23369706d1bb6c0a7eec5f67278d8c192a726c",
+    "app/page.tsx": "0ce4d6bb3b09ee2aab2098fa6c5d11454bc7d903573669d10b4b8c692b9b6fe7",
     "lib/micro.ts": "225f42ffbe4c66c4c61c97d7ae6376506d94d4b8e3348582e67d7fae30b9f2ce",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -175,5 +175,13 @@
     "repli_garanti": "Quand le serveur ne rend aucune brique, la lecture se referme sur file.fermer(), `normal` vaut vrai et askBia repart. Éprouvé : resultat.normal true, resultat.reponse vide, aucune brique jouée.",
     "verification": "383 épreuves + streaming isolé vertes, dont trois nouvelles sur l'interrupteur (fermé, ouvert, serveur sans brique). tsc et npm run build passent. Les décors de micro-cycle et audio-400ms déclarent explicitement l'essai fermé : ils mesurent le cycle du micro, pas les briques.",
     "non_valide": "Aucun gain n'est annoncé. La seule lecture par briques observée en ligne le 23 octobre a mis 7 780 ms jusqu'au premier son — plus lent que le chemin ordinaire — et elle n'entre pas dans la médiane de `tours`. C'est précisément ce que cet essai doit trancher, avec des tours réels et le compteur de replis sous les yeux. RÈGLE 1 : ça se mesure dans les oreilles de Lamine."
+  },
+  "migration_etages_micro_20261023": {
+    "autorise": "Lamine, 23 octobre 2026 : « creuse le seuil de parole détectée du micro. Mesure avant/après sur mes tours. Ne change rien qui attrape plus de bruit sans me le dire. »",
+    "aucun_seuil_touche": "AUCUNE DÉCISION DE DÉTECTION NE CHANGE. Ni le seuil adaptatif du fond, ni la part de bande vocale (0,2), ni l'anti-scintillement (2 trames sur 4), ni la hauteur minimale, ni le guetteur de locuteur, ni les paliers de silence. app/page.tsx n'ajoute que six compteurs posés sur des valeurs DÉJÀ calculées, et les envoie avec la mesure de fin de capture. Rien n'attrape plus de bruit qu'avant, et le champ public le déclare : micro_capture.detection_inchangee.",
+    "ce_que_ca_mesure": "Les quatre étages qui décident qu'une trame est de la parole disent enfin ce qu'ils refusent : volume, bande vocale, anti-scintillement, guetteur. Plus l'intervalle d'analyse réel, le seuil au moment de la fermeture, et la part des trames reconnues À L'INTÉRIEUR de l'écart de parole — le seul nombre qui dise si le seuil hache une phrase.",
+    "erreur_de_lecture_corrigee": "`parole_ms` est un ÉCART, de la première à la dernière trame vocale ; `duree_ms` est la durée d'ENREGISTREMENT et contient en plus le silence d'avant qu'il parle et les 400 ms de fin. Sur ses quatre tours, le temps avant la première trame vocale valait 1 263, 1 563, 1 322 et 543 ms. Lire « 838 ms de parole pour 2 522 ms » comme une détection sévère était une erreur de lecture, et le champ la rend impossible à refaire.",
+    "verification": "159 épreuves des lots micro, audio, briques et anticipation vertes, dont quatre nouvelles dans tests/micro-etages.test.mjs bâties sur les nombres RÉELS publiés par /api/etat le 23 octobre à 23:36. tsc et npm run build passent.",
+    "non_valide": "Rien n'est affirmé sur ce que Lamine entend, et aucun gain n'est annoncé : cette migration n'ajoute que des compteurs. La décision de baisser ou non un seuil viendra de ces chiffres, après ses tours — et un seuil plus bas attrape plus de bruit, ce qui sera dit avant d'être fait."
   }
 }
