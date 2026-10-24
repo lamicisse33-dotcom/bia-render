@@ -24,7 +24,7 @@ const path=require('path');
      .rang{display:flex;gap:90px;align-items:center}
      .trace{width:300px;height:17px;position:relative}
      .trace i{position:absolute;inset:0;background:#fff;opacity:.85;border-radius:9px}
-     .trace b{position:absolute;left:0;right:0;top:3px;height:11px;background:#e2b04a;opacity:.95;border-radius:6px}</style>
+     .trace b{position:absolute;left:0;right:0;top:3px;height:11px;background:#2563eb;opacity:.95;border-radius:6px}</style>
    <div class="rang">
      <div class="pin-moi" aria-label="Ou tu es"><span class="pin-halo"></span><span class="pin-coeur"></span></div>
      <div class="pin-arrivee" aria-label="La destination"><span class="pin-halo"></span><span class="pin-coeur"></span></div>
@@ -65,6 +65,7 @@ const path=require('path');
   assert.equal(trace.or,11,'le trajet doit faire 11 px (7 px avant)');
   assert(trace.liseré>trace.or,'le liseré blanc doit être plus large que le tracé');
 
+
   /* ── LE POINT VERT NE DOIT DÉPENDRE D'AUCUN ÉVÉNEMENT ─────────────────
 
      Lamine, le 24 octobre 2026 : « la carte s'affiche, mais avec un seul
@@ -87,6 +88,20 @@ const path=require('path');
      lequel il disparaissait. */
   assert(/secours\.current\s*=\s*true[\s\S]{0,600}?poserLArrivee\(\)/.test(source),
    'le point vert doit survivre au changement de fond');
+  /* ── LA LIGNE NE DOIT PAS ATTENDRE UN ÉVÉNEMENT QUI NE VIENDRA PAS ────
+     Lamine, le 24 octobre 2026 : « tracer une ligne bleue sur la voie ». Elle
+     ne s'affichait jamais : l'effet renonçait si le style n'était pas chargé
+     et ne repassait plus. Et un basculement de fond efface toutes les
+     couches. On vérifie la structure, parce que c'est là qu'est le défaut. */
+  /* La vraie garantie n'est pas l'absence du `return` — il est légitime, il
+     saute UN essai depuis l'intérieur de `tracer()`. C'est que l'essai soit
+     suivi d'un abonnement : sans lui, le premier renoncement était définitif. */
+  assert(/tracer\(\);\s*\n\s*m\.on\?\./.test(source),
+   'après le premier essai, la ligne doit s’abonner pour réessayer');
+  assert(/m\.on\?\.\("styledata", tracer\)/.test(source),
+   'elle doit se redessiner quand le fond change');
+  assert(/"line-color": "#2563eb"/.test(source),'la ligne est BLEUE');
+  assert(/getLayer\?\.\("yoon"\)/.test(source),'et elle ne se dédouble pas');
 
   const dossier=process.env.SORTIE_CAPTURE||require('os').tmpdir();
   const image=path.join(dossier,'carte-points-375px.png');

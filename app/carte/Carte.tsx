@@ -735,42 +735,71 @@ export default function Carte({
     void calculer(position).finally(() => { calculEnCours.current = false; });
   }, [position, chemin, calculer]);
 
-  /* ── LE TRACÉ SUR LA CARTE ───────────────────────────────────────────── */
+  /* ── LE TRACÉ SUR LA CARTE, ET POURQUOI IL N'APPARAISSAIT PAS ──────────
+
+     Lamine, le 24 octobre 2026 : « il faut tracer une ligne bleue sur la voie
+     à suivre, jusqu'au point vert ».
+
+     LE MÊME DÉFAUT QUE LE POINT VERT, EN PIRE. Cet effet commençait par
+     `if (!m.isStyleLoaded?.()) return;` et ne dépendait que de `chemin`. Si
+     le chemin arrivait AVANT que le fond soit peint — le cas ordinaire, le
+     routeur répond plus vite que les tuiles — l'effet partait une fois,
+     renonçait, et ne repassait JAMAIS. La ligne n'était jamais tracée.
+
+     Et contrairement à un marqueur, une couche a vraiment besoin du style :
+     `setStyle` les efface toutes quand on bascule de fond, et rien ne les
+     reposait.
+
+     ON NE RENONCE PLUS : on trace dès qu'on peut, et on reste abonné à
+     `styledata` — l'événement qui part aussi après un changement de fond.
+     `tracer()` est idempotent : il met à jour la source si elle existe, il la
+     crée sinon.
+
+     BLEUE, comme il l'a demandé, et comme le point qui le représente : la
+     ligne part de lui et va au point vert. Le liseré blanc reste dessous —
+     un trait de couleur sur une carte claire au soleil se confond sans lui. */
   useEffect(() => {
     const m = carte.current as unknown as {
       isStyleLoaded?: () => boolean; getSource?: (id: string) => unknown;
       addSource?: (id: string, s: unknown) => void; addLayer?: (l: unknown) => void;
+      getLayer?: (id: string) => unknown;
       fitBounds?: (b: number[][], o: unknown) => void;
+      on?: (e: string, f: () => void) => void; off?: (e: string, f: () => void) => void;
     } | null;
-    if (!m || !chemin || !m.isStyleLoaded?.()) return;
-    const donnees = { type: "Feature", geometry: { type: "LineString", coordinates: chemin.trace } };
-    const source = m.getSource?.("yoon") as { setData?: (d: unknown) => void } | undefined;
-    if (source?.setData) source.setData(donnees);
-    else {
-      m.addSource?.("yoon", { type: "geojson", data: donnees });
-      /* ── LE LISERÉ BLANC, SOUS LE TRACÉ ───────────────────────────────────
-         Lamine, le 24 octobre 2026 : « le trajet entre les deux en trait
-         épais. » Épais ne suffit pas sur une carte claire en plein soleil :
-         un trait or sur un fond beige se confond. On pose donc une couche
-         blanche plus large DESSOUS, et l'or par-dessus. C'est le même
-         principe que le contour blanc des deux points. */
-      m.addLayer?.({
-        id: "yoon-liseré", type: "line", source: "yoon",
+    if (!m || !chemin) return;
+    let cadre = false;
+    const tracer = () => {
+      if (!m.isStyleLoaded?.()) return;
+      const donnees = { type: "Feature", geometry: { type: "LineString", coordinates: chemin.trace } };
+      const source = m.getSource?.("yoon") as { setData?: (d: unknown) => void } | undefined;
+      if (source?.setData) source.setData(donnees);
+      else m.addSource?.("yoon", { type: "geojson", data: donnees });
+      /* Le liseré d'abord : il doit rester SOUS la ligne. */
+      if (!m.getLayer?.("yoon-lisere")) m.addLayer?.({
+        id: "yoon-lisere", type: "line", source: "yoon",
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#ffffff", "line-width": 17, "line-opacity": 0.85 },
+        paint: { "line-color": "#ffffff", "line-width": 17, "line-opacity": 0.9 },
       });
-      m.addLayer?.({
+      if (!m.getLayer?.("yoon")) m.addLayer?.({
         id: "yoon", type: "line", source: "yoon",
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#e2b04a", "line-width": 11, "line-opacity": 0.95 },
+        paint: { "line-color": "#2563eb", "line-width": 11, "line-opacity": 0.95 },
       });
-    }
-    const lons = chemin.trace.map((c) => c[0]);
-    const lats = chemin.trace.map((c) => c[1]);
-    m.fitBounds?.(
-      [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
-      { padding: 70, duration: 800 },
-    );
+      /* Le cadre une seule fois : le recadrer à chaque changement de fond
+         arracherait la carte des mains de quelqu'un qui la déplace. */
+      if (cadre) return;
+      cadre = true;
+      const lons = chemin.trace.map((c) => c[0]);
+      const lats = chemin.trace.map((c) => c[1]);
+      m.fitBounds?.(
+        [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+        { padding: 70, duration: 800 },
+      );
+    };
+    tracer();
+    m.on?.("styledata", tracer);
+    m.on?.("load", tracer);
+    return () => { m.off?.("styledata", tracer); m.off?.("load", tracer); };
   }, [chemin]);
 
   /* ── OÙ EN EST-ON, ET QUAND PARLER ──────────────────────────────────────
