@@ -724,10 +724,21 @@ export default function Carte({
     if (source?.setData) source.setData(donnees);
     else {
       m.addSource?.("yoon", { type: "geojson", data: donnees });
+      /* ── LE LISERÉ BLANC, SOUS LE TRACÉ ───────────────────────────────────
+         Lamine, le 24 octobre 2026 : « le trajet entre les deux en trait
+         épais. » Épais ne suffit pas sur une carte claire en plein soleil :
+         un trait or sur un fond beige se confond. On pose donc une couche
+         blanche plus large DESSOUS, et l'or par-dessus. C'est le même
+         principe que le contour blanc des deux points. */
+      m.addLayer?.({
+        id: "yoon-liseré", type: "line", source: "yoon",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": "#ffffff", "line-width": 17, "line-opacity": 0.85 },
+      });
       m.addLayer?.({
         id: "yoon", type: "line", source: "yoon",
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#e2b04a", "line-width": 7, "line-opacity": 0.9 },
+        paint: { "line-color": "#e2b04a", "line-width": 11, "line-opacity": 0.95 },
       });
     }
     const lons = chemin.trace.map((c) => c[0]);

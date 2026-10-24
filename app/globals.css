@@ -2217,20 +2217,40 @@ button { font: inherit; touch-action: manipulation; }
    bat plus doucement, parce qu'elle n'est pas ce qu'on cherche — elle est ce
    qu'on verifie. Deux couleurs franchement differentes : l'or de KHALAM pour
    la destination, un bleu vif pour soi, comme partout ailleurs. */
+/* ── ILS ÉTAIENT DE VINGT-DEUX PIXELS, ET ON NE LES VOYAIT PAS ─────────────
+
+   Lamine, le 24 octobre 2026 : « le point de la position de la personne doit
+   être très grand, bleu, et pulser. Le point de la destination tout aussi
+   grand, vert, bien visible. Pas de petits marqueurs : si c'est trop petit,
+   on ne le voit pas. »
+
+   Mesuré : 22 px de boîte, 12 px de cœur. Sur un écran de 375 px, c'est trois
+   pour cent de la largeur — et en plein soleil de Dakar, derrière un reflet,
+   ça n'existe pas.
+
+   CINQUANTE-QUATRE PIXELS DE BOÎTE, TRENTE DE CŒUR. Soit huit pour cent de la
+   largeur de son téléphone, avec un halo qui va jusqu'à cent pixels au plus
+   fort de son battement. Le contour blanc passe à trois pixels et l'ombre
+   s'alourdit : c'est ce qui décolle le point d'une carte claire sous le
+   soleil.
+
+   TROIS COULEURS QUI NE SE CONFONDENT PAS : bleu vif pour soi, VERT pour la
+   destination — l'or d'avant était la couleur du tracé, donc le point
+   d'arrivée et la route se ressemblaient — et l'or reste au trajet seul. */
 .pin-arrivee, .pin-moi {
   position: relative;
-  width: 22px; height: 22px;
+  width: 54px; height: 54px;
   display: block;
   pointer-events: none;
 }
 .pin-arrivee .pin-coeur, .pin-moi .pin-coeur {
-  position: absolute; inset: 5px;
+  position: absolute; inset: 12px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, .92);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, .55);
+  border: 3px solid rgba(255, 255, 255, .95);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .6), 0 0 0 1px rgba(0, 0, 0, .25);
 }
-.pin-arrivee .pin-coeur { background: #e2b04a; }
-.pin-moi .pin-coeur { background: #3b82f6; }
+.pin-arrivee .pin-coeur { background: #22c55e; }
+.pin-moi .pin-coeur { background: #2563eb; }
 
 .pin-arrivee .pin-halo, .pin-moi .pin-halo {
   position: absolute; inset: 0;
@@ -2238,11 +2258,11 @@ button { font: inherit; touch-action: manipulation; }
   transform-origin: center;
 }
 .pin-arrivee .pin-halo {
-  background: rgba(226, 176, 74, .45);
+  background: rgba(34, 197, 94, .50);
   animation: bat-arrivee 1.5s ease-out infinite;
 }
 .pin-moi .pin-halo {
-  background: rgba(59, 130, 246, .40);
+  background: rgba(37, 99, 235, .48);
   animation: bat-moi 2.4s ease-out infinite;
 }
 @keyframes bat-arrivee {

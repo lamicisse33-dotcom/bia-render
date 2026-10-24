@@ -1,0 +1,26 @@
+# Les deux points de la carte et le tracé, mesurés sur un écran de 375 px.
+# Demandé par Lamine le 24 octobre 2026 : « pas de petits marqueurs ».
+# Borné par chemins : ce dépôt est privé et chaque exécution est comptée à la
+# minute entamée (voir reveil.yml).
+name: Validate map points on a phone screen
+on:
+  push:
+    paths:
+      - app/globals.css
+      - app/carte/Carte.tsx
+      - tests/carte-points-browser.cjs
+      - .github/workflows/validation-carte-points.yml
+    branches: [main]
+permissions: {contents: read}
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/carte-points-browser.cjs
