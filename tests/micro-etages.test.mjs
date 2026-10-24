@@ -184,12 +184,29 @@ test('le modèle des briques est Haiku par défaut et revient à Sonnet par vari
 /* Le verdict de l'essai est volontairement sévère, et c'est le cœur de la
    garantie : un gain de temps payé par une reformulation wolof n'est pas un
    gain. On éprouve la règle de décision, pas le modèle. */
-test('le verdict refuse Haiku s’il préserve moins de formulations que Sonnet',()=>{
- const verdict=(configure,temoin)=>configure>=temoin;
- assert.equal(verdict(3,3),true,'autant : on garde');
- assert.equal(verdict(3,2),true,'mieux : on garde');
- assert.equal(verdict(2,3),false,'moins : on refuse, même si c’est plus rapide');
- assert.equal(verdict(0,0),true,'aucune formulation en jeu : rien à conclure sur le wolof');
+/* ── ZÉRO CONTRE ZÉRO N'EST PAS UNE RÉUSSITE ───────────────────────────────
+
+   Ma première règle valait `configure >= temoin`, donc VRAIE quand aucun des
+   deux ne reproduisait la formulation. C'est ce qui est arrivé en ligne le
+   24 octobre à 00:31 : `wolof_appris_preserve: true` sur une épreuve qui
+   n'avait rien éprouvé. Un compteur qui dit « bon » sans avoir rien vu est
+   pire qu'un compteur absent — RÈGLE 3, prise par l'autre bout. */
+test('le verdict est nul quand rien n’est en jeu, et refuse une perte de fidélité',()=>{
+ const verdict=(c,t)=>{const concluant=c+t>0;return {concluant,wolof_appris_preserve:concluant?c>=t:null};};
+ assert.deepEqual(verdict(3,3),{concluant:true,wolof_appris_preserve:true},'autant : on garde');
+ assert.deepEqual(verdict(3,2),{concluant:true,wolof_appris_preserve:true},'mieux : on garde');
+ assert.deepEqual(verdict(2,3),{concluant:true,wolof_appris_preserve:false},'moins : on refuse, même si c’est plus rapide');
+ assert.deepEqual(verdict(0,0),{concluant:false,wolof_appris_preserve:null},'rien en jeu : NUL, pas « bon »');
+});
+
+/* Et un refus de brique compte aussi : le 24 octobre, Haiku n'a produit aucune
+   brique sur un des deux cas là où Sonnet en produisait une. Plus rapide en
+   refusant n'est pas plus rapide. */
+test('un refus de brique de plus que le témoin ne passe pas',()=>{
+ const aussiSouvent=(c,t)=>c<=t;
+ assert.equal(aussiSouvent(0,0),true);
+ assert.equal(aussiSouvent(1,1),true,'les deux refusent autant : ce n’est pas le modèle');
+ assert.equal(aussiSouvent(1,0),false,'un refus de plus : on ne garde pas');
 });
 
 /* Et la normalisation qui décide du « mot pour mot » : la ponctuation et les

@@ -49,7 +49,10 @@ async function preparerTexte(s:VueTexte,texte:string,final:boolean,maitre:boolea
     /* Le modèle des briques a sa propre variable : voir modeleBriques(). Un
        essai peut en forcer un autre, et seulement un essai. */
     const model=modeleRapidite(s.profil,modeleEssai||s.modeleEssai||modeleBriques());noterModeleRapidite(s.profil,model);
-    etatBriques.modele_briques=model;
+    /* Le champ public dit le modèle de PRODUCTION. Un essai qui force un
+       témoin ne doit pas le repeindre : le 24 octobre, mon propre essai a
+       publié `claude-sonnet-5-5` parce qu'il finissait par le témoin. */
+    if(!modeleEssai&&!s.modeleEssai)etatBriques.modele_briques=model;
     const r=await fetchAnthropic((process.env.ANTHROPIC_BASE_URL||'https://api.anthropic.com')+'/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01'},body:JSON.stringify({model,max_tokens:3000,output_config:{format:{type:'json_schema',schema}},...messagesAnthropic(messages)}),signal},Date.now()+15000);
     if(!r.ok)throw Error('Modèle indisponible');const data=await r.json();if(data.stop_reason==='max_tokens')throw Error('JSON incomplet');
     mesure.modele_ms=Date.now()-debutModele;mesure.sortie_signes=contenuAnthropic(data).length;

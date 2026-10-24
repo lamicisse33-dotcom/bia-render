@@ -29,7 +29,7 @@ import {MODELE_SONNET,modeleBriques} from './cerveau-anthropic';
 type Cas={
   devoir:string;replique:string;langue:string;
   question_signes:number;apprise_signes:number;
-  modele:Record<string,{brique:boolean;mot_pour_mot:boolean|null;reply_signes:number|null;modele_ms:number|null;erreur?:string}>;
+  modele:Record<string,{brique:boolean;mot_pour_mot:boolean|null;reply_signes:number|null;texte_pret_ms:number|null;preparation_complete_ms:number|null;erreur?:string}>;
 };
 
 const normaliser=(s:string)=>String(s||'').normalize('NFC').toLowerCase()
@@ -37,7 +37,10 @@ const normaliser=(s:string)=>String(s||'').normalize('NFC').toLowerCase()
 
 export function verifierModeleBriques(){
   const etat=etatBriques as Record<string,unknown>;
-  if(etat.essai_modele)return;
+  /* Une seule série par processus. Un essai non concluant n'est pas une
+     réussite : le prochain démarrage le reprend. */
+  const precedent=etat.essai_modele as {statut?:string}|undefined;
+  if(precedent&&precedent.statut==='termine')return;
   const code=process.env.BIA_CODE_MAITRE;
   if(!code)return;
   etat.essai_modele={statut:'en_cours'};
@@ -76,10 +79,17 @@ export function verifierModeleBriques(){
         (rapport.cas as Cas[]).push(cas);
         for(const modele of [modeleBriques(),MODELE_SONNET]){
           const debut=Date.now();
+          /* LE TEXTE SEUL, pas le texte PLUS la voix. Première version de cet
+             essai : je chronométrais `preparerBrique` en entier, donc la
+             synthèse audio aussi, et j'appelais ça `modele_ms` — 3 à 7 s pour
+             un appel de modèle, ce qui aurait dû me sauter aux yeux. `debut`
+             du flux est appelé quand la brique TEXTE est prête. */
+          let textePret:number|null=null;
           try{
             const r=await preparerBrique({texte:c.question,tour:'essai-modele-briques-'+c.replique,
               history:[],resume:'',voice:'female',persona:'bia',modeleEssai:modele},
-              code,true,AbortSignal.timeout(30000));
+              code,true,AbortSignal.timeout(30000),undefined,
+              {debut:()=>{textePret??=Date.now()-debut;},morceau:()=>{}});
             const reply=r&&'brique' in r&&r.brique?String(r.brique.texte||''):'';
             cas.modele[modele]={
               brique:Boolean(reply),
@@ -88,31 +98,51 @@ export function verifierModeleBriques(){
                  proche, est un échec — c'est la consigne de Lamine. */
               mot_pour_mot:reply?normaliser(reply).includes(normaliser(c.apprise)):null,
               reply_signes:reply?reply.length:null,
-              modele_ms:Date.now()-debut,
+              texte_pret_ms:textePret,
+              preparation_complete_ms:Date.now()-debut,
             };
           }catch(e){
-            cas.modele[modele]={brique:false,mot_pour_mot:null,reply_signes:null,modele_ms:Date.now()-debut,
+            cas.modele[modele]={brique:false,mot_pour_mot:null,reply_signes:null,texte_pret_ms:textePret,
+              preparation_complete_ms:Date.now()-debut,
               erreur:e instanceof Error?e.message.slice(0,60):'essai_non_confirme'};
           }
         }
       }
       const cas=rapport.cas as Cas[];
       const part=(m:string)=>cas.filter(c=>c.modele[m]?.mot_pour_mot===true).length;
-      const duree=(m:string)=>{const v=cas.map(c=>c.modele[m]?.modele_ms).filter((x):x is number=>typeof x==='number').sort((a,b)=>a-b);
+      const refus=(m:string)=>cas.filter(c=>c.modele[m]?.brique===false).length;
+      const duree=(m:string,cle:'texte_pret_ms'|'preparation_complete_ms')=>{
+        const v=cas.map(c=>c.modele[m]?.[cle]).filter((x):x is number=>typeof x==='number').sort((a,b)=>a-b);
         return v.length?v[Math.floor((v.length-1)/2)]:null;};
       const configure=modeleBriques();
+      /* ── ZÉRO CONTRE ZÉRO N'EST PAS UNE RÉUSSITE ──────────────────────────
+
+         Première version : le verdict valait `configure >= temoin`, donc VRAI
+         quand AUCUN des deux ne reproduisait la formulation. C'est exactement
+         ce qui s'est passé le 24 octobre à 00:31, et le champ a affiché
+         `wolof_appris_preserve: true` sur une épreuve qui n'avait rien
+         éprouvé. Un compteur qui dit « bon » quand il n'a rien vu est pire
+         qu'un compteur absent. */
+      const concluant=part(configure)+part(MODELE_SONNET)>0;
       rapport.bilan={
         repliques:cas.length,
         mot_pour_mot_configure:part(configure),
         mot_pour_mot_temoin:part(MODELE_SONNET),
-        modele_ms_median_configure:duree(configure),
-        modele_ms_median_temoin:duree(MODELE_SONNET),
-        /* LE VERDICT, et il est volontairement sévère : le modèle configuré ne
-           doit pas reproduire MOINS de formulations que le témoin. Un gain de
-           temps payé par une reformulation wolof n'est pas un gain. */
-        wolof_appris_preserve:part(configure)>=part(MODELE_SONNET),
+        briques_refusees_configure:refus(configure),
+        briques_refusees_temoin:refus(MODELE_SONNET),
+        texte_pret_ms_median_configure:duree(configure,'texte_pret_ms'),
+        texte_pret_ms_median_temoin:duree(MODELE_SONNET,'texte_pret_ms'),
+        preparation_complete_ms_median_configure:duree(configure,'preparation_complete_ms'),
+        preparation_complete_ms_median_temoin:duree(MODELE_SONNET,'preparation_complete_ms'),
+        concluant,
+        /* LE VERDICT, volontairement sévère, et NUL quand rien n'est en jeu :
+           le modèle configuré ne doit reproduire ni moins de formulations, ni
+           refuser plus de briques que le témoin. Un gain de temps payé par une
+           reformulation wolof, ou par un refus, n'est pas un gain. */
+        wolof_appris_preserve:concluant?part(configure)>=part(MODELE_SONNET):null,
+        briques_aussi_souvent_produites:refus(configure)<=refus(MODELE_SONNET),
       };
-      rapport.statut='termine';
+      rapport.statut=concluant?'termine':'non_concluant';
     }catch(e){
       rapport.statut='echec';
       rapport.erreur=e instanceof Error?e.message.slice(0,80):'essai_non_confirme';
