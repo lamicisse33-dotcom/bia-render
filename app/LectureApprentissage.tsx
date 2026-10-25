@@ -7,14 +7,13 @@ import {routerApprentissage,type TypeApprentissage} from "@/lib/routage-apprenti
 import {LectureContinue,type Progression,type PlageLecture} from "@/lib/lecture-continue";
 import {ambiguitiesWolof} from "@/lib/langue";
 import type {Lecon} from "@/lib/lexique-apprentissage-core";
-import {lirePiperLocale,piperLocaleDisponible} from "@/lib/voix-piper-locale";
 import {ouvrirFluxVoix,type MorceauVoix} from "@/lib/flux-khalam";
 import {reveiller} from "@/lib/reveil-du-son";
 import type {DevoirALire} from "@/lib/lecture-devoirs-core";
 import type {PassageCorrige} from '@/lib/correction-apprentissage-core';
 import {morceauxLecture} from "@/lib/lecture-morceaux";
 
-export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false,obtenirAudio}:{obtenirAudio:()=>AudioContext;edition?:boolean;code:string;voice:"piper"|"piper-web"|"female"|"male";
+export default function LectureApprentissage({code,voice,demande,onStart,onClose,edition=false,obtenirAudio}:{obtenirAudio:()=>AudioContext;edition?:boolean;code:string;voice:"piper-web"|"female"|"male";
  demande:{texte:string;nonce:number;auto:boolean;source?:"memoire"};onStart:()=>void;onClose:()=>void}){
  const [curseur,setCurseur]=useState(0);
  const [fenetreLecture,setFenetreLecture]=useState(0);
@@ -81,14 +80,13 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
   let secoursComplet=true;
   const demander=async(text:string,partie:number,signal:AbortSignal,empreinte?:string,langue=settings.current.langue)=>{
    signal=AbortSignal.any([signal,AbortSignal.timeout(settings.current.voice==="piper-web"?45000:12000)]);
-   if(settings.current.voice==="piper"||settings.current.voice==="piper-web"){
-    if(settings.current.voice==="piper"&&!piperLocaleDisponible())throw Error("Ouvre BIA installée sur le téléphone pour utiliser Piper.");
+   if(settings.current.voice==="piper-web"){
     if(!preparation||preparation.original!==text||preparation.langue!==langue){
      const r=await fetch("/api/apprentissage/preparer",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:langue})});
      const d=await r.json();if(!r.ok||typeof d.texte!=="string")throw Error(d.error||"Lexique indisponible");
      preparation={original:text,langue:langue,texte:d.texte};
     }
-    return settings.current.voice==="piper-web"?lirePiperWeb(preparation.texte,partie,settings.current.code,signal):lirePiperLocale(preparation.texte,partie,signal);
+    return lirePiperWeb(preparation.texte,partie,settings.current.code,signal);
    }
    if(secoursComplet){
     const r=await fetch("/api/chatterbox-test/bia",{method:"POST",headers:headers(),signal,body:JSON.stringify({texte:text,langue:langue,voice:settings.current.voice,partie,empreinte,lecture_fidele:true})});
