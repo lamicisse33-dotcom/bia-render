@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "b93ee9004717f97d74b929fce6c867123d9c953784e489444b57b989be4bb683",
+    "app/page.tsx": "bda2ff827fd9104174734a8ccff478663bdd0a0fd7e9f15e993c19b9d41e186a",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -405,5 +405,14 @@
     "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Une epreuve neuve : absent = aucun effet, borne, et il passe devant le reglage du serveur sinon l essai ne servirait a rien.",
     "non_valide": "La reponse a sa question. Elle viendra de quatre tours avec ?attente=0 et quatre sans, memes phrases.",
     "ma_faute_quatrieme_fois": "J ai pousse 3d92c05 avec QUATRE epreuves rouges : `attenteDemandee` etait un nom neuf dans la ligne que cinq epreuves extraient du callback ecouter. Quatrieme fois aujourd hui apres silenceDemande, journalTourRef et la garde de la voix. L essai est maintenant replie DANS reglagesAnticipation, qui existe deja dans leurs decors, et une epreuve refuse qu un nom neuf reapparaisse. La production n etait pas cassee — le composant reel a bien ce nom — mais j ai pousse du rouge, et je n aurais pas du."
+  },
+  "migration_levier_1_patience_bornee_20261025": {
+    "authorized": "MANDAT VITESSE de Lamine, levier 1 : « le double paiement — elle attend la preparation PUIS le chemin ordinaire ». Repris sur la branche mandat-vitesse apres le retour a c4b5220, avec l epreuve de bout en bout exigee : « je parle, mon texte s affiche, elle repond ».",
+    "ce_qui_change": "A la fermeture du micro, la page n attend plus la chaine de briques sans limite. Si aucune brique n a COMMENCE A PARLER au bout de patience_brique_ms (1200 par defaut), on coupe la chaine — abort compris, pour qu elle cesse de couter — et le chemin ordinaire part. Une brique qui parle deja n est JAMAIS coupee : premierBrique dit si elle a commence.",
+    "les_deux_fautes_du_25_octobre": "Ce meme levier a rendu BIA muette deux fois. (1) abort() etait appele AVANT if(!actifBriques())return, et actifBriques() commence par !signal.aborted : je rendais ma propre garde fausse, on sortait toujours avant askBia. (2) Corrigee, askBia recevait encore dejaInscrit=true alors que RIEN n etait inscrit : sa phrase n apparaissait jamais. Les deux sont corrigees ici ; le tour est constate AVANT de couper, et askBia inscrit sa phrase lui-meme.",
+    "mesure": "Harnais de bout en bout, meme machine, meme bouchon : chemin du pari perdu (preparation lente qui ne donne rien) 9884 ms avant, 4871 ms apres, soit -5013 ms. Les deux autres chemins inchanges (3969 et 3863 ms). Mesure dans un harnais, PAS dans ses oreilles : les services sont bouches, et seul son telephone peut juger du reste.",
+    "filet": "tests/parole-affichee-browser.cjs — trois scenarios dans un vrai Chromium sur la vraie page, avec un faux micro qui produit un signal de voix. Verte sur c4b5220 (version servie), ROUGE sur 2d007d2 et 762dd8a, les deux deploiements muets, et rouge exactement la ou Lamine l a vu : la bulle de sa phrase n arrive jamais.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change : le bloc de la patience dans le chemin des briques. Aucun changement d ASR, de synthese, de modele, de transport ni de capture micro. Reversible par BIA_PATIENCE_BRIQUE_MS=10000 (comportement d avant) sans redeployer.",
+    "reste_a_mesurer": "Ses quatre tours au telephone, sur Khalam : mediane du premier son, patiences_depassees dans /api/etat, et zero coupure. Production reste c4b5220 jusqu a son accord."
   }
 }

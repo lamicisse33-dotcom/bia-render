@@ -51,14 +51,13 @@ const BASE=process.env.BIA_EPREUVE_URL||`http://127.0.0.1:${PORT}`;
    navigateur : c'est le chemin de Lamine, et c'est celui qui s'est tu. */
 const ETAT={version:'epreuve',ecoute:'local_wolof',voix:'runpod',tenue:'jaune',
  fin_de_parole:{silence_fin_parole_ms:1200}};
-/* La patience des briques vient du serveur (BIA_PATIENCE_BRIQUE_MS). Elle
-   n'existe que dans le troisième scénario : sans elle, le bloc qui a rendu
-   BIA muette n'est JAMAIS traversé — mes deux premiers scénarios passaient
-   au vert sur l'arbre fautif, et un filet qui n'est pas sous le trou ne sert
-   à rien (AVANT-DE-DIRE-QUE-C-EST-BON.md). */
-const etatDuCas=(cas)=>cas.patience
- ? {...ETAT,briques_conversation:{patience_brique_ms:cas.patience}}
- : ETAT;
+/* La patience des briques vient du serveur (BIA_PATIENCE_BRIQUE_MS), qui la
+   publie toujours : on la donne donc dans TOUS les scénarios, comme en vrai.
+   C'est elle qui ouvre le bloc du renoncement — sans elle, mes deux premiers
+   scénarios ne le traversaient même pas et passaient au vert sur l'arbre
+   fautif. Un filet qui n'est pas sous le trou ne sert à rien
+   (AVANT-DE-DIRE-QUE-C-EST-BON.md). */
+const etatDuCas=(cas)=>({...ETAT,briques_conversation:{patience_brique_ms:cas.patience??1200}});
 
 /* Un quart de seconde de silence, en WAV 16 bits : c'est l'audio d'une brique.
    Son CONTENU n'a aucune importance ici — ce qui compte est qu'elle se décode,
