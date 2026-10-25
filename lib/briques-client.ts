@@ -1,6 +1,6 @@
 import {creerFileBriques,creerFluxBrique,type BriqueAudio} from './briques-file';
 import {entetesRapidite} from './rapidite-core';
-export function creerProducteurBriques(o:{code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;actuel:()=>boolean;segments?:()=>number;surTranscriptionFinale?:boolean;seuilSignes?:number;envoiEnVol?:()=>boolean}){
+export function creerProducteurBriques(o:{code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;actuel:()=>boolean;segments?:()=>number;surTranscriptionFinale?:boolean;seuilSignes?:number}){
  const file=creerFileBriques(),abort=new AbortController();
  const headers={'content-type':'application/json','x-bia-code':o.code,...entetesRapidite()};
  let id:string|undefined,dernier='',enCours:Promise<void>|null=null,ecoute=true,annule=false,commence=false,normal=false,termine=false,ajout=false;
@@ -109,12 +109,7 @@ export function creerProducteurBriques(o:{code:string;tour:string;history:unknow
    // ASR alone is not a prepared response. Starting a new brick after speech
    // ended can add an entire rejected model call before ordinary chat starts.
    if(commence||annule){porte('annule');return null;}
-   /* ── UNE TRANSCRIPTION EN VOL VAUT UNE PRÉPARATION EN COURS ───────────
-      Elle arrivera dans la milliseconde et lancera la fabrication. Refuser
-      ici, c'est refuser une brique qui existe déjà — c'est le défaut mesuré
-      le 25 octobre : six préparations sur sept tuées à une milliseconde.
-      On l'a d'abord corrigé en ATTENDANT 800 ms ; il suffisait de savoir. */
-   if(!file.pretes&&!enCours&&!o.envoiEnVol?.()){
+   if(!file.pretes&&!enCours){
     /* ── L'ESSAI DU 23 OCTOBRE 2026, DEMANDÉ PAR LAMINE ─────────────────
 
        Rien n'est prêt. L'ancien comportement rendait la main au chemin

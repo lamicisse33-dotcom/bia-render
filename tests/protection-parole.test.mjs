@@ -46,10 +46,7 @@ function environment(){
    que la prochaine décision de Lamine n'ait qu'un seul endroit à changer. */
 test('un enregistreur ouvert retient l’audio ; après fermeture, une reprise de parole relance toute la garde',{timeout:3000},async()=>{
  const G=silenceQuiSuffit(0,0);
- /* 25 octobre, mandat vitesse : la garde reprend le seuil de base de 600 ms,
-    et ce qui protège les hésitants est la protection qui grandit avec les
-    coupures déjà subies — éprouvée dans tests/vitesse-immediate. */
- assert.equal(G,600,'la garde reprend le silence de base du mandat');
+ assert.ok(G>1000,'une pause d’une seconde doit survivre : '+G);
  const x=environment();x.env.enregistreurRef.current={state:'recording'};let finished=false;
  const pending=x.env.autoriserLaVoix(()=>true).then(v=>{finished=true;return v;});
  x.now(55000);await sleep(80);assert.equal(finished,false);

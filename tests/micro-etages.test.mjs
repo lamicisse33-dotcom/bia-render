@@ -98,10 +98,7 @@ test('les deux seuils ont leurs nouvelles valeurs par défaut, et reviennent par
  try{
   delete process.env.BIA_PREMIER_SEGMENT_MS;delete process.env.BIA_SIGNES_ANTICIPATION;
   const d=seuils();
-  /* 25 octobre, levier 2 du mandat : 1 000 → 600 ms. La première
-     interprétation arrive presque deux fois plus tôt, donc la préparation
-     aussi. BIA_PREMIER_SEGMENT_MS=1000 ramène le réglage d'avant. */
-  assert.equal(d.premierSegmentMs(),600,'premier segment : 600 ms, levier 2 du mandat');
+  assert.equal(d.premierSegmentMs(),1000,'premier segment : 1 000 ms de parole, tranché par Lamine');
   assert.equal(d.signesAnticipation(),20,'plancher de texte : 20 signes');
   /* Le retour au comportement du 23 octobre, sans déploiement. */
   process.env.BIA_PREMIER_SEGMENT_MS='1500';process.env.BIA_SIGNES_ANTICIPATION='35';
@@ -121,7 +118,7 @@ test('une valeur absurde ne peut pas s’installer : on garde le défaut',()=>{
      préparerait sur un soupir. Les bornes sont là pour ça. */
   for(const mauvais of ['0','100','99999','abc','']){
    process.env.BIA_PREMIER_SEGMENT_MS=mauvais;
-   assert.equal(d.premierSegmentMs(),600,'premier segment refuse '+JSON.stringify(mauvais));
+   assert.equal(d.premierSegmentMs(),1000,'premier segment refuse '+JSON.stringify(mauvais));
   }
   for(const mauvais of ['0','5','99999','abc','']){
    process.env.BIA_SIGNES_ANTICIPATION=mauvais;
@@ -147,10 +144,7 @@ test('sur les neuf durées de parole mesurées, trois franchissent 1 000 ms au l
     atteignait l'ancien seuil. Le segment vu sur ce tour-là venait du silence
     de fin de parole, pas du seuil — ce qui colle aux compteurs publiés. */
  assert.equal(PAROLE_REELLE.filter(ms=>ms>=1500).length,1,'avec l’ancien seuil');
- assert.equal(PAROLE_REELLE.filter(ms=>ms>=1000).length,3,'avec le seuil du 24 octobre');
- /* Et avec celui du mandat, encore plus de phrases atteignent le premier
-    segment : c'est tout l'objet du levier 2. */
- assert.ok(PAROLE_REELLE.filter(ms=>ms>=600).length>=3,'avec le seuil du mandat');
+ assert.equal(PAROLE_REELLE.filter(ms=>ms>=1000).length,3,'avec le nouveau, tranché par Lamine');
  assert.equal(PAROLE_REELLE.filter(ms=>ms>=700).length,6,'ce qu’un seuil à 0,7 s aurait donné : plus de fragments, plus de replis');
 });
 

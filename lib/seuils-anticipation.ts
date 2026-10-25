@@ -52,11 +52,8 @@ const borne = (v: string | undefined, defaut: number, min: number, max: number) 
 };
 
 /** Durée de PAROLE avant le premier segment. Révertible : BIA_PREMIER_SEGMENT_MS. */
-/* Levier 2 du mandat du 25 octobre : 1 000 → 600 ms. La première
-   interprétation arrive presque deux fois plus tôt, donc la préparation
-   aussi. BIA_PREMIER_SEGMENT_MS=1000 ramène le comportement d'avant. */
 export const premierSegmentMs = () =>
-  borne(process.env.BIA_PREMIER_SEGMENT_MS, 600, 500, 4000);
+  borne(process.env.BIA_PREMIER_SEGMENT_MS, 1000, 500, 4000);
 
 /** Longueur minimale du texte pour préparer. Révertible : BIA_SIGNES_ANTICIPATION. */
 export const signesAnticipation = () =>
@@ -114,86 +111,15 @@ export const phraseLongueSignes = () =>
    réellement en vol. Le chemin ordinaire qu'on évite mettait 6 031 ms de
    médiane ; une brique prête joue à 19 ms de la fermeture.
 
-   ── ET ELLE EST RETOMBÉE À ZÉRO LE 25 OCTOBRE AU SOIR ────────────────────
-
-   Elle marchait mécaniquement — dix attentes, dix avec une préparation en
-   vol, plus une seule préparation tuée à la fermeture — et elle n'a JAMAIS
-   fait gagner une seconde à Lamine : médiane du premier son 6 031 → 7 079 →
-   9 270 ms au fil de mes essais. On ne garde pas un coût qu'on n'a pas
-   prouvé.
-
-   Ce qu'elle servait est obtenu sans elle : `commencer()` sait maintenant
-   qu'une transcription est EN VOL et ouvre la lecture sans attendre. Savoir
-   remplace attendre, et ça ne coûte rien.
-
-   La variable reste, à zéro : BIA_ATTENTE_ENVOI_MS=800 la rallume si une
-   mesure la justifie un jour. */
+   RÉVERSIBLE SANS DÉPLOIEMENT : BIA_ATTENTE_ENVOI_MS=0 rend le comportement
+   d'avant, à la milliseconde près. */
 export function attenteEnvoiMs(): number {
   /* Une variable VIDE ne veut pas dire zéro : elle veut dire « pas posée ».
      `Number("")` rend 0, qui est dans les bornes — une variable laissée vide
      sur Render aurait donc éteint la fonction en silence. Une épreuve l'a
      attrapé. */
   const brut = String(process.env.BIA_ATTENTE_ENVOI_MS ?? "").trim();
-  if (!brut) return 0;
+  if (!brut) return 800;
   const n = Number(brut);
-  return Number.isFinite(n) && n >= 0 && n <= 3000 ? Math.round(n) : 0;
-}
-
-/* ── LE DOUBLE PAIEMENT, LEVIER 1 DU MANDAT DU 25 OCTOBRE ─────────────────
-
-   Mesuré : à la fermeture du micro, la page attend la FIN de la chaîne de
-   briques — `terminerBriques()` puis `lectureBriques.fin` — et seulement
-   ensuite, si rien n'est sorti, lance le chemin ordinaire. En série. Quand
-   le pari de la brique est perdu, on a payé son attente ENTIÈRE avant même
-   de commencer à répondre. C'est la queue de tours à 12, 18 et 42 secondes.
-
-   LA PATIENCE EST BORNÉE. Si aucune brique n'a COMMENCÉ À PARLER au bout de
-   ce délai, on coupe la chaîne et on part sur le chemin ordinaire. Une
-   brique déjà en train de parler n'est JAMAIS coupée — ce serait couper BIA
-   au milieu d'un mot.
-
-   Pourquoi 1 200 ms : c'est l'ordre de grandeur d'une préparation qui
-   aboutit (mesurées à 836 et 2 464 ms). Au-delà, on sait qu'on a perdu le
-   pari, et chaque milliseconde de plus est une milliseconde volée.
-
-   RÉVERSIBLE : BIA_PATIENCE_BRIQUE_MS=10000 reproduit le comportement
-   d'avant (on attend la chaîne quoi qu'il arrive) ; 0 renonce tout de suite
-   aux briques. */
-export function patienceBriqueMs(): number {
-  const brut = String(process.env.BIA_PATIENCE_BRIQUE_MS ?? "").trim();
-  if (!brut) return 1200;
-  const n = Number(brut);
-  return Number.isFinite(n) && n >= 0 && n <= 20000 ? Math.round(n) : 1200;
-}
-
-/* ── LEVIER 2 : L'OREILLE EN FLUX ─────────────────────────────────────────
-
-   Le mandat demande « une transcription provisoire toutes les 100-200 ms au
-   lieu de segments d'une seconde ».
-
-   CE QUE JE PEUX FAIRE AUJOURD'HUI, ET CE QUE JE NE PEUX PAS. Chaque segment
-   part en HTTP vers Khalam Oreille. Une transcription toutes les 150 ms,
-   c'est près de SEPT requêtes par seconde et par personne — ce n'est pas un
-   réglage, c'est une autre architecture : un flux WebSocket vers le GPU,
-   qui est le levier 6. Le promettre ici serait mentir.
-
-   CE QUE JE FAIS : le premier segment part après 600 ms de parole au lieu de
-   1 000, et les suivants toutes les 1 500 ms au lieu de 4 000. La première
-   interprétation arrive donc presque deux fois plus tôt, et elle se corrige
-   presque trois fois plus souvent.
-
-   CE QUE ÇA COÛTE, DIT AVANT : environ deux fois et demie plus d'appels à
-   l'oreille par tour. Sur une phrase de six secondes, deux segments avant,
-   quatre maintenant. C'est le prix de la réactivité, et il se lit dans
-   anticipation_conversation.ecoute.segments.
-
-   RÉVERSIBLE : BIA_SEGMENT_MS=4000 et BIA_PREMIER_SEGMENT_MS=1000 ramènent
-   exactement le comportement d'avant. */
-export function segmentMs(): number {
-  const brut = String(process.env.BIA_SEGMENT_MS ?? "").trim();
-  if (!brut) return 1500;
-  const n = Number(brut);
-  /* 1500, 2500 et 4000 sont les trois tailles que la découpe sait traiter ;
-     toute autre valeur retomberait sur le plus gros tampon sans le dire. */
-  return n === 1500 || n === 2500 || n === 4000 ? n : 1500;
+  return Number.isFinite(n) && n >= 0 && n <= 3000 ? Math.round(n) : 800;
 }

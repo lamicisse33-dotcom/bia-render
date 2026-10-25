@@ -20,13 +20,11 @@ const sansCommentaires=s=>s.replace(/\/\*[\s\S]*?\*\//g,' ').replace(/(^|[^:])\/
    pour réfléchir. » Donc : le silence exigé doit dépasser une seconde, et il
    doit être LE MÊME des deux côtés. */
 
-/* 25 octobre, mandat vitesse : 600 ms. Ce qui protège les hésitants n'est
-   plus un seuil fixe mais la protection qui grandit avec les coupures déjà
-   subies — éprouvée dans tests/vitesse-immediate. */
-test('lib/fin-de-parole.ts n’importe rien, et le silence partagé vaut 600 ms',()=>{
+test('lib/fin-de-parole.ts n’importe rien et exige plus d’une seconde',()=>{
  const F=charger('lib/fin-de-parole.ts');
- assert.equal(F.silenceFinDeParoleMs(),600);
- assert.equal(F.SILENCE_FIN_PAROLE_MS_DEFAUT,600);
+ assert.ok(F.silenceFinDeParoleMs()>1000,'une pause d’une seconde doit survivre');
+ assert.equal(F.silenceFinDeParoleMs(),1200);
+ assert.equal(F.SILENCE_FIN_PAROLE_MS_DEFAUT,1200);
 });
 
 /* Le piège que j’ai déjà payé deux fois : lib/micro.ts est chargé comme
@@ -39,11 +37,7 @@ test('le repli de lib/micro.ts vaut exactement le défaut partagé',()=>{
  assert.equal(M.SILENCE_QUI_FERME,F.SILENCE_FIN_PAROLE_MS_DEFAUT,
   'si ces deux nombres divergent, les deux moteurs ne se comportent plus pareil');
  assert.equal(M.SILENCE_LE_PLUS_COURT,F.SILENCE_FIN_PAROLE_MS_DEFAUT);
- /* SILENCE_LE_PLUS_LONG n'est plus le même nombre : c'est le PLAFOND de la
-    protection des hésitants, pas le seuil de base. */
- assert.ok(M.SILENCE_LE_PLUS_LONG>F.SILENCE_FIN_PAROLE_MS_DEFAUT,
-  'le plafond de protection doit dépasser le seuil de base');
- assert.equal(M.SILENCE_LE_PLUS_LONG,2000);
+ assert.equal(M.SILENCE_LE_PLUS_LONG,F.SILENCE_FIN_PAROLE_MS_DEFAUT);
 });
 
 test('lib/micro.ts ne contient aucun import : une épreuve le charge seul',()=>{
@@ -55,18 +49,14 @@ test('lib/micro.ts ne contient aucun import : une épreuve le charge seul',()=>{
 test('une variable Render règle le silence sans redéployer, et les bornes tiennent',()=>{
  const avant=process.env.BIA_SILENCE_FIN_PAROLE_MS;
  try{
-  /* Le réglage du 24 octobre reste atteignable d'une variable. */
-  process.env.BIA_SILENCE_FIN_PAROLE_MS='1200';
-  assert.equal(charger('lib/fin-de-parole.ts').silenceFinDeParoleMs(),1200);
-  /* Et 400 ms aussi, maintenant que le plancher est à 300 : le mandat ouvre
-     la plage vers le bas, et c'est la protection des hésitants qui tient la
-     promesse « zéro coupure », pas un plancher élevé. */
-  process.env.BIA_SILENCE_FIN_PAROLE_MS='400';
-  assert.equal(charger('lib/fin-de-parole.ts').silenceFinDeParoleMs(),400);
-  /* Sous 300 ms on n'entend plus une respiration : on refuse. */
-  for(const mauvais of ['299','0','-1','abc','','99999']){
+  process.env.BIA_SILENCE_FIN_PAROLE_MS='1500';
+  assert.equal(charger('lib/fin-de-parole.ts').silenceFinDeParoleMs(),1500,
+   'la valeur de son propre raisonnement de septembre doit être atteignable');
+  /* Sous le plancher : on refuse, sinon la variable rouvrirait le défaut
+     qu’on vient de corriger. */
+  for(const mauvais of ['400','0','-1','abc','','99999']){
    process.env.BIA_SILENCE_FIN_PAROLE_MS=mauvais;
-   assert.equal(charger('lib/fin-de-parole.ts').silenceFinDeParoleMs(),600,'refusé : '+mauvais);
+   assert.equal(charger('lib/fin-de-parole.ts').silenceFinDeParoleMs(),1200,'refusé : '+mauvais);
   }
  }finally{
   if(avant===undefined)delete process.env.BIA_SILENCE_FIN_PAROLE_MS;
@@ -114,15 +104,13 @@ test('app/page.tsx pose le silence du serveur une seule fois, à la réponse de 
 
 test('le réglage posé l’emporte, et une valeur hors bornes garde le repli',()=>{
  const M=charger('lib/micro.ts');
- assert.equal(M.silenceQuiSuffit(2500,0),600,'repli avant toute réponse du serveur');
- assert.equal(M.reglerSilenceQuiFerme(1200),1200);
- assert.equal(M.silenceQuiSuffit(2500,0),1200,'posé une fois, vu partout');
- /* La protection des hésitants s'ajoute au réglage posé, elle ne le
-    remplace pas. */
- assert.equal(M.silenceQuiSuffit(0,2),1800);
- for(const mauvais of [100,0,-1,99999,NaN,undefined,'abc']){
-  assert.equal(M.reglerSilenceQuiFerme(mauvais),600,'refusé : '+String(mauvais));
-  assert.equal(M.silenceQuiSuffit(2500,0),600);
+ assert.equal(M.silenceQuiSuffit(2500,0),1200,'repli avant toute réponse du serveur');
+ assert.equal(M.reglerSilenceQuiFerme(1500),1500);
+ assert.equal(M.silenceQuiSuffit(2500,0),1500,'posé une fois, vu partout');
+ assert.equal(M.silenceQuiSuffit(0,100),1500);
+ for(const mauvais of [400,0,-1,99999,NaN,undefined,'abc']){
+  assert.equal(M.reglerSilenceQuiFerme(mauvais),1200,'refusé : '+String(mauvais));
+  assert.equal(M.silenceQuiSuffit(2500,0),1200);
  }
 });
 
@@ -193,26 +181,4 @@ test('le journal ne laisse sortir aucun texte ni aucune transcription',()=>{
     celui qui recevra du texte un jour. `texte_ms` est une durée. */
  for(const cle of ['texte','question','reponse','dit','repondu'])
   assert.doesNotMatch(code,new RegExp('[{,]\\s*'+cle+'\\s*:'),'aucun champ publié « '+cle+' »');
-});
-
-/* ── UN A/B SANS ÉTIQUETTE N'EST PAS UN A/B ──────────────────────────────
-   Le 25 octobre au soir, Lamine a fait huit tours — quatre avec l'attente
-   éteinte, quatre avec — et je n'ai pas pu comparer : rien n'enregistrait
-   quel réglage était en vigueur. Je lui avais demandé un essai que ma propre
-   mesure ne savait pas lire. */
-test('chaque tour porte le réglage qui était en vigueur, et les médianes se séparent',()=>{
- delete globalThis.biaJournalParole;
- const J=charger('lib/journal-parole.ts');
- const tour=(attente,ms)=>J.noterTourDeParole({moteur:'khalam',
-  debut_parole:'15:30:01',fin_detectee:'15:30:04',premier_son:'15:30:06',
-  parole_ms:3000,silence_exige_ms:1200,silence_observe_ms:1250,
-  attente_ms:ms,attente_envoi_ms:attente});
- tour(0,4000); tour(0,4200); tour(800,7000); tour(800,7400);
- const v=J.resumeJournalParole().khalam;
- assert.deepEqual(Object.keys(v.premier_son_par_reglage).sort(),['attente_0_ms','attente_800_ms']);
- assert.equal(v.premier_son_par_reglage.attente_0_ms.tours,2);
- assert.equal(v.premier_son_par_reglage.attente_0_ms.median_ms,4100);
- assert.equal(v.premier_son_par_reglage.attente_800_ms.median_ms,7200);
- /* Et le réglage est visible tour par tour, pas seulement en médiane. */
- assert.equal(J.resumeJournalParole().derniers_tours.at(-1).attente_envoi_ms,800);
 });

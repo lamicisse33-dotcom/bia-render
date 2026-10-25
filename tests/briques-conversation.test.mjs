@@ -48,7 +48,7 @@ function server(answer,options={}){
   if(id==='./identite-core')return load('lib/identite-core.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./salutations-dialogue')return load('lib/salutations-dialogue.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./anticipation-core')return core;
-  if(id==='./seuils-anticipation')return {premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,segmentMs:()=>1500,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70};
+  if(id==='./seuils-anticipation')return {premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70};
   if(id==='./eligibilite-etat')return {noterRefusServeur(){},noterEligibilite(){},resumeEligibilite:()=>({})};
   if(id==='./briques-etat')return {etatBriques:state};
   if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
@@ -224,7 +224,7 @@ test('buying a charger in a story remains eligible, while instructions still ret
  const s=server(),r=await s.preparerBrique({...body,texte:question+' Je suis ensuite allé acheter un chargeur.'},'owner',true,new AbortController().signal);assert(r.brique);
 });
 test('departure telemetry separates ready, still running, and absent preparation',()=>{
- delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts',id=>id==='./seuils-anticipation'?{premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,segmentMs:()=>1500,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70}:load('lib/reflexion-courte.ts'));
+ delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts',id=>id==='./seuils-anticipation'?{premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70}:load('lib/reflexion-courte.ts'));
  /* Le quatrième choix du 23 octobre : un départ qui parie sur la
     transcription finale ne doit pas se confondre avec `sans_preparation`. */
  a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:0,finale:1});
@@ -410,7 +410,7 @@ test('le relevé range les annulations par raison, avec leurs durées',()=>{
  /* briques-etat lit les seuils publiés par le serveur ; ici on éprouve le
     rangement des annulations, pas les seuils. */
  const e=load('lib/briques-etat.ts',id=>({
-  premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,segmentMs:()=>1500,signesAnticipation:()=>20,teteCourteSignes:()=>20,
+  premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,signesAnticipation:()=>20,teteCourteSignes:()=>20,
   briquesSurTranscriptionFinale:()=>false,REFLEXION_COURTE:{attente_ms:1200,volume:0.35},
  }));
  e.noterBriques({etape:'preparation_tuee',raison:'rien_de_pret_a_la_fermeture',ms:801,en_vol:1});
@@ -469,17 +469,13 @@ test('le plafond d’attente est réglable par variable Render, et borné',()=>{
  const avant=process.env.BIA_ATTENTE_ENVOI_MS;
  try{
   const lire=()=>load('lib/seuils-anticipation.ts').attenteEnvoiMs();
-  /* Le défaut est passé à ZÉRO le 25 octobre au soir : l'attente marchait
-     mécaniquement et n'a jamais fait gagner une seconde. On ne garde pas un
-     coût qu'on n'a pas prouvé. La variable reste, pour la rallumer si une
-     mesure la justifie. */
   delete process.env.BIA_ATTENTE_ENVOI_MS;
-  assert.equal(lire(),0,'défaut : éteinte');
-  process.env.BIA_ATTENTE_ENVOI_MS='800';
-  assert.equal(lire(),800,'et rallumable par la variable');
+  assert.equal(lire(),800,'défaut');
+  process.env.BIA_ATTENTE_ENVOI_MS='0';
+  assert.equal(lire(),0,'zéro doit rendre le comportement d’avant');
   for(const mauvais of ['-1','9999','abc','']){
    process.env.BIA_ATTENTE_ENVOI_MS=mauvais;
-   assert.equal(lire(),0,'refusé : '+mauvais);
+   assert.equal(lire(),800,'refusé : '+mauvais);
   }
  }finally{
   if(avant===undefined)delete process.env.BIA_ATTENTE_ENVOI_MS;
@@ -506,151 +502,4 @@ test('l’attente se règle par l’adresse, bornée, sans effet si absente',()=
     replié dans reglagesAnticipation, qui existe déjà dans leurs décors. */
  assert.match(code,/attenteEnvoiMs:reglagesAnticipation\(\)\?\.attente_envoi_ms/);
  assert.doesNotMatch(code,/attenteDemandee/,'pas de nom neuf dans le callback extrait');
-});
-
-/* ── SAVOIR REMPLACE ATTENDRE ─────────────────────────────────────────────
-
-   L'attente de 800 ms marchait mécaniquement — dix attentes, dix avec une
-   préparation en vol — et n'a JAMAIS fait gagner une seconde : médiane du
-   premier son 6 031 → 7 079 → 9 270 ms au fil des essais. On ne garde pas un
-   coût qu'on n'a pas prouvé.
-
-   Ce qu'elle servait s'obtient sans elle : `commencer()` sait qu'une
-   transcription est EN VOL et ouvre la lecture sans attendre. */
-test('une transcription en vol se sait tout de suite, sans rien bloquer',async()=>{
- const E=load('lib/ecoute-progressive.ts',()=>({wavLong:()=>new Blob([new Uint8Array(8)])}));
- const enAttente=[];
- const p=E.creerEcouteProgressive(()=>new Promise(r=>{enAttente.push(r);}),()=>'fr',()=>true,()=>{},4000,()=>{},1000);
- assert.equal(p.envoisEnVol(),0,'rien en vol avant de parler');
- for(let i=0;i<40;i++)p.pousser(new Float32Array(1600).fill(0.5),true);
- for(let i=0;i<12;i++)p.pousser(new Float32Array(1600).fill(0),false);
- for(let i=0;i<20&&!enAttente.length;i++)await new Promise(r=>setTimeout(r,0));
- /* L'envoi est parti : on le SAIT, sans l'attendre. */
- assert.ok(p.envoisEnVol()>0,'un envoi en vol doit se savoir');
- /* La chaîne est SÉQUENTIELLE : un seul envoi part à la fois, mais le
-    compteur porte tous les segments pas encore posés — c'est exactement ce
-    que `commencer()` doit savoir. On répond donc à tous, l'un après l'autre. */
- for(let i=0;i<40&&p.envoisEnVol()>0;i++){
-  while(enAttente.length)enAttente.shift()({ok:true,json:async()=>({texte:'une phrase'})});
-  await new Promise(r=>setTimeout(r,0));
- }
- assert.equal(p.envoisEnVol(),0,'et retomber à zéro quand tout s’est posé');
-});
-
-test('l’attente par défaut est à ZÉRO : on ne garde pas un coût non prouvé',()=>{
- const avant=process.env.BIA_ATTENTE_ENVOI_MS;
- try{
-  delete process.env.BIA_ATTENTE_ENVOI_MS;
-  assert.equal(load('lib/seuils-anticipation.ts').attenteEnvoiMs(),0);
-  /* La variable reste, pour la rallumer si une mesure la justifie un jour. */
-  process.env.BIA_ATTENTE_ENVOI_MS='800';
-  assert.equal(load('lib/seuils-anticipation.ts').attenteEnvoiMs(),800);
- }finally{
-  if(avant===undefined)delete process.env.BIA_ATTENTE_ENVOI_MS;
-  else process.env.BIA_ATTENTE_ENVOI_MS=avant;
- }
-});
-
-test('la lecture s’ouvre sur une transcription en vol, sans attendre',()=>{
- const code=fs.readFileSync('lib/briques-client.ts','utf8');
- assert.match(code,/if\(!file\.pretes&&!enCours&&!o\.envoiEnVol\?\.\(\)\)\{/,
-  'un envoi en vol doit valoir une préparation en cours');
- const client=fs.readFileSync('lib/anticipation-client.ts','utf8');
- assert.match(client,/envoiEnVol:\(\)=>pipeline\.envoisEnVol\(\)>0/);
-});
-
-/* ── LEVIER 1 DU MANDAT : LE DOUBLE PAIEMENT ──────────────────────────────
-
-   Mesuré : à la fermeture du micro, la page attendait la FIN de la chaîne de
-   briques, PUIS lançait le chemin ordinaire si elle n'avait rien donné. En
-   série. Quand le pari était perdu, on avait payé son attente entière avant
-   de commencer à répondre — c'est la queue de tours à 12, 18 et 42 s. */
-test('la patience accordée aux briques est bornée, et réglable',()=>{
- const avant=process.env.BIA_PATIENCE_BRIQUE_MS;
- try{
-  const lire=()=>load('lib/seuils-anticipation.ts').patienceBriqueMs();
-  delete process.env.BIA_PATIENCE_BRIQUE_MS;
-  assert.equal(lire(),1200,'défaut');
-  process.env.BIA_PATIENCE_BRIQUE_MS='10000';
-  assert.equal(lire(),10000,'10000 doit reproduire le comportement d’avant');
-  process.env.BIA_PATIENCE_BRIQUE_MS='0';
-  assert.equal(lire(),0,'0 doit renoncer tout de suite');
-  for(const mauvais of ['-1','99999','abc','']){
-   process.env.BIA_PATIENCE_BRIQUE_MS=mauvais;
-   assert.equal(lire(),1200,'refusé : '+mauvais);
-  }
- }finally{
-  if(avant===undefined)delete process.env.BIA_PATIENCE_BRIQUE_MS;
-  else process.env.BIA_PATIENCE_BRIQUE_MS=avant;
- }
-});
-
-test('une brique qui a COMMENCÉ à parler n’est jamais coupée par la patience',()=>{
- const code=fs.readFileSync('app/page.tsx','utf8');
- /* Le bloc entier de la course, jusqu'au `if(!actifBriques())` FINAL : mon
-    premier motif s'arrêtait au premier, qui est à l'intérieur du
-    renoncement, et jugeait le code sur un morceau tronqué. */
- const bloc=code.slice(code.indexOf('const chaineBriques=(async()=>{'));
- const corps=bloc.slice(0,bloc.indexOf('const reponse=ditesBriques.join'));
- /* La condition de renoncement exige que RIEN n'ait parlé. */
- assert.match(corps,/if\(lecture===null&&premierBrique\)\{/,
-  'on ne renonce que si aucune brique n’a parlé');
- /* Et si elle a parlé, on attend la fin de la chaîne sans la couper. */
- assert.match(corps,/if\(lecture===null\)lecture=await chaineBriques;/);
- /* Le renoncement coupe VRAIMENT : sans abort, la préparation continuerait
-    de tourner et de coûter pendant que le chemin ordinaire répond. */
- assert.match(corps,/abortBriques\.abort\(\)/);
- assert.match(corps,/taireBriques\(\)/);
- /* Et il part sur le chemin ordinaire tout de suite. */
- assert.match(corps,/await askBia\(dit,true,monTour/);
- /* Enfin il est compté : un renoncement muet ne se mesurerait pas. */
- assert.match(corps,/mesureBriques\('patience_depassee'/);
-});
-
-test('le relevé compte les patiences dépassées avec leurs durées',()=>{
- delete globalThis.biaBriquesEtat;
- const e=load('lib/briques-etat.ts',id=>id==='./seuils-anticipation'?{premierSegmentMs:()=>1000,attenteEnvoiMs:()=>0,patienceBriqueMs:()=>1200,segmentMs:()=>1500,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70}:load('lib/reflexion-courte.ts'));
- e.noterBriques({etape:'patience_depassee',ms:1201});
- e.noterBriques({etape:'patience_depassee',ms:1205});
- const r=e.resumeBriques();
- assert.equal(r.patiences_depassees.fois,2);
- assert.deepEqual(r.patiences_depassees.ms,[1201,1205]);
- assert.equal(r.patience_brique_ms,1200,'le réglage en vigueur doit être publié');
-});
-
-/* ── LA FAUTE QUI A RENDU BIA MUETTE, 25 OCTOBRE 17 H ─────────────────────
-
-   Lamine : « BIA ne répond plus du tout, "réfléchit" sans fin, sur les
-   quatre phrases ». Les compteurs : patiences_depassees 3 fois à
-   [1201, 1200, 1200], lectures 0, et AUCUN `debut_brique`.
-
-   La cause : j'appelais `abortBriques.abort()` PUIS `if(!actifBriques())
-   return;`. Or `actifBriques()` commence par `!abortBriques.signal.aborted`
-   — je venais de le rendre faux moi-même. On sortait donc TOUJOURS avant
-   `askBia`, et plus rien ne répondait. */
-test('après la patience dépassée, le chemin ordinaire part VRAIMENT',()=>{
- const code=fs.readFileSync('app/page.tsx','utf8');
- /* Les commentaires sont retirés : le mien CITE `abortBriques.abort()` pour
-    expliquer la faute, et mon motif le trouvait avant le vrai appel. Septième
-    fois qu'un de mes motifs lit de la prose au lieu du code. */
- const sansCommentaires=t=>t.replace(/\/\*[\s\S]*?\*\//g,' ').replace(/(^|[^:])\/\/.*$/gm,'$1');
- const bloc=sansCommentaires(code.slice(code.indexOf('if(lecture===null&&premierBrique){')));
- const corps=bloc.slice(0,bloc.indexOf('if(lecture===null)lecture=await chaineBriques;'));
-
- /* La décision de continuer est prise AVANT l'abort, jamais après. */
- const avantAbort=corps.indexOf('const encoreSonTour=');
- const abort=corps.indexOf('abortBriques.abort()');
- assert.ok(avantAbort>=0&&avantAbort<abort,
-  'le tour doit être constaté AVANT de couper : sinon on se coupe soi-même');
-
- /* Et surtout : plus aucun `actifBriques()` dans ce bloc — c'est lui qui
-    lisait le signal qu'on venait d'abattre. */
- assert.ok(!corps.includes('actifBriques()'),
-  'actifBriques() dépend du signal qu’on vient d’abattre : il ne peut pas décider ici');
-
- /* Le chemin ordinaire part. */
- assert.match(corps,/await askBia\(dit,true,monTour/);
- /* Et sans transcription, on rend la main au lieu de rester sur « réfléchit ». */
- assert.match(corps,/setMode\('ready'\)/,
-  'sans un mot transcrit, BIA ne doit pas rester en réflexion sans fin');
 });

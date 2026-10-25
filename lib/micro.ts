@@ -181,12 +181,12 @@
    Le compteur de coupures trop tôt reste observable, et il n'étire plus ce
    réglage derrière son dos. */
 /** Repli. DOIT valoir SILENCE_FIN_PAROLE_MS_DEFAUT de lib/fin-de-parole.ts. */
-export const SILENCE_QUI_FERME = 600;
-export const SILENCE_LE_PLUS_COURT = 600;
+export const SILENCE_QUI_FERME = 1200;
+export const SILENCE_LE_PLUS_COURT = 1200;
 export const PAROLE_COURTE = 1200;
 export const PAROLE_LONGUE = 4000;
 export const PAS_D_APPRENTISSAGE = 0;
-export const SILENCE_LE_PLUS_LONG = 2000;
+export const SILENCE_LE_PLUS_LONG = 1200;
 
 /* ── LE RÉGLAGE SE POSE UNE FOIS, ET AUCUN APPEL NE CHANGE DE FORME ───────
 
@@ -212,29 +212,13 @@ let silenceDemande: number | undefined;
 /** Poser le silence publié par le serveur. Hors bornes = on garde le repli. */
 export function reglerSilenceQuiFerme(ms?: number): number {
   const n = Number(ms);
-  silenceDemande = Number.isFinite(n) && n >= 300 && n <= 4000 ? Math.round(n) : undefined;
+  silenceDemande = Number.isFinite(n) && n >= 600 && n <= 4000 ? Math.round(n) : undefined;
   return silenceDemande ?? SILENCE_QUI_FERME;
 }
 
-/* ── 25 OCTOBRE : 600 MS, ET LA PROTECTION REVIENT ──────────────────────
-
-   Le mandat demande « fin de parole à 600 ms avec protection des
-   hésitations » ET « zéro coupure de la personne ». Les deux tiennent
-   ensemble — ce qui ne tenait pas, c'était un seuil FIXE.
-
-   Base 600 ms. Et CHAQUE fois qu'elle l'a coupé trop tôt dans cette
-   conversation, le seuil s'allonge de 300 ms pour lui, jusqu'à
-   SILENCE_LE_PLUS_LONG. Une hésitation qui a coûté une coupure en évite une
-   deuxième : c'est la personne qui apprend le réglage à BIA, pas l'inverse.
-
-   `coupesTropTot` était ignoré depuis le 20 octobre — il comptait dans le
-   vide. Il sert de nouveau. */
-export function silenceQuiSuffit(_dureeDeParole?: number, coupesTropTot = 0, demandeMs = silenceDemande): number {
+export function silenceQuiSuffit(_dureeDeParole?: number, _coupesTropTot = 0, demandeMs = silenceDemande): number {
   const n = Number(demandeMs);
-  const base = Number.isFinite(n) && n >= 300 && n <= 4000 ? Math.round(n) : SILENCE_QUI_FERME;
-  const coupes = Number(coupesTropTot);
-  if (!Number.isFinite(coupes) || coupes <= 0) return base;
-  return Math.min(SILENCE_LE_PLUS_LONG, base + Math.min(4, Math.round(coupes)) * 300);
+  return Number.isFinite(n) && n >= 600 && n <= 4000 ? Math.round(n) : SILENCE_QUI_FERME;
 }
 
 /* ═══ 2. LE BRUIT DE LA PIÈCE ════════════════════════════════════════════

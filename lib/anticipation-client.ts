@@ -1,12 +1,9 @@
 import {creerEcouteProgressive} from './ecoute-progressive';
 import {creerProducteurBriques} from './briques-client';
 import {entetesRapidite,profilRapiditeNavigateur,segmentRapiditeMs} from './rapidite-core';
-export async function brancherAnticipation(o:{ctx:AudioContext;flux:MediaStream;code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;langue:()=>string;parle:()=>boolean;actuel:()=>boolean;surTranscriptionFinale?:boolean;seuilSignes?:number;premierSegmentMs?:number;attenteEnvoiMs?:number;segmentMs?:number}){
+export async function brancherAnticipation(o:{ctx:AudioContext;flux:MediaStream;code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;langue:()=>string;parle:()=>boolean;actuel:()=>boolean;surTranscriptionFinale?:boolean;seuilSignes?:number;premierSegmentMs?:number;attenteEnvoiMs?:number}){
  let node:AudioWorkletNode|null=null,entree:MediaStreamAudioSourceNode|null=null,muet:GainNode|null=null,fin=false;
- const briques=creerProducteurBriques({...o,segments:()=>pipeline.segmentsCommences,seuilSignes:o.seuilSignes,
-  /* Une transcription en vol vaut une préparation en cours : elle arrivera
-     dans la milliseconde. Savoir suffit — il n'y a rien à attendre. */
-  envoiEnVol:()=>pipeline.envoisEnVol()>0});
+ const briques=creerProducteurBriques({...o,segments:()=>pipeline.segmentsCommences,seuilSignes:o.seuilSignes});
  const abort=new AbortController();let accuseFin:(()=>void)|undefined;
  const headers={'x-bia-code':o.code,...entetesRapidite()};
  /* ── FERMER LE MICRO N'EST PAS FINIR LE TOUR ─────────────────────────────
@@ -15,7 +12,7 @@ export async function brancherAnticipation(o:{ctx:AudioContext;flux:MediaStream;
     sert encore : c'est la fenêtre de deux secondes et demie que ses
     compteurs montraient vide (42 segments réussis, 0 préparation). */
  const progresser=(texte:string)=>{if(o.actuel())briques.progresser(texte);};
- const pipeline=creerEcouteProgressive(f=>fetch('/api/anticipation/segment',{method:'POST',headers,body:f,signal:AbortSignal.any([abort.signal,AbortSignal.timeout(25000)])}),o.langue,o.actuel,progresser,(o.segmentMs??segmentRapiditeMs(profilRapiditeNavigateur())),nom=>briques.porte(nom),o.premierSegmentMs);
+ const pipeline=creerEcouteProgressive(f=>fetch('/api/anticipation/segment',{method:'POST',headers,body:f,signal:AbortSignal.any([abort.signal,AbortSignal.timeout(25000)])}),o.langue,o.actuel,progresser,segmentRapiditeMs(profilRapiditeNavigateur()),nom=>briques.porte(nom),o.premierSegmentMs);
  function detacher(){node?.disconnect();entree?.disconnect();muet?.disconnect();if(node)node.port.onmessage=null;}
  try{let timer:ReturnType<typeof setTimeout>|undefined;try{await Promise.race([o.ctx.audioWorklet.addModule('/anticipation/capture.js'),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Capture indisponible')),1500);})]);}finally{if(timer)clearTimeout(timer);}if(!o.actuel())return null;
  node=new AudioWorkletNode(o.ctx,'bia-anticipation');node.port.onmessage=({data:d})=>{if(d.pcm)pipeline.pousser(d.pcm,o.parle());if(d.fin)accuseFin?.();};entree=o.ctx.createMediaStreamSource(o.flux);muet=o.ctx.createGain();muet.gain.value=0;entree.connect(node);node.connect(muet);muet.connect(o.ctx.destination);
