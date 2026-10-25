@@ -38,7 +38,7 @@ async function verifierJetonGitHub(request:Request):Promise<boolean>{
     }
     const jwk=jwksCache.keys.find(k=>k.kid===header.kid);
     if(!jwk)return false;
-    const publicKey=createPublicKey({key:jwk as JsonWebKey,format:"jwk"});
+    const publicKey=createPublicKey({key:jwk as unknown as import("node:crypto").JsonWebKey,format:"jwk"});
     return verify("RSA-SHA256",Buffer.from(parts[0]+"."+parts[1]),publicKey,Buffer.from(parts[2],"base64url"));
   }catch{return false;}
 }
