@@ -98,7 +98,11 @@ test('les deux seuils ont leurs nouvelles valeurs par défaut, et reviennent par
  try{
   delete process.env.BIA_PREMIER_SEGMENT_MS;delete process.env.BIA_SIGNES_ANTICIPATION;
   const d=seuils();
-  assert.equal(d.premierSegmentMs(),1000,'premier segment : 1 000 ms de parole, tranché par Lamine');
+  /* 600 depuis le levier 2 du mandat du 25 octobre : « une transcription
+     provisoire toutes les 100-200 ms au lieu de segments d'une seconde ».
+     Son choix du 24 octobre était 1 000 ; c'est lui qui a demandé de
+     descendre, et BIA_PREMIER_SEGMENT_MS=1000 le lui rend. */
+  assert.equal(d.premierSegmentMs(),600,'premier segment : 600 ms de parole, levier 2 du mandat');
   assert.equal(d.signesAnticipation(),20,'plancher de texte : 20 signes');
   /* Le retour au comportement du 23 octobre, sans déploiement. */
   process.env.BIA_PREMIER_SEGMENT_MS='1500';process.env.BIA_SIGNES_ANTICIPATION='35';
@@ -110,6 +114,29 @@ test('les deux seuils ont leurs nouvelles valeurs par défaut, et reviennent par
  }
 });
 
+/* La taille des segments suivants, elle aussi réversible — et bornée aux
+   trois seules tailles que la découpe sait traiter. Une quatrième valeur
+   retomberait en silence sur le plus gros tampon, ce qui est précisément la
+   panne muette que lib/premier-segment.ts raconte. */
+test('la taille des segments revient par variable Render, et refuse ce que la découpe ne sait pas traiter',()=>{
+ const vieux=process.env.BIA_SEGMENT_MS;
+ try{
+  delete process.env.BIA_SEGMENT_MS;
+  const d=seuils();
+  assert.equal(d.segmentMs(),1500,'segments : 1 500 ms, levier 2 du mandat');
+  process.env.BIA_SEGMENT_MS='4000';
+  assert.equal(d.segmentMs(),4000,'BIA_SEGMENT_MS=4000 rend le comportement d’avant');
+  process.env.BIA_SEGMENT_MS='2500';
+  assert.equal(d.segmentMs(),2500);
+  for(const mauvais of ['0','300','3000','99999','abc','']){
+   process.env.BIA_SEGMENT_MS=mauvais;
+   assert.equal(d.segmentMs(),1500,'segments refusent '+JSON.stringify(mauvais));
+  }
+ }finally{
+  if(vieux===undefined)delete process.env.BIA_SEGMENT_MS;else process.env.BIA_SEGMENT_MS=vieux;
+ }
+});
+
 test('une valeur absurde ne peut pas s’installer : on garde le défaut',()=>{
  const vieux={p:process.env.BIA_PREMIER_SEGMENT_MS,s:process.env.BIA_SIGNES_ANTICIPATION};
  try{
@@ -118,7 +145,7 @@ test('une valeur absurde ne peut pas s’installer : on garde le défaut',()=>{
      préparerait sur un soupir. Les bornes sont là pour ça. */
   for(const mauvais of ['0','100','99999','abc','']){
    process.env.BIA_PREMIER_SEGMENT_MS=mauvais;
-   assert.equal(d.premierSegmentMs(),1000,'premier segment refuse '+JSON.stringify(mauvais));
+   assert.equal(d.premierSegmentMs(),600,'premier segment refuse '+JSON.stringify(mauvais));
   }
   for(const mauvais of ['0','5','99999','abc','']){
    process.env.BIA_SIGNES_ANTICIPATION=mauvais;
