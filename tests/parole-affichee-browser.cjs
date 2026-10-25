@@ -150,7 +150,12 @@ async function unTour(navigateur,cas){
     let c={};try{c=JSON.parse(requete.postData()||'{}');}catch{}
     if(c.action)return json({ok:true});
     await new Promise(r=>setTimeout(r,4000));
-    return json({preparation:{id:'ep1',termine:true}});
+    /* `normal:true` n'est pas un détail : c'est CE QUE RÉPOND LE VRAI
+       SERVEUR quand la demande finale ne produit aucune brique
+       (lib/briques-reponse.ts, `resultat(s,undefined,final)`). Sans lui, mon
+       bouchon décrivait une réponse que le serveur n'envoie jamais, et
+       l'épreuve accusait la page d'un défaut qui venait de moi. */
+    return json({preparation:{id:'ep1',termine:true,normal:true}});
    }
    let corps={};try{corps=JSON.parse(requete.postData()||'{}');}catch{}
    if(corps.action)return json({ok:true});
@@ -219,7 +224,12 @@ async function unTour(navigateur,cas){
        laisserait l'épreuve au vert en ne prouvant rien. */
  const entendu=(appels['/api/anticipation/segment']||0)+(appels['/api/ecouter']||0);
  assert.ok(entendu>0,'aucun son n’a été envoyé à l’oreille : le faux micro n’a pas parlé');
- if(cas.briques){
+ if(cas.briques==='lentes'){
+  assert.ok((appels['/api/anticipation/briques']||0)>0,'la préparation n’a jamais été demandée');
+  /* La préparation n'a rien donné : le chemin ordinaire DOIT reprendre.
+     Sans cet appel, BIA reste sur « réfléchit » — la panne du 25 octobre. */
+  assert.ok((appels['/api/chat']||0)>0,'la préparation n’a rien donné et le cerveau n’a pas été appelé : BIA reste muette');
+ }else if(cas.briques){
   assert.ok((appels['/api/anticipation/briques']||0)>0,'la préparation n’a jamais été demandée');
   assert.ok(!appels['/api/chat'],'elle a dit la brique ET rappelé le cerveau : le double paiement est de retour');
  }else{

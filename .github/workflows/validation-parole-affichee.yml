@@ -1,0 +1,42 @@
+# « Je parle → mon texte s'affiche → elle répond. »
+#
+# Demandée par Lamine le 25 octobre 2026, après deux déploiements où BIA est
+# restée muette ET sans afficher un mot de ce qu'il disait : « reprends le
+# mandat sur une branche, avec une épreuve de bout en bout […] qui doit être
+# verte avant tout push. »
+#
+# Elle lance la vraie application, ouvre la vraie page dans Chromium, branche
+# un faux micro qui produit un signal de VOIX, et exige deux bulles visibles
+# dans le fil — sur les trois chemins : sans préparation, avec une brique, et
+# quand la préparation traîne sans rien donner.
+#
+# PREUVE QU'ELLE EST SOUS LE TROU : verte sur c4b5220 (la version servie),
+# ROUGE sur 2d007d2 et sur 762dd8a — les deux déploiements muets — et rouge
+# exactement là où il l'a vu : la bulle de sa phrase n'arrive jamais.
+name: Validate the spoken turn reaches the screen
+on:
+  push:
+    paths:
+      - app/page.tsx
+      - lib/briques-client.ts
+      - lib/briques-file.ts
+      - lib/anticipation-client.ts
+      - lib/ecoute-progressive.ts
+      - lib/micro.ts
+      - tests/parole-affichee-browser.cjs
+      - .github/workflows/validation-parole-affichee.yml
+    branches: [main, mandat-vitesse]
+permissions: {contents: read}
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: node tests/parole-affichee-browser.cjs
