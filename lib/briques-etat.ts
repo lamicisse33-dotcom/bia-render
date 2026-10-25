@@ -1,5 +1,5 @@
 import {REFLEXION_COURTE} from "./reflexion-courte";
-import {attenteEnvoiMs,premierSegmentMs,signesAnticipation,teteCourteSignes} from "./seuils-anticipation";
+import {attenteEnvoiMs,patienceBriqueMs,premierSegmentMs,signesAnticipation,teteCourteSignes} from "./seuils-anticipation";
 const g=globalThis as typeof globalThis&{biaBriquesEtat?:any};
 /* `motifs_invalides` : laquelle des sept règles le modèle enfreint, et
    combien de fois. Le 25 octobre, deux préparations sur sept étaient jetées
@@ -8,7 +8,7 @@ const g=globalThis as typeof globalThis&{biaBriquesEtat?:any};
 /* `preparations_tuees` : qui a annulé une préparation en cours, et après
    combien de millisecondes. Le 25 octobre, « annulé: true » ne disait pas
    QUI — et quatre chemins y mènent, qui n'appellent pas le même remède. */
-const etat=g.biaBriquesEtat??={attentes_envoi:{fois:0,avec_preparation:0,ms:[] as number[]},preparations_tuees:{} as Record<string,{fois:number;ms_median:number[]}>,sessions:0,preparees:0,finalisees:0,erreurs:0,lectures:0,dernier_premier_son_ms:null,dernier_depuis_micro_ms:null,dernier_blanc_ms:null,blanc_max_ms:0,reflexions:0,dernier_echec:null,motifs_invalides:{} as Record<string,number>};
+const etat=g.biaBriquesEtat??={patiences_depassees:{fois:0,ms:[] as number[]},attentes_envoi:{fois:0,avec_preparation:0,ms:[] as number[]},preparations_tuees:{} as Record<string,{fois:number;ms_median:number[]}>,sessions:0,preparees:0,finalisees:0,erreurs:0,lectures:0,dernier_premier_son_ms:null,dernier_depuis_micro_ms:null,dernier_blanc_ms:null,blanc_max_ms:0,reflexions:0,dernier_echec:null,motifs_invalides:{} as Record<string,number>};
 export const etatBriques=etat;
 /* ── LES BRIQUES SUR LA TRANSCRIPTION FINALE : L'ESSAI, ET SON INTERRUPTEUR ─
 
@@ -54,9 +54,19 @@ export const etatBriques=etat;
    BIA_BRIQUES_FINALES=oui le rallume, pour qu'on puisse le reprendre si les
    briques finissent par se préparer pendant la parole. */
 export const briquesSurTranscriptionFinale=()=>(process.env.BIA_BRIQUES_FINALES||'non')==='oui';
-export const resumeBriques=()=>({mode:'briques_texte_verrouillees_audio_progressif',revision:'stream-continu-priorite-ecoute-v1',premier_segment_apres_ms:premierSegmentMs(),attente_envoi_ms:attenteEnvoiMs(),seuil_signes_anticipation:signesAnticipation(),modele_briques_configure:process.env.BIA_BRIQUES_MODEL||'defaut',tete_courte_signes:teteCourteSignes(),briques_sur_transcription_finale:briquesSurTranscriptionFinale(),pause_transcription_ms:400,capture_pcm_ms:100,morceau_enregistrement_ms:100,livraison_audio:'progressive_ndjson',anticipation_texte:'pendant_parole_et_fin',ordonnancement_audio:'par_morceau_ecoute_prioritaire',...etat,son_reflexion:'mmm_khalam_convertis_20261020',reflexion_seuil_initial_ms:REFLEXION_COURTE.attente_ms,reflexion_seuil_suite_ms:null,politique_reflexion:REFLEXION_COURTE});
+export const resumeBriques=()=>({mode:'briques_texte_verrouillees_audio_progressif',revision:'stream-continu-priorite-ecoute-v1',premier_segment_apres_ms:premierSegmentMs(),attente_envoi_ms:attenteEnvoiMs(),patience_brique_ms:patienceBriqueMs(),seuil_signes_anticipation:signesAnticipation(),modele_briques_configure:process.env.BIA_BRIQUES_MODEL||'defaut',tete_courte_signes:teteCourteSignes(),briques_sur_transcription_finale:briquesSurTranscriptionFinale(),pause_transcription_ms:400,capture_pcm_ms:100,morceau_enregistrement_ms:100,livraison_audio:'progressive_ndjson',anticipation_texte:'pendant_parole_et_fin',ordonnancement_audio:'par_morceau_ecoute_prioritaire',...etat,son_reflexion:'mmm_khalam_convertis_20261020',reflexion_seuil_initial_ms:REFLEXION_COURTE.attente_ms,reflexion_seuil_suite_ms:null,politique_reflexion:REFLEXION_COURTE});
 export function noterBriques(d:Record<string,unknown>){
   const ms=Number(d.ms);if(!Number.isFinite(ms)||ms<0||ms>180000)return;
+  if(d.etape==='patience_depassee'){
+    /* La chaîne de briques n'a rien donné à temps et aucune n'avait commencé
+       à parler : on a coupé pour laisser partir le chemin ordinaire. Compté
+       avec la durée, pour qu'on sache si la patience est bien réglée — et
+       pour qu'un renoncement ne soit jamais silencieux. */
+    const t=(etat.patiences_depassees??={fois:0,ms:[] as number[]});
+    t.fois+=1;
+    if(ms<=60000)t.ms=[...t.ms.slice(-19),Math.round(ms)];
+    return;
+  }
   if(d.etape==='attente_envoi'){
     /* Combien on a attendu que ce qui était en vol se pose, et si une
        préparation tournait à ce moment-là. Les deux ensemble disent si
