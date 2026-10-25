@@ -182,3 +182,25 @@ test('le journal ne laisse sortir aucun texte ni aucune transcription',()=>{
  for(const cle of ['texte','question','reponse','dit','repondu'])
   assert.doesNotMatch(code,new RegExp('[{,]\\s*'+cle+'\\s*:'),'aucun champ publié « '+cle+' »');
 });
+
+/* ── UN A/B SANS ÉTIQUETTE N'EST PAS UN A/B ──────────────────────────────
+   Le 25 octobre au soir, Lamine a fait huit tours — quatre avec l'attente
+   éteinte, quatre avec — et je n'ai pas pu comparer : rien n'enregistrait
+   quel réglage était en vigueur. Je lui avais demandé un essai que ma propre
+   mesure ne savait pas lire. */
+test('chaque tour porte le réglage qui était en vigueur, et les médianes se séparent',()=>{
+ delete globalThis.biaJournalParole;
+ const J=charger('lib/journal-parole.ts');
+ const tour=(attente,ms)=>J.noterTourDeParole({moteur:'khalam',
+  debut_parole:'15:30:01',fin_detectee:'15:30:04',premier_son:'15:30:06',
+  parole_ms:3000,silence_exige_ms:1200,silence_observe_ms:1250,
+  attente_ms:ms,attente_envoi_ms:attente});
+ tour(0,4000); tour(0,4200); tour(800,7000); tour(800,7400);
+ const v=J.resumeJournalParole().khalam;
+ assert.deepEqual(Object.keys(v.premier_son_par_reglage).sort(),['attente_0_ms','attente_800_ms']);
+ assert.equal(v.premier_son_par_reglage.attente_0_ms.tours,2);
+ assert.equal(v.premier_son_par_reglage.attente_0_ms.median_ms,4100);
+ assert.equal(v.premier_son_par_reglage.attente_800_ms.median_ms,7200);
+ /* Et le réglage est visible tour par tour, pas seulement en médiane. */
+ assert.equal(J.resumeJournalParole().derniers_tours.at(-1).attente_envoi_ms,800);
+});

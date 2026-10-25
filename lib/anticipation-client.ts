@@ -3,7 +3,10 @@ import {creerProducteurBriques} from './briques-client';
 import {entetesRapidite,profilRapiditeNavigateur,segmentRapiditeMs} from './rapidite-core';
 export async function brancherAnticipation(o:{ctx:AudioContext;flux:MediaStream;code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;langue:()=>string;parle:()=>boolean;actuel:()=>boolean;surTranscriptionFinale?:boolean;seuilSignes?:number;premierSegmentMs?:number;attenteEnvoiMs?:number}){
  let node:AudioWorkletNode|null=null,entree:MediaStreamAudioSourceNode|null=null,muet:GainNode|null=null,fin=false;
- const briques=creerProducteurBriques({...o,segments:()=>pipeline.segmentsCommences,seuilSignes:o.seuilSignes});
+ const briques=creerProducteurBriques({...o,segments:()=>pipeline.segmentsCommences,seuilSignes:o.seuilSignes,
+  /* Une transcription en vol vaut une préparation en cours : elle arrivera
+     dans la milliseconde. Savoir suffit — il n'y a rien à attendre. */
+  envoiEnVol:()=>pipeline.envoisEnVol()>0});
  const abort=new AbortController();let accuseFin:(()=>void)|undefined;
  const headers={'x-bia-code':o.code,...entetesRapidite()};
  /* ── FERMER LE MICRO N'EST PAS FINIR LE TOUR ─────────────────────────────

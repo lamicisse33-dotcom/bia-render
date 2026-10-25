@@ -12,9 +12,10 @@ export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,i
  const demande=Number(premierMsDemande);
  const premierMs=demande>=500&&demande<=4000?demande:(Number(PREMIER_SEGMENT_MS)>0?Number(PREMIER_SEGMENT_MS):1500);
  let taillePremierSegment=Math.min(tailleSegment,premierMs*16);
- let buffer=new Float32Array(0),chaine:Promise<void>=Promise.resolve(),erreur:unknown=null,segments=0,total=0,commence=false,clos=false,silence=0,paroleDansBuffer=false,finParole=0;
+ let buffer=new Float32Array(0),chaine:Promise<void>=Promise.resolve(),erreur:unknown=null,segments=0,total=0,commence=false,clos=false,silence=0,paroleDansBuffer=false,finParole=0,enVol=0;
  const textes:string[]=[],bruts:string[]=[],suggestions:string[]=[];
  function segment(pcm:Float32Array){total+=pcm.length;segments++;
+ enVol++;
  chaine=chaine.then(async()=>{if(erreur)return;if(!actuel())throw Error('Tour annulé');const f=new FormData();f.set('audio',wavLong({sampleRate:16000,length:pcm.length,numberOfChannels:1,getChannelData:()=>pcm},0,pcm.length),'segment.wav');f.set('indice_langue',indice());
  const r=await envoyer(f),d=await r.json();if(!actuel())throw Error('Tour annulé');if(!r.ok||d.panne||d.transcription_rejetee||typeof d.texte!=='string')throw Error('Segment non confirmé');textes.push(d.texte.trim());bruts.push(String(d.texte_brut??d.texte).trim());if(Array.isArray(d.suggestions_ecriture))suggestions.push(...d.suggestions_ecriture.filter((x:any)=>typeof x==='string'));if(!clos)progression(textes.filter(Boolean).join(' '));
  /* ── LA PORTE QUI A VRAIMENT REFUSÉ, LE 23 OCTOBRE ──────────────────────
@@ -61,7 +62,7 @@ export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,i
      Un tour périmé est arrêté plus haut, par « Tour annulé ». */
   porte?.('transcription_apres_fermeture_servie');progression(textes.filter(Boolean).join(' '));
  }
- }).catch(e=>{erreur=e;});
+ }).catch(e=>{erreur=e;}).finally(()=>{enVol--;});
  }
  return {
  pousser(pcm:Float32Array,parle:boolean){if(clos)return;const next=new Float32Array(buffer.length+pcm.length);next.set(buffer);next.set(pcm,buffer.length);buffer=next;
@@ -87,6 +88,18 @@ export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,i
  if(paroleDansBuffer&&buffer.length>=seuil){let end=seuil-4000,best=Infinity;for(let i=Math.max(0,seuil-16000);i<seuil-4000;i+=320){let e=0;for(let j=i;j<i+320;j++)e+=buffer[j]*buffer[j];if(e<best){best=e;end=i+160;}}const part=buffer.slice(0,end);buffer=buffer.slice(end);finParole=Math.max(0,finParole-end);paroleDansBuffer=finParole>0;segment(part);}
  },
  get segmentsCommences(){return segments;},
+ /* ── CE QUI EST EN VOL, SU TOUT DE SUITE ────────────────────────────────
+
+    Le 25 octobre, pour que `commencer()` n'ouvre pas la lecture sur un
+    « rien de prêt » alors qu'une transcription allait arriver une
+    milliseconde plus tard, j'avais fait ATTENDRE la fermeture jusqu'à
+    800 ms. Ça marchait mécaniquement et ça n'a jamais fait gagner une
+    seconde à Lamine.
+
+    Il n'y avait pas besoin d'attendre : il suffisait de SAVOIR. Ce compteur
+    se lit sans rien bloquer, et `commencer()` peut ouvrir la lecture sur
+    « en fabrication » au lieu de refuser. Zéro milliseconde ajoutée. */
+ envoisEnVol(){return enVol;},
  /* ── CE QUI EST DÉJÀ PARTI, ET QU'ON LAISSE SE POSER ────────────────────
     Borné : si l'ASR traîne, on n'attend pas indéfiniment — le chemin
     ordinaire doit pouvoir repartir. Rien n'est envoyé ici, on attend

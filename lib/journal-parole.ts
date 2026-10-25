@@ -48,6 +48,13 @@ type Etape = {
   son_ms: number | null;
   demarrage_audio_ms: number | null;
   reprise_apres_premier_son_ms: number | null;
+  /* ── LE RÉGLAGE EN VIGUEUR CE TOUR-LÀ ────────────────────────────────────
+     Le 25 octobre au soir, Lamine a fait huit tours — quatre avec l'attente
+     éteinte, quatre avec — et je n'ai PAS pu comparer : rien n'enregistrait
+     quel réglage était en vigueur. Je lui avais demandé un essai que ma
+     propre mesure ne savait pas lire. Un A/B sans étiquette n'est pas un
+     A/B, c'est huit tours mélangés. */
+  attente_envoi_ms: number | null;
   coupure_suspecte: boolean;
   quand: string;
 };
@@ -95,6 +102,7 @@ export function noterTourDeParole(d: Record<string, unknown>): void {
     son_ms: borne(d.son_ms, 60000),
     demarrage_audio_ms: borne(d.demarrage_audio_ms, 10000),
     reprise_apres_premier_son_ms: borne(d.reprise_apres_premier_son_ms, 60000),
+    attente_envoi_ms: borne(d.attente_envoi_ms, 3000),
     coupure_suspecte: suspecte,
     quand: new Date().toISOString(),
   };
@@ -111,7 +119,15 @@ const mediane = (n: Array<number | null>) => {
 
 function parMoteur(moteur: "rapide" | "khalam") {
   const t = etat.tours.filter((x) => x.moteur === moteur);
+  /* L'A/B se lit d'un coup d'œil : la médiane du premier son, pour chaque
+     réglage d'attente réellement en vigueur. C'est ce qui manquait. */
+  const parReglage: Record<string, { tours: number; median_ms: number | null }> = {};
+  for (const reglage of new Set(t.map((x) => x.attente_envoi_ms).filter((v) => v !== null))) {
+    const lot = t.filter((x) => x.attente_envoi_ms === reglage);
+    parReglage[`attente_${reglage}_ms`] = { tours: lot.length, median_ms: mediane(lot.map((x) => x.attente_ms)) };
+  }
   return {
+    premier_son_par_reglage: parReglage,
     tours: etat.par_moteur[moteur] || 0,
     tours_gardes: t.length,
     coupures_suspectes: etat.coupures[moteur] || 0,
@@ -149,6 +165,7 @@ export function resumeJournalParole() {
          recevoir du texte. Ici ce sont des millisecondes. */
       etapes_ms: { jusqu_au_texte: t.texte_ms, jusqu_au_son: t.son_ms, haut_parleur: t.demarrage_audio_ms },
       reprise_apres_premier_son_ms: t.reprise_apres_premier_son_ms,
+      attente_envoi_ms: t.attente_envoi_ms,
       coupure_suspecte: t.coupure_suspecte,
     })),
     limite:

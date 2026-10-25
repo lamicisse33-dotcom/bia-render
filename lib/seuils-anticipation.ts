@@ -111,15 +111,27 @@ export const phraseLongueSignes = () =>
    réellement en vol. Le chemin ordinaire qu'on évite mettait 6 031 ms de
    médiane ; une brique prête joue à 19 ms de la fermeture.
 
-   RÉVERSIBLE SANS DÉPLOIEMENT : BIA_ATTENTE_ENVOI_MS=0 rend le comportement
-   d'avant, à la milliseconde près. */
+   ── ET ELLE EST RETOMBÉE À ZÉRO LE 25 OCTOBRE AU SOIR ────────────────────
+
+   Elle marchait mécaniquement — dix attentes, dix avec une préparation en
+   vol, plus une seule préparation tuée à la fermeture — et elle n'a JAMAIS
+   fait gagner une seconde à Lamine : médiane du premier son 6 031 → 7 079 →
+   9 270 ms au fil de mes essais. On ne garde pas un coût qu'on n'a pas
+   prouvé.
+
+   Ce qu'elle servait est obtenu sans elle : `commencer()` sait maintenant
+   qu'une transcription est EN VOL et ouvre la lecture sans attendre. Savoir
+   remplace attendre, et ça ne coûte rien.
+
+   La variable reste, à zéro : BIA_ATTENTE_ENVOI_MS=800 la rallume si une
+   mesure la justifie un jour. */
 export function attenteEnvoiMs(): number {
   /* Une variable VIDE ne veut pas dire zéro : elle veut dire « pas posée ».
      `Number("")` rend 0, qui est dans les bornes — une variable laissée vide
      sur Render aurait donc éteint la fonction en silence. Une épreuve l'a
      attrapé. */
   const brut = String(process.env.BIA_ATTENTE_ENVOI_MS ?? "").trim();
-  if (!brut) return 800;
+  if (!brut) return 0;
   const n = Number(brut);
-  return Number.isFinite(n) && n >= 0 && n <= 3000 ? Math.round(n) : 800;
+  return Number.isFinite(n) && n >= 0 && n <= 3000 ? Math.round(n) : 0;
 }

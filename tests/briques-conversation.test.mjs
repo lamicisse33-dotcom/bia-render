@@ -469,13 +469,17 @@ test('le plafond d’attente est réglable par variable Render, et borné',()=>{
  const avant=process.env.BIA_ATTENTE_ENVOI_MS;
  try{
   const lire=()=>load('lib/seuils-anticipation.ts').attenteEnvoiMs();
+  /* Le défaut est passé à ZÉRO le 25 octobre au soir : l'attente marchait
+     mécaniquement et n'a jamais fait gagner une seconde. On ne garde pas un
+     coût qu'on n'a pas prouvé. La variable reste, pour la rallumer si une
+     mesure la justifie. */
   delete process.env.BIA_ATTENTE_ENVOI_MS;
-  assert.equal(lire(),800,'défaut');
-  process.env.BIA_ATTENTE_ENVOI_MS='0';
-  assert.equal(lire(),0,'zéro doit rendre le comportement d’avant');
+  assert.equal(lire(),0,'défaut : éteinte');
+  process.env.BIA_ATTENTE_ENVOI_MS='800';
+  assert.equal(lire(),800,'et rallumable par la variable');
   for(const mauvais of ['-1','9999','abc','']){
    process.env.BIA_ATTENTE_ENVOI_MS=mauvais;
-   assert.equal(lire(),800,'refusé : '+mauvais);
+   assert.equal(lire(),0,'refusé : '+mauvais);
   }
  }finally{
   if(avant===undefined)delete process.env.BIA_ATTENTE_ENVOI_MS;
@@ -502,4 +506,55 @@ test('l’attente se règle par l’adresse, bornée, sans effet si absente',()=
     replié dans reglagesAnticipation, qui existe déjà dans leurs décors. */
  assert.match(code,/attenteEnvoiMs:reglagesAnticipation\(\)\?\.attente_envoi_ms/);
  assert.doesNotMatch(code,/attenteDemandee/,'pas de nom neuf dans le callback extrait');
+});
+
+/* ── SAVOIR REMPLACE ATTENDRE ─────────────────────────────────────────────
+
+   L'attente de 800 ms marchait mécaniquement — dix attentes, dix avec une
+   préparation en vol — et n'a JAMAIS fait gagner une seconde : médiane du
+   premier son 6 031 → 7 079 → 9 270 ms au fil des essais. On ne garde pas un
+   coût qu'on n'a pas prouvé.
+
+   Ce qu'elle servait s'obtient sans elle : `commencer()` sait qu'une
+   transcription est EN VOL et ouvre la lecture sans attendre. */
+test('une transcription en vol se sait tout de suite, sans rien bloquer',async()=>{
+ const E=load('lib/ecoute-progressive.ts',()=>({wavLong:()=>new Blob([new Uint8Array(8)])}));
+ const enAttente=[];
+ const p=E.creerEcouteProgressive(()=>new Promise(r=>{enAttente.push(r);}),()=>'fr',()=>true,()=>{},4000,()=>{},1000);
+ assert.equal(p.envoisEnVol(),0,'rien en vol avant de parler');
+ for(let i=0;i<40;i++)p.pousser(new Float32Array(1600).fill(0.5),true);
+ for(let i=0;i<12;i++)p.pousser(new Float32Array(1600).fill(0),false);
+ for(let i=0;i<20&&!enAttente.length;i++)await new Promise(r=>setTimeout(r,0));
+ /* L'envoi est parti : on le SAIT, sans l'attendre. */
+ assert.ok(p.envoisEnVol()>0,'un envoi en vol doit se savoir');
+ /* La chaîne est SÉQUENTIELLE : un seul envoi part à la fois, mais le
+    compteur porte tous les segments pas encore posés — c'est exactement ce
+    que `commencer()` doit savoir. On répond donc à tous, l'un après l'autre. */
+ for(let i=0;i<40&&p.envoisEnVol()>0;i++){
+  while(enAttente.length)enAttente.shift()({ok:true,json:async()=>({texte:'une phrase'})});
+  await new Promise(r=>setTimeout(r,0));
+ }
+ assert.equal(p.envoisEnVol(),0,'et retomber à zéro quand tout s’est posé');
+});
+
+test('l’attente par défaut est à ZÉRO : on ne garde pas un coût non prouvé',()=>{
+ const avant=process.env.BIA_ATTENTE_ENVOI_MS;
+ try{
+  delete process.env.BIA_ATTENTE_ENVOI_MS;
+  assert.equal(load('lib/seuils-anticipation.ts').attenteEnvoiMs(),0);
+  /* La variable reste, pour la rallumer si une mesure la justifie un jour. */
+  process.env.BIA_ATTENTE_ENVOI_MS='800';
+  assert.equal(load('lib/seuils-anticipation.ts').attenteEnvoiMs(),800);
+ }finally{
+  if(avant===undefined)delete process.env.BIA_ATTENTE_ENVOI_MS;
+  else process.env.BIA_ATTENTE_ENVOI_MS=avant;
+ }
+});
+
+test('la lecture s’ouvre sur une transcription en vol, sans attendre',()=>{
+ const code=fs.readFileSync('lib/briques-client.ts','utf8');
+ assert.match(code,/if\(!file\.pretes&&!enCours&&!o\.envoiEnVol\?\.\(\)\)\{/,
+  'un envoi en vol doit valoir une préparation en cours');
+ const client=fs.readFileSync('lib/anticipation-client.ts','utf8');
+ assert.match(client,/envoiEnVol:\(\)=>pipeline\.envoisEnVol\(\)>0/);
 });

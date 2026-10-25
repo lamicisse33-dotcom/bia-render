@@ -1308,6 +1308,10 @@ export default function Home() {
       body:JSON.stringify({type:'journal_parole',moteur:'khalam',
         debut_parole:horloge(debut),fin_detectee:horloge(fin),premier_son:horloge(premierSonA),
         parole_ms:Math.max(0,fin-debut),silence_exige_ms:exige,silence_observe_ms:observe,
+        /* Le réglage EN VIGUEUR ce tour-là. Sans lui, un essai avec et sans
+           l'attente donne huit tours mélangés — c'est ce qui s'est passé le
+           25 octobre au soir. */
+        attente_envoi_ms:reglagesAnticipation()?.attente_envoi_ms??null,
         attente_ms:Math.max(0,premierSonA-fin),...etapes})}).catch(()=>{});
   };
   /* ── L'INTERRUPTEUR DE L'ESSAI, CÔTÉ SERVEUR ───────────────────────────
