@@ -48,7 +48,7 @@ function server(answer,options={}){
   if(id==='./identite-core')return load('lib/identite-core.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./salutations-dialogue')return load('lib/salutations-dialogue.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./anticipation-core')return core;
-  if(id==='./seuils-anticipation')return {premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70};
+  if(id==='./seuils-anticipation')return {premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70};
   if(id==='./eligibilite-etat')return {noterRefusServeur(){},noterEligibilite(){},resumeEligibilite:()=>({})};
   if(id==='./briques-etat')return {etatBriques:state};
   if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
@@ -224,7 +224,7 @@ test('buying a charger in a story remains eligible, while instructions still ret
  const s=server(),r=await s.preparerBrique({...body,texte:question+' Je suis ensuite allé acheter un chargeur.'},'owner',true,new AbortController().signal);assert(r.brique);
 });
 test('departure telemetry separates ready, still running, and absent preparation',()=>{
- delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts',id=>id==='./seuils-anticipation'?{premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70}:load('lib/reflexion-courte.ts'));
+ delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts',id=>id==='./seuils-anticipation'?{premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70}:load('lib/reflexion-courte.ts'));
  /* Le quatrième choix du 23 octobre : un départ qui parie sur la
     transcription finale ne doit pas se confondre avec `sans_preparation`. */
  a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:0,finale:1});
@@ -410,7 +410,7 @@ test('le relevé range les annulations par raison, avec leurs durées',()=>{
  /* briques-etat lit les seuils publiés par le serveur ; ici on éprouve le
     rangement des annulations, pas les seuils. */
  const e=load('lib/briques-etat.ts',id=>({
-  premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,signesAnticipation:()=>20,teteCourteSignes:()=>20,
+  premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,signesAnticipation:()=>20,teteCourteSignes:()=>20,
   briquesSurTranscriptionFinale:()=>false,REFLEXION_COURTE:{attente_ms:1200,volume:0.35},
  }));
  e.noterBriques({etape:'preparation_tuee',raison:'rien_de_pret_a_la_fermeture',ms:801,en_vol:1});

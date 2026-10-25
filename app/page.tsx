@@ -1340,7 +1340,7 @@ export default function Home() {
      Borné aux mêmes valeurs que la variable, et sans effet si on ne l'écrit
      pas : le comportement par défaut reste celui du serveur. */
   const reglagesAnticipation=()=>{
-    const serveur=(moteursRef.current as {briques_conversation?:{premier_segment_apres_ms?:number;seuil_signes_anticipation?:number;tete_courte_signes?:number;attente_envoi_ms?:number}}|null)?.briques_conversation;
+    const serveur=(moteursRef.current as {briques_conversation?:{premier_segment_apres_ms?:number;seuil_signes_anticipation?:number;tete_courte_signes?:number;attente_envoi_ms?:number;patience_brique_ms?:number}}|null)?.briques_conversation;
     /* L'essai par l'adresse est replié ICI, et pas à l'appel : le callback
        `ecouter` est extrait par cinq épreuves qui lui fournissent son décor
        NOM PAR NOM. Un nom neuf dans ces lignes casse tout — c'est la
@@ -5877,9 +5877,81 @@ export default function Home() {
           dernierDitRef.current = dit;
           if(lectureBriques){
             mesureBriques('transcrit',Date.now()-debutBriques);
-            await progressive!.terminerBriques(dit);
-            mesureBriques('fin_preparation',Date.now()-debutBriques);
-            const lecture=await lectureBriques.fin;
+            /* ── LEVIER 1 : LE DOUBLE PAIEMENT ─────────────────────────────
+
+               Avant : on attendait la fin de la chaîne de briques, PUIS on
+               lançait le chemin ordinaire si elle n'avait rien donné. En
+               série. Quand le pari était perdu, on avait payé son attente
+               entière avant de commencer à répondre — c'est la queue de
+               tours à 12, 18 et 42 secondes, et c'est elle qui tient la
+               médiane en l'air.
+
+               Maintenant la patience est BORNÉE. Si aucune brique n'a
+               COMMENCÉ À PARLER au bout du délai, on coupe et on part sur le
+               chemin ordinaire. Une brique déjà en train de parler n'est
+               jamais coupée : ce serait couper BIA au milieu d'un mot, et
+               `premierBrique` dit exactement si elle a commencé.
+
+               Réglable par BIA_PATIENCE_BRIQUE_MS, et 10000 reproduit le
+               comportement d'avant. */
+            const chaineBriques=(async()=>{
+              await progressive!.terminerBriques(dit);
+              mesureBriques('fin_preparation',Date.now()-debutBriques);
+              return lectureBriques.fin;
+            })();
+            const patience=reglagesAnticipation()?.patience_brique_ms;
+            let lecture:Awaited<typeof lectureBriques.fin>|null=null;
+            if(typeof patience==='number'&&patience>=0){
+              const debutPatience=Date.now();
+              lecture=await Promise.race([
+                chaineBriques,
+                new Promise<null>(r=>setTimeout(()=>r(null),patience)),
+              ]);
+              /* Le délai est passé ET aucune brique n'a parlé : on renonce.
+                 `premierBrique` est encore vrai tant que rien n'est sorti. */
+              if(lecture===null&&premierBrique){
+                mesureBriques('patience_depassee',Date.now()-debutPatience);
+                /* ── DEUX FAUTES ICI, ET ELLES ONT COÛTÉ DEUX DÉPLOIEMENTS ──
+
+                   Lamine, le 25 octobre : « pas un mot de réponse, et surtout
+                   AUCUNE transcription de ce que je dis n'apparaît ». Deux
+                   symptômes, deux fautes, dans ces six lignes :
+
+                   1. J'appelais `abortBriques.abort()` PUIS
+                      `if(!actifBriques())return;`. Or `actifBriques()`
+                      commence par `!abortBriques.signal.aborted` : je venais
+                      de rendre ma propre garde fausse. On sortait donc
+                      TOUJOURS avant `askBia`, et plus rien ne répondait.
+
+                   2. Corrigée, je passais encore `dejaInscrit=true` à
+                      `askBia` — alors que RIEN n'avait été inscrit ici : le
+                      fil n'est écrit qu'en bas, après la lecture. `askBia`
+                      saute donc l'inscription (voir sa ligne
+                      `if(!dejaInscrit)setHistory(...)`) et sa phrase
+                      n'apparaît JAMAIS à l'écran. Mon « correctif » de 17 h
+                      n'a jamais touché celle-là : l'épreuve de bout en bout
+                      le montre, rouge sur les deux déploiements.
+
+                   Le tour, lui, est toujours le sien : on le CONSTATE avant
+                   de couper, et le chemin ordinaire inscrit sa phrase
+                   lui-même. Rien n'a été dit par les briques, donc ce n'est
+                   pas une continuation. */
+                const encoreSonTour=estLeTour(monTour)&&estCetEnregistrement(idEnr);
+                void chaineBriques.catch(()=>{});
+                briquesTerminees=true;fluxVoixRef.current.delete(abortBriques);
+                taireBriques();abortBriques.abort();
+                busyRef.current=false;
+                if(!encoreSonTour)return;
+                if(dit){await askBia(dit,true,monTour,d.suggestions_ecriture);return;}
+                /* Pas un mot transcrit : on rend la main plutôt que de
+                   laisser l'écran sur « réfléchit ». */
+                setMode('ready');setFace('yeux_ouverts');return;
+              }
+              /* Elle a commencé à parler : on attend la fin, sans la couper. */
+              if(lecture===null)lecture=await chaineBriques;
+            }else{
+              lecture=await chaineBriques;
+            }
             if(!actifBriques())return;
             const reponse=ditesBriques.join(' ');
             const fil:Message[]=[...historyRef.current,{role:'user',text:dit},...(reponse?[{role:'bia' as const,text:reponse}]:[])];
