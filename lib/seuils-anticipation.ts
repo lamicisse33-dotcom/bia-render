@@ -51,9 +51,52 @@ const borne = (v: string | undefined, defaut: number, min: number, max: number) 
   return Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : defaut;
 };
 
-/** Durée de PAROLE avant le premier segment. Révertible : BIA_PREMIER_SEGMENT_MS. */
+/* ── LEVIER 2 DU MANDAT : L'OREILLE ÉCOUTE PLUS TÔT ───────────────────────
+
+   Le mandat demande « une transcription provisoire toutes les 100-200 ms au
+   lieu de segments d'une seconde ».
+
+   CE QUE JE NE PEUX PAS FAIRE AUJOURD'HUI, ET IL FAUT LE DIRE. Chaque
+   segment part en HTTP vers Khalam Oreille. Une transcription toutes les
+   150 ms, c'est près de SEPT requêtes par seconde et par personne : ce n'est
+   pas un réglage, c'est une autre architecture — un flux WebSocket vers le
+   GPU, qui est le levier 6. Le promettre ici serait mentir.
+
+   CE QUE JE FAIS : le premier segment part après 600 ms de parole au lieu de
+   1 000. La première interprétation arrive donc presque deux fois plus tôt,
+   et la préparation avec elle.
+
+   ET ÇA NE TOUCHE PAS LA FERMETURE DU MICRO : écouter plus tôt n'est pas
+   couper plus tôt. Sa règle absolue — « elle ne doit JAMAIS répondre tant
+   que je parle ou que je fais une pause » — vit dans lib/fin-de-parole.ts,
+   et ce levier n'y touche pas.
+
+   RÉVERSIBLE : BIA_PREMIER_SEGMENT_MS=1000 rend le comportement d'avant. */
 export const premierSegmentMs = () =>
-  borne(process.env.BIA_PREMIER_SEGMENT_MS, 1000, 500, 4000);
+  borne(process.env.BIA_PREMIER_SEGMENT_MS, 600, 500, 4000);
+
+/* ── ET ELLE SE CORRIGE PLUS SOUVENT ──────────────────────────────────────
+
+   Les segments SUIVANTS passent de 4 000 (ou 2 500 selon le profil) à
+   1 500 ms. La première interprétation se corrige donc deux à trois fois
+   plus souvent pendant qu'il parle.
+
+   CE QUE ÇA COÛTE, DIT AVANT : environ deux fois et demie plus d'appels à
+   l'oreille par tour. Sur une phrase de six secondes, deux segments avant,
+   quatre maintenant. Ça se lit dans anticipation_conversation.ecoute.segments
+   et c'est le prix de la réactivité.
+
+   1500, 2500 et 4000 sont les trois seules tailles que la découpe sait
+   traiter (voir lib/ecoute-progressive.ts) : toute autre valeur retomberait
+   en silence sur le plus gros tampon.
+
+   RÉVERSIBLE : BIA_SEGMENT_MS=4000 rend le comportement d'avant. */
+export function segmentMs(): number {
+  const brut = String(process.env.BIA_SEGMENT_MS ?? "").trim();
+  if (!brut) return 1500;
+  const n = Number(brut);
+  return n === 1500 || n === 2500 || n === 4000 ? n : 1500;
+}
 
 /** Longueur minimale du texte pour préparer. Révertible : BIA_SIGNES_ANTICIPATION. */
 export const signesAnticipation = () =>
