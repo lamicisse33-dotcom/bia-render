@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "4b92f6930ba047185586bb173d798b40b7dc8786eef7ea7594fc8efe07cd7ff9",
+    "app/page.tsx": "4f7a8a1c5394ed64183fdb74812b8a4e60bcee76c97988ea5cfe053bc99f47cb",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -416,5 +416,17 @@
     "hash_after": "4b92f6930ba047185586bb173d798b40b7dc8786eef7ea7594fc8efe07cd7ff9",
     "verification": "tsc, npm run build, suite complete LUE AVANT DE POUSSER : aucune nouvelle rupture. Epreuves neuves : un envoi en vol se sait tout de suite et retombe a zero quand tout s est pose, l attente par defaut est a zero et reste rallumable, la lecture s ouvre sur un envoi en vol, et le journal separe les medianes PAR reglage.",
     "non_valide": "Le gain reste a prouver dans ses oreilles. Mais cette fois l A/B sera lisible : premier_son_par_reglage donne une mediane par reglage."
+  },
+  "migration_levier1_double_paiement_20261025": {
+    "authorized": "Mandat vitesse de Lamine, levier 1 : « a la fermeture du micro, chemin ordinaire et brique EN PARALLELE, premier arrive gagne, l autre est annule ».",
+    "le_defaut": "La page attendait la FIN de la chaine de briques — terminerBriques() puis lectureBriques.fin — et seulement ensuite, si rien n etait sorti, lancait le chemin ordinaire. EN SERIE. Quand le pari de la brique etait perdu, on avait paye son attente ENTIERE avant de commencer a repondre. C est la queue de tours a 12, 18 et 42 secondes qui tient la mediane en l air.",
+    "ce_que_je_fais_et_ce_que_je_ne_fais_pas": "Je NE lance pas les deux voix en parallele : deux chemins qui produisent du son en meme temps, c est le chevauchement qu il m a signale le 24 octobre, et il est pire que la lenteur. Je borne la PATIENCE : si aucune brique n a COMMENCE A PARLER au bout du delai, on coupe la chaine et on part sur le chemin ordinaire. Une brique deja en train de parler n est jamais coupee — ce serait couper BIA au milieu d un mot.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change : la course bornee a la fermeture du micro. Aucun changement d ASR, de synthese, de modele, de voix ni de micro.",
+    "hash_before": "4b92f6930ba047185586bb173d798b40b7dc8786eef7ea7594fc8efe07cd7ff9",
+    "hash_after": "4f7a8a1c5394ed64183fdb74812b8a4e60bcee76c97988ea5cfe053bc99f47cb",
+    "reversible": "BIA_PATIENCE_BRIQUE_MS=10000 reproduit le comportement d avant ; 0 renonce tout de suite aux briques. Defaut 1200 ms, l ordre de grandeur d une preparation qui aboutit (836 et 2 464 ms mesurees).",
+    "mesure": "patiences_depassees compte les renoncements et leurs durees ; patience_brique_ms publie le reglage en vigueur ; le journal porte deja le reglage par tour.",
+    "verification": "tsc, npm run build, suite complete LUE AVANT DE POUSSER : aucune nouvelle rupture. Trois epreuves neuves, dont celle qui verifie qu une brique ayant commence a parler n est JAMAIS coupee, et que le renoncement coupe vraiment la preparation au lieu de la laisser couter.",
+    "non_valide": "Le gain reste a mesurer. Jalon apres les leviers 1 et 2."
   }
 }

@@ -135,3 +135,30 @@ export function attenteEnvoiMs(): number {
   const n = Number(brut);
   return Number.isFinite(n) && n >= 0 && n <= 3000 ? Math.round(n) : 0;
 }
+
+/* ── LE DOUBLE PAIEMENT, LEVIER 1 DU MANDAT DU 25 OCTOBRE ─────────────────
+
+   Mesuré : à la fermeture du micro, la page attend la FIN de la chaîne de
+   briques — `terminerBriques()` puis `lectureBriques.fin` — et seulement
+   ensuite, si rien n'est sorti, lance le chemin ordinaire. En série. Quand
+   le pari de la brique est perdu, on a payé son attente ENTIÈRE avant même
+   de commencer à répondre. C'est la queue de tours à 12, 18 et 42 secondes.
+
+   LA PATIENCE EST BORNÉE. Si aucune brique n'a COMMENCÉ À PARLER au bout de
+   ce délai, on coupe la chaîne et on part sur le chemin ordinaire. Une
+   brique déjà en train de parler n'est JAMAIS coupée — ce serait couper BIA
+   au milieu d'un mot.
+
+   Pourquoi 1 200 ms : c'est l'ordre de grandeur d'une préparation qui
+   aboutit (mesurées à 836 et 2 464 ms). Au-delà, on sait qu'on a perdu le
+   pari, et chaque milliseconde de plus est une milliseconde volée.
+
+   RÉVERSIBLE : BIA_PATIENCE_BRIQUE_MS=10000 reproduit le comportement
+   d'avant (on attend la chaîne quoi qu'il arrive) ; 0 renonce tout de suite
+   aux briques. */
+export function patienceBriqueMs(): number {
+  const brut = String(process.env.BIA_PATIENCE_BRIQUE_MS ?? "").trim();
+  if (!brut) return 1200;
+  const n = Number(brut);
+  return Number.isFinite(n) && n >= 0 && n <= 20000 ? Math.round(n) : 1200;
+}

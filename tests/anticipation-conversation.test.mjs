@@ -38,7 +38,7 @@ test('draft ownership, single consumption and changed intent are enforced withou
  delete globalThis.biaAnticipationReponse;let syntheses=0,modeles=0;
  const api=load('lib/anticipation-reponse.ts',id=>{
  if(id==='node:crypto')return crypto;if(id==='next/server')return {NextRequest:Request};if(id==='./anticipation-core')return core;
- if(id==='./seuils-anticipation')return {premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70};
+ if(id==='./seuils-anticipation')return {premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70};
  if(id==='./eligibilite-etat')return {noterRefusServeur(){},noterEligibilite(){},resumeEligibilite:()=>({})};
  if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
  if(id==='./cerveau-anthropic')return {MODELE_SONNET:'test',MODELE_HAIKU:'test-haiku',modeleBriques:()=>'test-haiku',MODELE_HAIKU:'test-haiku',messagesAnthropic:messages=>({messages}),contenuAnthropic:d=>d.text,fetchAnthropic:async()=>{modeles++;return Response.json({text:JSON.stringify({eligible:true,reply:'Écoute ton ami et demande-lui ce qui lui ferait du bien.',valide:false})});}};
