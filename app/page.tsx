@@ -5912,12 +5912,27 @@ export default function Home() {
                  `premierBrique` est encore vrai tant que rien n'est sorti. */
               if(lecture===null&&premierBrique){
                 mesureBriques('patience_depassee',Date.now()-debutPatience);
+                /* ── LA FAUTE DU 25 OCTOBRE À 17 H, ET ELLE RENDAIT BIA MUETTE ──
+
+                   J'appelais `abortBriques.abort()` PUIS `if(!actifBriques())
+                   return;`. Or `actifBriques()` commence par
+                   `!abortBriques.signal.aborted` : je venais de le rendre faux
+                   moi-même. On sortait donc TOUJOURS avant `askBia`, et plus
+                   rien ne répondait. « Réfléchit » sans fin, sur les quatre
+                   phrases.
+
+                   Le tour, lui, est toujours le sien : c'est LUI qu'il faut
+                   regarder, et il faut le regarder AVANT de couper. */
+                const encoreSonTour=estLeTour(monTour)&&estCetEnregistrement(idEnr);
                 void chaineBriques.catch(()=>{});
                 briquesTerminees=true;fluxVoixRef.current.delete(abortBriques);
                 taireBriques();abortBriques.abort();
                 busyRef.current=false;
-                if(!actifBriques())return;
+                if(!encoreSonTour)return;
                 if(dit){await askBia(dit,true,monTour,d.suggestions_ecriture,true);return;}
+                /* Pas un mot transcrit : on rend la main au chemin ordinaire
+                   plutôt que de rester sur « réfléchit ». */
+                setMode('ready');setFace('yeux_ouverts');return;
               }
               /* Elle a commencé à parler : on attend la fin, sans la couper. */
               if(lecture===null)lecture=await chaineBriques;

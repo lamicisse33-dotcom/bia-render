@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "b143ab708af64f940344c7dabc5a71769f1f2b05dfd9855801094a2762e6a31f",
+    "app/page.tsx": "c7341a5d89c55827f80ccc9e2c5bdc891b66b70e24ff6e87f4892cf17d0b9b28",
     "lib/micro.ts": "2be1523107368055e8352d583b244691dbd377867309e5b3804ef81481ac2a35",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -443,5 +443,16 @@
     "reversible": "BIA_SILENCE_FIN_PAROLE_MS=1200, BIA_PREMIER_SEGMENT_MS=1000 et BIA_SEGMENT_MS=4000 ramenent exactement le comportement d hier.",
     "verification": "tsc, npm run build, suite complete LUE AVANT DE POUSSER : aucune nouvelle rupture. Huit epreuves encodaient les 1 200 ms du 24 octobre : reecrites sur la regle neuve, et elles verifient maintenant la PROTECTION (600 de base, +300 par coupure, plafonne) plutot qu un nombre fixe.",
     "non_valide": "Zero coupure n est pas prouve. C est le risque assume du levier 2, et coupures_suspectes dans le journal le dira. Jalon : quatre tours apres les leviers 1 et 2."
+  },
+  "migration_correctif_bia_muette_20261025": {
+    "authorized": "URGENT de Lamine : « sur Khalam, BIA ne repond plus du tout, reflechit sans fin, sur les quatre phrases ». Apparu avec le levier 1.",
+    "la_cause_nommee_par_les_compteurs": "patiences_depassees 3 fois a [1201, 1200, 1200], lectures 0, aucun debut_brique, aucun tour dans le journal. La patience expirait a chaque tour — ce qui etait prevu — et le chemin ordinaire ne partait JAMAIS.",
+    "la_faute_et_elle_est_a_moi": "J appelais abortBriques.abort() PUIS if(!actifBriques())return;. Or actifBriques() commence par !abortBriques.signal.aborted : je venais de le rendre faux moi-meme. On sortait donc toujours avant askBia. Un garde-fou qui se declenche sur l action qu on vient de faire soi-meme.",
+    "le_correctif": "Le tour est constate AVANT de couper (estLeTour && estCetEnregistrement), et actifBriques() ne decide plus rien dans ce bloc. Et sans un mot transcrit, on rend la main au lieu de rester sur « reflechit ».",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change, dans le bloc ajoute une heure plus tot. Aucun changement d ASR, de synthese, de modele, de voix ni de micro.",
+    "hash_before": "b143ab708af64f940344c7dabc5a71769f1f2b05dfd9855801094a2762e6a31f",
+    "hash_after": "c7341a5d89c55827f80ccc9e2c5bdc891b66b70e24ff6e87f4892cf17d0b9b28",
+    "verification": "tsc, npm run build, suite complete LUE AVANT DE POUSSER : aucune nouvelle rupture. Une epreuve neuve verifie que la decision est prise AVANT l abort et qu actifBriques() n apparait plus dans ce bloc — c est elle qui aurait attrape la faute.",
+    "non_valide": "A verifier dans ses oreilles : quatre phrases sur Khalam."
   }
 }

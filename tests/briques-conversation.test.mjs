@@ -617,3 +617,40 @@ test('le relevé compte les patiences dépassées avec leurs durées',()=>{
  assert.deepEqual(r.patiences_depassees.ms,[1201,1205]);
  assert.equal(r.patience_brique_ms,1200,'le réglage en vigueur doit être publié');
 });
+
+/* ── LA FAUTE QUI A RENDU BIA MUETTE, 25 OCTOBRE 17 H ─────────────────────
+
+   Lamine : « BIA ne répond plus du tout, "réfléchit" sans fin, sur les
+   quatre phrases ». Les compteurs : patiences_depassees 3 fois à
+   [1201, 1200, 1200], lectures 0, et AUCUN `debut_brique`.
+
+   La cause : j'appelais `abortBriques.abort()` PUIS `if(!actifBriques())
+   return;`. Or `actifBriques()` commence par `!abortBriques.signal.aborted`
+   — je venais de le rendre faux moi-même. On sortait donc TOUJOURS avant
+   `askBia`, et plus rien ne répondait. */
+test('après la patience dépassée, le chemin ordinaire part VRAIMENT',()=>{
+ const code=fs.readFileSync('app/page.tsx','utf8');
+ /* Les commentaires sont retirés : le mien CITE `abortBriques.abort()` pour
+    expliquer la faute, et mon motif le trouvait avant le vrai appel. Septième
+    fois qu'un de mes motifs lit de la prose au lieu du code. */
+ const sansCommentaires=t=>t.replace(/\/\*[\s\S]*?\*\//g,' ').replace(/(^|[^:])\/\/.*$/gm,'$1');
+ const bloc=sansCommentaires(code.slice(code.indexOf('if(lecture===null&&premierBrique){')));
+ const corps=bloc.slice(0,bloc.indexOf('if(lecture===null)lecture=await chaineBriques;'));
+
+ /* La décision de continuer est prise AVANT l'abort, jamais après. */
+ const avantAbort=corps.indexOf('const encoreSonTour=');
+ const abort=corps.indexOf('abortBriques.abort()');
+ assert.ok(avantAbort>=0&&avantAbort<abort,
+  'le tour doit être constaté AVANT de couper : sinon on se coupe soi-même');
+
+ /* Et surtout : plus aucun `actifBriques()` dans ce bloc — c'est lui qui
+    lisait le signal qu'on venait d'abattre. */
+ assert.ok(!corps.includes('actifBriques()'),
+  'actifBriques() dépend du signal qu’on vient d’abattre : il ne peut pas décider ici');
+
+ /* Le chemin ordinaire part. */
+ assert.match(corps,/await askBia\(dit,true,monTour/);
+ /* Et sans transcription, on rend la main au lieu de rester sur « réfléchit ». */
+ assert.match(corps,/setMode\('ready'\)/,
+  'sans un mot transcrit, BIA ne doit pas rester en réflexion sans fin');
+});
