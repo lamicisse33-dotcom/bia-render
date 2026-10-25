@@ -1340,14 +1340,20 @@ export default function Home() {
      `?attente=0` éteint l'attente pour CETTE page, sans rien redéployer.
      Borné aux mêmes valeurs que la variable, et sans effet si on ne l'écrit
      pas : le comportement par défaut reste celui du serveur. */
-  const attenteDemandee=()=>{
-    if(typeof window==='undefined')return undefined;
+  const reglagesAnticipation=()=>{
+    const serveur=(moteursRef.current as {briques_conversation?:{premier_segment_apres_ms?:number;seuil_signes_anticipation?:number;tete_courte_signes?:number;attente_envoi_ms?:number}}|null)?.briques_conversation;
+    /* L'essai par l'adresse est replié ICI, et pas à l'appel : le callback
+       `ecouter` est extrait par cinq épreuves qui lui fournissent son décor
+       NOM PAR NOM. Un nom neuf dans ces lignes casse tout — c'est la
+       quatrième fois aujourd'hui après silenceDemande, journalTourRef et la
+       garde de la voix. `reglagesAnticipation` existe déjà dans ces décors :
+       on passe par lui. */
+    if(typeof window==='undefined')return serveur;
     const v=new URL(window.location.href).searchParams.get('attente');
-    if(v===null)return undefined;
+    if(v===null)return serveur;
     const n=Number(v);
-    return Number.isFinite(n)&&n>=0&&n<=3000?Math.round(n):undefined;
+    return Number.isFinite(n)&&n>=0&&n<=3000?{...serveur,attente_envoi_ms:Math.round(n)}:serveur;
   };
-  const reglagesAnticipation=()=>(moteursRef.current as {briques_conversation?:{premier_segment_apres_ms?:number;seuil_signes_anticipation?:number;tete_courte_signes?:number;attente_envoi_ms?:number}}|null)?.briques_conversation;
   const jouerSouffleRef = useRef<((emotion: string, sansPrelude?: boolean) => Promise<void>) | null>(null);
   const tourRef = useRef<object | null>(null);
 
@@ -6040,7 +6046,7 @@ export default function Home() {
          plafond de 20 Mo ; le repli complet reste disponible. */
       const exclusionCapture=exclusionAnticipation({persona:personaRef.current,voixCompatible:essaiChatterboxActif(),desactivee:localStorage.getItem('bia-anticipation')==='non',apprentissage:apprend.current,correctionDevoir:!!correctionDevoirRef.current,correctionListe:chantierMalDit.current,prenom:attendLeNomRef.current,reprise:!!motsRattrapesRef.current});
       if(!exclusionCapture){
-        progressive=await brancherAnticipation({surTranscriptionFinale:briquesFinalesPermises(),premierSegmentMs:reglagesAnticipation()?.premier_segment_apres_ms,attenteEnvoiMs:attenteDemandee()??reglagesAnticipation()?.attente_envoi_ms,seuilSignes:reglagesAnticipation()?.seuil_signes_anticipation,ctx:ctxMicro,flux,code:codeRef.current,tour:tourDeParole,history:fenetreDuFil(historyRef.current),resume:resumeRef.current,voice:voixChatterboxBia(),persona:personaRef.current,langue:()=>langueDuFil.current,parle:()=>aParle&&Date.now()-dernierSon<240,actuel:()=>estCetEnregistrement(idEnr)});
+        progressive=await brancherAnticipation({surTranscriptionFinale:briquesFinalesPermises(),premierSegmentMs:reglagesAnticipation()?.premier_segment_apres_ms,attenteEnvoiMs:reglagesAnticipation()?.attente_envoi_ms,seuilSignes:reglagesAnticipation()?.seuil_signes_anticipation,ctx:ctxMicro,flux,code:codeRef.current,tour:tourDeParole,history:fenetreDuFil(historyRef.current),resume:resumeRef.current,voice:voixChatterboxBia(),persona:personaRef.current,langue:()=>langueDuFil.current,parle:()=>aParle&&Date.now()-dernierSon<240,actuel:()=>estCetEnregistrement(idEnr)});
       }
       if(!estCetEnregistrement(idEnr)){await progressive?.annuler();return;}
       const etapeCapture=progressive?'branchee':['voix_incompatible','desactivee'].includes(exclusionCapture)?exclusionCapture:exclusionCapture?'contexte_exclu':'indisponible';

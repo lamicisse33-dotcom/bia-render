@@ -491,12 +491,15 @@ test('le plafond d’attente est réglable par variable Render, et borné',()=>{
    deux minutes de construction. */
 test('l’attente se règle par l’adresse, bornée, sans effet si absente',()=>{
  const code=fs.readFileSync('app/page.tsx','utf8');
- const bloc=code.slice(code.indexOf('const attenteDemandee='));
- const corps=bloc.slice(0,bloc.indexOf('};')+2);
+ const bloc=code.slice(code.indexOf('const reglagesAnticipation=()=>{'));
+ const corps=bloc.slice(0,bloc.indexOf('\n  };')+5);
  /* Absente : on ne change RIEN, le serveur décide. */
- assert.match(corps,/if\(v===null\)return undefined;/);
+ assert.match(corps,/if\(v===null\)return serveur;/,'absent : le réglage du serveur passe, inchangé');
  /* Bornée comme la variable Render : pas de valeur folle par l’adresse. */
  assert.match(corps,/n>=0&&n<=3000/);
  /* Et elle passe DEVANT le réglage du serveur, sinon l’essai ne servirait à rien. */
- assert.match(code,/attenteEnvoiMs:attenteDemandee\(\)\?\?reglagesAnticipation\(\)\?\.attente_envoi_ms/);
+ /* Et AUCUN nom neuf dans la ligne que les épreuves extraient : l'essai est
+    replié dans reglagesAnticipation, qui existe déjà dans leurs décors. */
+ assert.match(code,/attenteEnvoiMs:reglagesAnticipation\(\)\?\.attente_envoi_ms/);
+ assert.doesNotMatch(code,/attenteDemandee/,'pas de nom neuf dans le callback extrait');
 });
