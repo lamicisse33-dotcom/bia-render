@@ -48,7 +48,7 @@ function server(answer,options={}){
   if(id==='./identite-core')return load('lib/identite-core.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./salutations-dialogue')return load('lib/salutations-dialogue.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./anticipation-core')return core;
-  if(id==='./seuils-anticipation')return {premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70};
+  if(id==='./seuils-anticipation')return {premierSegmentMs:()=>600,segmentMs:()=>1500,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70};
   if(id==='./eligibilite-etat')return {noterRefusServeur(){},noterEligibilite(){},resumeEligibilite:()=>({})};
   if(id==='./briques-etat')return {etatBriques:state};
   if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
@@ -224,13 +224,17 @@ test('buying a charger in a story remains eligible, while instructions still ret
  const s=server(),r=await s.preparerBrique({...body,texte:question+' Je suis ensuite allé acheter un chargeur.'},'owner',true,new AbortController().signal);assert(r.brique);
 });
 test('departure telemetry separates ready, still running, and absent preparation',()=>{
- delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts',id=>id==='./seuils-anticipation'?{premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70}:load('lib/reflexion-courte.ts'));
+ delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts',id=>id==='./seuils-anticipation'?{premierSegmentMs:()=>600,segmentMs:()=>1500,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70}:load('lib/reflexion-courte.ts'));
  /* Le quatrième choix du 23 octobre : un départ qui parie sur la
     transcription finale ne doit pas se confondre avec `sans_preparation`. */
  a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:0,finale:1});
  a.noterBriques({etape:'depart',ms:0,pretes:2,en_cours:1});a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:1});a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:0});
  assert.deepEqual(a.resumeBriques().departs,{sur_transcription_finale:1,prete:1,en_fabrication:1,sans_preparation:1});
- assert.equal(a.resumeBriques().premier_segment_apres_ms,1000);
+ /* Le relevé rend ce que le serveur a décidé, pas une valeur gravée ici :
+    le décor dit 600 (levier 2 du 25 octobre), et la taille des segments
+    voyage avec — sans elle, le téléphone retombait sur 4 000 sans le dire. */
+ assert.equal(a.resumeBriques().premier_segment_apres_ms,600);
+ assert.equal(a.resumeBriques().segment_ms,1500);
  assert.equal(a.resumeBriques().seuil_signes_anticipation,20);
 });
 
@@ -410,7 +414,7 @@ test('le relevé range les annulations par raison, avec leurs durées',()=>{
  /* briques-etat lit les seuils publiés par le serveur ; ici on éprouve le
     rangement des annulations, pas les seuils. */
  const e=load('lib/briques-etat.ts',id=>({
-  premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,signesAnticipation:()=>20,teteCourteSignes:()=>20,
+  premierSegmentMs:()=>600,segmentMs:()=>1500,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,signesAnticipation:()=>20,teteCourteSignes:()=>20,
   briquesSurTranscriptionFinale:()=>false,REFLEXION_COURTE:{attente_ms:1200,volume:0.35},
  }));
  e.noterBriques({etape:'preparation_tuee',raison:'rien_de_pret_a_la_fermeture',ms:801,en_vol:1});

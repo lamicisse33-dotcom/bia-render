@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "bda2ff827fd9104174734a8ccff478663bdd0a0fd7e9f15e993c19b9d41e186a",
+    "app/page.tsx": "d42727c934fbeca1abae9923637d4872bc9728b8fa624b53552dca697b55e071",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -414,5 +414,14 @@
     "filet": "tests/parole-affichee-browser.cjs — trois scenarios dans un vrai Chromium sur la vraie page, avec un faux micro qui produit un signal de voix. Verte sur c4b5220 (version servie), ROUGE sur 2d007d2 et 762dd8a, les deux deploiements muets, et rouge exactement la ou Lamine l a vu : la bulle de sa phrase n arrive jamais.",
     "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change : le bloc de la patience dans le chemin des briques. Aucun changement d ASR, de synthese, de modele, de transport ni de capture micro. Reversible par BIA_PATIENCE_BRIQUE_MS=10000 (comportement d avant) sans redeployer.",
     "reste_a_mesurer": "Ses quatre tours au telephone, sur Khalam : mediane du premier son, patiences_depassees dans /api/etat, et zero coupure. Production reste c4b5220 jusqu a son accord."
+  },
+  "migration_levier_2_oreille_plus_tot_20261025": {
+    "authorized": "MANDAT VITESSE, levier 2 : « l oreille en streaming — une transcription provisoire plus souvent au lieu de segments d une seconde ».",
+    "ce_que_je_fais": "Le premier segment part apres 600 ms de PAROLE au lieu de 1000, et les suivants toutes les 1500 ms au lieu de 4000 (2500 sur les profils optimises). La premiere interpretation arrive donc presque deux fois plus tot et se corrige deux a trois fois plus souvent.",
+    "ce_que_je_ne_fais_pas": "Pas de transcription toutes les 150 ms : chaque segment part en HTTP vers Khalam Oreille, donc sept requetes par seconde et par personne. Ce n est pas un reglage mais une autre architecture — un flux WebSocket vers le GPU, qui est le levier 6. Et je NE TOUCHE PAS a la fermeture du micro : ecouter plus tot n est pas couper plus tot.",
+    "cout_dit_avant": "Deux fois plus d appels a l oreille, mesure dans le harnais : 2 segments avant, 4 apres, sur 2,2 s de parole. Se lit dans anticipation_conversation.ecoute.segments.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change : le type du reglage servi et le passage de segment_ms a brancherAnticipation. Aucun changement d ASR, de synthese, de modele, de transport, ni de la detection de parole de lib/micro.ts.",
+    "reversible": "BIA_PREMIER_SEGMENT_MS=1000 et BIA_SEGMENT_MS=4000 rendent exactement le comportement d avant, sans redeployer.",
+    "ce_que_la_mesure_dit_de_600_MS_DE_SILENCE": "Le mandat demandait aussi la fin de parole a 600 ms. MESURE, et c est sa decision : avec 600, sur une phrase de 3,4 s coupee d une hesitation d UNE SECONDE, BIA repond a 2 363 ms — pendant qu il cherche son mot — et la fin de sa phrase part dans les mots rattrapes. Avec son reglage de 1 200 ms, un seul tour, reponse a 4 859 ms. Le defaut reste donc 1 200 ; BIA_SILENCE_FIN_PAROLE_MS=600 est disponible s il veut echanger 500 ms contre ce risque."
   }
 }

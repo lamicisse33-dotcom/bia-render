@@ -1,5 +1,5 @@
 import {REFLEXION_COURTE} from "./reflexion-courte";
-import {attenteEnvoiMs,patienceBriqueMs,premierSegmentMs,signesAnticipation,teteCourteSignes} from "./seuils-anticipation";
+import {attenteEnvoiMs,patienceBriqueMs,premierSegmentMs,segmentMs,signesAnticipation,teteCourteSignes} from "./seuils-anticipation";
 const g=globalThis as typeof globalThis&{biaBriquesEtat?:any};
 /* `motifs_invalides` : laquelle des sept règles le modèle enfreint, et
    combien de fois. Le 25 octobre, deux préparations sur sept étaient jetées
@@ -54,7 +54,7 @@ export const etatBriques=etat;
    BIA_BRIQUES_FINALES=oui le rallume, pour qu'on puisse le reprendre si les
    briques finissent par se préparer pendant la parole. */
 export const briquesSurTranscriptionFinale=()=>(process.env.BIA_BRIQUES_FINALES||'non')==='oui';
-export const resumeBriques=()=>({mode:'briques_texte_verrouillees_audio_progressif',revision:'stream-continu-priorite-ecoute-v1',premier_segment_apres_ms:premierSegmentMs(),attente_envoi_ms:attenteEnvoiMs(),patience_brique_ms:patienceBriqueMs(),seuil_signes_anticipation:signesAnticipation(),modele_briques_configure:process.env.BIA_BRIQUES_MODEL||'defaut',tete_courte_signes:teteCourteSignes(),briques_sur_transcription_finale:briquesSurTranscriptionFinale(),pause_transcription_ms:400,capture_pcm_ms:100,morceau_enregistrement_ms:100,livraison_audio:'progressive_ndjson',anticipation_texte:'pendant_parole_et_fin',ordonnancement_audio:'par_morceau_ecoute_prioritaire',...etat,son_reflexion:'mmm_khalam_convertis_20261020',reflexion_seuil_initial_ms:REFLEXION_COURTE.attente_ms,reflexion_seuil_suite_ms:null,politique_reflexion:REFLEXION_COURTE});
+export const resumeBriques=()=>({mode:'briques_texte_verrouillees_audio_progressif',revision:'stream-continu-priorite-ecoute-v1',premier_segment_apres_ms:premierSegmentMs(),segment_ms:segmentMs(),attente_envoi_ms:attenteEnvoiMs(),patience_brique_ms:patienceBriqueMs(),seuil_signes_anticipation:signesAnticipation(),modele_briques_configure:process.env.BIA_BRIQUES_MODEL||'defaut',tete_courte_signes:teteCourteSignes(),briques_sur_transcription_finale:briquesSurTranscriptionFinale(),pause_transcription_ms:400,capture_pcm_ms:100,morceau_enregistrement_ms:100,livraison_audio:'progressive_ndjson',anticipation_texte:'pendant_parole_et_fin',ordonnancement_audio:'par_morceau_ecoute_prioritaire',...etat,son_reflexion:'mmm_khalam_convertis_20261020',reflexion_seuil_initial_ms:REFLEXION_COURTE.attente_ms,reflexion_seuil_suite_ms:null,politique_reflexion:REFLEXION_COURTE});
 export function noterBriques(d:Record<string,unknown>){
   const ms=Number(d.ms);if(!Number.isFinite(ms)||ms<0||ms>180000)return;
   if(d.etape==='patience_depassee'){

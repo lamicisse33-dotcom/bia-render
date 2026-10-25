@@ -57,7 +57,13 @@ const ETAT={version:'epreuve',ecoute:'local_wolof',voix:'runpod',tenue:'jaune',
    scénarios ne le traversaient même pas et passaient au vert sur l'arbre
    fautif. Un filet qui n'est pas sous le trou ne sert à rien
    (AVANT-DE-DIRE-QUE-C-EST-BON.md). */
-const etatDuCas=(cas)=>({...ETAT,briques_conversation:{patience_brique_ms:cas.patience??1200}});
+const etatDuCas=(cas)=>({...ETAT,
+ /* Le silence qui ferme le micro, servi comme en vrai par /api/etat.
+    BIA_EPREUVE_SILENCE=600 permet de MESURER ce que coûterait le réglage du
+    mandat sans l'imposer : c'est sa décision, pas la mienne. */
+ fin_de_parole:{silence_fin_parole_ms:Number(process.env.BIA_EPREUVE_SILENCE)||cas.silence||1200},
+ briques_conversation:{patience_brique_ms:cas.patience??1200,
+  premier_segment_apres_ms:cas.premierSegment??600,segment_ms:cas.segment??1500}});
 
 /* Un quart de seconde de silence, en WAV 16 bits : c'est l'audio d'une brique.
    Son CONTENU n'a aucune importance ici — ce qui compte est qu'elle se décode,
@@ -74,12 +80,20 @@ function wavSilence(ms=250,sr=16000){
 /* Le faux micro. Il est long à écrire et c'est le cœur de l'épreuve : sans
    signal de voix crédible, le micro ne s'ouvre jamais et l'épreuve passerait
    au vert en ne prouvant rien. */
-const FAUX_MICRO=`
+const fauxMicro=(cas)=>`
  window.__micros=0;
+ /* La forme de sa parole : des tranches de son séparées par des silences.
+    Une seule tranche pour une phrase ordinaire ; deux, séparées d'une
+    hésitation, pour éprouver qu'elle ne le coupe pas quand il cherche un
+    mot. Les durées sont en secondes. */
+ const TRANCHES=${JSON.stringify(cas.tranches||[[0,2.2]])};
+ const MICROS_MAX=${cas.unSeulMicro?1:2};
  const voix=(ctx,secondes)=>{
   const sr=ctx.sampleRate,buf=ctx.createBuffer(1,Math.floor(sr*secondes),sr),d=buf.getChannelData(0),f0=150;
   for(let i=0;i<d.length;i++){
-   const t=i/sr;let v=0;
+   const t=i/sr;
+   if(!TRANCHES.some(([a,b])=>t>=a&&t<b)){d[i]=0;continue;}   /* l'hésitation : du vrai silence */
+   let v=0;
    for(let h=2;h<=20;h++)v+=Math.sin(2*Math.PI*f0*h*t)/h;    /* 300 à 3000 Hz */
    const syllabe=0.7+0.3*Math.sin(2*Math.PI*3.5*t);           /* des creux, jamais le silence */
    d[i]=0.9*syllabe*v/2.6;
@@ -90,10 +104,10 @@ const FAUX_MICRO=`
   const ctx=new (window.AudioContext||window.webkitAudioContext)();
   try{await ctx.resume();}catch{}
   const dest=ctx.createMediaStreamDestination();
-  /* Deux phrases au plus : la page rouvre le micro après chaque réponse, et
-     une voix sans fin ferait tourner l'épreuve en boucle. */
-  if(++window.__micros<=2){
-   const src=ctx.createBufferSource();src.buffer=voix(ctx,2.2);
+  /* Borné : la page rouvre le micro après chaque réponse, et une voix sans
+     fin ferait tourner l'épreuve en boucle. */
+  if(++window.__micros<=MICROS_MAX){
+   const src=ctx.createBufferSource();src.buffer=voix(ctx,TRANCHES[TRANCHES.length-1][1]);
    const bp=ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1200;bp.Q.value=0.6;
    src.connect(bp);bp.connect(dest);src.start();
   }
@@ -120,7 +134,7 @@ async function unTour(navigateur,cas){
  page.on('pageerror',e=>erreurs.push(String((e&&e.stack)||e&&e.message||e)));
  page.on('console',m=>{if(m.type()==='error')erreurs.push(m.text());});
  page.on('response',r=>{const u=new URL(r.url());if(u.pathname.startsWith('/api/')&&r.status()>=400)erreurs.push(`réponse ${r.status()} sur ${u.pathname}`);});
- await page.addInitScript(FAUX_MICRO);
+ await page.addInitScript(fauxMicro(cas));
 
  /* Les services distants, remplacés par des réponses fixes. Leur FORME
     compte : un objet vide à la place de `{prises:[]}` faisait jeter tout le
@@ -235,11 +249,36 @@ async function unTour(navigateur,cas){
   assert.ok((appels['/api/chat']||0)>0,'le cerveau n’a jamais été appelé');
  }
 
+ /* 5. ET ELLE NE L'A PAS COUPÉ. Sa règle absolue du 24 octobre : « elle ne
+       doit JAMAIS répondre tant que je parle ou que je fais une pause pour
+       réfléchir ». Un tour coupé en deux se voit ici : deux bulles à lui,
+       deux appels au cerveau. On laisse passer le temps de la fin de sa
+       phrase avant de compter, sinon on compterait trop tôt. */
+ if(cas.toursAttendus){
+  /* LA RÈGLE, ÉCRITE EN MILLISECONDES. Sa dernière syllabe tombe à la fin de
+     la dernière tranche. Si quelque chose s'affiche AVANT, elle a répondu
+     pendant qu'il parlait ou pendant sa pause — c'est la coupure, et elle ne
+     se voit pas en comptant les bulles : mesuré à 600 ms de silence exigé,
+     elle répondait à 2 352 ms sur une phrase qui finit à 3 400, et le reste
+     de sa phrase partait dans les mots rattrapés. Un seul compteur de bulles
+     laissait donc passer la coupure. */
+  const m0={tTexte};
+  const finDeSaParole=Math.round(cas.tranches[cas.tranches.length-1][1]*1000);
+  assert.ok(m0.tTexte>=finDeSaParole,
+   `elle a répondu à ${m0.tTexte} ms alors qu'il parlait encore jusqu'à ${finDeSaParole} ms : elle l'a coupé`);
+  await page.waitForTimeout(3000);
+  const tours=await page.locator('.ligne-moi .bulle-moi').count();
+  assert.equal(tours,cas.toursAttendus,
+   `il a parlé une fois, avec une hésitation : ${tours} tour(s) au lieu de ${cas.toursAttendus} — elle l'a coupé`);
+  assert.equal(appels['/api/chat']||0,cas.toursAttendus,
+   `${appels['/api/chat']||0} appel(s) au cerveau pour une seule phrase`);
+ }
+
  const graves=erreurs.filter(t=>!/503|epreuve|Failed to load resource|AudioContext|NotAllowedError|onnxruntime|cpuid/i.test(t));
  assert.equal(graves.length,0,'erreurs de page : '+graves.slice(0,3).join(' | '));
 
  await contexte.close();
- return {tTexte,tReponse,appels};
+ return {tTexte,tReponse,appels,segments:appels['/api/anticipation/segment']||0};
 }
 
 (async()=>{
@@ -259,9 +298,19 @@ async function unTour(navigateur,cas){
    {nom:'chemin préparé — une brique pendant qu’il parle',phrase:LONGUE,briques:true,attendu:REPONSE_BRIQUE},
    {nom:'préparation lente — la patience coupe et le chemin ordinaire reprend',
     phrase:LONGUE,briques:'lentes',patience:1200,attendu:REPONSE_CHAT},
+   /* ── SA RÈGLE ABSOLUE, ÉPROUVÉE ────────────────────────────────────────
+      Lamine, le 24 octobre : « elle ne doit JAMAIS répondre tant que je
+      parle ou que je fais une pause pour réfléchir ». Il parle 1,2 s, il
+      cherche son mot pendant UNE SECONDE, il reprend 1,2 s. Avec son
+      réglage (1 200 ms de silence exigé), ça doit rester UN seul tour.
+      Un seul micro ici : toute seconde bulle ne peut venir que d'une
+      coupure, jamais de la phrase suivante. */
+   {nom:'une hésitation d’une seconde au milieu — elle ne coupe pas',
+    phrase:LONGUE,briques:false,attendu:REPONSE_CHAT,silence:1200,
+    tranches:[[0,1.2],[2.2,3.4]],unSeulMicro:true,toursAttendus:1},
   ]){
    const m=await unTour(navigateur,cas);
-   console.log(`✔ ${cas.nom} : je parle → mon texte s’affiche (${m.tTexte} ms) → elle répond (${m.tReponse} ms)`);
+   console.log(`✔ ${cas.nom} : je parle → mon texte s’affiche (${m.tTexte} ms) → elle répond (${m.tReponse} ms), ${m.segments} segment(s) d’écoute`);
   }
   console.log('✔ bout en bout : les deux chemins affichent sa phrase et répondent (services simulés)');
  }catch(e){
