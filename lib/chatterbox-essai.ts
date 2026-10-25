@@ -1,5 +1,4 @@
-import {piperLocaleDisponible} from "./voix-piper-locale";
-export type ChoixVoixBia = "piper" | "piper-web" | "male" | "female";
+export type ChoixVoixBia = "piper-web" | "male" | "female";
 const CLE_CHOIX = "bia-choix-voix-v1";
 
 // The explicit choice in the app takes precedence over an old test link.
@@ -12,15 +11,18 @@ export function choixVoixBia(): ChoixVoixBia {
       window.localStorage.setItem(CLE_CHOIX, "female");
       return "female";
     }
+    if (saved === "piper") {
+      window.localStorage.setItem(CLE_CHOIX, "piper-web");
+      return "piper-web";
+    }
     if (saved === "piper-web" || saved === "male" || saved === "female") return saved;
-    if (saved === "piper") return piperLocaleDisponible() ? "piper" : "female";
   } catch { /* The original link can still work when storage is unavailable. */ }
   const query = new URLSearchParams(window.location.search).get("voix");
-  return query === "chatterbox-homme" ? "male" : query === "chatterbox-femme" ? "female" : piperLocaleDisponible() ? "piper" : "female";
+  return query === "chatterbox-homme" ? "male" : query === "chatterbox-femme" ? "female" : "female";
 }
 
 export function choisirVoixBia(choice: ChoixVoixBia): boolean {
-  if (typeof window === "undefined" || !["piper", "piper-web", "male", "female"].includes(choice)) return false;
+  if (typeof window === "undefined" || !["piper-web", "male", "female"].includes(choice)) return false;
   try {
     window.localStorage.setItem(CLE_CHOIX, choice);
     return window.localStorage.getItem(CLE_CHOIX) === choice;
