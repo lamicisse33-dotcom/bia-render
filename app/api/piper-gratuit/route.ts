@@ -12,7 +12,7 @@ let jwksCache:{until:number;keys:Array<Record<string,unknown>>}|null=null;
 
 async function verifierJetonGitHub(request:Request):Promise<boolean>{
   try{
-    const token=(request.headers.get("authorization")||"").replace(/^Bearer\\s+/i,"");
+    const token=(request.headers.get("authorization")||"").replace(/^Bearer\s+/i,"");
     const parts=token.split(".");
     if(parts.length!==3)return false;
     const header=JSON.parse(Buffer.from(parts[0],"base64url").toString("utf8"));
@@ -70,7 +70,7 @@ export async function GET(request:Request){
       return item?new Response(item.body,{headers:{"content-type":"application/json",...nonCache}}):new Response(null,{status:503});
     }
     const text=query.get("part");
-    if(text===null||!/^\\d+$/.test(text)||Number(text)>=manifest.parts.length)return new Response(null,{status:400});
+    if(text===null||!/^\d+$/.test(text)||Number(text)>=manifest.parts.length)return new Response(null,{status:400});
     const index=Number(text),item=await lireObjetMemoire(prefix+index+".bin");
     if(!item)return new Response(null,{status:503});
     return new Response(item.body,{headers:{"content-type":"application/octet-stream","cache-control":"private, no-store","x-khalam-sha256":manifest.parts[index]}});
@@ -87,7 +87,7 @@ export async function POST(request:Request){
   const prefix=BUCKET_PREFIX+sha+"/";
   if(mode==="part"){
     const rawIndex=query.get("index")||"";
-    if(!/^\\d+$/.test(rawIndex))return ok({error:"invalid part index"},400);
+    if(!/^\d+$/.test(rawIndex))return ok({error:"invalid part index"},400);
     const bytes=new Uint8Array(await request.arrayBuffer());
     if(bytes.length<1||bytes.length>PART_SIZE||request.headers.get("content-length")&&Number(request.headers.get("content-length"))>PART_SIZE)return ok({error:"invalid part size"},413);
     const digest=hash(bytes);
