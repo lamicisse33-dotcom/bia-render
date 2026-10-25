@@ -1,7 +1,11 @@
 import {REFLEXION_COURTE} from "./reflexion-courte";
 import {premierSegmentMs,signesAnticipation,teteCourteSignes} from "./seuils-anticipation";
 const g=globalThis as typeof globalThis&{biaBriquesEtat?:any};
-const etat=g.biaBriquesEtat??={sessions:0,preparees:0,finalisees:0,erreurs:0,lectures:0,dernier_premier_son_ms:null,dernier_depuis_micro_ms:null,dernier_blanc_ms:null,blanc_max_ms:0,reflexions:0,dernier_echec:null};
+/* `motifs_invalides` : laquelle des sept règles le modèle enfreint, et
+   combien de fois. Le 25 octobre, deux préparations sur sept étaient jetées
+   sous le seul nom « Brique invalide » — un refus sans nom est un refus
+   qu'on cherchera encore dans six jours. */
+const etat=g.biaBriquesEtat??={sessions:0,preparees:0,finalisees:0,erreurs:0,lectures:0,dernier_premier_son_ms:null,dernier_depuis_micro_ms:null,dernier_blanc_ms:null,blanc_max_ms:0,reflexions:0,dernier_echec:null,motifs_invalides:{} as Record<string,number>};
 export const etatBriques=etat;
 /* ── LES BRIQUES SUR LA TRANSCRIPTION FINALE : L'ESSAI, ET SON INTERRUPTEUR ─
 

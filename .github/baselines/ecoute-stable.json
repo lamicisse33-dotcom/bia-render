@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "22e47e85d14c836c27e09bea6328075f6bbe8ea2be2e2c4813838d0fcad735b0",
+    "app/page.tsx": "5dcbe9268d97bcdac97f62655801e4c3726aeb2ac7b4b7907bcf210f20b437b3",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -362,5 +362,15 @@
     "quota_google": "La page de quota de Google est derriere une connexion : illisible d ici, et la documentation publique ne porte plus la table Live. Plutot que de citer un chiffre invente, la route d essai accepte maintenant un parametre modele : une poignee de main par modele dit s il repond ou s il refuse. C est une mesure, pas une citation.",
     "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Sept epreuves neuves, dont : aucun chemin ne peut afficher le texte brut de Google, la phrase de repli est ecrite une seule fois, la bascule est gardee, un nom d origine invente tombe dans inconnue, un refus de quota n est pas compte comme une ouverture, et l essai n ouvre qu une session par defaut.",
     "non_valide": "Le repli n est pas verifie dans ses mains. Il faut qu il ouvre Khalam Rapide pendant que le quota est epuise et qu il voie la phrase en francais, puis la bascule automatique sur Khalam."
+  },
+  "migration_journal_tous_les_tours_20261025": {
+    "authorized": "Chantier 02 du plan vitesse, mesure d apres. Lamine a fait quatre tours ; un seul est remonte dans le journal, et une mediane sur un echantillon n est pas une mediane.",
+    "defaut_de_ma_mesure": "Le journal n etait emis qu au premier son des BRIQUES. Les tours passant par le chemin ordinaire ne remontaient pas. Il l est maintenant depuis envoyerLeTour, appele une fois par tour au moment ou la syllabe sort, quel que soit le chemin. envoyerJournalParole efface son propre temoin : le site des briques ne double pas.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change, d une ligne. Aucun changement d ASR, de synthese, de modele, de voix ni de micro.",
+    "hash_before": "22e47e85d14c836c27e09bea6328075f6bbe8ea2be2e2c4813838d0fcad735b0",
+    "hash_after": "5dcbe9268d97bcdac97f62655801e4c3726aeb2ac7b4b7907bcf210f20b437b3",
+    "gain_mesure_du_chantier_02": "TTFS Khalam 3 601 ms -> 1 237 ms sur le tour journalise. transcription_apres_fermeture_servie x 7, briques departs prete:1 pour la premiere fois, jamais_de_texte 13 -> 2. Mais UN SEUL tour mesure : ce n est pas une mediane, et c est pourquoi cette migration existe.",
+    "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture.",
+    "non_valide": "La mediane sur quatre tours reste a faire."
   }
 }

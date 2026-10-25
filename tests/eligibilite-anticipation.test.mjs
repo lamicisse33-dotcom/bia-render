@@ -356,3 +356,47 @@ test('« servie » n’est pas un refus : elle ne peut pas devenir la porte qui 
  assert.equal(r.porte_qui_refuse,'trop_court',
   'la réparation ne doit pas se présenter comme la cause d’un blocage : '+r.porte_qui_refuse);
 });
+
+/* ── APRÈS LE CHANTIER 02, LE CLASSEMENT MENTAIT ──────────────────────────
+   Mesuré sur ses tours : transcription_apres_fermeture × 7 ET
+   transcription_apres_fermeture_servie × 7. Sept fois le cas, sept fois
+   servie — plus rien n'est perdu, et pourtant le premier restait élu
+   « porte qui refuse », en tête du classement. On aurait cherché un défaut
+   là où il y a une réparation. */
+test('un cas toujours servi ne peut plus être élu porte qui refuse',()=>{
+ delete globalThis.biaEligibilite;
+ const el=load('lib/eligibilite-etat.ts');
+ el.noterEligibilite({etape:'portes',portes:{
+  transcription_apres_fermeture:7,transcription_apres_fermeture_servie:7,
+  rien_de_pret:5,trop_court:5},signes_max:40});
+ const r=el.resumeEligibilite();
+ assert.equal(r.porte_qui_refuse,'rien_de_pret',
+  'la porte qui refuse doit être un vrai blocage : '+r.porte_qui_refuse);
+});
+
+/* ── UN COMPTEUR QUE J'ALLAIS DÉPLOYER ET QUI NE PARTAIT JAMAIS ──────────
+   J'avais ajouté `transcription_apres_fermeture_perdue` pour la branche où
+   le tour n'est plus le sien. Cette épreuve a montré qu'elle est
+   INATTEIGNABLE : `actuel()` est vérifié juste après la réponse, et rien
+   d'asynchrone ne se passe ensuite. Un tour périmé est arrêté plus haut,
+   par « Tour annulé ». Un compteur qui ne part jamais lit toujours zéro et
+   rassure à tort — il est retiré. Ce qui reste vrai, et qui est éprouvé
+   ici : un tour périmé ne reçoit RIEN. */
+test('un tour périmé est arrêté avant la livraison, et aucun compteur ne ment',async()=>{
+ const livrees=[],portes=[];
+ let courant=true;
+ const enAttente=[];
+ const repondreTout=(texte)=>{while(enAttente.length)enAttente.shift()({ok:true,json:async()=>({texte})});};
+ const envoyer=()=>new Promise(r=>{enAttente.push(r);});
+ const pipeline=load('lib/ecoute-progressive.ts').creerEcouteProgressive(envoyer,()=>'fr',()=>courant,t=>livrees.push(t),4000,n=>portes.push(n),1000);
+ for(let i=0;i<40;i++)pipeline.pousser(new Float32Array(1600).fill(0.5),true);
+ for(let i=0;i<12;i++)pipeline.pousser(new Float32Array(1600).fill(0),false);
+ for(let i=0;i<20&&!enAttente.length;i++)await tick();
+ courant=false;                       // il a changé de sujet
+ const fini=pipeline.finir().catch(()=>{});
+ for(let i=0;i<40;i++){repondreTout('texte devenu inutile');await tick();}
+ await fini;
+ assert.deepEqual(livrees,[],'un tour périmé ne doit rien recevoir');
+ assert.ok(!portes.includes('transcription_apres_fermeture_servie'));
+});
+

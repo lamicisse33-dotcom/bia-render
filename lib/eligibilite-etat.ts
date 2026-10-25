@@ -107,6 +107,12 @@ const DECISIONS = new Set([
      remède du 25 octobre deviendrait lui-même « la porte qui refuse le
      plus » — et on chercherait un défaut là où il y a une réparation. */
   "transcription_apres_fermeture_servie",
+  /* ── ET LE CAS LUI-MÊME N'EST PLUS UN REFUS ──────────────────────────────
+     Mesuré après le chantier 02 : le cas × 7, servie × 7. Sept fois le cas,
+     sept fois servie — plus rien n'est perdu, et pourtant ce compteur
+     restait élu « porte qui refuse », en tête du classement. Il compte un
+     CAS, pas un blocage. La vraie perte porte son propre nom. */
+  "transcription_apres_fermeture",
 ]);
 
 export function resumeEligibilite() {

@@ -1908,6 +1908,14 @@ export default function Home() {
   const envoyerLeTour = useCallback((quandLaSyllabeSort = Date.now()) => {
     const bornes = bornesRef.current;
     poserBorne(bornes, "syllabe", quandLaSyllabeSort);
+    /* ── LE JOURNAL COUVRE MAINTENANT TOUS LES TOURS ─────────────────────
+       Défaut de ma mesure, vu le 25 octobre : le journal n'était émis qu'au
+       premier son des BRIQUES. Sur les quatre tours de Lamine, un seul est
+       remonté — et une médiane sur un échantillon n'est pas une médiane.
+       Ici on est appelé une fois par tour, au moment où la syllabe sort,
+       quel que soit le chemin. `envoyerJournalParole` est déjà idempotent :
+       il efface son propre témoin, donc le site des briques ne double pas. */
+    envoyerJournalParole(quandLaSyllabeSort);
     const tour = finirLeTour(bornes);
     /* Le tour est refermé QUOI QU'IL ARRIVE : sans ça, la réponse suivante
        hériterait des bornes de celle-ci et rendrait une durée inventée. */

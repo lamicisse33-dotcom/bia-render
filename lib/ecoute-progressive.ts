@@ -53,7 +53,13 @@ export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,i
      coûtait deux secondes. Ici on ne lance rien de neuf : on livre un texte
      DÉJÀ transcrit et déjà payé, dans une fenêtre qui était vide. */
   porte?.('transcription_apres_fermeture');
-  if(actuel()){porte?.('transcription_apres_fermeture_servie');progression(textes.filter(Boolean).join(' '));}
+  /* `actuel()` vient d'être vérifié juste après la réponse, et rien
+     d'asynchrone ne s'est produit depuis : il ne peut pas avoir changé ici.
+     J'avais écrit un compteur « perdue » pour l'autre branche — une épreuve
+     a montré qu'il ne pouvait JAMAIS se déclencher. Un compteur qui ne part
+     jamais lit toujours zéro et rassure à tort : pire que pas de compteur.
+     Un tour périmé est arrêté plus haut, par « Tour annulé ». */
+  porte?.('transcription_apres_fermeture_servie');progression(textes.filter(Boolean).join(' '));
  }
  }).catch(e=>{erreur=e;});
  }

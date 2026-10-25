@@ -362,3 +362,24 @@ test('an experimental brick session uses Haiku and cannot be resumed under anoth
  await assert.rejects(s.preparerBrique({id:first.id,texte:question,final:true,essaiRapidite:'sonnet'},'owner',true,signal),/Session inconnue/);
  const fin=await s.preparerBrique({id:first.id,texte:question,final:true,essaiRapidite:'haiku'},'owner',true,signal);assert(fin.termine);
 });
+
+/* ── SEPT RÈGLES SOUS UN SEUL NOM ─────────────────────────────────────────
+   Mesuré le 25 octobre : sessions 7, préparées 3, ERREURS 2, dernier_echec
+   « Brique invalide » après 1 499 ms — sans dire laquelle des sept règles le
+   modèle avait enfreinte. Un refus sans nom est un refus qu'on cherchera
+   encore dans six jours. */
+test('chaque règle de validation d’une brique porte son nom',()=>{
+ const code=fs.readFileSync('lib/briques-reponse.ts','utf8');
+ const raisons=[...code.matchAll(/refuser\('([a-z_]+)'\)/g)].map(m=>m[1]);
+ /* Les sept règles de la condition composée d'avant, une par une. */
+ for(const attendue of ['mots_traites_hors_bornes','traite_pas_prefixe_du_texte',
+  'aucun_progres_depuis_la_brique_precedente','reponse_trop_courte',
+  'reponse_trop_longue','balise_decran_dans_la_reponse',
+  'finale_ne_couvre_pas_le_texte'])
+  assert.ok(raisons.includes(attendue),'règle sans nom : '+attendue);
+ /* Et plus aucune condition composée qui jetterait sept cas sous un nom. */
+ assert.ok(!/\|\|.*\|\|.*\|\|.*throw Error\('Brique invalide'\)/.test(code),
+  'une condition composée remettrait sept raisons sous un seul nom');
+ /* La raison doit être comptée, pas seulement affichée une fois. */
+ assert.match(code,/motifs_invalides\[raison\]/);
+});

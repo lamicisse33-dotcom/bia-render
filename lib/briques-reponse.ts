@@ -58,9 +58,32 @@ async function preparerTexte(s:VueTexte,texte:string,final:boolean,maitre:boolea
     mesure.modele_ms=Date.now()-debutModele;mesure.sortie_signes=contenuAnthropic(data).length;
     const d=JSON.parse(contenuAnthropic(data));
     if(d.eligible!==true)return null;
-    if(!diagnosticAncien&&(!Number.isInteger(d.traite)||d.traite<1||d.traite>mots.length))throw Error('Brique invalide');
+    /* ── SEPT RAISONS SOUS UN SEUL NOM, ET C'ÉTAIT MA FAUTE ─────────────────
+
+       Mesuré le 25 octobre sur les tours de Lamine : sessions 7, préparées 3,
+       ERREURS 2, dernier_echec « Brique invalide » après 1 499 ms. Deux
+       préparations sur sept jetées — et le motif ne disait pas laquelle des
+       SEPT règles le modèle avait enfreinte. Un refus sans nom est un refus
+       qu'on cherchera encore dans six jours : c'est écrit dans
+       AVANT-DE-DIRE-QUE-C-EST-BON.md, et je venais de le refaire.
+
+       Chaque règle porte son nom maintenant. Le texte rendu reste le même —
+       on ne valide ni plus ni moins qu'avant, on dit seulement POURQUOI. */
+    const refuser=(raison:string)=>{
+      const e=Error('Brique invalide') as Error&{raison?:string};
+      e.raison=raison;
+      return e;
+    };
+    if(!diagnosticAncien&&(!Number.isInteger(d.traite)||d.traite<1||d.traite>mots.length))
+      throw refuser('mots_traites_hors_bornes');
     const traite=diagnosticAncien?normaliserAnticipation(d.traite):mots.slice(0,d.traite).join(' '),reply=enchainerBrique(String(d.reply||'').trim(),s.briques.length);
-    if(!texte.startsWith(traite)||((!final||texte.startsWith(s.traite))&&(!traite.startsWith(s.traite)||traite.length<=s.traite.length))||reply.length<4||reply.length>220||/\[\[|\]\]/.test(reply)||(final&&!texte.startsWith(s.traite)&&traite!==texte))throw Error('Brique invalide');
+    if(!texte.startsWith(traite))throw refuser('traite_pas_prefixe_du_texte');
+    if((!final||texte.startsWith(s.traite))&&(!traite.startsWith(s.traite)||traite.length<=s.traite.length))
+      throw refuser('aucun_progres_depuis_la_brique_precedente');
+    if(reply.length<4)throw refuser('reponse_trop_courte');
+    if(reply.length>220)throw refuser('reponse_trop_longue');
+    if(/\[\[|\]\]/.test(reply))throw refuser('balise_decran_dans_la_reponse');
+    if(final&&!texte.startsWith(s.traite)&&traite!==texte)throw refuser('finale_ne_couvre_pas_le_texte');
     return {traite,reply};
 }
 function oublierSuite(s:Session){s.suite?.abort.abort();s.suite=undefined;}
@@ -167,7 +190,17 @@ export async function preparerBrique(body:any,code:string,maitre:boolean,signal:
     s.briques.push(brique);s.traite=traite;etatBriques.preparees++;
     if(termine){oublierSuite(s);s.fermee=true;etatBriques.finalisees++;}
     return {...resultat(s,brique),mesure};
-  } catch(e){oublierSuite(s);etatBriques.erreurs++;const message=e instanceof Error?e.message:'';etatBriques.dernier_echec={etape,annule:signal.aborted,motif:['Audio incomplet','Brique invalide','JSON incomplet','Modèle indisponible','Session annulée'].includes(message)?message:'autre',ms:Date.now()-debutPreparation,quand:new Date().toISOString()};if(signal.aborted){s.fermee=true;if(!s.briques.length)sessions.delete(s.id);}throw e;}
+  } catch(e){oublierSuite(s);etatBriques.erreurs++;const message=e instanceof Error?e.message:'';const raison=(e as Error&{raison?:string})?.raison;
+  /* Le motif général ET la règle précise. Les deux : le motif dit à quelle
+     étape ça casse, la raison dit laquelle des sept règles le modèle a
+     enfreinte — et c'est elle qui dit s'il faut changer la consigne, le
+     modèle, ou le seuil. */
+  /* `??=` : une instance déjà démarrée porte un état sans ce champ, et
+     `etatBriques.motifs_invalides[raison]` y jetterait un TypeError au
+     premier refus — c'est-à-dire exactement au moment où on a besoin de
+     lui. Une épreuve l'a attrapé avant le déploiement. */
+  if(raison){(etatBriques.motifs_invalides??={})[raison]=(etatBriques.motifs_invalides[raison]||0)+1;}
+  etatBriques.dernier_echec={etape,annule:signal.aborted,motif:['Audio incomplet','Brique invalide','JSON incomplet','Modèle indisponible','Session annulée'].includes(message)?message:'autre',raison:raison||null,ms:Date.now()-debutPreparation,quand:new Date().toISOString()};if(signal.aborted){s.fermee=true;if(!s.briques.length)sessions.delete(s.id);}throw e;}
   finally{mesure.total_ms=Date.now()-debutPreparation;etatBriques.fabrications??=[];etatBriques.fabrications=[...etatBriques.fabrications.slice(-19),{...mesure,final,quand:new Date().toISOString()}];s.occupe=false;}
 }
 
