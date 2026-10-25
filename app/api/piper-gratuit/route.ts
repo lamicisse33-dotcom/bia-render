@@ -104,8 +104,9 @@ export async function POST(request:Request){
   if(!manifest||manifest.sha256!==sha||!Number.isSafeInteger(bytes)||bytes<1||bytes>100_000_000||
      partSize!==PART_SIZE||!Array.isArray(parts)||parts.length!==Math.ceil(bytes/PART_SIZE)||
      parts.some(x=>typeof x!=="string"||!/^[a-f0-9]{64}$/.test(x)))return ok({error:"invalid manifest"},400);
+  const audio=config?.audio as {sample_rate?:unknown}|undefined;
   if(!config||config.phoneme_type!=="text"||config.num_speakers!==1||
-     config.audio?.sample_rate!==22050||config.default_speaker_id!==0||
+     audio?.sample_rate!==22050||config.default_speaker_id!==0||
      !config.phoneme_id_map||typeof config.phoneme_id_map!=="object")return ok({error:"invalid Piper configuration"},400);
   const combined=createHash("sha256");
   let total=0;
@@ -113,7 +114,8 @@ export async function POST(request:Request){
     const item=await lireObjetMemoire(prefix+i+".bin");
     if(!item)return ok({error:"missing model chunk",index:i},409);
     const chunk=new Uint8Array(await item.arrayBuffer());
-    if(hash(chunk)!==parts[i]||chunk.length>(i<parts.length-1?PART_SIZE:PART_SIZE))return ok({error:"stored chunk verification failed",index:i},422);
+    const expectedLength=Math.min(PART_SIZE,bytes-i*PART_SIZE);
+    if(hash(chunk)!==parts[i]||chunk.length!==expectedLength)return ok({error:"stored chunk verification failed",index:i},422);
     total+=chunk.length;combined.update(chunk);
   }
   if(total!==bytes||combined.digest("hex")!==sha)return ok({error:"full model verification failed"},422);
