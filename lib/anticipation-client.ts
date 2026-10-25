@@ -6,7 +6,12 @@ export async function brancherAnticipation(o:{ctx:AudioContext;flux:MediaStream;
  const briques=creerProducteurBriques({...o,segments:()=>pipeline.segmentsCommences,seuilSignes:o.seuilSignes});
  const abort=new AbortController();let accuseFin:(()=>void)|undefined;
  const headers={'x-bia-code':o.code,...entetesRapidite()};
- const progresser=(texte:string)=>{if(!fin&&o.actuel())briques.progresser(texte);};
+ /* ── FERMER LE MICRO N'EST PAS FINIR LE TOUR ─────────────────────────────
+    `fin` dit que la capture est close, pas que la réponse est partie. Tant
+    que le tour est le sien, une transcription qui arrive après la fermeture
+    sert encore : c'est la fenêtre de deux secondes et demie que ses
+    compteurs montraient vide (42 segments réussis, 0 préparation). */
+ const progresser=(texte:string)=>{if(o.actuel())briques.progresser(texte);};
  const pipeline=creerEcouteProgressive(f=>fetch('/api/anticipation/segment',{method:'POST',headers,body:f,signal:AbortSignal.any([abort.signal,AbortSignal.timeout(25000)])}),o.langue,o.actuel,progresser,segmentRapiditeMs(profilRapiditeNavigateur()),nom=>briques.porte(nom),o.premierSegmentMs);
  function detacher(){node?.disconnect();entree?.disconnect();muet?.disconnect();if(node)node.port.onmessage=null;}
  try{let timer:ReturnType<typeof setTimeout>|undefined;try{await Promise.race([o.ctx.audioWorklet.addModule('/anticipation/capture.js'),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Capture indisponible')),1500);})]);}finally{if(timer)clearTimeout(timer);}if(!o.actuel())return null;
@@ -17,7 +22,10 @@ export async function brancherAnticipation(o:{ctx:AudioContext;flux:MediaStream;
  etatBriques:briques.etat,
   commencerBriques:(options:Parameters<typeof briques.commencer>[0])=>briques.commencer(options),
  terminerBriques:briques.terminer,
- async fermerCapture(){if(fin)return;fin=true;briques.arreterEcoute();await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Capture non confirmée')),800);accuseFin=()=>{clearTimeout(timer);resolve();};node?.port.postMessage('fin');}).finally(detacher);},
+ async fermerCapture(){if(fin)return;fin=true;
+  /* On NE coupe plus le producteur ici. Il garde sa fenêtre jusqu'à ce que
+     la réponse commence — c'est `terminerBriques` ou `annuler` qui la
+     ferment, pas l'arrêt du micro. */await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Capture non confirmée')),800);accuseFin=()=>{clearTimeout(timer);resolve();};node?.port.postMessage('fin');}).finally(detacher);},
  async resultat(){return pipeline.finir();},
  async annuler(){fin=true;abort.abort();briques.annuler();detacher();await pipeline.abandonner();},
  };

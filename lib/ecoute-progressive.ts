@@ -24,7 +24,37 @@ export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,i
     sa transcription atterrit TOUJOURS après `clos`, et le producteur de
     briques n'a jamais vu un caractère. D'où `jamais_de_texte` et
     `sans_preparation`. On le nomme au lieu de le jeter. */
- else porte?.('transcription_apres_fermeture');
+ else{
+  /* ── CHANTIER 02, 25 OCTOBRE 2026 : ON NE LA JETTE PLUS ─────────────────
+
+     Ses compteurs, sur ses tours de ce matin :
+       écoute progressive        42 segments, 42 RÉUSSIS, 0 échec
+       transcription_apres_fermeture   × 24
+       jamais_de_texte                 × 13
+       anticipation              préparations 0, prêtes 0, servies 0
+
+     Quarante-deux transcriptions réussies, et le producteur de briques n'a
+     jamais vu un caractère dans treize tours. Le 23 octobre, j'avais NOMMÉ
+     cette porte et je m'étais arrêté là : la nommer n'était que la moitié du
+     travail.
+
+     LA CONFUSION ÉTAIT DANS LE MOT « FERMÉ ». Fermer le micro, c'est finir
+     d'ÉCOUTER — ce n'est pas finir le TOUR. Entre les deux il reste, mesuré
+     sur son tour de 13:27 : 1 200 ms de silence exigé puis 2 401 ms de
+     fabrication, soit près de deux secondes et demie pendant lesquelles une
+     transcription arrivée « trop tard » est encore parfaitement utile.
+
+     On la livre donc, tant que le tour est le sien. Et on garde l'ANCIEN
+     compteur à côté du neuf : sans lui, on ne saurait pas combien de fois
+     le cas se présente, et le gain d'après-demain ne se lirait plus.
+
+     CE N'EST PAS LE LEVIER 4 REFUSÉ LE 24 OCTOBRE. Celui-là lançait une
+     fabrication sur la transcription FINALE, après tout le reste, et il
+     coûtait deux secondes. Ici on ne lance rien de neuf : on livre un texte
+     DÉJÀ transcrit et déjà payé, dans une fenêtre qui était vide. */
+  porte?.('transcription_apres_fermeture');
+  if(actuel()){porte?.('transcription_apres_fermeture_servie');progression(textes.filter(Boolean).join(' '));}
+ }
  }).catch(e=>{erreur=e;});
  }
  return {

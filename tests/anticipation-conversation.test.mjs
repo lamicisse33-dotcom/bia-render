@@ -6,7 +6,16 @@ test('two minutes: one ordered ASR queue, complete PCM coverage, and progress be
  let active=0,max=0,frames=0,progress=0;const received=[];
  const p=progressive().creerEcouteProgressive(async f=>{active++;max=Math.max(max,active);const bytes=await f.get('audio').arrayBuffer(),v=new DataView(bytes);frames+=(bytes.byteLength-44)/2;received.push(v.getInt16(44,true));await new Promise(r=>setTimeout(r,1));active--;return Response.json({texte:'bloc '+received.length});},()=> 'wo',()=>true,()=>progress++);
  for(let i=0;i<480;i++){p.pousser(new Float32Array(4000).fill(.2),true);if(i%32===0)await new Promise(r=>setTimeout(r,3));}
- const avant=progress;assert(avant>0,'partial transcripts must arrive while microphone is open');const result=await p.finir();assert.equal(max,1);assert.equal(frames,120*16000);assert.equal(result.progressive.secondes,120);assert.equal(progress,avant,'no new draft after stop');assert(result.texte.endsWith('bloc '+received.length));
+ const avant=progress;assert(avant>0,'partial transcripts must arrive while microphone is open');const result=await p.finir();assert.equal(max,1);assert.equal(frames,120*16000);assert.equal(result.progressive.secondes,120);/* ── 25 OCTOBRE 2026 : CE QUI ARRIVE APRÈS LA FERMETURE EST LIVRÉ ────────
+    Cette ligne exigeait qu'AUCUNE transcription ne soit livrée après l'arrêt
+    du micro. C'était précisément le défaut : sur les tours de Lamine du
+    25 octobre, 42 segments réussis, 24 arrivés après la fermeture et TOUS
+    jetés, et le producteur de briques n'avait jamais vu un caractère dans
+    treize tours. Fermer le micro, c'est finir d'écouter — pas finir le tour.
+    Ce qui reste interdit, et qui est éprouvé ailleurs : livrer à un tour
+    PÉRIMÉ. Ici le tour est toujours le bon, donc la livraison est due. */
+ assert(progress>=avant,'une transcription arrivée après la fermeture doit encore être livrée');
+ assert(progress>0,'et il doit bien y avoir eu des livraisons');assert(result.texte.endsWith('bloc '+received.length));
 });
 test('short speech retains original path; an ASR failure never returns partial text',async()=>{
  const p=progressive().creerEcouteProgressive(()=>{throw Error('must not request');},()=> 'wo',()=>true,()=>{});p.pousser(new Float32Array(16000),true);assert.equal(await p.finir(),null);

@@ -43,6 +43,13 @@ const PORTES_TELEPHONE = new Set([
   "jamais_de_texte", "trop_court", "preparation_en_cours", "ecoute_fermee",
   "annule", "tour_perime", "rien_de_pret", "transcription_apres_fermeture",
   "premier_segment_hors_portee", "depart_sur_transcription_finale",
+  /* ── CHANTIER 02 : LA TRANSCRIPTION LIVRÉE MALGRÉ LA FERMETURE ──────────
+     `transcription_apres_fermeture` compte le CAS ; celle-ci compte les fois
+     où on l'a quand même servie au producteur. Les deux côte à côte disent
+     si le remède marche : avant, le premier montait et le second n'existait
+     pas. Garder l'ancien compteur était la condition pour que le gain
+     d'après-demain soit encore lisible. */
+  "transcription_apres_fermeture_servie",
 ]);
 const PORTES_SERVEUR = new Set([
   "texte_court", "texte_action", "salutation", "identite", "historique",
@@ -94,7 +101,13 @@ const classer = (ou: Record<string, Refus>) =>
   Object.values(ou).sort((a, b) => b.fois - a.fois);
 /* Un départ sur la transcription finale n'est pas un refus : c'est une
    décision, et elle ne doit pas se présenter comme la cause d'un blocage. */
-const DECISIONS = new Set(["depart_sur_transcription_finale"]);
+const DECISIONS = new Set([
+  "depart_sur_transcription_finale",
+  /* Livrer une transcription n'est pas la refuser. Sans cette ligne, le
+     remède du 25 octobre deviendrait lui-même « la porte qui refuse le
+     plus » — et on chercherait un défaut là où il y a une réparation. */
+  "transcription_apres_fermeture_servie",
+]);
 
 export function resumeEligibilite() {
   const tel = classer(etat.cote_telephone), srv = classer(etat.cote_serveur);

@@ -12,6 +12,11 @@ function load(path,deps={}){
   if(id==='./briques-file')return load('lib/briques-file.ts');
   if(id==='./premier-segment')return load('lib/premier-segment.ts');
   if(id==='./seuils-anticipation')return load('lib/seuils-anticipation.ts');
+ /* L'écoute progressive emballe le PCM en WAV avant de l'envoyer. Ici on ne
+    vérifie pas le format du son, on vérifie À QUI la transcription est
+    livrée : un emballage muet suffit, et il évite de traîner tout le module
+    audio dans une épreuve de portes. */
+ if(id==='./ecoute-longue')return {wavLong:()=>new Blob([new Uint8Array(8)])};
   assert.fail('dépendance non prévue : '+id);
  },m,m.exports);
  return m.exports;
@@ -260,4 +265,94 @@ test('serveur sans brique : la lecture se referme sur un repli, rien n’est pro
  assert(lecture,'la lecture s’ouvre');
  assert.equal(resultat.normal,true,'le chemin ordinaire doit reprendre');
  assert.equal(resultat.reponse,'','aucune brique dite');
+});
+
+/* ── CHANTIER 02, 25 OCTOBRE 2026 : LA TRANSCRIPTION N'EST PLUS JETÉE ──────
+
+   Ses compteurs, sur ses tours du matin, sur la version servie :
+     écoute progressive              42 segments, 42 RÉUSSIS, 0 échec
+     transcription_apres_fermeture   × 24
+     jamais_de_texte                 × 13
+     anticipation                    préparations 0, prêtes 0, servies 0
+     TTFS Khalam                     3 601 ms, dont 1 200 de silence exigé
+                                     et 2 401 de fabrication
+
+   Quarante-deux transcriptions réussies, et le producteur de briques n'a
+   jamais vu un caractère dans treize tours. Le 23 octobre j'avais NOMMÉ
+   cette porte sans l'ouvrir : la nommer n'était que la moitié du travail. */
+
+test('une transcription qui arrive après la fermeture du micro est SERVIE, pas jetée',async()=>{
+ const livrees=[],portes=[];
+ let courant=true;
+ /* On rejoue la vraie fonction, avec un envoi qui répond APRÈS la fermeture
+    — c'est exactement ce qui se passe sur une phrase courte : le seul
+    segment part sur le silence de fin de parole, et sa transcription
+    atterrit quand la capture est déjà close. */
+ /* `finir()` peut renvoyer un DEUXIÈME segment pour le reste du tampon. Ma
+    première version ne gardait qu'un seul `repondre` : le second envoi
+    n'était jamais satisfait et l'épreuve tournait sans fin. On répond à
+    TOUS les envois. */
+ const enAttente=[];
+ const repondreTout=(texte)=>{while(enAttente.length)enAttente.shift()({ok:true,json:async()=>({texte})});};
+ const envoyer=()=>new Promise(r=>{enAttente.push(r);});
+ const pipeline=load('lib/ecoute-progressive.ts').creerEcouteProgressive(envoyer,()=>'fr',()=>courant,t=>livrees.push(t),4000,n=>portes.push(n),1000);
+
+ /* De la parole, assez pour déclencher un segment. */
+ for(let i=0;i<40;i++)pipeline.pousser(new Float32Array(1600).fill(0.5),true);
+ /* Puis le silence de fin de parole, qui déclenche l'envoi. */
+ for(let i=0;i<12;i++)pipeline.pousser(new Float32Array(1600).fill(0),false);
+
+ /* L'envoi part dans une chaîne de promesses : il faut lui laisser un tour
+    de boucle avant qu'il existe. Sans ça, `repondre` n'est pas encore là —
+    et mon épreuve accusait le code d'un défaut qui était dans son décor. */
+ for(let i=0;i<20&&!enAttente.length;i++)await tick();
+ assert.ok(enAttente.length,'le segment doit être parti');
+
+ /* La capture se ferme AVANT que la transcription revienne. */
+ const fini=pipeline.finir().catch(()=>{});   // le catch AVANT la boucle : sinon le rejet est orphelin
+ for(let i=0;i<40;i++){repondreTout('je voudrais aller au marché Sandaga demain matin');await tick();}
+ await fini;
+
+ assert.ok(portes.includes('transcription_apres_fermeture'),
+  'le cas doit toujours être compté : sans lui, on ne saurait plus combien de fois il arrive');
+ assert.ok(portes.includes('transcription_apres_fermeture_servie'),
+  'et la livraison doit être comptée, sinon le gain ne se lit pas');
+ /* Plusieurs segments peuvent partir sur une phrase longue : ce qui compte
+    n'est pas leur nombre mais qu'au moins un arrive APRÈS la fermeture. Ma
+    première version exigeait exactement une livraison et déclarait en échec
+    un remède qui marchait. */
+ assert.ok(livrees.length>=1,'la transcription doit être livrée au producteur : '+JSON.stringify(livrees));
+ assert.match(livrees.at(-1),/Sandaga/);
+ /* Et la preuve que c'est bien APRÈS la fermeture : les deux compteurs. */
+ const servies=portes.filter(p=>p==='transcription_apres_fermeture_servie').length;
+ assert.ok(servies>=1,'au moins une livraison après fermeture : '+servies);
+});
+
+test('un tour abandonné ne reçoit RIEN, même après la fermeture',async()=>{
+ const livrees=[],portes=[];
+ let courant=true;
+ const enAttente=[];
+ const repondreTout=(texte)=>{while(enAttente.length)enAttente.shift()({ok:true,json:async()=>({texte})});};
+ const envoyer=()=>new Promise(r=>{enAttente.push(r);});
+ const pipeline=load('lib/ecoute-progressive.ts').creerEcouteProgressive(envoyer,()=>'fr',()=>courant,t=>livrees.push(t),4000,n=>portes.push(n),1000);
+ for(let i=0;i<40;i++)pipeline.pousser(new Float32Array(1600).fill(0.5),true);
+ for(let i=0;i<12;i++)pipeline.pousser(new Float32Array(1600).fill(0),false);
+ for(let i=0;i<20&&!enAttente.length;i++)await tick();
+ assert.ok(enAttente.length,'le segment doit être parti');
+ /* Il a changé de sujet, ou raccroché : le tour n'est plus le sien. */
+ courant=false;
+ const fini=pipeline.finir().catch(()=>{});   // le catch AVANT la boucle : sinon le rejet est orphelin
+ for(let i=0;i<40;i++){repondreTout('je voudrais aller au marché Sandaga demain matin');await tick();}
+ await fini;
+ assert.deepEqual(livrees,[],'un tour périmé ne doit rien recevoir');
+ assert.ok(!portes.includes('transcription_apres_fermeture_servie'));
+});
+
+test('« servie » n’est pas un refus : elle ne peut pas devenir la porte qui refuse',()=>{
+ delete globalThis.biaEligibilite;
+ const el=load('lib/eligibilite-etat.ts');
+ el.noterEligibilite({etape:'portes',portes:{transcription_apres_fermeture_servie:9,trop_court:2},signes_max:40});
+ const r=el.resumeEligibilite();
+ assert.equal(r.porte_qui_refuse,'trop_court',
+  'la réparation ne doit pas se présenter comme la cause d’un blocage : '+r.porte_qui_refuse);
 });
