@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SENSIBILITE_DEBUT, SENSIBILITE_FIN, prefixePartMs, silenceFinDeParoleMs } from "@/lib/fin-de-parole";
+import { noterSessionLive, resumeSessionsLive } from "@/lib/sessions-live-etat";
+
+/** Combien de poignées de main d'essai ont déjà été faites aujourd'hui. */
+const sessionsDEssaiAujourdhui = () =>
+  Number(resumeSessionsLive().depuis_minuit.par_origine.essai || 0);
 
 /* ── POURQUOI GOOGLE FERME LA CONNEXION — LA MESURE, PAS LA DEVINETTE ─────
 
@@ -28,6 +33,28 @@ import { SENSIBILITE_DEBUT, SENSIBILITE_FIN, prefixePartMs, silenceFinDeParoleMs
 
 export const dynamic = "force-dynamic";
 
+/* ── CETTE ROUTE ÉTAIT UN TROU, ET IL ÉTAIT DE MOI ───────────────────────
+
+   Écrite hier soir pour trouver pourquoi Google refusait, elle ouvrait NEUF
+   sessions quand on l'appelait sans préciser de variante — et elle était
+   ouverte à tout internet, bornée à un appel toutes les quinze secondes.
+   Pour qui la trouve : plus de deux mille sessions par heure, sur un quota
+   gratuit qui en tolère quelques-unes.
+
+   Je ne sais pas si quelqu'un l'a trouvée. Je sais que je l'avais laissée
+   ouverte, et qu'elle a de toute façon consommé une douzaine de sessions de
+   ma main. Trois bornes, maintenant :
+
+     — UNE variante par appel par défaut, jamais les neuf ;
+     — un plafond de vingt poignées de main par jour, tout compris ;
+     — chaque ouverture comptée dans /api/etat, origine « essai », pour
+       qu'on ne soit plus jamais réduit à supposer.
+
+   Elle reste SANS CODE, et c'est la même raison qu'au 12 septembre pour
+   /api/etat : le jour où plus rien ne marche, il ne faut pas d'un code
+   valide pour savoir pourquoi. Mais elle ne peut plus coûter cher. */
+const PLAFOND_JOUR = 20;
+
 const cle = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
 const g = globalThis as typeof globalThis & { biaEssaiLive?: number };
 
@@ -38,8 +65,15 @@ const CONSIGNE = "Tu es Bia. Réponds en français ou en wolof.";
 
 type Variante = { nom: string; setup: Record<string, unknown> };
 
-function variantes(): Variante[] {
-  const modele = "models/" + (process.env.GEMINI_LIVE_MODEL || "gemini-3.8-live").replace(/^models\//, "");
+/* ── ESSAYER UN AUTRE MODÈLE, SANS TOUCHER À LA PRODUCTION ────────────────
+   Lamine : « vérifie si un autre modèle Live a un quota gratuit plus large
+   — propose-le si la qualité wolof tient ». La page de quota de Google est
+   derrière une connexion : impossible à lire d'ici. On MESURE donc à la
+   place — une poignée de main par modèle dit s'il répond ou s'il refuse,
+   et c'est une réponse, pas une citation. */
+function variantes(modeleDemande = ""): Variante[] {
+  const propre = String(modeleDemande || "").replace(/[^A-Za-z0-9._-]/g, "").slice(0, 60);
+  const modele = "models/" + (propre || process.env.GEMINI_LIVE_MODEL || "gemini-3.8-live").replace(/^models\//, "");
   const base = () => ({
     model: modele,
     generationConfig: { responseModalities: ["AUDIO"] },
@@ -76,6 +110,9 @@ const sansCle = (t: string) => (cle() ? String(t).split(cle()).join("[clé masqu
 
 async function essayer(v: Variante) {
   const debut = Date.now();
+  /* Comptée AVANT la demande : un refus consomme le quota autant qu'une
+     réussite. Ne compter que les réussites ferait croire à un essai gratuit. */
+  noterSessionLive("essai");
   let jeton = "";
   try {
     const r = await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens", {
@@ -130,10 +167,25 @@ export async function GET(request: NextRequest) {
   const maintenant = Date.now();
   if (g.biaEssaiLive && maintenant - g.biaEssaiLive < 15000)
     return NextResponse.json({ erreur: "un essai toutes les quinze secondes" }, { status: 429 });
-  g.biaEssaiLive = maintenant;
 
-  const demande = new URL(request.url).searchParams.get("variante");
-  const liste = demande ? variantes().filter((v) => v.nom === demande) : variantes();
+  const url = new URL(request.url);
+  const demande = url.searchParams.get("variante");
+  const modele = url.searchParams.get("modele") || "";
+  const toutes = url.searchParams.get("toutes") === "1";
+  /* Par DÉFAUT une seule variante. Les neuf ne partent que si on le demande
+     explicitement, et elles comptent dans le plafond comme les autres. */
+  const liste = demande
+    ? variantes(modele).filter((v) => v.nom === demande)
+    : toutes ? variantes(modele) : variantes(modele).filter((v) => v.nom === "nu");
+
+  const reste = PLAFOND_JOUR - sessionsDEssaiAujourdhui();
+  if (liste.length > reste)
+    return NextResponse.json({
+      erreur: `plafond de ${PLAFOND_JOUR} poignées de main par jour atteint`,
+      reste: Math.max(0, reste),
+      pourquoi: "Chaque essai ouvre une session chez Google et consomme le quota comme une vraie conversation.",
+    }, { status: 429 });
+  g.biaEssaiLive = maintenant;
   if (!liste.length) return NextResponse.json({ erreur: "variante inconnue", connues: variantes().map((v) => v.nom) }, { status: 400 });
 
   /* En série : deux poignées de main simultanées donneraient des refus pour
@@ -144,7 +196,9 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     revision: "essai-poignee-de-main-v1",
     reglage_en_service: { silence_ms: silenceFinDeParoleMs(), prefixe_ms: prefixePartMs() },
-    modele: process.env.GEMINI_LIVE_MODEL || "gemini-3.8-live",
+    modele: modele || process.env.GEMINI_LIVE_MODEL || "gemini-3.8-live",
+    modele_en_service: process.env.GEMINI_LIVE_MODEL || "gemini-3.8-live",
+    sessions: resumeSessionsLive(),
     resultats,
     refusees: resultats.filter((r) => !r.accepte).map((r) => r.variante),
     limite: "Consigne COURTE : cet essai mesure la poignée de main, pas la taille du socle. Aucun audio, aucune réponse produite.",

@@ -7,6 +7,7 @@ import {resumeGeminiLive} from '@/lib/gemini-live-diagnostic';
    RESSEMBLE à un numéro. Un chiffre inventé fait sonner chez un inconnu
    pendant qu'une maison brûle. */
 import {consigneUrgences} from '@/lib/urgences';
+import {noterSessionLive,noterRefusQuota} from '@/lib/sessions-live-etat';
 import {SENSIBILITE_DEBUT,SENSIBILITE_FIN,prefixePartMs,silenceFinDeParoleMs,reglagesFinDeParole} from '@/lib/fin-de-parole';
 /* Éteinte par défaut : elle a refusé toutes les sessions le 24 octobre
    (code 1011, quota). BIA_LIVE_RECHERCHE=1 la rallume quand le quota existe. */
@@ -259,8 +260,15 @@ export async function POST(req:NextRequest){
    {name:'chercher_connaissances',description:'Lire les devoirs, corrections et lexiques de Bia dans Supabase. Chercher des références pertinentes, lister tous les devoirs ou le lexique avec pagination, et lire intégralement un devoir par son identifiant. Lecture seule.',parameters:{type:'OBJECT',properties:{question:{type:'STRING'},action:{type:'STRING',enum:['chercher','lister_devoirs','lire_devoir','lister_lexique']},devoir_id:{type:'STRING'},offset:{type:'INTEGER'}},required:['question']}}]}]
  };
  try{
-  const r=await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens',{method:'POST',headers:{'x-goog-api-key':cle(),'Content-Type':'application/json'},body:JSON.stringify({uses:1,expireTime:new Date(now+10*60000).toISOString(),newSessionExpireTime:new Date(now+60000).toISOString(),bidiGenerateContentSetup:setup}),signal:AbortSignal.timeout(15000)});
-  if(!r.ok){let motif='refus_google';try{const e=await r.json();motif=String(e.error?.message||e.error?.status||motif).split(cle()).join('[cle masquee]').slice(0,180);}catch{}return NextResponse.json({erreur:'Khalam Rapide est momentanément refusée par son fournisseur.',statut_fournisseur:r.status,motif},{status:502,headers});}
+ /* Une session de plus demandée à Google. Comptée AVANT la réponse : un
+    refus consomme le quota autant qu'une réussite, et ne pas le compter
+    ferait croire qu'on n'a rien demandé. */
+ noterSessionLive('telephone');
+ const r=await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens',{method:'POST',headers:{'x-goog-api-key':cle(),'Content-Type':'application/json'},body:JSON.stringify({uses:1,expireTime:new Date(now+10*60000).toISOString(),newSessionExpireTime:new Date(now+60000).toISOString(),bidiGenerateContentSetup:setup}),signal:AbortSignal.timeout(15000)});
+  if(!r.ok){let motif='refus_google';
+  /* 429 chez Google = quota. On le compte à part : c'est LE chiffre qui dit
+     si le refus vient du quota ou d'autre chose. */
+  if(r.status===429)noterRefusQuota();try{const e=await r.json();motif=String(e.error?.message||e.error?.status||motif).split(cle()).join('[cle masquee]').slice(0,180);}catch{}return NextResponse.json({erreur:'Khalam Rapide est momentanément refusée par son fournisseur.',statut_fournisseur:r.status,motif},{status:502,headers});}
   const data=await r.json();
   if(typeof data.name!=='string')throw Error('jeton absent');
   return NextResponse.json({token:data.name,setup,expireTime:new Date(now+10*60000).toISOString(),

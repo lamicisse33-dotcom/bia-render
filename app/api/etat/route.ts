@@ -40,6 +40,7 @@ import {silenceQuiSuffit} from '@/lib/micro';
 import {reglagesFinDeParole,silenceFinDeParoleMs} from '@/lib/fin-de-parole';
 import {resumeJournalParole} from '@/lib/journal-parole';
 import {resumeVoixPage} from '@/lib/voix-page';
+import {resumeSessionsLive} from '@/lib/sessions-live-etat';
 import {resumeDepotRappels} from '@/lib/rappels-depot';
 import {resumeHorloge,armerHorloge,balayerLesRappels} from '@/lib/rappels-horloge';
 import {clePubliquePush} from '@/lib/push-web';
@@ -207,6 +208,12 @@ export async function GET(request: Request) {
      chose pendant une session Khalam Rapide : il a été refusé, et l'écran
      s'est affiché sans voix. Hors session rapide, cette garde ne refuse
      rien — Khalam garde sa voix entière. */
+  /* ── COMBIEN DE SESSIONS CHEZ GOOGLE, ET PAR QUI ────────────────────────
+     Le 25 octobre, cette question n'avait AUCUNE réponse : rien ne comptait
+     les ouvertures. `par_origine` sépare le téléphone de mes essais, et
+     `refus_1011` dit si le refus vient du quota. Attention à `premiere` :
+     on compte depuis le dernier démarrage de Render, pas depuis minuit. */
+  sessions_live:resumeSessionsLive(),
   voix_page:resumeVoixPage(),
   portes_supabase:await mesurerLesPortes(),
   fin_de_parole:reglagesFinDeParole(),journal_parole:resumeJournalParole(),

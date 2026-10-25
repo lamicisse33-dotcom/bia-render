@@ -22,6 +22,7 @@ test('microphone resampling preserves the stream across worklet boundaries at 44
   for(let i=0;i<small.length;i+=2)assert(Math.abs(small.readInt16LE(i)-large.readInt16LE(i))<=1);
  }
 });
+const ouvertures=[];
 test('session authentication precedes Google and returns only a constrained ephemeral token',async()=>{
  const module={exports:{}},oldFetch=globalThis.fetch,oldKey=process.env.GEMINI_API_KEY,oldGoogle=process.env.GOOGLE_API_KEY;
  const dependencies={
@@ -49,6 +50,10 @@ test('session authentication precedes Google and returns only a constrained ephe
      vérifie ensuite qu'elle arrive bien dans ce qui part chez Google. Sur le
      moteur par défaut, BIA n'en avait aucun de vérifié. */
   '@/lib/urgences':{consigneUrgences:()=>'NUMÉROS D’URGENCE VÉRIFIÉS\nPolice 17 · Pompiers 18 · SAMU 1515'},
+  /* Le compteur d'ouvertures : on vérifie plus bas qu'une session demandée
+     est comptée AVANT la réponse de Google — un refus consomme le quota
+     autant qu'une réussite. */
+  '@/lib/sessions-live-etat':{noterSessionLive:(o)=>{ouvertures.push(o);},noterRefusQuota(){}},
   '@/lib/fin-de-parole':{SENSIBILITE_DEBUT:'START_SENSITIVITY_HIGH',SENSIBILITE_FIN:'END_SENSITIVITY_LOW',
    prefixePartMs:()=>300,silenceFinDeParoleMs:()=>1200,
    reglagesFinDeParole:()=>({silence_fin_parole_ms:1200,prefixe_parole_ms:300})}
@@ -143,6 +148,17 @@ test('session authentication precedes Google and returns only a constrained ephe
      sonner chez un inconnu pendant qu'une maison brûle. */
   assert(/1515/.test(consigne),'les numéros d’urgence doivent partir dans la consigne');
   assert(outils.includes('trouver_une_pharmacie'),'et l’outil pharmacie doit être déclaré');
+  /* ── COMBIEN DE SESSIONS, ET PAR QUI (25 octobre) ─────────────────────
+     Cette question n'avait aucune réponse : rien ne comptait les
+     ouvertures. Une session demandée doit être comptée, même si Google
+     refuse — un refus consomme le quota autant qu'une réussite. */
+  /* Cette épreuve ouvre la route plusieurs fois (maître, visiteur…) : on
+     vérifie que CHAQUE passage est compté et sous la bonne origine, pas
+     qu'il n'y en a qu'un. Mon premier motif exigeait un seul appel et
+     accusait le code d'un comportement correct. */
+  assert.ok(ouvertures.length>=1,'aucune ouverture comptée');
+  assert.ok(ouvertures.every(o=>o==='telephone'),
+   'toutes les ouvertures de cette route viennent du téléphone : '+JSON.stringify(ouvertures));
   /* Et aucune balise entre crochets enseignée ici : elle serait PRONONCÉE. */
   assert(/N’écris JAMAIS une balise entre crochets dans ce mode/.test(consigne));
   assert.equal(body.bidiGenerateContentSetup.contextWindowCompression.slidingWindow.targetTokens,'30000');

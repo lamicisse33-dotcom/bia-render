@@ -42,9 +42,26 @@ export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',t
     Elle disait « c'est fermé » sans rien fermer : aucun outil ne le faisait.
     Celui-ci rend la LISTE de ce qu'il a réellement fermé — une liste vide
     veut dire que rien n'était ouvert, et elle doit le dire ainsi. */
- fermer?:(quoi:'carte'|'document'|'photo'|'tout')=>string[]};
+ fermer?:(quoi:'carte'|'document'|'photo'|'tout')=>string[];
+ /* ── QUAND GOOGLE REFUSE, ON NE LE DIT PAS EN ANGLAIS ────────────────────
+
+    Lamine, le 25 octobre : « ce message de Google ne doit plus jamais
+    s'afficher à un utilisateur ».
+
+    Il avait raison de le réclamer, et c'est MOI qui l'avais mis à l'écran :
+    la veille, pour pouvoir nommer la cause d'une fermeture, j'avais ajouté
+    le motif brut de Google dans le message affiché. Le motif reste — il part
+    dans /api/etat, c'est là qu'il sert — mais il ne se montre plus.
+
+    `indisponible` dit à la page de basculer sur Khalam toute seule. Une
+    assistante qui ne répond pas est pire qu'une assistante plus lente. */
+ indisponible?:(message:string)=>void};
 /* Le niveau au-dessus duquel une voix humaine passe DEVANT l'écho, quelle que
    soit la pièce. En dessous, c'est le plancher appris qui décide. */
+/* La SEULE phrase que voit quelqu'un quand le fournisseur refuse. Écrite une
+   fois, pour qu'aucun chemin ne puisse en inventer une autre — ni, surtout,
+   laisser passer l'anglais de Google. */
+const INDISPONIBLE="Khalam Rapide est indisponible pour le moment, je passe sur Khalam.";
 const SEUIL_INTERRUPTION=0.06;
 /* Le plancher appris ne monte pas au-delà, et la barre à franchir non plus :
    sans ces deux bornes, une pièce bruyante rend BIA ininterrompable, et c'est
@@ -274,7 +291,13 @@ export class BiaGeminiLive{
  }
  private async connecter(){
   const response=await fetch('/api/gemini-live/session',{method:'POST',headers:{'x-bia-code':this.code},signal:AbortSignal.timeout(25000),cache:'no-store'});
-  const data=await response.json();if(!response.ok)throw Error(data.erreur||'Connexion refusée.');
+  const data=await response.json();
+  if(!response.ok){
+   /* Le fournisseur refuse — quota, panne, surcharge. On bascule au lieu
+      d'afficher un refus : il veut parler à BIA, pas lire un diagnostic. */
+   if(this.events.indisponible){this.events.indisponible(INDISPONIBLE);throw Error(INDISPONIBLE);}
+   throw Error(data.erreur||'Connexion refusée.');
+  }
   /* Ce que le serveur a DEMANDÉ à Google d'attendre. Le journal le compare au
      silence observé : c'est la seule façon de savoir si le réglage a pris. */
   this.silenceExige=Number(data?.fin_de_parole?.silence_fin_parole_ms)||0;
@@ -295,7 +318,11 @@ export class BiaGeminiLive{
          n'apprend rien à personne. */
       this.erreurGoogle=String(d.error?.message||d.error?.status||'refus sans message').slice(0,300);
       this.declarerFermeture(0,this.erreurGoogle,!established);
-      this.events.erreur('Khalam Rapide a refusé la session : '+this.erreurGoogle);ws.close();return;}
+      /* Le motif va dans /api/etat, jamais à l'écran : c'est de l'anglais
+         technique, et il ne dit rien à qui veut juste parler. */
+      if(this.events.indisponible)this.events.indisponible(INDISPONIBLE);
+      else this.events.erreur(INDISPONIBLE);
+      ws.close();return;}
      const c=d.serverContent;
      if(c?.interrupted){
       /* Mesuré avant d'être corrigé : une coupure survenue PENDANT qu'elle
@@ -457,10 +484,11 @@ export class BiaGeminiLive{
      /* AVANT la poignée de main : c'est le setup qui est refusé. On remonte
         le code et le motif, et on les met dans la phrase — sans eux, il n'y
         a rien à chercher. */
+     /* Le code ET le motif partent dans /api/etat : c'est là qu'ils servent
+        à chercher. Ils ne vont PAS à l'écran. */
      this.declarerFermeture(code,motif||this.erreurGoogle,true);
-     reject(Error('Khalam Rapide a fermé la connexion'
-      +(code?` (code ${code})`:'')
-      +(motif?` : ${motif}`:this.erreurGoogle?` : ${this.erreurGoogle}`:'.')));
+     if(this.events.indisponible){this.events.indisponible(INDISPONIBLE);reject(Error(INDISPONIBLE));return;}
+     reject(Error(INDISPONIBLE));
      return;
     }
     this.declarerFermeture(code,motif,false);

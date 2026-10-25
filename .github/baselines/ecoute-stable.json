@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "2f79ef802bbcd444ffb6cd4cbba6c83f3bfd1eb52bfaa3d138a2f8ebdd557ad5",
+    "app/page.tsx": "22e47e85d14c836c27e09bea6328075f6bbe8ea2be2e2c4813838d0fcad735b0",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -349,5 +349,18 @@
     "ce_que_je_ne_sais_pas": "LE TOUR DE GARDE. Quatre sources testees : ordredespharmaciens.sn, pharmaciedegarde.sn et annuaire-pharmacies.sn refusent la connexion ; sante.gouv.sn repond mais ne le publie pas. Et la recherche web ne peut pas suppleer : BRAVE_CLE n est pas posee sur Render — mesure sur /api/etat, « trouver.moteur_images : pas de cle Brave ». garde_connue vaut donc toujours faux, une epreuve le verifie, et la consigne partagee interdit a BIA d affirmer qu une pharmacie est de garde. Envoyer quelqu un la nuit devant un rideau baisse, avec un enfant qui a de la fievre, est pire que de ne rien dire.",
     "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Huit epreuves neuves, dont : les numeros partent dans les DEUX consignes et depuis la MEME source, garde_connue ne peut pas devenir vrai ailleurs, la distance est juste sur des points reels de Dakar, la position ne laisse aucune trace, et l accord precede le GPS des deux cotes.",
     "non_valide": "Aucun essai sur son telephone. Il faut demander une pharmacie sur chaque moteur, accepter la position, et verifier que la carte s ouvre sur la plus proche et qu elle DIT qu elle ne sait pas laquelle est de garde."
+  },
+  "migration_repli_et_compteur_sessions_20261025": {
+    "authorized": "Lamine, dimanche 25 octobre midi : Khalam Rapide refuse encore avec le code 1011. Il demande combien de sessions ont ete ouvertes depuis minuit et par qui, si un redemarrage relance un diagnostic, et le repli automatique : « quand Google refuse, le telephone dit Khalam Rapide est indisponible pour le moment, je passe sur Khalam et bascule tout seul ; ce message de Google ne doit plus jamais s afficher a un utilisateur ».",
+    "ecarte_par_la_mesure": "Le diagnostic de demarrage. verifierGeminiLive() n est appele NULLE PART — recherche dans tout le depot. Un redemarrage de Render n ouvre donc aucune session.",
+    "ce_que_je_dois_dire_de_moi": "/api/gemini-live/essai, ecrite samedi soir pour trouver la cause du refus, ouvrait NEUF sessions quand on l appelait sans preciser de variante, et elle etait OUVERTE a tout internet, bornee a un appel toutes les quinze secondes — plus de deux mille sessions par heure pour qui la trouve. Je l ai moi-meme lancee une fois en entier plus deux essais cibles : une douzaine de sessions. Trois bornes maintenant : une variante par defaut, plafond de vingt poignees de main par jour, et chaque ouverture comptee.",
+    "le_message_anglais_venait_de_moi": "« Ce message de Google ne doit plus jamais s afficher » — il avait raison, et c est moi qui l avais mis a l ecran. La veille, pour pouvoir nommer la cause d une fermeture, j avais ajoute le motif brut de Google dans le message affiche. Le motif reste et part dans /api/etat, c est la qu il sert ; il ne se montre plus. Une epreuve verifie qu aucun appel a events.erreur ou events.etat ne porte motif, erreurGoogle, e.reason ni d.error.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change : l evenement indisponible arrete la session, bascule sur Khalam et GARDE la bascule. Sans la garder, le prochain appui retomberait sur la connexion refusee et il verrait le meme echec en boucle. Aucun changement d ASR, de synthese, de modele, de voix ni de micro.",
+    "hash_before": "2f79ef802bbcd444ffb6cd4cbba6c83f3bfd1eb52bfaa3d138a2f8ebdd557ad5",
+    "hash_after": "22e47e85d14c836c27e09bea6328075f6bbe8ea2be2e2c4813838d0fcad735b0",
+    "limite_du_compteur": "On compte depuis le dernier DEMARRAGE de l instance, pas depuis minuit absolu : Render redemarre et ce qui vit en memoire repart a zero. Le champ premiere dit a partir de quand on compte, et la limite le dit en toutes lettres — un total bas peut vouloir dire « peu de sessions » ou « instance jeune ».",
+    "quota_google": "La page de quota de Google est derriere une connexion : illisible d ici, et la documentation publique ne porte plus la table Live. Plutot que de citer un chiffre invente, la route d essai accepte maintenant un parametre modele : une poignee de main par modele dit s il repond ou s il refuse. C est une mesure, pas une citation.",
+    "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Sept epreuves neuves, dont : aucun chemin ne peut afficher le texte brut de Google, la phrase de repli est ecrite une seule fois, la bascule est gardee, un nom d origine invente tombe dans inconnue, un refus de quota n est pas compte comme une ouverture, et l essai n ouvre qu une session par defaut.",
+    "non_valide": "Le repli n est pas verifie dans ses mains. Il faut qu il ouvre Khalam Rapide pendant que le quota est epuise et qu il voie la phrase en francais, puis la bascule automatique sur Khalam."
   }
 }

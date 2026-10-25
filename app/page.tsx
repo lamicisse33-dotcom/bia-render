@@ -5032,6 +5032,23 @@ export default function Home() {
            l'autorisation des notifications. Parler n'est pas un geste sur
            iPhone, donc on ne peut pas la demander ici. */
         rappelPose:(sonnera:boolean)=>{aDesRappelsRef.current=true;notificationsRef.current=sonnera;},
+        /* ── LE FOURNISSEUR REFUSE : ON BASCULE, ON N'ANNONCE PAS UNE PANNE ──
+           Lamine, 25 octobre : « quand Google refuse, le téléphone dit
+           "Khalam Rapide est indisponible pour le moment, je passe sur
+           Khalam" et bascule tout seul ». Une assistante plus lente vaut
+           mieux qu'une assistante muette.
+           La bascule est GARDÉE sur le téléphone : sans ça, il retomberait
+           sur la connexion refusée au prochain appui, et verrait le même
+           échec en boucle. Le bouton reste là pour revenir quand le quota
+           revient. */
+        indisponible:(message:string)=>{
+          if(liveMaitreRef.current!==moteur)return;
+          const live=liveMaitreRef.current;liveMaitreRef.current=null;sessionRapide(false);live?.arreter();
+          poserMode(false,true);
+          setPanne(message);
+          conversationRef.current=false;setConversation(false);
+          setMode('ready');setFace('yeux_ouverts');
+        },
         /* Elle demande une photo : on ouvre le champ, et on lui rend le
            texte. C'est elle qui le dira — le prononcer ici aussi ferait deux
            voix par-dessus l'autre. */
