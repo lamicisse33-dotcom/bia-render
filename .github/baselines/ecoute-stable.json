@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "b1cfaec3debf8d2d1827d02910902b198b1ac7fff92c29b762291ab915a277fa",
+    "app/page.tsx": "a21d96f77404e42fa2da8959dbe29d717b2a3c3a1bc9f7999cdafc526ce78476",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -382,5 +382,17 @@
     "pourquoi_je_ne_choisis_pas_encore_de_levier": "Mes deux hypotheses de la veille sont ecartees par la mesure. motifs_invalides est VIDE : le modele n enfreint aucune des sept regles, donc la consigne n est pas en cause. Et l ecoute marche — servie x 7, 15 segments sur 15. Ce que les chiffres designent est ailleurs : sessions 8, preparees 2, erreurs 3, lectures 1, et dernier_echec « Modele indisponible, annule: true, 801 ms ». Les preparations sont TUEES en vol. Quatre chemins y menent et ils n appellent pas le meme remede — j instrumente avant de choisir.",
     "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Deux epreuves neuves : chaque annulation porte un nom, un seul abort nu subsiste (dans la fonction qui le nomme), et le releve range par raison avec les durees.",
     "non_valide": "La cause n est pas encore nommee. Il faut quatre tours de plus pour lire preparations_tuees."
+  },
+  "migration_chantier_03_ordre_20261025": {
+    "authorized": "Chantier 03 du plan vitesse, decide par les chiffres de ses tours.",
+    "ce_que_la_mesure_a_dit": "preparations_tuees : rien_de_pret_a_la_fermeture x 7, durees [2464, 1, 1, 1, 1, 2, 0]. SIX SUR SEPT tuees a UNE milliseconde. departs sans_preparation 7, lectures 0.",
+    "la_cause_et_elle_est_de_moi": "C est mon chantier 02 qui l a creee. La transcription livree apres la fermeture — le gain d hier — declenche lancer(), mais commencer() venait de rendre la main une fraction de seconde plus tot en disant « rien de pret ». La ligne suivante tuait ce que la precedente venait de demarrer. L ORDRE etait le defaut, pas l attente.",
+    "le_remede": "fermerCapture() laisse se poser ce qui est DEJA EN VOL avant de rendre la main. Alors commencer() voit une preparation en cours et ouvre la lecture sur en_fabrication au lieu de refuser. Rien de neuf n est lance : on attend ce qui est deja paye. Borne a 800 ms, reversible par BIA_ATTENTE_ENVOI_MS=0 qui rend le comportement d avant a la milliseconde.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change : le reglage publie par le serveur est passe a brancherAnticipation. Aucun changement d ASR, de synthese, de modele, de voix ni de micro.",
+    "hash_before": "b1cfaec3debf8d2d1827d02910902b198b1ac7fff92c29b762291ab915a277fa",
+    "hash_after": "a21d96f77404e42fa2da8959dbe29d717b2a3c3a1bc9f7999cdafc526ce78476",
+    "ce_que_ca_coute": "Jusqu a 800 ms a la fermeture, et SEULEMENT quand quelque chose est reellement en vol. Le chemin ordinaire qu on evite met 6 031 ms de mediane ; une brique prete joue a 19 ms de la fermeture. attentes_envoi compte les fois, les durees, et si une preparation tournait — les trois ensemble diront si l attente a servi ou si on l a payee pour rien.",
+    "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Quatre epreuves neuves, dont celle qui a attrape une variable Render VIDE : Number(\"\") rend 0, qui est dans les bornes — une variable laissee vide aurait eteint la fonction en silence.",
+    "non_valide": "Le gain n est pas mesure. Il faut quatre tours : attentes_envoi, departs.en_fabrication, lectures, et la mediane du TTFS."
   }
 }

@@ -87,6 +87,16 @@ export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,i
  if(paroleDansBuffer&&buffer.length>=seuil){let end=seuil-4000,best=Infinity;for(let i=Math.max(0,seuil-16000);i<seuil-4000;i+=320){let e=0;for(let j=i;j<i+320;j++)e+=buffer[j]*buffer[j];if(e<best){best=e;end=i+160;}}const part=buffer.slice(0,end);buffer=buffer.slice(end);finParole=Math.max(0,finParole-end);paroleDansBuffer=finParole>0;segment(part);}
  },
  get segmentsCommences(){return segments;},
+ /* ── CE QUI EST DÉJÀ PARTI, ET QU'ON LAISSE SE POSER ────────────────────
+    Borné : si l'ASR traîne, on n'attend pas indéfiniment — le chemin
+    ordinaire doit pouvoir repartir. Rien n'est envoyé ici, on attend
+    seulement ce qui est déjà en route. */
+ async attendreEnvois(maxMs:number){
+  if(!(maxMs>0)||!segments)return 0;
+  const debut=Date.now();
+  await Promise.race([chaine.catch(()=>{}),new Promise(r=>setTimeout(r,maxMs))]);
+  return Date.now()-debut;
+ },
  // A quiet remainder after an already recognized utterance is not a new
  // utterance. Never send it alone: a generative ASR can invent words on silence.
  async finir(){clos=true;const debut=Date.now();if(!segments)return null;if(buffer.length&&paroleDansBuffer){segment(buffer);buffer=new Float32Array(0);}await chaine;if(erreur)throw erreur;if(!actuel())throw Error('Tour annulé');return {texte:textes.filter(Boolean).join(' '),texte_brut:bruts.filter(Boolean).join(' '),suggestions_ecriture:[...new Set(suggestions)],extrait:null,au_fil_de_leau:true,progressive:{segments,secondes:total/16000,attente_finale_ms:Date.now()-debut}};},

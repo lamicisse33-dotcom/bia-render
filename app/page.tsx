@@ -1323,7 +1323,7 @@ export default function Home() {
      serveur publie les deux valeurs, la page les relaie, et
      BIA_PREMIER_SEGMENT_MS / BIA_SIGNES_ANTICIPATION les ramènent à 1500/35
      sans déploiement. Absents, les replis des modules valent. */
-  const reglagesAnticipation=()=>(moteursRef.current as {briques_conversation?:{premier_segment_apres_ms?:number;seuil_signes_anticipation?:number;tete_courte_signes?:number}}|null)?.briques_conversation;
+  const reglagesAnticipation=()=>(moteursRef.current as {briques_conversation?:{premier_segment_apres_ms?:number;seuil_signes_anticipation?:number;tete_courte_signes?:number;attente_envoi_ms?:number}}|null)?.briques_conversation;
   const jouerSouffleRef = useRef<((emotion: string, sansPrelude?: boolean) => Promise<void>) | null>(null);
   const tourRef = useRef<object | null>(null);
 
@@ -6016,7 +6016,7 @@ export default function Home() {
          plafond de 20 Mo ; le repli complet reste disponible. */
       const exclusionCapture=exclusionAnticipation({persona:personaRef.current,voixCompatible:essaiChatterboxActif(),desactivee:localStorage.getItem('bia-anticipation')==='non',apprentissage:apprend.current,correctionDevoir:!!correctionDevoirRef.current,correctionListe:chantierMalDit.current,prenom:attendLeNomRef.current,reprise:!!motsRattrapesRef.current});
       if(!exclusionCapture){
-        progressive=await brancherAnticipation({surTranscriptionFinale:briquesFinalesPermises(),premierSegmentMs:reglagesAnticipation()?.premier_segment_apres_ms,seuilSignes:reglagesAnticipation()?.seuil_signes_anticipation,ctx:ctxMicro,flux,code:codeRef.current,tour:tourDeParole,history:fenetreDuFil(historyRef.current),resume:resumeRef.current,voice:voixChatterboxBia(),persona:personaRef.current,langue:()=>langueDuFil.current,parle:()=>aParle&&Date.now()-dernierSon<240,actuel:()=>estCetEnregistrement(idEnr)});
+        progressive=await brancherAnticipation({surTranscriptionFinale:briquesFinalesPermises(),premierSegmentMs:reglagesAnticipation()?.premier_segment_apres_ms,attenteEnvoiMs:reglagesAnticipation()?.attente_envoi_ms,seuilSignes:reglagesAnticipation()?.seuil_signes_anticipation,ctx:ctxMicro,flux,code:codeRef.current,tour:tourDeParole,history:fenetreDuFil(historyRef.current),resume:resumeRef.current,voice:voixChatterboxBia(),persona:personaRef.current,langue:()=>langueDuFil.current,parle:()=>aParle&&Date.now()-dernierSon<240,actuel:()=>estCetEnregistrement(idEnr)});
       }
       if(!estCetEnregistrement(idEnr)){await progressive?.annuler();return;}
       const etapeCapture=progressive?'branchee':['voix_incompatible','desactivee'].includes(exclusionCapture)?exclusionCapture:exclusionCapture?'contexte_exclu':'indisponible';

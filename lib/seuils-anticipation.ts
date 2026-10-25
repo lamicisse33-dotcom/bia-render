@@ -87,3 +87,39 @@ export const teteCourteSignes = () =>
   borne(process.env.BIA_TETE_COURTE_SIGNES, 20, 0, 120);
 export const phraseLongueSignes = () =>
   borne(process.env.BIA_PHRASE_LONGUE_SIGNES, 70, 20, 400);
+
+/* ── ATTENDRE CE QUI EST DÉJÀ EN VOL AVANT D'OUVRIR LA LECTURE ────────────
+
+   Mesuré le 25 octobre, `preparations_tuees` sur les tours de Lamine :
+
+     rien_de_pret_a_la_fermeture   × 7   durées [2464, 1, 1, 1, 1, 2, 0]
+     annulation_de_la_page         × 1   [0]
+     départs                       sans_preparation 7, lectures 0
+
+   SIX TUÉES SUR SEPT L'ONT ÉTÉ À UNE OU DEUX MILLISECONDES. La préparation
+   naissait et mourait dans la même milliseconde — et c'est mon chantier 02
+   qui l'avait fait naître : la transcription livrée après la fermeture
+   déclenche `lancer()`, mais `commencer()` venait de rendre la main une
+   fraction de seconde plus tôt, en disant « rien de prêt ». La ligne
+   suivante tuait ce que la précédente venait de démarrer.
+
+   L'ORDRE EST LE DÉFAUT, PAS L'ATTENTE. On laisse donc ce qui est DÉJÀ EN
+   VOL se poser avant d'ouvrir la lecture : alors `commencer()` voit une
+   préparation en cours et ouvre sur `en_fabrication`, au lieu de refuser.
+
+   CE QUE ÇA COÛTE : jusqu'à ce plafond, et seulement quand quelque chose est
+   réellement en vol. Le chemin ordinaire qu'on évite mettait 6 031 ms de
+   médiane ; une brique prête joue à 19 ms de la fermeture.
+
+   RÉVERSIBLE SANS DÉPLOIEMENT : BIA_ATTENTE_ENVOI_MS=0 rend le comportement
+   d'avant, à la milliseconde près. */
+export function attenteEnvoiMs(): number {
+  /* Une variable VIDE ne veut pas dire zéro : elle veut dire « pas posée ».
+     `Number("")` rend 0, qui est dans les bornes — une variable laissée vide
+     sur Render aurait donc éteint la fonction en silence. Une épreuve l'a
+     attrapé. */
+  const brut = String(process.env.BIA_ATTENTE_ENVOI_MS ?? "").trim();
+  if (!brut) return 800;
+  const n = Number(brut);
+  return Number.isFinite(n) && n >= 0 && n <= 3000 ? Math.round(n) : 800;
+}

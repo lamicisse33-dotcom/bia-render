@@ -48,7 +48,7 @@ function server(answer,options={}){
   if(id==='./identite-core')return load('lib/identite-core.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./salutations-dialogue')return load('lib/salutations-dialogue.ts',dep=>load('lib/'+dep.slice(2)+'.ts'));
   if(id==='./anticipation-core')return core;
-  if(id==='./seuils-anticipation')return {premierSegmentMs:()=>1000,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70};
+  if(id==='./seuils-anticipation')return {premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70};
   if(id==='./eligibilite-etat')return {noterRefusServeur(){},noterEligibilite(){},resumeEligibilite:()=>({})};
   if(id==='./briques-etat')return {etatBriques:state};
   if(id==='./anticipation-gpu')return {gpuAnticipation:async f=>f()};
@@ -224,7 +224,7 @@ test('buying a charger in a story remains eligible, while instructions still ret
  const s=server(),r=await s.preparerBrique({...body,texte:question+' Je suis ensuite allé acheter un chargeur.'},'owner',true,new AbortController().signal);assert(r.brique);
 });
 test('departure telemetry separates ready, still running, and absent preparation',()=>{
- delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts',id=>id==='./seuils-anticipation'?{premierSegmentMs:()=>1000,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70}:load('lib/reflexion-courte.ts'));
+ delete globalThis.biaBriquesEtat;const a=load('lib/briques-etat.ts',id=>id==='./seuils-anticipation'?{premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70}:load('lib/reflexion-courte.ts'));
  /* Le quatrième choix du 23 octobre : un départ qui parie sur la
     transcription finale ne doit pas se confondre avec `sans_preparation`. */
  a.noterBriques({etape:'depart',ms:0,pretes:0,en_cours:0,finale:1});
@@ -410,7 +410,7 @@ test('le relevé range les annulations par raison, avec leurs durées',()=>{
  /* briques-etat lit les seuils publiés par le serveur ; ici on éprouve le
     rangement des annulations, pas les seuils. */
  const e=load('lib/briques-etat.ts',id=>({
-  premierSegmentMs:()=>1000,signesAnticipation:()=>20,teteCourteSignes:()=>20,
+  premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,signesAnticipation:()=>20,teteCourteSignes:()=>20,
   briquesSurTranscriptionFinale:()=>false,REFLEXION_COURTE:{attente_ms:1200,volume:0.35},
  }));
  e.noterBriques({etape:'preparation_tuee',raison:'rien_de_pret_a_la_fermeture',ms:801,en_vol:1});
@@ -423,4 +423,62 @@ test('le relevé range les annulations par raison, avec leurs durées',()=>{
  /* Un nom inventé ne doit pas faire tomber le relevé. */
  e.noterBriques({etape:'preparation_tuee',ms:50});
  assert.equal(e.resumeBriques().preparations_tuees.sans_nom.fois,1);
+});
+
+/* ── L'ORDRE ÉTAIT LE DÉFAUT, ET MON CHANTIER 02 L'AVAIT CRÉÉ ─────────────
+
+   Mesuré le 25 octobre, `preparations_tuees` :
+     rien_de_pret_a_la_fermeture × 7   durées [2464, 1, 1, 1, 1, 2, 0]
+     départs sans_preparation 7, lectures 0
+
+   SIX SUR SEPT TUÉES À UNE MILLISECONDE. La transcription livrée après la
+   fermeture — gain du chantier 02 — déclenchait `lancer()`, mais
+   `commencer()` venait de rendre la main en disant « rien de prêt », et la
+   ligne suivante tuait ce que la précédente démarrait. */
+test('la fermeture laisse se poser ce qui est déjà en vol',async()=>{
+ const E=load('lib/ecoute-progressive.ts',()=>({wavLong:()=>new Blob([new Uint8Array(8)])}));
+ const enAttente=[];
+ const envoyer=()=>new Promise(r=>{enAttente.push(r);});
+ const livrees=[];
+ const p=E.creerEcouteProgressive(envoyer,()=>'fr',()=>true,t=>livrees.push(t),4000,()=>{},1000);
+ for(let i=0;i<40;i++)p.pousser(new Float32Array(1600).fill(0.5),true);
+ for(let i=0;i<12;i++)p.pousser(new Float32Array(1600).fill(0),false);
+ for(let i=0;i<20&&!enAttente.length;i++)await new Promise(r=>setTimeout(r,0));
+
+ /* Rien n'est encore livré : la transcription est EN VOL. */
+ assert.deepEqual(livrees,[],'rien ne doit être livré avant la réponse de l’ASR');
+
+ /* On laisse se poser, avec un plafond. */
+ const attente=p.attendreEnvois(500);
+ enAttente.shift()({ok:true,json:async()=>({texte:'je voudrais aller au marché'})});
+ const ms=await attente;
+ assert.ok(ms>=0&&ms<=600,'l’attente doit être bornée : '+ms);
+ assert.ok(livrees.length>=1,'la transcription doit être posée avant qu’on rende la main');
+});
+
+test('l’attente est bornée, et nulle quand rien n’est en vol',async()=>{
+ const E=load('lib/ecoute-progressive.ts',()=>({wavLong:()=>new Blob([new Uint8Array(8)])}));
+ const p=E.creerEcouteProgressive(()=>{throw Error('aucun envoi attendu');},()=>'fr',()=>true,()=>{},4000,()=>{},1000);
+ /* Aucun segment commencé : on ne doit pas attendre une milliseconde. */
+ assert.equal(await p.attendreEnvois(2000),0);
+ /* Et un plafond à zéro rend le comportement d’avant, à la milliseconde. */
+ assert.equal(await p.attendreEnvois(0),0);
+});
+
+test('le plafond d’attente est réglable par variable Render, et borné',()=>{
+ const avant=process.env.BIA_ATTENTE_ENVOI_MS;
+ try{
+  const lire=()=>load('lib/seuils-anticipation.ts').attenteEnvoiMs();
+  delete process.env.BIA_ATTENTE_ENVOI_MS;
+  assert.equal(lire(),800,'défaut');
+  process.env.BIA_ATTENTE_ENVOI_MS='0';
+  assert.equal(lire(),0,'zéro doit rendre le comportement d’avant');
+  for(const mauvais of ['-1','9999','abc','']){
+   process.env.BIA_ATTENTE_ENVOI_MS=mauvais;
+   assert.equal(lire(),800,'refusé : '+mauvais);
+  }
+ }finally{
+  if(avant===undefined)delete process.env.BIA_ATTENTE_ENVOI_MS;
+  else process.env.BIA_ATTENTE_ENVOI_MS=avant;
+ }
 });

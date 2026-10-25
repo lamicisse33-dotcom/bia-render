@@ -1,7 +1,7 @@
 import {creerEcouteProgressive} from './ecoute-progressive';
 import {creerProducteurBriques} from './briques-client';
 import {entetesRapidite,profilRapiditeNavigateur,segmentRapiditeMs} from './rapidite-core';
-export async function brancherAnticipation(o:{ctx:AudioContext;flux:MediaStream;code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;langue:()=>string;parle:()=>boolean;actuel:()=>boolean;surTranscriptionFinale?:boolean;seuilSignes?:number;premierSegmentMs?:number}){
+export async function brancherAnticipation(o:{ctx:AudioContext;flux:MediaStream;code:string;tour:string;history:unknown[];resume:string;voice:'female'|'male';persona:string;langue:()=>string;parle:()=>boolean;actuel:()=>boolean;surTranscriptionFinale?:boolean;seuilSignes?:number;premierSegmentMs?:number;attenteEnvoiMs?:number}){
  let node:AudioWorkletNode|null=null,entree:MediaStreamAudioSourceNode|null=null,muet:GainNode|null=null,fin=false;
  const briques=creerProducteurBriques({...o,segments:()=>pipeline.segmentsCommences,seuilSignes:o.seuilSignes});
  const abort=new AbortController();let accuseFin:(()=>void)|undefined;
@@ -25,7 +25,21 @@ export async function brancherAnticipation(o:{ctx:AudioContext;flux:MediaStream;
  async fermerCapture(){if(fin)return;fin=true;
   /* On NE coupe plus le producteur ici. Il garde sa fenêtre jusqu'à ce que
      la réponse commence — c'est `terminerBriques` ou `annuler` qui la
-     ferment, pas l'arrêt du micro. */await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Capture non confirmée')),800);accuseFin=()=>{clearTimeout(timer);resolve();};node?.port.postMessage('fin');}).finally(detacher);},
+     ferment, pas l'arrêt du micro.
+
+     ── ET L'ORDRE ÉTAIT LE DÉFAUT ────────────────────────────────────────
+     Mesuré le 25 octobre : six préparations sur sept tuées à UNE
+     milliseconde. La transcription livrée après la fermeture déclenchait
+     `lancer()`, mais `commencer()` venait de rendre la main en disant
+     « rien de prêt » — et la ligne suivante tuait ce que la précédente
+     venait de démarrer. On laisse donc ce qui est DÉJÀ EN VOL se poser
+     avant de rendre la main. Borné, et réversible par
+     BIA_ATTENTE_ENVOI_MS=0. */
+  await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Capture non confirmée')),800);accuseFin=()=>{clearTimeout(timer);resolve();};node?.port.postMessage('fin');}).finally(detacher);
+  const attendu=await pipeline.attendreEnvois(o.attenteEnvoiMs??0);
+  if(attendu>0)void fetch('/api/mesure',{method:'POST',keepalive:true,headers:{'content-type':'application/json'},
+   body:JSON.stringify({type:'briques',etape:'attente_envoi',ms:attendu,en_vol:Number(!!briques.etat().en_cours)})}).catch(()=>{});
+ },
  async resultat(){return pipeline.finir();},
  async annuler(raison?:string){fin=true;abort.abort();briques.annuler(raison);detacher();await pipeline.abandonner();},
  };
