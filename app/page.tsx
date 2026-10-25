@@ -521,7 +521,7 @@ export default function Home() {
   /* Quand la reponse ne vient pas du modele, on le dit a l ecran. Sans ce
      temoin, une panne du moteur ressemblait a une reponse ordinaire. */
   const [panne, setPanne] = useState("");
-  const [choixVoix, setChoixVoix] = useState<ChoixVoixBia>("piper");
+  const [choixVoix, setChoixVoix] = useState<ChoixVoixBia>("female");
   const essaiChatterbox = choixVoix === "male" || choixVoix === "female";
   const [etatSecours,setEtatSecours]=useState("");
   const [prepareSecours,setPrepareSecours]=useState(false);
@@ -3012,7 +3012,7 @@ export default function Home() {
     }
     const piperCommence=performance.now();
     const locale = voixLocaleBiaDisponible(personaRef.current);
-    if (choixVoixBia() === "piper" && !locale) {
+    if (choixVoixBia() === "piper-web" && !locale) {
       setPanne("Piper est installé dans l’application du téléphone. Ouvre cette application pour l’utiliser, ou choisis Khalam Voice dans Moi.");
       stopMouth(answer); return;
     }
