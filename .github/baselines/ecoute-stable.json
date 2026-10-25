@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "5dcbe9268d97bcdac97f62655801e4c3726aeb2ac7b4b7907bcf210f20b437b3",
+    "app/page.tsx": "b1cfaec3debf8d2d1827d02910902b198b1ac7fff92c29b762291ab915a277fa",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -372,5 +372,15 @@
     "gain_mesure_du_chantier_02": "TTFS Khalam 3 601 ms -> 1 237 ms sur le tour journalise. transcription_apres_fermeture_servie x 7, briques departs prete:1 pour la premiere fois, jamais_de_texte 13 -> 2. Mais UN SEUL tour mesure : ce n est pas une mediane, et c est pourquoi cette migration existe.",
     "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture.",
     "non_valide": "La mediane sur quatre tours reste a faire."
+  },
+  "migration_qui_tue_la_preparation_20261025": {
+    "authorized": "Chantier 03 du plan vitesse. Lamine demande de decider le chantier d apres les chiffres de ses quatre tours.",
+    "ce_que_les_chiffres_ont_corrige_chez_moi": "La mediane est passee de 3 601 a 7 292 ms — et ce n est PAS une regression. C est la premiere mesure honnete : jusque-la le journal n etait emis qu au premier son des BRIQUES, donc seuls les tours rapides etaient comptes. Les tours lents, ou aucune brique n arrive, n existaient pas dans la mesure. 3 601 et 1 237 etaient deux echantillons du meme chemin rapide ; 7 292 est la mediane de TOUS les tours.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change, d un argument : l annulation de la page porte desormais un nom. Aucun changement d ASR, de synthese, de modele, de voix ni de micro.",
+    "hash_before": "5dcbe9268d97bcdac97f62655801e4c3726aeb2ac7b4b7907bcf210f20b437b3",
+    "hash_after": "b1cfaec3debf8d2d1827d02910902b198b1ac7fff92c29b762291ab915a277fa",
+    "pourquoi_je_ne_choisis_pas_encore_de_levier": "Mes deux hypotheses de la veille sont ecartees par la mesure. motifs_invalides est VIDE : le modele n enfreint aucune des sept regles, donc la consigne n est pas en cause. Et l ecoute marche — servie x 7, 15 segments sur 15. Ce que les chiffres designent est ailleurs : sessions 8, preparees 2, erreurs 3, lectures 1, et dernier_echec « Modele indisponible, annule: true, 801 ms ». Les preparations sont TUEES en vol. Quatre chemins y menent et ils n appellent pas le meme remede — j instrumente avant de choisir.",
+    "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Deux epreuves neuves : chaque annulation porte un nom, un seul abort nu subsiste (dans la fonction qui le nomme), et le releve range par raison avec les durees.",
+    "non_valide": "La cause n est pas encore nommee. Il faut quatre tours de plus pour lire preparations_tuees."
   }
 }

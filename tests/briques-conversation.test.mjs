@@ -383,3 +383,44 @@ test('chaque règle de validation d’une brique porte son nom',()=>{
  /* La raison doit être comptée, pas seulement affichée une fois. */
  assert.match(code,/motifs_invalides\[raison\]/);
 });
+
+/* ── QUI TUE LA PRÉPARATION ? ─────────────────────────────────────────────
+   Le 25 octobre : erreurs 3, « Modèle indisponible », annulé: true, à
+   801 ms — sans dire QUI avait annulé. Quatre chemins y mènent, et ils
+   n'appellent pas le même remède. Un arrêt sans nom est un arrêt qu'on
+   cherchera encore demain. */
+test('chaque annulation d’une préparation porte son nom',()=>{
+ const code=fs.readFileSync('lib/briques-client.ts','utf8');
+ const raisons=[...code.matchAll(/arreterLaPreparation\('([a-z_]+)'\)/g)].map(m=>m[1]);
+ for(const attendue of ['erreur_de_fabrication','lecture_abandonnee',
+  'rien_de_pret_a_la_fermeture'])
+  assert.ok(raisons.includes(attendue),'annulation sans nom : '+attendue);
+ /* Plus aucun abort nu : tous passent par la fonction qui nomme. */
+ const nus=[...code.matchAll(/(?<!arreterLaPreparation\([^)]*\);\s*)abort\.abort\(\)/g)];
+ assert.ok(code.indexOf('function arreterLaPreparation')>0,'la fonction doit exister');
+ assert.equal((code.match(/abort\.abort\(\)/g)||[]).length,1,
+  'un seul abort, dans la fonction qui le nomme');
+ /* Et la DURÉE est notée : tuer une préparation de 800 ms n’est pas la même
+    décision que d’en tuer une qui vient de commencer. */
+ assert.match(code,/ms:debutPreparation\?Date\.now\(\)-debutPreparation:0/);
+});
+
+test('le relevé range les annulations par raison, avec leurs durées',()=>{
+ delete globalThis.biaBriquesEtat;
+ /* briques-etat lit les seuils publiés par le serveur ; ici on éprouve le
+    rangement des annulations, pas les seuils. */
+ const e=load('lib/briques-etat.ts',id=>({
+  premierSegmentMs:()=>1000,signesAnticipation:()=>20,teteCourteSignes:()=>20,
+  briquesSurTranscriptionFinale:()=>false,REFLEXION_COURTE:{attente_ms:1200,volume:0.35},
+ }));
+ e.noterBriques({etape:'preparation_tuee',raison:'rien_de_pret_a_la_fermeture',ms:801,en_vol:1});
+ e.noterBriques({etape:'preparation_tuee',raison:'rien_de_pret_a_la_fermeture',ms:640,en_vol:1});
+ e.noterBriques({etape:'preparation_tuee',raison:'fin_du_tour_sur_la_page',ms:120,en_vol:0});
+ const r=e.resumeBriques().preparations_tuees;
+ assert.equal(r.rien_de_pret_a_la_fermeture.fois,2);
+ assert.deepEqual(r.rien_de_pret_a_la_fermeture.ms_median,[801,640]);
+ assert.equal(r.fin_du_tour_sur_la_page.fois,1);
+ /* Un nom inventé ne doit pas faire tomber le relevé. */
+ e.noterBriques({etape:'preparation_tuee',ms:50});
+ assert.equal(e.resumeBriques().preparations_tuees.sans_nom.fois,1);
+});

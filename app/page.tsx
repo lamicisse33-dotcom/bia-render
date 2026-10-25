@@ -5993,7 +5993,7 @@ export default function Home() {
         } finally {
           if(lectureBriques&&!briquesTerminees){
             mesureBriques('annulation',Date.now()-debutBriques,{tour_actuel:Number(estLeTour(monTour)),capture_actuelle:Number(estCetEnregistrement(idEnr))});
-            abortBriques.abort();void progressive?.annuler();
+            abortBriques.abort();void progressive?.annuler('fin_du_tour_sur_la_page');
             if(estLeTour(monTour)){busyRef.current=false;couperSon();}
           }
           fluxVoixRef.current.delete(abortBriques);

@@ -27,6 +27,6 @@ export async function brancherAnticipation(o:{ctx:AudioContext;flux:MediaStream;
      la réponse commence — c'est `terminerBriques` ou `annuler` qui la
      ferment, pas l'arrêt du micro. */await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Capture non confirmée')),800);accuseFin=()=>{clearTimeout(timer);resolve();};node?.port.postMessage('fin');}).finally(detacher);},
  async resultat(){return pipeline.finir();},
- async annuler(){fin=true;abort.abort();briques.annuler();detacher();await pipeline.abandonner();},
+ async annuler(raison?:string){fin=true;abort.abort();briques.annuler(raison);detacher();await pipeline.abandonner();},
  };
 }

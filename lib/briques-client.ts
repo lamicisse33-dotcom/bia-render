@@ -55,7 +55,7 @@ export function creerProducteurBriques(o:{code:string;tour:string;history:unknow
    flux.fermer();if(ajoutee)return {...bilan,briqueRecue:true};return bilan;
   }catch(e){
    const erreur=e instanceof Error?e:new Error('Audio interrompu');flux.echouer(erreur);
-   if(ajoutee){annule=true;ecoute=false;file.echouer(erreur);abort.abort();liberer();}
+   if(ajoutee){annule=true;ecoute=false;file.echouer(erreur);arreterLaPreparation('erreur_de_fabrication');liberer();}
    throw erreur;
   }finally{void lecteur.cancel().catch(()=>{});}
  }
@@ -68,6 +68,25 @@ export function creerProducteurBriques(o:{code:string;tour:string;history:unknow
   id=d.id;if(d.brique)file.ajouter(d.brique);if(d.normal)normal=true;
   return ajout&&d.continuer===true;
  }
+ /* ── QUI TUE LA PRÉPARATION, ET À QUEL MOMENT ────────────────────────────
+
+    Le 25 octobre, `dernier_echec` disait « Modèle indisponible, annulé:true,
+    801 ms » sans dire QUI avait annulé. Quatre chemins mènent ici, et ils
+    n'appellent pas le même remède : une erreur de fabrication, une lecture
+    abandonnée, une fermeture de micro sans rien de prêt, ou la page qui
+    coupe tout. Un arrêt sans nom est un arrêt qu'on cherchera encore demain.
+
+    On note AUSSI depuis combien de temps elle tournait : tuer une
+    préparation de 800 ms pour repartir sur sept secondes de chemin ordinaire
+    n'est pas la même décision que d'en tuer une qui vient de commencer. */
+ let debutPreparation=0;
+ function arreterLaPreparation(raison:string){
+  if(!abort.signal.aborted)
+   void fetch('/api/mesure',{method:'POST',keepalive:true,headers:{'content-type':'application/json'},
+    body:JSON.stringify({type:'briques',etape:'preparation_tuee',ms:debutPreparation?Date.now()-debutPreparation:0,
+     raison,en_vol:Number(!!enCours)})}).catch(()=>{});
+  abort.abort();
+ }
  function lancer(){
   if(enCours){porte('preparation_en_cours');return;}
   if(!ecoute){porte('ecoute_fermee');return;}
@@ -78,6 +97,7 @@ export function creerProducteurBriques(o:{code:string;tour:string;history:unknow
   if(dernier.length<(o.seuilSignes&&o.seuilSignes>=10&&o.seuilSignes<=200?o.seuilSignes:35)){porte('trop_court');return;}
   const texte=dernier;
   let continuer=false;
+  debutPreparation=Date.now();
   enCours=demander(texte).then(suite=>{continuer=!!suite;}).catch(()=>{}).finally(()=>{enCours=null;if(ecoute&&(dernier!==texte||continuer))lancer();});
  }
  return {
@@ -108,7 +128,7 @@ export function creerProducteurBriques(o:{code:string;tour:string;history:unknow
     porte('depart_sur_transcription_finale');
    }
    commence=true;
-   const arreter=()=>{annule=true;abort.abort();file.annuler();liberer();};
+   const arreter=()=>{annule=true;arreterLaPreparation('lecture_abandonnee');file.annuler();liberer();};
    options.signal.addEventListener('abort',arreter,{once:true});
    const fin=file.lire(options).then(reponse=>({reponse,normal})).catch(e=>{if(file.lectureEnFlux)throw e;return {reponse:'',normal:true};}).finally(()=>options.signal.removeEventListener('abort',arreter));
    // The consumer awaits fin after final ASR; observe early stream failure now
@@ -119,7 +139,14 @@ export function creerProducteurBriques(o:{code:string;tour:string;history:unknow
   async terminer(texte:string){
    ecoute=false;
    declarerLesPortes();
-   if(!commence){annule=true;abort.abort();file.annuler();liberer();return;}
+   /* ── CELLE-CI EST LA SUSPECTE DU 25 OCTOBRE ────────────────────────────
+      Rien n'était prêt au moment où le micro s'est fermé, donc `commencer()`
+      a rendu la main — et ici on TUE la préparation en cours. Ses chiffres :
+      erreurs 3, « Modèle indisponible », annulé: true, à 801 ms. Tuer une
+      préparation de 800 ms pour repartir sur un chemin ordinaire qui prend
+      sept secondes est un mauvais marché — mais je ne le corrige pas avant
+      de savoir que c'est bien d'ici que vient l'annulation. */
+   if(!commence){annule=true;arreterLaPreparation('rien_de_pret_a_la_fermeture');file.annuler();liberer();return;}
    /* Sans rien de préparé, la toute première demande EST la finale : sans ce
       passage, la boucle ci-dessous repartirait sur `ajout` jamais vrai. */
    try{await enCours;if(annule||!o.actuel()){normal=true;return;}
@@ -136,7 +163,7 @@ export function creerProducteurBriques(o:{code:string;tour:string;history:unknow
    finally{file.fermer();}
   },
   livree(personne:string,nombre:number){if(!id||normal||annule)return;void fetch('/api/anticipation/briques',{method:'POST',headers,body:JSON.stringify({id,action:'livree',personne,nombre}),keepalive:true}).catch(()=>{});},
-  annuler(){declarerLesPortes();ecoute=false;annule=true;normal=true;abort.abort();file.annuler();liberer();},
+  annuler(raison?:string){declarerLesPortes();ecoute=false;annule=true;normal=true;arreterLaPreparation(raison||'annulation_de_la_page');file.annuler();liberer();},
  };
 }
 
