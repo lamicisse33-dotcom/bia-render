@@ -19,7 +19,6 @@ import {salutationLocale,lotSalutationsCourant} from '@/lib/salutation-locale';
 import {identiteLocale} from "@/lib/identite-locale";
 import {accuseDemandePertinent} from "@/lib/accuse-demande";
 import {programmerReactionCourante} from "@/lib/reaction-courante";
-import {piperLocaleDisponible} from "@/lib/voix-piper-locale";
 
 import { detecterLangue } from "@/lib/langue";
 import LectureApprentissage from "./LectureApprentissage";
@@ -8159,8 +8158,7 @@ export default function Home() {
           {([
             ["male", "Homme — KHALAM Voice"],
             ["female", "Femme — KHALAM Voice"],
-            ["piper-web", "Khalam V2 (Piper) — secours dans le navigateur"],
-            ["piper", "Piper — test installé sur le téléphone"],
+            ["piper-web", "Khalam Gratuit — navigateur du téléphone"],
           ] as const).map(([valeur, label]) => (
             <label key={valeur} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 48, cursor: "pointer" }}>
               <input type="radio" name="bia-voix" value={valeur} checked={choixVoix === valeur}
@@ -8169,15 +8167,14 @@ export default function Home() {
             </label>
           ))}
         </fieldset>
-        <p className="papier-note">Ton choix est mémorisé dans ce navigateur. Khalam V2 fonctionne sur cet appareil et reste indépendant du serveur Khalam Voice. Le premier téléchargement fait 77 Mo.</p>
+        <p className="papier-note">Ton choix est mémorisé dans ce navigateur. Khalam Gratuit fonctionne dans le navigateur du téléphone. Le modèle de 63,5 Mo est téléchargé une fois puis conservé sur cet appareil.</p>
         {etatSecours && <p className="papier-note" role="status">{etatSecours}</p>}
-        <a className="papier-lien" href="/voix/secours">Choisir et écouter une voix féminine Piper →</a>
         {erreurChoixVoix && <p className="panne" role="alert">{erreurChoixVoix}</p>}
         <button type="button" className="papier-lien" disabled={mode !== "ready" || conversation}
           onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
         {panne && <p className="panne" role="alert">{panne}</p>}
         <p className="papier-note" role="status" data-bia-voice-status>
-          {choixVoix === "piper-web" ? "Khalam V2 · voix de femme · moteur dans ce navigateur" : essaiChatterbox ? `KHALAM Voice · voix ${choixVoix === "female" ? "de femme" : "d’homme"} · serveur de test` : voixLocalePresente
+          {choixVoix === "piper-web" ? "Khalam Gratuit · voix de femme · moteur dans ce navigateur" : essaiChatterbox ? `KHALAM Voice · voix ${choixVoix === "female" ? "de femme" : "d’homme"} · serveur de test` : voixLocalePresente
             ? `Voix locale ${epoqueVoixLocaleBia()} — moteur installé sur cet iPhone`
             : "Piper absent de cette fenêtre — ouvre BIA installée sur le téléphone"}
         </p>
@@ -8692,7 +8689,7 @@ export default function Home() {
         </button>
       </div>
 
-      {lectureContinue ? <LectureApprentissage obtenirAudio={contexte} edition={estMaitre} code={code} voice={choixVoixBia()==="piper"&&!piperLocaleDisponible()?"female":choixVoixBia()} demande={lectureContinue}
+      {lectureContinue ? <LectureApprentissage obtenirAudio={contexte} edition={estMaitre} code={code} voice={choixVoixBia()} demande={lectureContinue}
         onStart={() => { fermerConversation(); taire(); }} onClose={() => setLectureContinue(null)} /> : null}
       <section id="conversation-ecrite" className="clavier" aria-hidden={!clavier}>
         <button className="clavier-fermer" type="button" onClick={() => setClavier(false)} aria-label="Replier le clavier">
