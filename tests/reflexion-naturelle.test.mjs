@@ -67,7 +67,7 @@ test('published short and long takes match the exact owner cuts and verified Kha
 });
 
 test('reflection telemetry keeps measured waits separate from first response latency',()=>{
-  const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync('lib/briques-etat.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText)(id=>id==='./seuils-anticipation'?{premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70}:policyModule.exports,m,m.exports);
+  const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync('lib/briques-etat.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText)(id=>id==='./seuils-anticipation'?{premierSegmentMs:()=>1000,attenteEnvoiMs:()=>800,patienceBriqueMs:()=>1200,segmentMs:()=>1500,signesAnticipation:()=>20,teteCourteSignes:()=>20,phraseLongueSignes:()=>70}:policyModule.exports,m,m.exports);
   const before=m.exports.resumeBriques().lectures;
   m.exports.noterBriques({etape:'reflexion',phase:'initiale',ms:837,duree_ms:1930});
   const after=m.exports.resumeBriques();assert.equal(after.lectures,before);assert.equal(after.derniere_reflexion.attente_ms,837);assert.equal(after.derniere_reflexion.duree_ms,1930);

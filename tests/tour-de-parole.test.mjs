@@ -9,12 +9,14 @@ const {silenceQuiSuffit} = await load('lib/micro.ts');
 const {ouvrirRepliques}=await load('lib/flux-repliques.ts');
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return {promise, resolve}; };
 
-test('une reprise et une longue phrase gardent le même silence, au-dessus d’une seconde', () => {
+/* 25 octobre, mandat vitesse : 600 ms de base, et la protection grandit avec
+   les coupures déjà subies. La longueur de la phrase, elle, ne change rien —
+   c'est la personne qu'on protège, pas la phrase. */
+test('la longueur de la phrase ne change rien ; les coupures subies, si', () => {
   for (const duration of [700, 2500, 7000]) {
-    for (const cuts of [0, 2, 100]) {
-      assert.ok(silenceQuiSuffit(duration, cuts) > 1000);
-      assert.equal(silenceQuiSuffit(duration, cuts), 1200);
-    }
+    assert.equal(silenceQuiSuffit(duration, 0), 600);
+    assert.equal(silenceQuiSuffit(duration, 2), 1200);
+    assert.equal(silenceQuiSuffit(duration, 100), 1800, 'plafonné');
   }
 });
 test('speech containing consonants and two 120 ms gaps still interrupts', () => {

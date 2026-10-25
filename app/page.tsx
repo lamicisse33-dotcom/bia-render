@@ -1345,7 +1345,7 @@ export default function Home() {
      Borné aux mêmes valeurs que la variable, et sans effet si on ne l'écrit
      pas : le comportement par défaut reste celui du serveur. */
   const reglagesAnticipation=()=>{
-    const serveur=(moteursRef.current as {briques_conversation?:{premier_segment_apres_ms?:number;seuil_signes_anticipation?:number;tete_courte_signes?:number;attente_envoi_ms?:number;patience_brique_ms?:number}}|null)?.briques_conversation;
+    const serveur=(moteursRef.current as {briques_conversation?:{premier_segment_apres_ms?:number;seuil_signes_anticipation?:number;tete_courte_signes?:number;attente_envoi_ms?:number;patience_brique_ms?:number;segment_ms?:number}}|null)?.briques_conversation;
     /* L'essai par l'adresse est replié ICI, et pas à l'appel : le callback
        `ecouter` est extrait par cinq épreuves qui lui fournissent son décor
        NOM PAR NOM. Un nom neuf dans ces lignes casse tout — c'est la
@@ -6092,7 +6092,7 @@ export default function Home() {
          plafond de 20 Mo ; le repli complet reste disponible. */
       const exclusionCapture=exclusionAnticipation({persona:personaRef.current,voixCompatible:essaiChatterboxActif(),desactivee:localStorage.getItem('bia-anticipation')==='non',apprentissage:apprend.current,correctionDevoir:!!correctionDevoirRef.current,correctionListe:chantierMalDit.current,prenom:attendLeNomRef.current,reprise:!!motsRattrapesRef.current});
       if(!exclusionCapture){
-        progressive=await brancherAnticipation({surTranscriptionFinale:briquesFinalesPermises(),premierSegmentMs:reglagesAnticipation()?.premier_segment_apres_ms,attenteEnvoiMs:reglagesAnticipation()?.attente_envoi_ms,seuilSignes:reglagesAnticipation()?.seuil_signes_anticipation,ctx:ctxMicro,flux,code:codeRef.current,tour:tourDeParole,history:fenetreDuFil(historyRef.current),resume:resumeRef.current,voice:voixChatterboxBia(),persona:personaRef.current,langue:()=>langueDuFil.current,parle:()=>aParle&&Date.now()-dernierSon<240,actuel:()=>estCetEnregistrement(idEnr)});
+        progressive=await brancherAnticipation({surTranscriptionFinale:briquesFinalesPermises(),premierSegmentMs:reglagesAnticipation()?.premier_segment_apres_ms,attenteEnvoiMs:reglagesAnticipation()?.attente_envoi_ms,segmentMs:reglagesAnticipation()?.segment_ms,seuilSignes:reglagesAnticipation()?.seuil_signes_anticipation,ctx:ctxMicro,flux,code:codeRef.current,tour:tourDeParole,history:fenetreDuFil(historyRef.current),resume:resumeRef.current,voice:voixChatterboxBia(),persona:personaRef.current,langue:()=>langueDuFil.current,parle:()=>aParle&&Date.now()-dernierSon<240,actuel:()=>estCetEnregistrement(idEnr)});
       }
       if(!estCetEnregistrement(idEnr)){await progressive?.annuler();return;}
       const etapeCapture=progressive?'branchee':['voix_incompatible','desactivee'].includes(exclusionCapture)?exclusionCapture:exclusionCapture?'contexte_exclu':'indisponible';

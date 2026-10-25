@@ -60,20 +60,24 @@ function capture(){
    sous la seconde, la première assertion le dit. */
 const SILENCE=micro.SILENCE_QUI_FERME;
 test('l’enregistreur démarre à 100 ms et ne ferme qu’après le silence exigé, pas une ronde avant',async()=>{
- assert.ok(SILENCE>1000,'une pause d’une seconde doit survivre : '+SILENCE);
+ /* 25 octobre : le seuil de base est 600 ms, la protection fait le reste. */
+ assert.equal(SILENCE,600,'le silence de base du mandat');
  const c=capture();await c.run();assert.equal(c.slice(),100);
  for(let t=10000;t<=10300;t+=60)c.at(t,true);
  c.at(10300+SILENCE-1,false);assert.equal(c.stops(),0);
  c.at(10300+SILENCE,false);assert.equal(c.stops(),1);
 });
-test('une pause d’une seconde au milieu de la phrase ne ferme pas le micro',async()=>{
+/* 25 octobre, mandat vitesse : le seuil de base passe à 600 ms, et ce qui
+   protège les hésitants est la PROTECTION qui grandit avec les coupures déjà
+   subies. Une personne jamais coupée ferme donc à 600 ms ; celle qu'on a
+   coupée deux fois ferme à 1 200. C'est ça, l'arbitrage du mandat. */
+test('qui a déjà été coupé reçoit un silence plus long',async()=>{
  const c=capture();await c.run();c.at(10000,true);c.at(10300,true);
- /* Exactement ce qu'il décrit : il s'arrête une seconde pour chercher un
-    mot. Avec 400 ms, le micro était déjà fermé et une demi-phrase wolof
-    partait à la transcription. */
- c.at(11300,false);assert.equal(c.stops(),0,'une seconde de pause ne doit rien fermer');
  c.at(10300+SILENCE-1,false);assert.equal(c.stops(),0);
  c.at(10300+SILENCE,false);assert.equal(c.stops(),1);
+ /* Et la règle elle-même : deux coupures subies valent 600 ms de plus. */
+ assert.equal(micro.silenceQuiSuffit(2500,0),SILENCE);
+ assert.equal(micro.silenceQuiSuffit(2500,2),SILENCE+600);
 });
 test('two minutes of 100 ms uploads remain ordered, complete and bounded',async()=>{
  delete globalThis.biaDepotsParole;

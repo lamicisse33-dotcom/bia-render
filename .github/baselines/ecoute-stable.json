@@ -2,8 +2,8 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "4f7a8a1c5394ed64183fdb74812b8a4e60bcee76c97988ea5cfe053bc99f47cb",
-    "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
+    "app/page.tsx": "b143ab708af64f940344c7dabc5a71769f1f2b05dfd9855801094a2762e6a31f",
+    "lib/micro.ts": "2be1523107368055e8352d583b244691dbd377867309e5b3804ef81481ac2a35",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
     "lib/transport-conversation.ts": "ac8d95016a165bc00abfad385cc2f5c87278775854dfbddbcfbbe4b308e607ce",
@@ -428,5 +428,20 @@
     "mesure": "patiences_depassees compte les renoncements et leurs durees ; patience_brique_ms publie le reglage en vigueur ; le journal porte deja le reglage par tour.",
     "verification": "tsc, npm run build, suite complete LUE AVANT DE POUSSER : aucune nouvelle rupture. Trois epreuves neuves, dont celle qui verifie qu une brique ayant commence a parler n est JAMAIS coupee, et que le renoncement coupe vraiment la preparation au lieu de la laisser couter.",
     "non_valide": "Le gain reste a mesurer. Jalon apres les leviers 1 et 2."
+  },
+  "migration_levier2_oreille_en_flux_20261025": {
+    "authorized": "Mandat vitesse, levier 2 : « transcription provisoire toutes les 100-200 ms au lieu de segments de 1 s, fin de parole a 600 ms avec protection des hesitations ».",
+    "ce_que_je_ne_peux_pas_faire_et_je_le_dis": "Une transcription toutes les 150 ms, c est pres de SEPT requetes par seconde et par personne vers Khalam Oreille. Ce n est pas un reglage, c est une autre architecture — un flux WebSocket vers le GPU, qui est le levier 6. Le promettre ici serait mentir.",
+    "ce_que_je_fais": "Premier segment a 600 ms de parole au lieu de 1 000, segments suivants toutes les 1 500 ms au lieu de 4 000. La premiere interpretation arrive presque deux fois plus tot et se corrige pres de trois fois plus souvent.",
+    "ce_que_ca_coute": "Environ deux fois et demie plus d appels a l oreille par tour. Sur une phrase de six secondes : deux segments avant, quatre maintenant. Ca se lit dans anticipation_conversation.ecoute.segments.",
+    "la_fin_de_parole": "1 200 -> 600 ms, et la protection des hesitants REVIENT : le seuil s allonge de 300 ms par coupure deja subie dans la conversation, plafonne a 2 000. coupesTropTot etait ignore depuis le 20 octobre — il comptait dans le vide, il sert de nouveau. Ce qui etait contradictoire entre sa demande du 24 et le mandat du 25, c etait un seuil FIXE : on choisissait entre couper les hesitants et faire attendre tout le monde.",
+    "scope": "Parmi les fichiers proteges, app/page.tsx et lib/micro.ts changent. page.tsx : la cadence des segments vient du serveur. micro.ts : seuil de base 600 et protection par coupures subies. Aucun changement d ASR, de synthese, de modele ni de voix.",
+    "hash_page_before": "4f7a8a1c5394ed64183fdb74812b8a4e60bcee76c97988ea5cfe053bc99f47cb",
+    "hash_page_after": "b143ab708af64f940344c7dabc5a71769f1f2b05dfd9855801094a2762e6a31f",
+    "hash_micro_before": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
+    "hash_micro_after": "2be1523107368055e8352d583b244691dbd377867309e5b3804ef81481ac2a35",
+    "reversible": "BIA_SILENCE_FIN_PAROLE_MS=1200, BIA_PREMIER_SEGMENT_MS=1000 et BIA_SEGMENT_MS=4000 ramenent exactement le comportement d hier.",
+    "verification": "tsc, npm run build, suite complete LUE AVANT DE POUSSER : aucune nouvelle rupture. Huit epreuves encodaient les 1 200 ms du 24 octobre : reecrites sur la regle neuve, et elles verifient maintenant la PROTECTION (600 de base, +300 par coupure, plafonne) plutot qu un nombre fixe.",
+    "non_valide": "Zero coupure n est pas prouve. C est le risque assume du levier 2, et coupures_suspectes dans le journal le dira. Jalon : quatre tours apres les leviers 1 et 2."
   }
 }

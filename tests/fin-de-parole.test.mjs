@@ -20,11 +20,13 @@ const sansCommentaires=s=>s.replace(/\/\*[\s\S]*?\*\//g,' ').replace(/(^|[^:])\/
    pour réfléchir. » Donc : le silence exigé doit dépasser une seconde, et il
    doit être LE MÊME des deux côtés. */
 
-test('lib/fin-de-parole.ts n’importe rien et exige plus d’une seconde',()=>{
+/* 25 octobre, mandat vitesse : 600 ms. Ce qui protège les hésitants n'est
+   plus un seuil fixe mais la protection qui grandit avec les coupures déjà
+   subies — éprouvée dans tests/vitesse-immediate. */
+test('lib/fin-de-parole.ts n’importe rien, et le silence partagé vaut 600 ms',()=>{
  const F=charger('lib/fin-de-parole.ts');
- assert.ok(F.silenceFinDeParoleMs()>1000,'une pause d’une seconde doit survivre');
- assert.equal(F.silenceFinDeParoleMs(),1200);
- assert.equal(F.SILENCE_FIN_PAROLE_MS_DEFAUT,1200);
+ assert.equal(F.silenceFinDeParoleMs(),600);
+ assert.equal(F.SILENCE_FIN_PAROLE_MS_DEFAUT,600);
 });
 
 /* Le piège que j’ai déjà payé deux fois : lib/micro.ts est chargé comme
@@ -37,7 +39,11 @@ test('le repli de lib/micro.ts vaut exactement le défaut partagé',()=>{
  assert.equal(M.SILENCE_QUI_FERME,F.SILENCE_FIN_PAROLE_MS_DEFAUT,
   'si ces deux nombres divergent, les deux moteurs ne se comportent plus pareil');
  assert.equal(M.SILENCE_LE_PLUS_COURT,F.SILENCE_FIN_PAROLE_MS_DEFAUT);
- assert.equal(M.SILENCE_LE_PLUS_LONG,F.SILENCE_FIN_PAROLE_MS_DEFAUT);
+ /* SILENCE_LE_PLUS_LONG n'est plus le même nombre : c'est le PLAFOND de la
+    protection des hésitants, pas le seuil de base. */
+ assert.ok(M.SILENCE_LE_PLUS_LONG>F.SILENCE_FIN_PAROLE_MS_DEFAUT,
+  'le plafond de protection doit dépasser le seuil de base');
+ assert.equal(M.SILENCE_LE_PLUS_LONG,2000);
 });
 
 test('lib/micro.ts ne contient aucun import : une épreuve le charge seul',()=>{
@@ -49,14 +55,18 @@ test('lib/micro.ts ne contient aucun import : une épreuve le charge seul',()=>{
 test('une variable Render règle le silence sans redéployer, et les bornes tiennent',()=>{
  const avant=process.env.BIA_SILENCE_FIN_PAROLE_MS;
  try{
-  process.env.BIA_SILENCE_FIN_PAROLE_MS='1500';
-  assert.equal(charger('lib/fin-de-parole.ts').silenceFinDeParoleMs(),1500,
-   'la valeur de son propre raisonnement de septembre doit être atteignable');
-  /* Sous le plancher : on refuse, sinon la variable rouvrirait le défaut
-     qu’on vient de corriger. */
-  for(const mauvais of ['400','0','-1','abc','','99999']){
+  /* Le réglage du 24 octobre reste atteignable d'une variable. */
+  process.env.BIA_SILENCE_FIN_PAROLE_MS='1200';
+  assert.equal(charger('lib/fin-de-parole.ts').silenceFinDeParoleMs(),1200);
+  /* Et 400 ms aussi, maintenant que le plancher est à 300 : le mandat ouvre
+     la plage vers le bas, et c'est la protection des hésitants qui tient la
+     promesse « zéro coupure », pas un plancher élevé. */
+  process.env.BIA_SILENCE_FIN_PAROLE_MS='400';
+  assert.equal(charger('lib/fin-de-parole.ts').silenceFinDeParoleMs(),400);
+  /* Sous 300 ms on n'entend plus une respiration : on refuse. */
+  for(const mauvais of ['299','0','-1','abc','','99999']){
    process.env.BIA_SILENCE_FIN_PAROLE_MS=mauvais;
-   assert.equal(charger('lib/fin-de-parole.ts').silenceFinDeParoleMs(),1200,'refusé : '+mauvais);
+   assert.equal(charger('lib/fin-de-parole.ts').silenceFinDeParoleMs(),600,'refusé : '+mauvais);
   }
  }finally{
   if(avant===undefined)delete process.env.BIA_SILENCE_FIN_PAROLE_MS;
@@ -104,13 +114,15 @@ test('app/page.tsx pose le silence du serveur une seule fois, à la réponse de 
 
 test('le réglage posé l’emporte, et une valeur hors bornes garde le repli',()=>{
  const M=charger('lib/micro.ts');
- assert.equal(M.silenceQuiSuffit(2500,0),1200,'repli avant toute réponse du serveur');
- assert.equal(M.reglerSilenceQuiFerme(1500),1500);
- assert.equal(M.silenceQuiSuffit(2500,0),1500,'posé une fois, vu partout');
- assert.equal(M.silenceQuiSuffit(0,100),1500);
- for(const mauvais of [400,0,-1,99999,NaN,undefined,'abc']){
-  assert.equal(M.reglerSilenceQuiFerme(mauvais),1200,'refusé : '+String(mauvais));
-  assert.equal(M.silenceQuiSuffit(2500,0),1200);
+ assert.equal(M.silenceQuiSuffit(2500,0),600,'repli avant toute réponse du serveur');
+ assert.equal(M.reglerSilenceQuiFerme(1200),1200);
+ assert.equal(M.silenceQuiSuffit(2500,0),1200,'posé une fois, vu partout');
+ /* La protection des hésitants s'ajoute au réglage posé, elle ne le
+    remplace pas. */
+ assert.equal(M.silenceQuiSuffit(0,2),1800);
+ for(const mauvais of [100,0,-1,99999,NaN,undefined,'abc']){
+  assert.equal(M.reglerSilenceQuiFerme(mauvais),600,'refusé : '+String(mauvais));
+  assert.equal(M.silenceQuiSuffit(2500,0),600);
  }
 });
 

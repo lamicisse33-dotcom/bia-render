@@ -52,8 +52,11 @@ const borne = (v: string | undefined, defaut: number, min: number, max: number) 
 };
 
 /** Durée de PAROLE avant le premier segment. Révertible : BIA_PREMIER_SEGMENT_MS. */
+/* Levier 2 du mandat du 25 octobre : 1 000 → 600 ms. La première
+   interprétation arrive presque deux fois plus tôt, donc la préparation
+   aussi. BIA_PREMIER_SEGMENT_MS=1000 ramène le comportement d'avant. */
 export const premierSegmentMs = () =>
-  borne(process.env.BIA_PREMIER_SEGMENT_MS, 1000, 500, 4000);
+  borne(process.env.BIA_PREMIER_SEGMENT_MS, 600, 500, 4000);
 
 /** Longueur minimale du texte pour préparer. Révertible : BIA_SIGNES_ANTICIPATION. */
 export const signesAnticipation = () =>
@@ -161,4 +164,36 @@ export function patienceBriqueMs(): number {
   if (!brut) return 1200;
   const n = Number(brut);
   return Number.isFinite(n) && n >= 0 && n <= 20000 ? Math.round(n) : 1200;
+}
+
+/* ── LEVIER 2 : L'OREILLE EN FLUX ─────────────────────────────────────────
+
+   Le mandat demande « une transcription provisoire toutes les 100-200 ms au
+   lieu de segments d'une seconde ».
+
+   CE QUE JE PEUX FAIRE AUJOURD'HUI, ET CE QUE JE NE PEUX PAS. Chaque segment
+   part en HTTP vers Khalam Oreille. Une transcription toutes les 150 ms,
+   c'est près de SEPT requêtes par seconde et par personne — ce n'est pas un
+   réglage, c'est une autre architecture : un flux WebSocket vers le GPU,
+   qui est le levier 6. Le promettre ici serait mentir.
+
+   CE QUE JE FAIS : le premier segment part après 600 ms de parole au lieu de
+   1 000, et les suivants toutes les 1 500 ms au lieu de 4 000. La première
+   interprétation arrive donc presque deux fois plus tôt, et elle se corrige
+   presque trois fois plus souvent.
+
+   CE QUE ÇA COÛTE, DIT AVANT : environ deux fois et demie plus d'appels à
+   l'oreille par tour. Sur une phrase de six secondes, deux segments avant,
+   quatre maintenant. C'est le prix de la réactivité, et il se lit dans
+   anticipation_conversation.ecoute.segments.
+
+   RÉVERSIBLE : BIA_SEGMENT_MS=4000 et BIA_PREMIER_SEGMENT_MS=1000 ramènent
+   exactement le comportement d'avant. */
+export function segmentMs(): number {
+  const brut = String(process.env.BIA_SEGMENT_MS ?? "").trim();
+  if (!brut) return 1500;
+  const n = Number(brut);
+  /* 1500, 2500 et 4000 sont les trois tailles que la découpe sait traiter ;
+     toute autre valeur retomberait sur le plus gros tampon sans le dire. */
+  return n === 1500 || n === 2500 || n === 4000 ? n : 1500;
 }

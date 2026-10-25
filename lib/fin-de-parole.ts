@@ -57,11 +57,23 @@
 
 /** Le silence qui déclare la fin d'une phrase, en millisecondes.
     MÊME VALEUR pour les deux moteurs — c'est tout l'objet de ce fichier. */
-export const SILENCE_FIN_PAROLE_MS_DEFAUT = 1200;
+/* ── LEVIER 2 DU MANDAT : 1 200 → 600 MS, AVEC PROTECTION ────────────────
+
+   Le 24 octobre, Lamine demandait 1 200 ms contre les coupures. Le mandat du
+   25 demande 600 ms « avec protection des hésitations » ET « zéro coupure de
+   la personne ». Les deux ensemble ne sont pas contradictoires : ce qui
+   l'était, c'était un seuil FIXE.
+
+   600 ms de base, et le seuil s'allonge quand la personne a déjà été coupée
+   dans cette conversation — voir silenceQuiSuffit() dans lib/micro.ts. Une
+   hésitation qui a coûté une coupure en évite une deuxième.
+
+   RÉVERSIBLE : BIA_SILENCE_FIN_PAROLE_MS=1200 ramène le réglage d'hier. */
+export const SILENCE_FIN_PAROLE_MS_DEFAUT = 600;
 
 /* Bornes : en dessous de 600 ms on retombe dans le défaut qu'on corrige ;
    au-delà de 4 s, une conversation n'est plus une conversation. */
-const PLANCHER = 600, PLAFOND = 4000;
+const PLANCHER = 300, PLAFOND = 4000;
 
 export function silenceFinDeParoleMs(): number {
   const n = Number(process.env.BIA_SILENCE_FIN_PAROLE_MS);
@@ -101,7 +113,7 @@ export function reglagesFinDeParole() {
     sensibilite_fin: SENSIBILITE_FIN,
     /* Ce qui était réglé avant, pour que le changement soit lisible sans
        aller fouiller l'historique git. */
-    avant: { khalam_rapide_ms: 500, khalam_ms: 400, prefixe_ms: 150 },
+    avant: { khalam_rapide_ms: 500, khalam_ms: 400, prefixe_ms: 150, du_24_octobre_ms: 1200 },
     interruption_par_la_personne: "conservée (START_OF_ACTIVITY_INTERRUPTS)",
     variable_pour_revenir: "BIA_SILENCE_FIN_PAROLE_MS",
   };
