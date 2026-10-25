@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "a21d96f77404e42fa2da8959dbe29d717b2a3c3a1bc9f7999cdafc526ce78476",
+    "app/page.tsx": "e53af911da759f4fb927905ea0ed3576d81fcdde728b73cbb0064f74c309f4a3",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -394,5 +394,15 @@
     "ce_que_ca_coute": "Jusqu a 800 ms a la fermeture, et SEULEMENT quand quelque chose est reellement en vol. Le chemin ordinaire qu on evite met 6 031 ms de mediane ; une brique prete joue a 19 ms de la fermeture. attentes_envoi compte les fois, les durees, et si une preparation tournait — les trois ensemble diront si l attente a servi ou si on l a payee pour rien.",
     "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Quatre epreuves neuves, dont celle qui a attrape une variable Render VIDE : Number(\"\") rend 0, qui est dans les bornes — une variable laissee vide aurait eteint la fonction en silence.",
     "non_valide": "Le gain n est pas mesure. Il faut quatre tours : attentes_envoi, departs.en_fabrication, lectures, et la mediane du TTFS."
+  },
+  "migration_essai_attente_par_adresse_20261025": {
+    "authorized": "Lamine demande si les 800 ms paient ou s il faut remettre la variable a 0.",
+    "pourquoi_je_ne_tranche_pas": "Les chiffres ne le disent pas. Le mecanisme marche — departs en_fabrication 7 (etait 0), lectures 5 (etait 0), rien_de_pret_a_la_fermeture passe de x7 a ZERO, et les dix attentes avaient TOUTES une preparation en vol. Mais la mediane du premier son est passee de 6 031 a 7 079 ms. Deux echantillons de phrases differentes, et une queue de tours longs (18 249, 14 860, 11 097 ms) qui deplace la mediane a elle seule. Conclure dans un sens ou dans l autre serait choisir la lecture qui m arrange.",
+    "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change : un parametre d adresse ?attente=0 qui eteint l attente pour une page, sans redeployer. Borne aux memes valeurs que la variable Render, sans effet s il est absent. Aucun changement d ASR, de synthese, de modele, de voix ni de micro.",
+    "hash_before": "a21d96f77404e42fa2da8959dbe29d717b2a3c3a1bc9f7999cdafc526ce78476",
+    "hash_after": "e53af911da759f4fb927905ea0ed3576d81fcdde728b73cbb0064f74c309f4a3",
+    "pourquoi_par_l_adresse": "Un aller-retour par variable Render coute deux minutes de construction, et nous avons deja epuise le quota du mois une fois. L essai A/B doit pouvoir se faire en une session, sur les MEMES phrases.",
+    "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Une epreuve neuve : absent = aucun effet, borne, et il passe devant le reglage du serveur sinon l essai ne servirait a rien.",
+    "non_valide": "La reponse a sa question. Elle viendra de quatre tours avec ?attente=0 et quatre sans, memes phrases."
   }
 }
