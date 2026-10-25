@@ -43,6 +43,13 @@ try{
    setMode(){},setFace(){},stopMouth(){},envoyerLeTour(){},poserBorne(){},couperSon(){},enveloppeDe:()=>({valeurs:[1],pic:1,pas:.05}),formeBouche:()=> 'douce',
    fetch:async(url,options)=>{if(url!=='/api/mesure')throw Error('unexpected network '+url);measures.push(JSON.parse(options.body));return {ok:true};},
    attenteRef:ref(null),stopAttenteRef:ref(false),souffleDattenteRef:ref(null),dernierSouffle:ref(null),souffleDe:()=>({fichiers:takes.map(t=>t.path)}),fichierDe:s=>s.fichiers[0],
+   /* UN NOM MANQUANT, ET LE FILET ÉTAIT MORT. `prendreLaParole` appelle
+      `mesurerDemarrageVoix` depuis le 24 octobre ; ce décor ne le fournissait
+      pas, et l'épreuve échouait sur un ReferenceError AVANT de vérifier quoi
+      que ce soit. Un filet rouge que personne ne lit ne protège de rien — il
+      rassure, ce qui est pire. Ici on ne mesure pas : on exécute l'action,
+      comme le vrai, sans envoyer la mesure. */
+   mesurerDemarrageVoix:(_phase,action)=>action(),
   };
   const callback=name=>new Function('env',`with(env){${callbacks[name]};return run;}`)(env);
   env.jouerEtAnimer=callback('jouerEtAnimer');env.taireLeSouffle=callback('taireLeSouffle');
