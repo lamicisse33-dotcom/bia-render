@@ -103,7 +103,7 @@ export default function LectureApprentissage({code,voice,demande,onStart,onClose
    }catch(error){cleanup();if(!signal.aborted)secoursComplet=true;throw error;}
   };
   async function* packets(value:{text:string;first:MorceauVoix;langue:"fr"|"wo"},signal:AbortSignal){
-   try{yield* morceauxLecture(value.first,(part,empreinte)=>demander(value.text,part,signal,empreinte,value.langue),signal,(settings.current.voice!=="piper"&&settings.current.voice!=="piper-web"));}
+   try{yield* morceauxLecture(value.first,(part,empreinte)=>demander(value.text,part,signal,empreinte,value.langue),signal,settings.current.voice!=="piper-web");}
    catch(error){if(!signal.aborted)secoursComplet=true;throw error;}
   }
   const jouer=async(value:unknown,signal:AbortSignal,plage?:PlageLecture)=>{

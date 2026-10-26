@@ -44,14 +44,20 @@ onmessage=({data:d})=>{
    if(d.kind==='prepare'){postMessage({id:d.id,ready:true});return;}
    const parts=KhalamPiperCore.split(d.text),text=parts[d.part];
    if(text===undefined){postMessage({id:d.id,parts:parts.length,empty:true});return;}
-   const speaker=0;
    if(config.num_speakers!==1)throw Error('La configuration de Khalam Gratuit est invalide.');
    const ids=KhalamPiperCore.encode(text,config),inf=config.inference;
    const start=performance.now(),speed=Math.max(.7,Math.min(1.2,Number(d.speed)||1));
    const inputs={input:new ort.Tensor('int64',BigInt64Array.from(ids,BigInt),[1,ids.length]),
     input_lengths:new ort.Tensor('int64',BigInt64Array.from([BigInt(ids.length)]),[1]),
-    scales:new ort.Tensor('float32',new Float32Array([inf.noise_scale,inf.length_scale/speed,inf.noise_w]),[3]),
-    sid:new ort.Tensor('int64',BigInt64Array.from([BigInt(speaker)]),[1])};
+    scales:new ort.Tensor('float32',new Float32Array([inf.noise_scale,inf.length_scale/speed,inf.noise_w]),[3])};
+   /* ── UNE SEULE VOIX N'A PAS DE NUMÉRO ──────────────────────────────────
+      Le modèle de Khalam Gratuit n'expose que input, input_lengths et
+      scales : lui envoyer un `sid` faisait échouer CHAQUE phrase, parce
+      qu'ONNX refuse une entrée qu'il ne déclare pas. On ne le joint donc
+      que si le modèle le demande — ce qui garde la porte ouverte à un
+      modèle à plusieurs voix sans jamais casser celui-ci. */
+   if(session.inputNames.includes('sid'))
+    inputs.sid=new ort.Tensor('int64',BigInt64Array.from([BigInt(config.default_speaker_id||0)]),[1]);
    const result=await session.run(inputs);
    try{
     const wav=KhalamPiperCore.wav(result.output.data,config.audio.sample_rate);

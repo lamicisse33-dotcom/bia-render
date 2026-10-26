@@ -73,6 +73,7 @@ import {resumeIntegriteAudio} from "@/lib/essai-integrite-audio";
 import {resumeLectureBilingue} from "@/lib/essai-lecture-bilingue";
 import {resumePrechauffageDialogue} from "@/lib/prechauffage-dialogue";
 import {resumePiperWeb} from "@/lib/piper-web-etat";
+import {resumeModeleGratuit,verifierModeleGratuit} from "@/lib/khalam-gratuit-modele";
 import {resumeAnthropic,MODELE_SONNET} from "@/lib/cerveau-anthropic";
 import {resumeLatenceCache} from "@/lib/latence-cache-anthropic";
 import {resumeDiagnosticLatence} from '@/lib/diagnostic-latence-autonome';
@@ -165,6 +166,9 @@ export async function GET(request: Request) {
   const verdict = verifierCode(request.headers.get("x-bia-code"), false);
   const maitre = verdict.ok && verdict.maitre;
   if(new URL(request.url).searchParams.get('verifier_biba')==='1')try{await lireCorrectionsBiba();}catch{}
+  /* Le modèle de Khalam Gratuit vit dans un seau privé : sans ce passage,
+     personne ne pouvait dire si l'envoi avait abouti. Lecture seule. */
+  if(new URL(request.url).searchParams.get('verifier_khalam_gratuit')==='1'){try{await verifierModeleGratuit();}catch{ /* Le refus est publié, jamais lancé. */ }}
   if(new URL(request.url).searchParams.get("verifier_acces_devoirs")==="1"){
     try{await verifierAccesDevoirs();}catch{return NextResponse.json({erreur:"Vérification de la lecture Supabase impossible",version:VERSION},{status:503});}
   }
@@ -253,6 +257,7 @@ export async function GET(request: Request) {
     connexions_gpu:resumePortsGpu(),
     reglages_rapidite:{silence_court_ms:silenceQuiSuffit(700,0,silenceFinDeParoleMs()),silence_phrase_ms:silenceQuiSuffit(2500,0,silenceFinDeParoleMs()),silence_recit_ms:silenceQuiSuffit(7000,0,silenceFinDeParoleMs()),historique_vocal_max_tours:12,premiere_phrase_courte:true,cache_dialogue_par_sources_pertinentes:true},
     piper_web: resumePiperWeb(),
+    khalam_gratuit: resumeModeleGratuit(),
     // La tenue de BIA — réglable depuis /reglage, lue par tout le monde ici.
     tenue: tenueActuelle(),
     /* 21 septembre : ce qui manquait pour voir que les mots corrigés ne

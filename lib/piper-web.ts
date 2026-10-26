@@ -1,5 +1,10 @@
 import type {MorceauVoix} from './flux-khalam';
-export function piperWebActif(){try{return typeof window!=='undefined'&&localStorage.getItem('bia-choix-voix-v1')==='piper-web';}catch{return false;}}
+/* Un téléphone déjà ouvert a pu garder « piper » : c'était le moteur
+   INSTALLÉ, remplacé par Khalam Gratuit le 25 octobre. choixVoixBia() le
+   convertit à sa première lecture, mais pas forcément avant que la parole
+   ne demande son chemin : sans cette reconnaissance immédiate, le tout
+   premier mot après la mise à jour partait sur l'autre moteur. */
+export function piperWebActif(){try{if(typeof window==='undefined')return false;const choix=localStorage.getItem('bia-choix-voix-v1');return choix==='piper-web'||choix==='piper';}catch{return false;}}
 export function vitessePiperWeb(){try{const v=Number(localStorage.getItem('bia-piper-web-speed'));return v>=.7&&v<=1.2?v:1;}catch{return 1;}}
 export function mesurerPiperWeb(etape:string,ms=0){void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'piper_web',etape,ms}),keepalive:true}).catch(()=>{});}
 export type VoixFemininePiper = 0 | 1;
@@ -11,7 +16,7 @@ export function choisirVoixFemininePiper(speaker:VoixFemininePiper){
 let worker:Worker|null=null,id=0;
 type Result={id:number;ready?:boolean;error?:string;progress?:string;wav?:ArrayBuffer;empty?:boolean;parts:number;part:number;ms:number;speed:number};
 const pending=new Map<number,{resolve:(r:Result)=>void;reject:(e:Error)=>void;cleanup:()=>void}>();
-let dernierEtat='Khalam V2 attend sa préparation.';
+let dernierEtat='Khalam Gratuit attend sa préparation.';
 export const etatPiperWeb=()=>dernierEtat;
 function statut(message:string){dernierEtat=message;window.dispatchEvent(new CustomEvent('bia-piper-web',{detail:message}));}
 export function annulerPiperWeb(){
@@ -20,7 +25,7 @@ export function annulerPiperWeb(){
 }
 function moteur(){
  if(worker)return worker;
- if(typeof Worker==='undefined'||typeof WebAssembly==='undefined')throw Error('Ce navigateur ne peut pas utiliser Khalam V2.');
+ if(typeof Worker==='undefined'||typeof WebAssembly==='undefined')throw Error('Ce navigateur ne peut pas utiliser Khalam Gratuit.');
  worker=new Worker('/piper/worker.js?v=voix-feminines-1');
  worker.onmessage=({data:d}:{data:Result})=>{
   if(d.progress){statut(d.progress);return;}
@@ -28,7 +33,7 @@ function moteur(){
   if(d.error){statut(d.error);mesurerPiperWeb('erreur');p.reject(Error(d.error));}
   else{if(d.ready)mesurerPiperWeb('pret');else if(d.wav)mesurerPiperWeb('generation',d.ms);p.resolve(d);}
  };
- worker.onerror=()=>{statut('Khalam V2 n’a pas pu démarrer dans ce navigateur.');annulerPiperWeb();};
+ worker.onerror=()=>{statut('Khalam Gratuit n’a pas pu démarrer dans ce navigateur.');annulerPiperWeb();};
  return worker;
 }
 function demander(data:object,signal?:AbortSignal){

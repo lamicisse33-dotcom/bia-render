@@ -2,7 +2,7 @@
   "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
   "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
   "files": {
-    "app/page.tsx": "b93ee9004717f97d74b929fce6c867123d9c953784e489444b57b989be4bb683",
+    "app/page.tsx": "00cd7800e89204888e57a273586eb8a769e6453e22f76195b19e5f0bd6ce2b58",
     "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
     "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
     "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -405,5 +405,22 @@
     "verification": "tsc, npm run build, suite complete : aucune nouvelle rupture. Une epreuve neuve : absent = aucun effet, borne, et il passe devant le reglage du serveur sinon l essai ne servirait a rien.",
     "non_valide": "La reponse a sa question. Elle viendra de quatre tours avec ?attente=0 et quatre sans, memes phrases.",
     "ma_faute_quatrieme_fois": "J ai pousse 3d92c05 avec QUATRE epreuves rouges : `attenteDemandee` etait un nom neuf dans la ligne que cinq epreuves extraient du callback ecouter. Quatrieme fois aujourd hui apres silenceDemande, journalTourRef et la garde de la voix. L essai est maintenant replie DANS reglagesAnticipation, qui existe deja dans leurs decors, et une epreuve refuse qu un nom neuf reapparaisse. La production n etait pas cassee — le composant reel a bien ce nom — mais j ai pousse du rouge, et je n aurais pas du."
+  },
+  "migration_khalam_gratuit_20261025_nuit": {
+    "autorise": "Passation du 25 octobre au soir : « termine le branchement : chargement du modèle sur le téléphone, choix dans le sélecteur de voix sous le nom Khalam Gratuit, aucun mot Piper visible » — et « main = une BIA qui répond, toujours ».",
+    "ce_qui_change": "app/page.tsx : le garde-fou qui exigeait le moteur INSTALLÉ sur le téléphone avant de laisser parler Khalam Gratuit est retiré ; le dernier nom de moteur affiché à l'écran disparaît ; le banc d'écoute redevient atteignable depuis les réglages de voix.",
+    "les_fautes": [
+      "La voix du navigateur exigeait l'application installée : choisir Khalam Gratuit rendait BIA MUETTE et affichait « Piper » à l'écran, les deux interdits. Posé par cbb6dd9, qui a retypé « piper » en « piper-web » au lieu de supprimer un garde-fou devenu faux.",
+      "Le même commit a laissé le type « piper » dans app/LectureApprentissage.tsx : tsc échouait, donc RENDER NE POUVAIT PLUS DÉPLOYER MAIN — la production est restée figée sur e2da59f pendant que main avançait.",
+      "Le worker envoyait une entrée `sid` à un modèle qui ne la déclare pas : ONNX refuse une entrée inconnue, donc CHAQUE phrase échouait. Vérifié sur le vrai fichier : entrées = input, input_lengths, scales.",
+      "La table de phonèmes du modèle exporté ne porte qu'une majuscule, « X ». Toute phrase ordinaire commençait par un signe inconnu : le moteur refusait TOUT, « Nanga def ? » comme « Bonjour »."
+    ],
+    "mesure": "Le moteur fait parler le vrai modèle hors navigateur, avec le code du téléphone : 312 à 434 ms de synthèse pour 2,7 à 3,4 s de son, soit 0,11 à 0,13 × le temps réel sur le Mac ; crête 0,42 à 0,45, puissance 0,075 à 0,080 — ni silence, ni saturation. Avant les corrections : zéro son, échec sur chaque phrase.",
+    "filet": "tests/piper-web.test.mjs : prouvé rouge sur chacune des deux fautes du moteur (le `sid` envoyé à un modèle qui n'en veut pas ; la majuscule qui faisait tout refuser) et vert une fois corrigées. L'épreuve de bout en bout « je parle → mon texte s'affiche → elle répond » reste verte.",
+    "mesure_dans_etat": "/api/etat publie désormais `khalam_gratuit.modele` : présent ou non dans le seau privé, sa révision, sa taille, ses morceaux. Le relevé ne se fait que sur /api/etat?verifier_khalam_gratuit=1, donc aucun coût aux appels ordinaires. Sans lui, personne ne pouvait savoir si l'envoi du modèle avait abouti, la route exigeant le code de BIA.",
+    "portee": "Rien de la conversation n'est touché : ni l'écoute, ni les briques, ni la fin de parole. Les deux autres voix (KHALAM Voice homme et femme) suivent exactement le même chemin qu'avant.",
+    "reversible": "Le choix vit dans le navigateur du téléphone (bia-choix-voix-v1) : reprendre « Femme — KHALAM Voice » dans Moi suffit, sans redéploiement. L'ancien modèle à trois voix reste servi par /api/piper-web.",
+    "ce_que_ca_ne_dit_pas": "Rien sur la QUALITÉ du wolof de ce moteur : son propre entraînement s'estime à val_mos 1,80 à 1,96 sur 5, ce qui est bas. Cela s'écoute, et c'est à Lamine de juger.",
+    "hash_precedent": "b93ee9004717f97d74b929fce6c867123d9c953784e489444b57b989be4bb683"
   }
 }

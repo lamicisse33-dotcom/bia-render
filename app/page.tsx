@@ -3012,10 +3012,13 @@ export default function Home() {
     }
     const piperCommence=performance.now();
     const locale = voixLocaleBiaDisponible(personaRef.current);
-    if (choixVoixBia() === "piper-web" && !locale) {
-      setPanne("Piper est installé dans l’application du téléphone. Ouvre cette application pour l’utiliser, ou choisis Khalam Voice dans Moi.");
-      stopMouth(answer); return;
-    }
+    /* 25 octobre, nuit : ici se tenait un garde-fou qui exigeait le moteur
+       INSTALLÉ sur le téléphone. Il datait du temps où le choix « piper »
+       désignait ce moteur-là. Khalam Gratuit, lui, fabrique le son DANS le
+       navigateur : lui demander l'application installée la rendait muette,
+       et affichait un nom de moteur à l'écran. Retiré. Ce qui protège
+       vraiment cette voix, c'est le chargement de son modèle — et son
+       échec se dit dans « État de la voix », pas par un silence. */
     noterRouteVoixBia("demande", locale);
 
     if (!essaiChatterboxActif() && moteursRef.current && moteursRef.current.voix === "navigateur" && !voixLocaleBiaDisponible(personaRef.current)) {
@@ -8169,6 +8172,7 @@ export default function Home() {
         </fieldset>
         <p className="papier-note">Ton choix est mémorisé dans ce navigateur. Khalam Gratuit fonctionne dans le navigateur du téléphone. Le modèle de 63,5 Mo est téléchargé une fois puis conservé sur cet appareil.</p>
         {etatSecours && <p className="papier-note" role="status">{etatSecours}</p>}
+        <a className="papier-lien" href="/voix/secours">Écouter Khalam Gratuit avant de choisir →</a>
         {erreurChoixVoix && <p className="panne" role="alert">{erreurChoixVoix}</p>}
         <button type="button" className="papier-lien" disabled={mode !== "ready" || conversation}
           onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
@@ -8176,7 +8180,7 @@ export default function Home() {
         <p className="papier-note" role="status" data-bia-voice-status>
           {choixVoix === "piper-web" ? "Khalam Gratuit · voix de femme · moteur dans ce navigateur" : essaiChatterbox ? `KHALAM Voice · voix ${choixVoix === "female" ? "de femme" : "d’homme"} · serveur de test` : voixLocalePresente
             ? `Voix locale ${epoqueVoixLocaleBia()} — moteur installé sur cet iPhone`
-            : "Piper absent de cette fenêtre — ouvre BIA installée sur le téléphone"}
+            : "Aucune voix installée dans cette fenêtre — choisis Khalam Gratuit ci-dessus, ou ouvre BIA installée sur le téléphone"}
         </p>
         {!essaiChatterbox && !voixLocalePresente && (
           <p className="papier-note">Pour tester la nouvelle voix, ouvre BIA installée sur l&apos;iPhone. Safari et l&apos;ancienne icône web n&apos;ont pas ce moteur.</p>

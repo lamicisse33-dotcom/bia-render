@@ -26,7 +26,16 @@ assert.equal(c.choixVoixBia(),'female');
 assert(c.choisirVoixBia('piper-web'));assert.equal(c.choixVoixBia(),'piper-web');assert.equal(c.essaiChatterboxActif(),false);assert.equal(c.routeVoixBia(),'/api/piper-web/synthese');
 native=true;assert.equal(c.choixVoixBia(),'piper-web');
 assert(c.choisirVoixBia('female'));assert(c.essaiChatterboxActif());assert.equal(c.routeVoixBia(),'/api/chatterbox-test/bia');
-assert(c.choisirVoixBia('piper'));assert.equal(c.routeVoixBia(),'/api/voix');
+/* 25 octobre : « piper » désignait le moteur INSTALLÉ sur le téléphone. Il
+   n'est plus un choix possible — le demander doit être refusé. Mais un
+   téléphone qui l'avait gardé ne doit pas rester en panne : il bascule sur
+   Khalam Gratuit, et l'ancien nom disparaît de sa mémoire. */
+assert.equal(c.choisirVoixBia('piper'),false);
+assert.equal(c.choixVoixBia(),'female');
+store.set('bia-choix-voix-v1','piper');
+assert.equal(c.choixVoixBia(),'piper-web');
+assert.equal(store.get('bia-choix-voix-v1'),'piper-web');
+assert.equal(c.routeVoixBia(),'/api/piper-web/synthese');
 console.log('Piper web: exact alphabet, no skipped unknown characters, complete segmentation, WAV and independent voice selection passed.');
 
 // Two queued requests share a worker: cancelling the turn must reject both,
@@ -38,6 +47,14 @@ const browser={exports:{},window:{dispatchEvent(){}},localStorage:{getItem:()=>n
  fetch:async()=>{remote++;return new Response('{}');}};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/piper-web.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,browser);
 const api=browser.exports,abort=new AbortController();
+/* La parole demande son chemin avant que choixVoixBia() n'ait converti
+   l'ancien nom : si piperWebActif() ne le reconnaissait pas lui aussi, le
+   tout premier mot après la mise à jour partait sur l'autre moteur. */
+for(const [garde,attendu] of [['piper-web',true],['piper',true],['female',false],[null,false]]){
+ browser.localStorage.getItem=k=>k==='bia-choix-voix-v1'?garde:null;
+ assert.equal(api.piperWebActif(),attendu,'choix gardé : '+garde);
+}
+browser.localStorage.getItem=()=>null;
 const one=api.lirePiperWeb('Bonjour',0,'test',abort.signal),two=api.lirePiperWeb('Bonjour',1,'test',abort.signal);
 const rejected=[assert.rejects(one,{name:'AbortError'}),assert.rejects(two,{name:'AbortError'})];
 abort.abort();await Promise.all(rejected);assert(workers[0].dead);
@@ -61,18 +78,58 @@ assert.equal(api.choisirVoixFemininePiper(0),true);
 const normal=api.lirePiperWeb('Bonjour',0,'test');assert.equal(workers[1].last.speaker,0);
 workers[1].onmessage({data:{id:workers[1].last.id,parts:1,part:0,empty:true}});await normal;
 savedSpeaker='999';assert.equal(api.voixFemininePiper(),1);
+/* ── CE QUE LE VRAI MODÈLE ACCEPTE ───────────────────────────────
+   Khalam Gratuit n'a qu'UNE voix, et son graphe ONNX ne déclare que trois
+   entrées : input, input_lengths, scales. Lui joindre un `sid` faisait
+   échouer CHAQUE phrase — ONNX refuse une entrée qu'il ne connaît pas, et
+   rien ici ne l'avait vu. On vérifie donc les deux sens :
+     • modèle à une voix, sans `sid` déclaré → on ne l'envoie pas, et quel
+       que soit le locuteur demandé par un vieil onglet, elle parle ;
+     • modèle qui déclare `sid` → on l'envoie, à sa voix par défaut ;
+     • configuration à plusieurs voix → refusée, la page n'a plus de quoi
+       en choisir une.                                                     */
 const messages=[],feeds=[];
 class Tensor{constructor(type,data,shape){this.data=data;}dispose(){}}
+const configUneVoix={...config,num_speakers:1,default_speaker_id:0,speaker_id_map:{}};
+const session=(entrees)=>({inputNames:entrees,
+ run:async inputs=>{feeds.push('sid' in inputs?Number(inputs.sid.data[0]):'aucun');
+  return {output:{data:new Float32Array([.1,-.1]),dispose(){}}};}});
 const runtime={importScripts(){},ort:{env:{wasm:{}},Tensor},KhalamPiperCore:core,
- postMessage:d=>messages.push(d),performance:{now:()=>0},configData:config,
- fakeSession:{run:async inputs=>{feeds.push(Number(inputs.sid.data[0]));return {output:{data:new Float32Array([.1,-.1]),dispose(){}}};}}};
+ postMessage:d=>messages.push(d),performance:{now:()=>0},
+ configUneVoix,configPlusieursVoix:config,
+ sessionSansSid:session(['input','input_lengths','scales']),
+ sessionAvecSid:session(['input','input_lengths','scales','sid'])};
 vm.createContext(runtime);vm.runInContext(fs.readFileSync('public/piper/worker.js','utf8'),runtime);
-vm.runInContext('prepared=Promise.resolve();config=configData;session=fakeSession;',runtime);
+
+vm.runInContext('prepared=Promise.resolve();config=configUneVoix;session=sessionSansSid;',runtime);
 for(const speaker of [0,1,undefined,2,-1,99,.5]){
  runtime.onmessage({data:{id:messages.length+1,kind:'speak',text:'Bonjour',part:0,speaker}});
  await vm.runInContext('queue',runtime);
 }
-assert.deepEqual(feeds,[0,1,1]);
-assert.equal(messages.filter(m=>m.wav).length,3);
-assert.equal(messages.filter(m=>m.error).length,4);
-console.log('Piper female voices: preview isolation, saved choice, exact ONNX speaker IDs and invalid-speaker rejection passed.');
+assert.deepEqual(feeds,Array(7).fill('aucun'));
+assert.equal(messages.filter(m=>m.wav).length,7);
+assert.equal(messages.filter(m=>m.error).length,0);
+
+feeds.length=0;
+vm.runInContext('session=sessionAvecSid;',runtime);
+runtime.onmessage({data:{id:messages.length+1,kind:'speak',text:'Bonjour',part:0}});
+await vm.runInContext('queue',runtime);
+assert.deepEqual(feeds,[0]);
+
+vm.runInContext('config=configPlusieursVoix;',runtime);
+runtime.onmessage({data:{id:messages.length+1,kind:'speak',text:'Bonjour',part:0}});
+await vm.runInContext('queue',runtime);
+assert.match(messages.at(-1).error,/configuration de Khalam Gratuit est invalide/);
+
+/* ── UNE MAJUSCULE NE DOIT JAMAIS LA FAIRE TAIRE ─────────────────────
+   La table du modèle gratuit ne porte qu'un « X » : son corpus était tout
+   en minuscules. Toute phrase ordinaire commençait donc par un signe
+   inconnu, et elle refusait TOUT. Une majuscule ne s'entend pas : on prend
+   sa minuscule. Un signe réellement inconnu, lui, doit toujours être dit. */
+const minuscules=Object.fromEntries(Object.entries(config.phoneme_id_map).filter(([k])=>!/^[A-Z]$/.test(k)));
+const alphabetBas={...config,phoneme_id_map:minuscules};
+assert.deepEqual(core.encode('Nanga def?',alphabetBas),core.encode('nanga def?',alphabetBas));
+assert.deepEqual(core.encode('BëGG',alphabetBas),core.encode('bëgg',alphabetBas));
+assert.throws(()=>core.encode('Nanga 🦁 def?',alphabetBas),/caractères/);
+assert.deepEqual(core.encode('Nanga def?',config),core.encode('Nanga def?',config));
+console.log('Khalam Gratuit : une seule voix, `sid` seulement si le modèle le déclare, configuration à plusieurs voix refusée, majuscules jamais muettes.');

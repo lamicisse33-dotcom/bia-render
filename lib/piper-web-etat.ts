@@ -6,4 +6,4 @@ export function noterPiperWeb(d:{etape?:string;ms?:number}){
  else if(d.etape==='lecture'){etat.lectures_navigateur++;etat.dernier_premier_son_ms=ms;}
  else if(d.etape==='erreur')etat.erreurs++;
 }
-export const resumePiperWeb=()=>({moteur:'Khalam V2',execution:'navigateur',...etat});
+export const resumePiperWeb=()=>({moteur:'Khalam Gratuit',execution:'navigateur',...etat});
