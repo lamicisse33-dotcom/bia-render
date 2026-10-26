@@ -33,7 +33,7 @@ const { tourVide, poser, finir, tableauDesEtapes } = contexte.exports;
 
 /** Un tour complet aux huit instants voulus, en millisecondes depuis T0. */
 function tourAux({ t1, t3, t4, t5, t6, t7, serveur = 0, fabrication = 0, porte = 0, langue, froid,
-                   allerRetour = 0, cerveauServeur = 0, octets = 0 }) {
+                   allerRetour = 0, cerveauServeur = 0, octets = 0, avantEnvoi = 0 }) {
   const b = tourVide();
   const T0 = 1_000_000;
   poser(b, 'parole', T0);
@@ -45,6 +45,7 @@ function tourAux({ t1, t3, t4, t5, t6, t7, serveur = 0, fabrication = 0, porte =
   poser(b, 'syllabe', T0 + t7);
   b.ecouteServeur = serveur; b.fabrication = fabrication; b.porte = porte;
   b.allerRetourCerveau = allerRetour; b.cerveauServeur = cerveauServeur; b.requeteOctets = octets;
+  b.avantEnvoiCerveau = avantEnvoi;
   if (langue) b.langue = langue;
   if (froid !== undefined) b.froid = froid;
   return finir(b);
@@ -190,5 +191,54 @@ test('le tableau sépare les trois parts du cerveau sans dépasser le total', ()
   /* Et le contrôle qui compte : la somme des étapes rejoint le total vécu,
      mesuré de bout en bout. Si une part du cerveau était comptée deux fois,
      ce total exploserait. */
+  assert.equal(tableau.somme_des_etapes_ms, tableau.total_vecu.moyen_ms);
+});
+
+/* ── LA PART QUE PERSONNE NE MESURAIT, ET QUI SORTAIT PREMIÈRE ─────────────
+
+   Manche du 26 octobre : « le cerveau, part NON COUVERTE » était la plus
+   longue ligne du tableau — 4 972 ms, 39 % de son attente — alors que le
+   serveur n'en déclarait que 2 161 et le réseau 110. Une étape qu'on ne sait
+   pas nommer ne se répare pas ; ce filet exige qu'elle soit nommée, et que
+   les QUATRE parts refassent le tout à la milliseconde.                   */
+test('les quatre parts du cerveau refont exactement le cerveau', () => {
+  const t = tourAux({ t1: 1200, t3: 2500, t4: 10000, t5: 10100, t6: 10600, t7: 10700,
+    avantEnvoi: 5000, allerRetour: 2343, cerveauServeur: 2247, octets: 8489 });
+  assert.equal(t.modele_ms, 7500);
+  assert.equal(t.cerveau_telephone_ms, 5000);   // mesuré sur la montre du téléphone
+  assert.equal(t.cerveau_serveur_ms, 2247);
+  assert.equal(t.cerveau_reseau_ms, 96);
+  const nonCouverte = t.modele_ms
+    - (t.cerveau_telephone_ms + t.cerveau_serveur_ms + t.cerveau_reseau_ms);
+  assert.equal(nonCouverte, 157);
+  assert.equal(t.cerveau_telephone_ms + t.cerveau_serveur_ms + t.cerveau_reseau_ms + nonCouverte,
+    t.modele_ms);
+});
+
+test('la part téléphone ne peut pas recouvrir l’aller-retour déjà mesuré', () => {
+  /* Un téléphone qui déclare avoir tenu toute l'étape alors que le serveur a
+     répondu dedans : la place restante est la seule vérité, sinon la même
+     milliseconde serait comptée deux fois et le tour entier serait jeté. */
+  const t = tourAux({ t1: 1200, t3: 2500, t4: 4800, t5: 4900, t6: 5400, t7: 5500,
+    avantEnvoi: 99999, allerRetour: 2050, cerveauServeur: 1180 });
+  assert.equal(t.cerveau_telephone_ms, t.modele_ms - 2050);
+  assert.equal(t.cerveau_telephone_ms + t.cerveau_serveur_ms + t.cerveau_reseau_ms, t.modele_ms);
+});
+
+test('le tableau nomme la part téléphone au lieu de la laisser non couverte', () => {
+  const a = tourAux({ t1: 1200, t3: 2500, t4: 10000, t5: 10100, t6: 10600, t7: 10700,
+    avantEnvoi: 5000, allerRetour: 2343, cerveauServeur: 2247 });
+  const b = tourAux({ t1: 1200, t3: 2500, t4: 9000, t5: 9100, t6: 9600, t7: 9700,
+    avantEnvoi: 4000, allerRetour: 2343, cerveauServeur: 2247 });
+  const tableau = tableauDesEtapes([a, b]);
+  const part = (mot) => tableau.etapes.find((e) => e.quoi.includes(mot));
+  const telephone = part('part TÉLÉPHONE');
+  assert(telephone, 'la part téléphone du cerveau doit être listée');
+  assert.equal(telephone.moyen_ms, 4500);
+  /* Et elle sort bien devant : c'est tout l'objet de la mesure. */
+  assert.equal(tableau.etapes[0].quoi, telephone.quoi);
+  const nonCouverte = part('part NON COUVERTE');
+  assert(!nonCouverte || nonCouverte.moyen_ms < telephone.moyen_ms,
+    'ce qui reste non couvert doit être plus petit que ce qu’on vient de nommer');
   assert.equal(tableau.somme_des_etapes_ms, tableau.total_vecu.moyen_ms);
 });

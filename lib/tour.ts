@@ -116,6 +116,19 @@ export type Bornes = {
   allerRetourCerveau: number;
   cerveauServeur: number;
   requeteOctets: number;
+  /* ── ET LA PART QUI MANQUAIT, NOMMÉE AU LIEU D'ÊTRE DÉDUITE (26 octobre) ─
+
+     La manche de dix phrases a montré que la plus grosse ligne du tableau —
+     4 972 ms en moyenne, 39 % de son attente — n'était couverte par AUCUNE
+     borne : elle s'appelait « part non couverte » et je ne savais pas ce
+     qu'il y avait dedans. C'est inacceptable pour la plus longue étape.
+
+     Elle se mesure du même côté que tout le reste : la transcription est
+     finie (T3), et le téléphone n'a pas encore envoyé sa requête. Deux
+     instants de la MÊME montre, donc une durée juste. Elle contient ce que
+     la page fait entre les deux — et depuis le levier 1, l'attente bornée
+     accordée aux briques déjà préparées. */
+  avantEnvoiCerveau: number;
   /* Pour trier ses dix phrases sans qu'il ait à se souvenir de l'ordre. */
   langue?: "wo" | "fr";
   froid?: boolean;
@@ -168,6 +181,9 @@ export type Tour = {
   cerveau_reseau_ms: number;
   /** Le poids exact du corps envoyé à /api/chat, en octets. */
   requete_octets: number;
+  /** La part de modele_ms tenue PAR LE TÉLÉPHONE : de la fin de la
+      transcription au départ de la requête. Plus rien n'est déduit ici. */
+  cerveau_telephone_ms: number;
   /** T4 → T5 : le premier mot du cerveau est là, on décide quoi dire en
       premier et on demande son audio. */
   mise_en_voix_ms: number;
@@ -198,6 +214,7 @@ export type Tour = {
 export function tourVide(voie: "parole" | "ecrit" = "parole"): Bornes {
   return { voie, parole: 0, micro: 0, ecoute: 0, modele: 0, pretAParler: 0, enMain: 0, syllabe: 0,
     ecouteServeur: 0, allerRetourCerveau: 0, cerveauServeur: 0, requeteOctets: 0,
+    avantEnvoiCerveau: 0,
     source: "", attente: false, surLaTete: false, fabrication: 0, porte: 0 };
 }
 
@@ -280,6 +297,14 @@ export function finir(b: Bornes, quand = Date.now()): Tour | null {
      écartées, de la même façon que pour la voix et pour l'oreille. */
   const allerRetour = Math.min(Math.max(0, Number(b.allerRetourCerveau) || 0), morceaux.modele_ms);
   const cerveauServeur = Math.min(Math.max(0, Number(b.cerveauServeur) || 0), allerRetour);
+  /* Et ce que le téléphone a tenu avant d'envoyer : il ne reste de place que
+     ce que l'aller-retour n'occupe pas. Les deux ensemble ne peuvent pas
+     dépasser l'étape, sinon la partition mentirait et `somme > vecu`
+     jetterait le tour — ce qui cacherait le trou au lieu de le montrer. */
+  const cerveauTelephone = Math.min(
+    Math.max(0, Number(b.avantEnvoiCerveau) || 0),
+    morceaux.modele_ms - allerRetour,
+  );
   /* ── LE CONTRÔLE QUI AURAIT ATTRAPÉ LE DÉFAUT TOUT SEUL ────────────────
 
      Les morceaux ne peuvent pas dépasser le tour : c'est de l'arithmétique,
@@ -299,6 +324,7 @@ export function finir(b: Bornes, quand = Date.now()): Tour | null {
     ...morceaux,
     cerveau_serveur_ms: cerveauServeur,
     cerveau_reseau_ms: allerRetour - cerveauServeur,
+    cerveau_telephone_ms: cerveauTelephone,
     requete_octets: Math.max(0, Math.round(Number(b.requeteOctets) || 0)),
     transcription_serveur_ms: ecouteServeur,
     transcription_reseau_ms: morceaux.transcription_ms - ecouteServeur,
@@ -389,8 +415,11 @@ export function tableauDesEtapes(tours: Tour[]) {
     ["T3→T4", "le cerveau, part SERVEUR (préparation + attente du modèle)", (t) => t.cerveau_serveur_ms || 0],
     ["T3→T4", "le cerveau, part RÉSEAU (la requête monte, le premier mot redescend)",
       (t) => t.cerveau_reseau_ms || 0],
-    ["T3→T4", "le cerveau, part NON COUVERTE (assemblage de la tête sur le téléphone)",
-      (t) => Math.max(0, t.modele_ms - ((t.cerveau_serveur_ms || 0) + (t.cerveau_reseau_ms || 0)))],
+    ["T3→T4", "le cerveau, part TÉLÉPHONE (de la fin de la transcription au départ de la requête)",
+      (t) => t.cerveau_telephone_ms || 0],
+    ["T3→T4", "le cerveau, part NON COUVERTE (aucune borne ne la couvre)",
+      (t) => Math.max(0, t.modele_ms - ((t.cerveau_serveur_ms || 0) + (t.cerveau_reseau_ms || 0)
+        + (t.cerveau_telephone_ms || 0)))],
     ["T4→T5", "la mise en voix de la première phrase", (t) => t.mise_en_voix_ms || 0],
     ["T5→T6", "la fabrication du premier son, part GPU", (t) => t.voix_fabrication_ms || 0],
     ["T5→T6", "la fabrication du premier son, part réseau et décodage",

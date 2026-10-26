@@ -175,6 +175,12 @@ export function noterTour(t: Partial<Tour>) {
     cerveau_serveur_ms: Math.min(entier(t.cerveau_serveur_ms), entier(t.modele_ms)),
     cerveau_reseau_ms: Math.min(entier(t.cerveau_reseau_ms), Math.max(0, entier(t.modele_ms) - Math.min(entier(t.cerveau_serveur_ms), entier(t.modele_ms)))),
     requete_octets: entier(t.requete_octets),
+    /* La place qui reste dans l'étape, une fois l'aller-retour mesuré posé :
+       le serveur ne doit jamais pouvoir se faire compter deux fois. */
+    cerveau_telephone_ms: Math.min(
+      entier(t.cerveau_telephone_ms),
+      Math.max(0, entier(t.modele_ms) - entier(t.cerveau_serveur_ms) - entier(t.cerveau_reseau_ms)),
+    ),
     mise_en_voix_ms: entier(t.mise_en_voix_ms),
     voix_ms: entier(t.voix_ms),
     /* Bornés par voix_ms : un serveur ne peut pas avoir fabriqué plus

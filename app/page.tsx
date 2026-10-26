@@ -3632,6 +3632,23 @@ export default function Home() {
          les connaître exactement : c'est lui qui écrit le corps. */
       let corpsChat = "";
       const tEnvoiChat = Date.now();
+      /* ── LA PLUS GROSSE LIGNE DU TABLEAU N'ÉTAIT COUVERTE PAR RIEN ───────
+
+         Sa manche du 26 octobre : « le cerveau, part NON COUVERTE » sortait
+         première, 4 972 ms de moyenne, 39 % de son attente — pendant que le
+         serveur ne déclarait que 2 161 ms et le réseau 110 ms. Je ne pouvais
+         donc pas dire où partaient cinq secondes sur treize, et une étape
+         qu'on ne sait pas nommer ne se répare pas.
+
+         Elle se mesure ici, en une ligne, sur la MÊME montre que T3 : la
+         transcription est finie, la requête n'est pas encore partie. Ce qui
+         est dedans, c'est ce que la page fait entre les deux — la patience
+         accordée aux briques déjà préparées en premier. Une question tapée
+         n'a pas de transcription : `tTranscritRef` vaut zéro et on ne
+         fabrique pas une durée à partir de rien. */
+      if (tTranscritRef.current) {
+        bornesRef.current.avantEnvoiCerveau = Math.max(0, tEnvoiChat - tTranscritRef.current);
+      }
       const response = salutLocal?new Response(JSON.stringify(salutLocal),{headers:{"content-type":"application/json"}}):await fetch("/api/chat", {
         method: "POST",
         signal: requeteChat.signal,
