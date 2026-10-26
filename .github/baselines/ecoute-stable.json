@@ -2,7 +2,7 @@
  "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
  "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
  "files": {
-  "app/page.tsx": "e57c6f7cf085eb6eafcb5e6aa19f3a11dcce491528872346c5f80827ce2b3442",
+  "app/page.tsx": "2cbd7bcb89c8ea52af54eae24bdbf5bc1c430a11066a12570643b736c8040f33",
   "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
   "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
   "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -447,5 +447,24 @@
   "hypothese_abandonnee": "J'avais soupçonné l'historique de la conversation de peser sur le lien montant. Mesuré en simulant fenetreDuFil sur ses vraies phrases : 154 octets au tour 1, 2 552 octets au tour 12. 2,5 Ko ne peuvent pas coûter 1 120 ms. L'hypothèse est morte, et la fenêtre de 32 à 39 messages reste intacte — elle résume déjà les vieux échanges au lieu de les perdre.",
   "filets": "tests/ordre-des-consignes.test.mjs : lit le tableau des consignes et refuse qu'un bloc à plein tarif précède un bloc en cache ; prouvé rouge en remettant `devoirs` en tête, et il NOMME le bloc fautif. tests/bornes-latence.test.mjs : quatre épreuves de plus exigent que les trois parts du cerveau refont exactement le cerveau, qu'un serveur qui déclare l'impossible ne soit pas cru, et qu'un vieil onglet mesure comme avant.",
   "ce_que_ca_ne_dit_pas": "Le comportement de la conversation n'est pas touché : on pose des durées et on déplace un bloc derrière le cache. Le taux de cache après ce déplacement n'est PAS encore mesuré — il faut que Lamine refasse ses phrases. Et la vraie cause des 921 ms du modèle reste les 158 552 signes de consignes envoyés à chaque tour : les mettre en cache les rend dix fois moins chers, pas plus rapides à lire. Réduire ce volume est une décision de contenu, donc la sienne."
+ },
+ "migration_levier_1_patience_bornee_20261025": {
+  "authorized": "MANDAT VITESSE de Lamine, levier 1 : « le double paiement — elle attend la preparation PUIS le chemin ordinaire ». Repris sur la branche mandat-vitesse apres le retour a c4b5220, avec l epreuve de bout en bout exigee : « je parle, mon texte s affiche, elle repond ».",
+  "ce_qui_change": "A la fermeture du micro, la page n attend plus la chaine de briques sans limite. Si aucune brique n a COMMENCE A PARLER au bout de patience_brique_ms (1200 par defaut), on coupe la chaine — abort compris, pour qu elle cesse de couter — et le chemin ordinaire part. Une brique qui parle deja n est JAMAIS coupee : premierBrique dit si elle a commence.",
+  "les_deux_fautes_du_25_octobre": "Ce meme levier a rendu BIA muette deux fois. (1) abort() etait appele AVANT if(!actifBriques())return, et actifBriques() commence par !signal.aborted : je rendais ma propre garde fausse, on sortait toujours avant askBia. (2) Corrigee, askBia recevait encore dejaInscrit=true alors que RIEN n etait inscrit : sa phrase n apparaissait jamais. Les deux sont corrigees ici ; le tour est constate AVANT de couper, et askBia inscrit sa phrase lui-meme.",
+  "mesure": "Harnais de bout en bout, meme machine, meme bouchon : chemin du pari perdu (preparation lente qui ne donne rien) 9884 ms avant, 4871 ms apres, soit -5013 ms. Les deux autres chemins inchanges (3969 et 3863 ms). Mesure dans un harnais, PAS dans ses oreilles : les services sont bouches, et seul son telephone peut juger du reste.",
+  "filet": "tests/parole-affichee-browser.cjs — trois scenarios dans un vrai Chromium sur la vraie page, avec un faux micro qui produit un signal de voix. Verte sur c4b5220 (version servie), ROUGE sur 2d007d2 et 762dd8a, les deux deploiements muets, et rouge exactement la ou Lamine l a vu : la bulle de sa phrase n arrive jamais.",
+  "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change : le bloc de la patience dans le chemin des briques. Aucun changement d ASR, de synthese, de modele, de transport ni de capture micro. Reversible par BIA_PATIENCE_BRIQUE_MS=10000 (comportement d avant) sans redeployer.",
+  "reste_a_mesurer": "Ses quatre tours au telephone, sur Khalam : mediane du premier son, patiences_depassees dans /api/etat, et zero coupure. Production reste c4b5220 jusqu a son accord.",
+  "note_rebase": "Rebasé le 26 octobre sur le main qui porte Khalam Gratuit. app/page.tsx porte donc les DEUX chantiers : la patience bornée des briques, et le retrait du garde-fou qui rendait la voix du navigateur muette. L'épreuve de bout en bout a été relue verte après le rebase, sur l'arbre fusionné."
+ },
+ "migration_levier_2_oreille_plus_tot_20261025": {
+  "authorized": "MANDAT VITESSE, levier 2 : « l oreille en streaming — une transcription provisoire plus souvent au lieu de segments d une seconde ».",
+  "ce_que_je_fais": "Le premier segment part apres 600 ms de PAROLE au lieu de 1000, et les suivants toutes les 1500 ms au lieu de 4000 (2500 sur les profils optimises). La premiere interpretation arrive donc presque deux fois plus tot et se corrige deux a trois fois plus souvent.",
+  "ce_que_je_ne_fais_pas": "Pas de transcription toutes les 150 ms : chaque segment part en HTTP vers Khalam Oreille, donc sept requetes par seconde et par personne. Ce n est pas un reglage mais une autre architecture — un flux WebSocket vers le GPU, qui est le levier 6. Et je NE TOUCHE PAS a la fermeture du micro : ecouter plus tot n est pas couper plus tot.",
+  "cout_dit_avant": "Deux fois plus d appels a l oreille, mesure dans le harnais : 2 segments avant, 4 apres, sur 2,2 s de parole. Se lit dans anticipation_conversation.ecoute.segments.",
+  "scope": "Parmi les fichiers proteges, SEUL app/page.tsx change : le type du reglage servi et le passage de segment_ms a brancherAnticipation. Aucun changement d ASR, de synthese, de modele, de transport, ni de la detection de parole de lib/micro.ts.",
+  "reversible": "BIA_PREMIER_SEGMENT_MS=1000 et BIA_SEGMENT_MS=4000 rendent exactement le comportement d avant, sans redeployer.",
+  "ce_que_la_mesure_dit_de_600_MS_DE_SILENCE": "Le mandat demandait aussi la fin de parole a 600 ms. MESURE, et c est sa decision : avec 600, sur une phrase de 3,4 s coupee d une hesitation d UNE SECONDE, BIA repond a 2 363 ms — pendant qu il cherche son mot — et la fin de sa phrase part dans les mots rattrapes. Avec son reglage de 1 200 ms, un seul tour, reponse a 4 859 ms. Le defaut reste donc 1 200 ; BIA_SILENCE_FIN_PAROLE_MS=600 est disponible s il veut echanger 500 ms contre ce risque."
  }
 }
