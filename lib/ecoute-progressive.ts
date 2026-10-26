@@ -14,9 +14,23 @@ export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,i
  let taillePremierSegment=Math.min(tailleSegment,premierMs*16);
  let buffer=new Float32Array(0),chaine:Promise<void>=Promise.resolve(),erreur:unknown=null,segments=0,total=0,commence=false,clos=false,silence=0,paroleDansBuffer=false,finParole=0;
  const textes:string[]=[],bruts:string[]=[],suggestions:string[]=[];
+ /* ── CE QUE LE SERVEUR DIT AVOIR TENU, ET QU'ON JETAIT ──────────────────
+
+    Manche du 26 octobre : « la transcription, part SERVEUR (l'oreille
+    elle-même) » sortait à 0 ms de médiane sur 10 tours sur 11 — pas parce
+    que l'oreille est instantanée, mais parce que le chemin progressif
+    assemble son résultat ICI, dans le téléphone, et laissait tomber le
+    `chronometrage` que /api/ecouter renvoie pourtant à chaque segment. On
+    ne pouvait donc pas dire, dans T1→T3, ce qui est l'oreille et ce qui est
+    le réseau.
+
+    C'est la durée du DERNIER segment qu'on garde, et pas la somme : les
+    segments d'avant ont tourné PENDANT qu'il parlait, donc avant T1. Seul
+    le dernier retient la fin de la transcription. */
+ let serveurDernierMs=0;
  function segment(pcm:Float32Array){total+=pcm.length;segments++;
  chaine=chaine.then(async()=>{if(erreur)return;if(!actuel())throw Error('Tour annulé');const f=new FormData();f.set('audio',wavLong({sampleRate:16000,length:pcm.length,numberOfChannels:1,getChannelData:()=>pcm},0,pcm.length),'segment.wav');f.set('indice_langue',indice());
- const r=await envoyer(f),d=await r.json();if(!actuel())throw Error('Tour annulé');if(!r.ok||d.panne||d.transcription_rejetee||typeof d.texte!=='string')throw Error('Segment non confirmé');textes.push(d.texte.trim());bruts.push(String(d.texte_brut??d.texte).trim());if(Array.isArray(d.suggestions_ecriture))suggestions.push(...d.suggestions_ecriture.filter((x:any)=>typeof x==='string'));if(!clos)progression(textes.filter(Boolean).join(' '));
+ const r=await envoyer(f),d=await r.json();if(!actuel())throw Error('Tour annulé');if(!r.ok||d.panne||d.transcription_rejetee||typeof d.texte!=='string')throw Error('Segment non confirmé');textes.push(d.texte.trim());bruts.push(String(d.texte_brut??d.texte).trim());if(Array.isArray(d.suggestions_ecriture))suggestions.push(...d.suggestions_ecriture.filter((x:any)=>typeof x==='string'));serveurDernierMs=Number(d?.chronometrage?.total_ms)||0;if(!clos)progression(textes.filter(Boolean).join(' '));
  /* ── LA PORTE QUI A VRAIMENT REFUSÉ, LE 23 OCTOBRE ──────────────────────
     Une transcription qui arrive après la fermeture de la capture est perdue
     sans un mot. Sur une phrase courte, le seul segment part sur les 400 ms
@@ -99,7 +113,7 @@ export function creerEcouteProgressive(envoyer:(f:FormData)=>Promise<Response>,i
  },
  // A quiet remainder after an already recognized utterance is not a new
  // utterance. Never send it alone: a generative ASR can invent words on silence.
- async finir(){clos=true;const debut=Date.now();if(!segments)return null;if(buffer.length&&paroleDansBuffer){segment(buffer);buffer=new Float32Array(0);}await chaine;if(erreur)throw erreur;if(!actuel())throw Error('Tour annulé');return {texte:textes.filter(Boolean).join(' '),texte_brut:bruts.filter(Boolean).join(' '),suggestions_ecriture:[...new Set(suggestions)],extrait:null,au_fil_de_leau:true,progressive:{segments,secondes:total/16000,attente_finale_ms:Date.now()-debut}};},
+ async finir(){clos=true;const debut=Date.now();if(!segments)return null;if(buffer.length&&paroleDansBuffer){segment(buffer);buffer=new Float32Array(0);}await chaine;if(erreur)throw erreur;if(!actuel())throw Error('Tour annulé');return {texte:textes.filter(Boolean).join(' '),texte_brut:bruts.filter(Boolean).join(' '),suggestions_ecriture:[...new Set(suggestions)],extrait:null,au_fil_de_leau:true,chronometrage:{total_ms:serveurDernierMs},progressive:{segments,secondes:total/16000,attente_finale_ms:Date.now()-debut}};},
  async abandonner(){clos=true;buffer=new Float32Array(0);await chaine;},
  };
 }

@@ -58,3 +58,37 @@ test('continuous speech crossing forced cuts preserves every audio sample',async
  const {p,clips}=pipeline();for(let i=0;i<32;i++)p.pousser(voice(),true);
  await p.finir();assert.equal(clips.reduce((n,c)=>n+c.frames,0),128000);assert(clips.every(c=>c.voiced));
 });
+
+/* ── LA PART SERVEUR DE LA TRANSCRIPTION, QUI VALAIT 0 POUR RIEN ───────────
+
+   Manche du 26 octobre : « la transcription, part SERVEUR (l'oreille
+   elle-même) » sortait à 0 ms de médiane sur 10 tours sur 11. L'oreille n'est
+   pas instantanée : le chemin progressif assemble son résultat dans le
+   téléphone et jetait le `chronometrage` que /api/ecouter renvoie à chaque
+   segment. Lamine ne pouvait donc pas savoir, dans T1→T3, ce qui est l'oreille
+   et ce qui est le réseau. Ce filet exige que la durée remonte — et que ce
+   soit celle du DERNIER segment, le seul qui retienne la fin.             */
+test('le chemin progressif rend la durée déclarée par le serveur, celle du dernier segment',async()=>{
+ const vus=[];
+ const p=creerEcouteProgressive(async f=>{
+  const bytes=await f.get('audio').arrayBuffer(),v=new DataView(bytes);let voiced=false;
+  for(let i=44;i<bytes.byteLength;i+=2)if(v.getInt16(i,true)!==0)voiced=true;
+  vus.push(voiced);
+  // Le premier segment a tourné pendant qu'il parlait ; le dernier retient T3.
+  return Response.json({texte:'Bonjour.',chronometrage:{total_ms:vus.length===1?900:412}});
+ },()=> 'fr',()=>true,()=>{});
+ for(let i=0;i<8;i++)p.pousser(new Float32Array(4000).fill(.2),true);
+ for(let i=0;i<8;i++)p.pousser(new Float32Array(4000),false);
+ const r=await p.finir();
+ assert.equal(vus.length,2,'deux segments : un pendant la parole, un à la pause');
+ assert.equal(r.chronometrage.total_ms,412,'c’est le dernier segment qui compte, pas le premier');
+});
+
+test('un serveur muet sur son chronométrage ne fabrique pas une durée',async()=>{
+ const p=creerEcouteProgressive(async()=>Response.json({texte:'Bonjour.'}),
+  ()=> 'fr',()=>true,()=>{});
+ for(let i=0;i<8;i++)p.pousser(new Float32Array(4000).fill(.2),true);
+ for(let i=0;i<8;i++)p.pousser(new Float32Array(4000),false);
+ const r=await p.finir();
+ assert.equal(r.chronometrage.total_ms,0,'zéro, et tout T1→T3 reste du côté réseau');
+});
