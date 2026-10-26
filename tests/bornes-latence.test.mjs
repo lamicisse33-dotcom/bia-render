@@ -32,7 +32,8 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/tour.ts', 'utf8'),
 const { tourVide, poser, finir, tableauDesEtapes } = contexte.exports;
 
 /** Un tour complet aux huit instants voulus, en millisecondes depuis T0. */
-function tourAux({ t1, t3, t4, t5, t6, t7, serveur = 0, fabrication = 0, porte = 0, langue, froid }) {
+function tourAux({ t1, t3, t4, t5, t6, t7, serveur = 0, fabrication = 0, porte = 0, langue, froid,
+                   allerRetour = 0, cerveauServeur = 0, octets = 0 }) {
   const b = tourVide();
   const T0 = 1_000_000;
   poser(b, 'parole', T0);
@@ -43,6 +44,7 @@ function tourAux({ t1, t3, t4, t5, t6, t7, serveur = 0, fabrication = 0, porte =
   poser(b, 'enMain', T0 + t6);
   poser(b, 'syllabe', T0 + t7);
   b.ecouteServeur = serveur; b.fabrication = fabrication; b.porte = porte;
+  b.allerRetourCerveau = allerRetour; b.cerveauServeur = cerveauServeur; b.requeteOctets = octets;
   if (langue) b.langue = langue;
   if (froid !== undefined) b.froid = froid;
   return finir(b);
@@ -133,4 +135,60 @@ test('froid et chaud se trient séparément, et la langue suit le tour', () => {
   assert.equal(chaud.langue, 'wo');
   // Et le froid est bien plus lent : c'est la comparaison qu'il veut lire.
   assert(tableauDesEtapes([froid]).total_vecu.moyen_ms > tableauDesEtapes([chaud]).total_vecu.moyen_ms);
+});
+
+/* ── LE TRAJET DU CERVEAU, MESURÉ ET NON DÉDUIT ─────────────────────────────
+
+   Lamine : « mesure les ~1 120 ms entre le téléphone et le serveur par un
+   VRAI chronomètre, pas par soustraction ». Le danger d'une mesure en trois
+   parts est qu'elles ne refassent plus le tout : le temps disparaîtrait dans
+   une part qu'on ne regarde pas, et on irait réduire la mauvaise.          */
+test('les trois parts du cerveau refont exactement le cerveau', () => {
+  const t = tourAux({ t1: 1200, t3: 2500, t4: 4800, t5: 4900, t6: 5400, t7: 5500,
+    allerRetour: 2050, cerveauServeur: 1180, octets: 2552 });
+  assert.equal(t.modele_ms, 2300);              // T3 → T4, mesuré par le téléphone
+  assert.equal(t.cerveau_serveur_ms, 1180);     // déclaré par le serveur
+  assert.equal(t.cerveau_reseau_ms, 870);       // l'aller-retour moins le serveur
+  assert.equal(t.requete_octets, 2552);
+  // La part non couverte : l'assemblage de la tête sur le téléphone.
+  const nonCouverte = t.modele_ms - (t.cerveau_serveur_ms + t.cerveau_reseau_ms);
+  assert.equal(nonCouverte, 250);
+  assert.equal(t.cerveau_serveur_ms + t.cerveau_reseau_ms + nonCouverte, t.modele_ms);
+});
+
+test('un serveur qui déclare plus que l’aller-retour, ou un aller-retour plus long que l’étape, ne sont pas crus', () => {
+  // Deux horloges mal réglées, ou une mesure venue d'un autre tour.
+  const menteur = tourAux({ t1: 1200, t3: 2500, t4: 4800, t5: 4900, t6: 5400, t7: 5500,
+    allerRetour: 99999, cerveauServeur: 99999 });
+  assert.equal(menteur.cerveau_serveur_ms, menteur.modele_ms);
+  assert.equal(menteur.cerveau_reseau_ms, 0);
+  const tropServeur = tourAux({ t1: 1200, t3: 2500, t4: 4800, t5: 4900, t6: 5400, t7: 5500,
+    allerRetour: 1000, cerveauServeur: 5000 });
+  assert.equal(tropServeur.cerveau_serveur_ms, 1000);
+  assert.equal(tropServeur.cerveau_reseau_ms, 0);
+});
+
+test('un onglet qui ne dit rien du trajet laisse tout le cerveau dans la part non couverte', () => {
+  const vieux = tourAux({ t1: 1200, t3: 2500, t4: 4800, t5: 4900, t6: 5400, t7: 5500 });
+  assert.equal(vieux.cerveau_serveur_ms, 0);
+  assert.equal(vieux.cerveau_reseau_ms, 0);
+  assert.equal(vieux.requete_octets, 0);
+  assert.equal(vieux.modele_ms, 2300);   // et le total ne change pas
+});
+
+test('le tableau sépare les trois parts du cerveau sans dépasser le total', () => {
+  const a = tourAux({ t1: 1200, t3: 2500, t4: 4800, t5: 4900, t6: 5400, t7: 5500,
+    allerRetour: 2050, cerveauServeur: 1180, octets: 154 });
+  const b = tourAux({ t1: 1200, t3: 2500, t4: 6000, t5: 6100, t6: 6600, t7: 6700,
+    allerRetour: 3400, cerveauServeur: 1400, octets: 2552 });
+  const tableau = tableauDesEtapes([a, b]);
+  const part = (mot) => tableau.etapes.find((e) => e.quoi.includes(mot));
+  assert(part('part SERVEUR (préparation'), 'la part serveur du cerveau doit être listée');
+  assert(part('part RÉSEAU (la requête monte'), 'la part réseau du cerveau doit être listée');
+  assert.equal(part('part SERVEUR (préparation').moyen_ms, 1290);
+  assert.equal(part('part RÉSEAU (la requête monte').moyen_ms, (870 + 2000) / 2);
+  /* Et le contrôle qui compte : la somme des étapes rejoint le total vécu,
+     mesuré de bout en bout. Si une part du cerveau était comptée deux fois,
+     ce total exploserait. */
+  assert.equal(tableau.somme_des_etapes_ms, tableau.total_vecu.moyen_ms);
 });

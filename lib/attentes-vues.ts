@@ -169,6 +169,12 @@ export function noterTour(t: Partial<Tour>) {
     modele_ms: entier(t.modele_ms),
     transcription_serveur_ms: Math.min(entier(t.transcription_serveur_ms), entier(t.transcription_ms)),
     transcription_reseau_ms: entier(t.transcription_ms) - Math.min(entier(t.transcription_serveur_ms), entier(t.transcription_ms)),
+    /* Bornés par modele_ms, comme la fabrication l'est par voix_ms : un
+       serveur ne peut pas avoir tenu la requête plus longtemps que le
+       téléphone n'a attendu son premier mot. */
+    cerveau_serveur_ms: Math.min(entier(t.cerveau_serveur_ms), entier(t.modele_ms)),
+    cerveau_reseau_ms: Math.min(entier(t.cerveau_reseau_ms), Math.max(0, entier(t.modele_ms) - Math.min(entier(t.cerveau_serveur_ms), entier(t.modele_ms)))),
+    requete_octets: entier(t.requete_octets),
     mise_en_voix_ms: entier(t.mise_en_voix_ms),
     voix_ms: entier(t.voix_ms),
     /* Bornés par voix_ms : un serveur ne peut pas avoir fabriqué plus
@@ -221,6 +227,24 @@ export function resumeTours() {
       francais: tableauDesEtapes(avecModele.filter((t) => t.langue === "fr")),
       sans_langue_declaree: avecModele.filter((t) => !t.langue).length,
     },
+    /* ── LE POIDS DE LA REQUÊTE, TOUR PAR TOUR ────────────────────────────
+       Lamine veut « la taille en octets de la requête au tour 1 et au tour 12
+       d'une même conversation ». Le rang est compté dans l'ordre d'arrivée :
+       le fil grandit, donc le corps grandit, et c'est la seule façon de voir
+       si ce poids explique quelque chose — ou rien. */
+    octets_de_la_requete: (() => {
+      const avec = parole.filter((t) => t.requete_octets > 0);
+      if (!avec.length) return null;
+      return {
+        tours: avec.length,
+        premier: avec[0].requete_octets,
+        dernier: avec[avec.length - 1].requete_octets,
+        median: mediane(avec.map((t) => t.requete_octets)),
+        plus_lourd: Math.max(...avec.map((t) => t.requete_octets)),
+        par_rang: avec.map((t, i) => ({ rang: i + 1, octets: t.requete_octets })),
+        limite: "Le rang est l'ordre d'arrivée des tours gardés ici, pas le numéro du tour dans sa conversation à lui.",
+      };
+    })(),
     par_temperature: {
       froid: tableauDesEtapes(avecModele.filter((t) => t.froid)),
       chaud: tableauDesEtapes(avecModele.filter((t) => !t.froid)),

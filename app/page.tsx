@@ -3620,11 +3620,23 @@ export default function Home() {
       const optionsCourtes={apprend:apprend.current,correction:!!(chantierMalDit.current||correctionDevoirRef.current),persona:personaRef.current,ouverture:salutationOuverture};
       const sonsPrets=sonsCourantsRef.current.filter(s=>cacheSons.current.has(s.adresse));
       const salutLocal=codeRef.current&&accesSalutationsRef.current===codeRef.current&&essaiChatterboxActif()&&voixChatterboxBia()==='female'?(identiteLocale(clean,sonsPrets,optionsCourtes)||salutationLocale(clean,sonsPrets,optionsCourtes)):null;
+      /* ── LE VRAI CHRONOMÈTRE DU TRAJET, ET LE POIDS DE LA REQUÊTE ────────
+         Lamine, le 26 octobre : « mesure les ~1 120 ms par un vrai
+         chronomètre, pas par soustraction — et donne-moi la taille en octets
+         de la requête au tour 1 et au tour 12 ».
+
+         Deux durées, prises du même côté, donc comparables sans jamais
+         régler deux horloges l'une sur l'autre : notre aller-retour jusqu'au
+         premier octet reçu, et ce que le serveur déclare avoir tenu. Leur
+         différence EST le réseau. Et les octets, le téléphone est le seul à
+         les connaître exactement : c'est lui qui écrit le corps. */
+      let corpsChat = "";
+      const tEnvoiChat = Date.now();
       const response = salutLocal?new Response(JSON.stringify(salutLocal),{headers:{"content-type":"application/json"}}):await fetch("/api/chat", {
         method: "POST",
         signal: requeteChat.signal,
         headers: { "content-type": "application/json", "x-bia-code": codeRef.current, ...entetesRapidite() },
-        body: JSON.stringify({
+        body: (corpsChat = JSON.stringify({
           message: clean,
           anticipationId:anticipee?.id,voixAnticipee:anticipee?.voice,
           parole,
@@ -3675,7 +3687,7 @@ export default function Home() {
           /* Le serveur ne diffuse que si on le lui demande : une vieille
              version du téléphone continue de recevoir un seul bloc. */
           diffuse: DIFFUSER_LE_MODELE,
-        }),
+        })),
       });
 
       /* ── ELLE COMMENCE À PARLER PENDANT QU'IL ÉCRIT ─────────────────────
@@ -3711,6 +3723,13 @@ export default function Home() {
           const { done, value } = await lecteur.read();
           chatRecu();
           if (done) break;
+          /* Le premier octet : l'instant où le trajet aller-retour est payé.
+             Posé une seule fois, et seulement si la requête est bien partie
+             d'ici — une salutation jouée sur le téléphone n'a rien traversé. */
+          if (corpsChat && !bornesRef.current.allerRetourCerveau) {
+            bornesRef.current.allerRetourCerveau = Date.now() - tEnvoiChat;
+            bornesRef.current.requeteOctets = new TextEncoder().encode(corpsChat).length;
+          }
           tampon += decodeur.decode(value, { stream: true });
           let coupe: number;
           while ((coupe = tampon.indexOf("\n\n")) >= 0) {
@@ -3722,6 +3741,13 @@ export default function Home() {
             if (!brut) continue;
             let ev: { morceau?: string; corps?: { reply: string; motif?: string; emotion?: string; balise?: boolean; papier?: string; appel?: { numero: string; nom: string } | null; voir?: string; carte?: string; rireApres?: string; blague?: string; film?: { video: string; titre: string; source?: string } | null; trouve?: Resultat | null; son?: string; son_courant?: SonCourant; corrige?: boolean; toutesDites?: boolean; service?: string; source?: string; apprend?: boolean; aRepeter?: string; ordre?: string; retenu?: string; gestes?: string[]; corrigee?: string }; statut?: number };
             try { ev = JSON.parse(brut.slice(5).trim()); } catch { continue; }
+            /* Ce que le serveur dit avoir tenu, de l'arrivée de la requête
+               jusqu'à son premier mot. Un nom d'événement que les versions
+               d'avant ignoraient : rien ne casse à l'ancien. */
+            if (nom === "chrono") {
+              bornesRef.current.cerveauServeur = Number((ev as {serveur_ms?: number}).serveur_ms) || 0;
+              continue;
+            }
             if (nom === "texte") {
               recu += ev.morceau || "";
               /* On ne prend la parole qu'une fois, et jamais sur un tour

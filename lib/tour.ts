@@ -107,6 +107,15 @@ export type Bornes = {
      montres — on retranche la part serveur de la durée vécue, et le reste est
      le réseau. C'est exact sans supposer aucune synchronisation. */
   ecouteServeur: number;
+  /* ── LE TRAJET DU CERVEAU, MESURÉ ET NON DÉDUIT (26 octobre 2026) ────────
+     allerRetourCerveau  notre fetch → le premier octet reçu   (téléphone)
+     cerveauServeur      arrivée de la requête → premier mot   (serveur)
+     requeteOctets       le poids exact du corps envoyé
+     La différence des deux premières est le RÉSEAU, et c'est une différence
+     de deux durées — jamais de deux horloges. */
+  allerRetourCerveau: number;
+  cerveauServeur: number;
+  requeteOctets: number;
   /* Pour trier ses dix phrases sans qu'il ait à se souvenir de l'ordre. */
   langue?: "wo" | "fr";
   froid?: boolean;
@@ -151,6 +160,14 @@ export type Tour = {
   /** Et la part passée sur le réseau : l'audio qui monte, le texte qui
       redescend, et l'attente d'un tour de file GPU. */
   transcription_reseau_ms: number;
+  /** La part de modele_ms tenue PAR LE SERVEUR : sa préparation (mémoire,
+      lexique, consignes) plus l'attente du modèle, déclarée par lui. */
+  cerveau_serveur_ms: number;
+  /** Et la part passée sur le réseau : la requête qui monte à Francfort et
+      le premier mot qui redescend. Mesurée, pas déduite. */
+  cerveau_reseau_ms: number;
+  /** Le poids exact du corps envoyé à /api/chat, en octets. */
+  requete_octets: number;
   /** T4 → T5 : le premier mot du cerveau est là, on décide quoi dire en
       premier et on demande son audio. */
   mise_en_voix_ms: number;
@@ -180,7 +197,8 @@ export type Tour = {
 
 export function tourVide(voie: "parole" | "ecrit" = "parole"): Bornes {
   return { voie, parole: 0, micro: 0, ecoute: 0, modele: 0, pretAParler: 0, enMain: 0, syllabe: 0,
-    ecouteServeur: 0, source: "", attente: false, surLaTete: false, fabrication: 0, porte: 0 };
+    ecouteServeur: 0, allerRetourCerveau: 0, cerveauServeur: 0, requeteOctets: 0,
+    source: "", attente: false, surLaTete: false, fabrication: 0, porte: 0 };
 }
 
 /* Une borne ne se pose qu'UNE FOIS. Un tour peut repasser par le même point —
@@ -257,6 +275,11 @@ export function finir(b: Bornes, quand = Date.now()): Tour | null {
   /* Même garde-fou que pour la voix : un serveur ne peut pas avoir transcrit
      plus longtemps que le téléphone n'a attendu sa transcription. */
   const ecouteServeur = Math.min(Math.max(0, Number(b.ecouteServeur) || 0), morceaux.transcription_ms);
+  /* L'aller-retour ne peut pas dépasser l'étape qui le contient, et la part
+     serveur ne peut pas dépasser l'aller-retour. Deux bornes impossibles
+     écartées, de la même façon que pour la voix et pour l'oreille. */
+  const allerRetour = Math.min(Math.max(0, Number(b.allerRetourCerveau) || 0), morceaux.modele_ms);
+  const cerveauServeur = Math.min(Math.max(0, Number(b.cerveauServeur) || 0), allerRetour);
   /* ── LE CONTRÔLE QUI AURAIT ATTRAPÉ LE DÉFAUT TOUT SEUL ────────────────
 
      Les morceaux ne peuvent pas dépasser le tour : c'est de l'arithmétique,
@@ -274,6 +297,9 @@ export function finir(b: Bornes, quand = Date.now()): Tour | null {
     attente: b.attente,
     surLaTete: b.surLaTete,
     ...morceaux,
+    cerveau_serveur_ms: cerveauServeur,
+    cerveau_reseau_ms: allerRetour - cerveauServeur,
+    requete_octets: Math.max(0, Math.round(Number(b.requeteOctets) || 0)),
     transcription_serveur_ms: ecouteServeur,
     transcription_reseau_ms: morceaux.transcription_ms - ecouteServeur,
     voix_fabrication_ms: fabrication,
@@ -360,7 +386,11 @@ export function tableauDesEtapes(tours: Tour[]) {
     ["T1→T3", "la transcription, part SERVEUR (l'oreille elle-même)", (t) => t.transcription_serveur_ms || 0],
     ["T1→T3", "la transcription, part RÉSEAU (l'audio monte, le texte redescend)",
       (t) => (t.transcription_serveur_ms ? t.transcription_reseau_ms : t.transcription_ms) || 0],
-    ["T3→T4", "le cerveau, jusqu'à son premier mot utilisable", (t) => t.modele_ms],
+    ["T3→T4", "le cerveau, part SERVEUR (préparation + attente du modèle)", (t) => t.cerveau_serveur_ms || 0],
+    ["T3→T4", "le cerveau, part RÉSEAU (la requête monte, le premier mot redescend)",
+      (t) => t.cerveau_reseau_ms || 0],
+    ["T3→T4", "le cerveau, part NON COUVERTE (assemblage de la tête sur le téléphone)",
+      (t) => Math.max(0, t.modele_ms - ((t.cerveau_serveur_ms || 0) + (t.cerveau_reseau_ms || 0)))],
     ["T4→T5", "la mise en voix de la première phrase", (t) => t.mise_en_voix_ms || 0],
     ["T5→T6", "la fabrication du premier son, part GPU", (t) => t.voix_fabrication_ms || 0],
     ["T5→T6", "la fabrication du premier son, part réseau et décodage",

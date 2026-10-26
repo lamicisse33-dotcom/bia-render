@@ -528,6 +528,21 @@ function garderCeTour(body:Corps,code:string|null,corps:Record<string,unknown>,s
 }
 
 export async function POST(request:NextRequest){
+  /* ── L'HEURE D'ARRIVÉE, TOUT EN HAUT ───────────────────────────────────────
+     Mandat latence, 26 octobre 2026. Lamine : « Mesure les ~1 120 ms entre le
+     téléphone et le serveur par un VRAI chronomètre (pas par soustraction). »
+
+     Par soustraction, j'avais : 2 300 ms vus du téléphone, moins ~260 ms de
+     préparation et ~921 ms de modèle, donc ~1 120 ms « ailleurs ». Mais ces
+     deux derniers chiffres viennent de deux échantillons différents, et une
+     différence de différences n'est pas une mesure.
+
+     Alors on fait l'inverse, et sans jamais comparer deux horloges : le
+     SERVEUR déclare combien de temps IL a tenu la requête — de son arrivée
+     ici jusqu'au premier mot envoyé. Le téléphone, lui, mesure son propre
+     aller-retour jusqu'au premier octet reçu. Les deux sont des DURÉES, pas
+     des heures. Leur différence est le réseau, et elle est exacte.        */
+  const arrivee=Date.now();
   let body=await request.json().catch(()=>({})) as Corps;
   const code=request.headers.get("x-bia-code");
   // Even cached greetings require a valid code, before any response or stream.
@@ -558,8 +573,17 @@ export async function POST(request:NextRequest){
       const envoyer=(nom:string,quoi:unknown)=>{
         try{ canal.enqueue(encodeur.encode(`event: ${nom}\ndata: ${JSON.stringify(quoi)}\n\n`)); }catch{}
       };
+      /* Le premier mot part : on dit d'abord combien de temps il a coûté
+         ICI. Un événement de plus, que les onglets déjà ouverts ignorent —
+         le lecteur du téléphone ne reconnaît que les noms qu'il attend. */
+      let chronoDit=false;
+      const direLeChrono=()=>{
+        if(chronoDit)return;chronoDit=true;
+        envoyer("chrono",{serveur_ms:Date.now()-arrivee});
+      };
       try{
-        const r=await repondre(body,code,(morceau)=>envoyer("texte",{morceau}));
+        const r=await repondre(body,code,(morceau)=>{direLeChrono();envoyer("texte",{morceau});});
+        direLeChrono();
         if(body.mesureDiagnostic)body.mesureDiagnostic.reponse_prete_ms=Date.now()-debutDiagnostic;
         envoyer("fin",{corps:avecTranscription(r.corps),statut:r.statut||200,...(body.mesureDiagnostic?{chronometrage:body.mesureDiagnostic}:{})});
         if(!vocale)garderCeTour(body,code,r.corps,r.statut);
@@ -2180,13 +2204,37 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        ne se reconnaît plus. Il existe donc deux socles, avec et sans Internet,
        qui se chassaient l'un l'autre toutes les cinq minutes. Sur une heure,
        les deux tiennent ensemble et personne ne repaie. */
+    /* ── LE STABLE D'ABORD, LE VARIABLE EN DERNIER ────────────────────────
+
+       Lamine, le 26 octobre 2026 : « montre-moi l'ORDRE des blocs envoyés au
+       modèle et dis-moi lesquels changent à chaque tour. Mets le stable
+       d'abord, le variable en dernier. »
+
+       EN LE CHERCHANT, J'AI TROUVÉ LA FAUTE. Le bloc des devoirs était PREMIER
+       — avant le socle. Or il sort de contexteDevoirs(question, history) : il
+       dépend de la question, donc il change à chaque tour.
+
+       Un cache de préfixe ne se lit que si TOUT ce qui précède la borne est
+       identique. Un bloc qui bouge, placé devant, rend donc illisibles les
+       56 564 signes de socle et de registre qui le suivaient : à chaque tour
+       où les devoirs n'étaient pas vides, on les repayait tous à plein tarif.
+       Le cache était écrit, correct, et inatteignable.
+
+       L'ordre est maintenant celui qu'il demande, du plus figé au plus mobile :
+         1. socle      46 028 signes — ne change pas       → en cache 1 h
+         2. registre   10 536 signes — figé par personne   → en cache 1 h
+         3. devoirs    dépend de la question               → plein tarif
+         4. variable   21 506 signes — dépend du tour      → plein tarif
+         5. maîtrises  dépend de la personne               → plein tarif
+       Les blocs à plein tarif coûtent exactement ce qu'ils coûtaient ; la
+       différence est que, désormais, ils ne coûtent plus les autres.        */
     const consigne=[
-      ...(devoirs?[{type:"text",text:devoirs}]:[]),
       {type:"text",text:socle,cache_control:{type:"ephemeral",ttl:"1h"}},
       /* La poche du registre : figée pour cette personne, donc mise en cache
          elle aussi. Deux registres seulement — lui, et tous les autres —
          donc deux entrées de plus, qui tiennent l'heure entière. */
       ...(registre.trim()?[{type:"text",text:registre,cache_control:{type:"ephemeral",ttl:"1h"}}]:[]),
+      ...(devoirs?[{type:"text",text:devoirs}]:[]),
       ...(variable.trim()?[{type:"text",text:variable}]:[]),
       ...(maitrises?[{type:"text",text:maitrises}]:[]),
     ];
