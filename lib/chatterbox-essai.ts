@@ -11,9 +11,16 @@ export function choixVoixBia(): ChoixVoixBia {
       window.localStorage.setItem(CLE_CHOIX, "female");
       return "female";
     }
+    /* 26 octobre : « piper » désignait le moteur INSTALLÉ, qui n'existe plus.
+       Il faut donc reloger ces téléphones — mais PAS sur Khalam Gratuit.
+       Lamine l'a écoutée : « quasi inaudible, une cassette qui traîne ». Le
+       journal d'entraînement le confirme : le prédicteur de durée est parti
+       de zéro et n'a presque rien appris en 1 200 pas (val_dur 1,78 → 1,70).
+       Un téléphone qui n'a rien demandé ne doit pas hériter d'une voix
+       sourde : il retourne à KHALAM Voice, comme speecht5-web au-dessus. */
     if (saved === "piper") {
-      window.localStorage.setItem(CLE_CHOIX, "piper-web");
-      return "piper-web";
+      window.localStorage.setItem(CLE_CHOIX, "female");
+      return "female";
     }
     if (saved === "piper-web" || saved === "male" || saved === "female") return saved;
   } catch { /* The original link can still work when storage is unavailable. */ }

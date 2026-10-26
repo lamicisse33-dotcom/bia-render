@@ -26,16 +26,18 @@ assert.equal(c.choixVoixBia(),'female');
 assert(c.choisirVoixBia('piper-web'));assert.equal(c.choixVoixBia(),'piper-web');assert.equal(c.essaiChatterboxActif(),false);assert.equal(c.routeVoixBia(),'/api/piper-web/synthese');
 native=true;assert.equal(c.choixVoixBia(),'piper-web');
 assert(c.choisirVoixBia('female'));assert(c.essaiChatterboxActif());assert.equal(c.routeVoixBia(),'/api/chatterbox-test/bia');
-/* 25 octobre : « piper » désignait le moteur INSTALLÉ sur le téléphone. Il
-   n'est plus un choix possible — le demander doit être refusé. Mais un
-   téléphone qui l'avait gardé ne doit pas rester en panne : il bascule sur
-   Khalam Gratuit, et l'ancien nom disparaît de sa mémoire. */
+/* 26 octobre : « piper » désignait le moteur INSTALLÉ sur le téléphone. Il
+   n'est plus un choix possible — le demander doit être refusé. Et un
+   téléphone qui l'avait gardé ne doit pas HÉRITER de Khalam Gratuit : à
+   l'écoute elle traîne, son prédicteur de durée n'a jamais été entraîné.
+   Il retourne donc à KHALAM Voice, et l'ancien nom disparaît de sa
+   mémoire. Seul un choix explicite mène encore au moteur du navigateur. */
 assert.equal(c.choisirVoixBia('piper'),false);
 assert.equal(c.choixVoixBia(),'female');
 store.set('bia-choix-voix-v1','piper');
-assert.equal(c.choixVoixBia(),'piper-web');
-assert.equal(store.get('bia-choix-voix-v1'),'piper-web');
-assert.equal(c.routeVoixBia(),'/api/piper-web/synthese');
+assert.equal(c.choixVoixBia(),'female');
+assert.equal(store.get('bia-choix-voix-v1'),'female');
+assert.equal(c.routeVoixBia(),'/api/chatterbox-test/bia');
 console.log('Piper web: exact alphabet, no skipped unknown characters, complete segmentation, WAV and independent voice selection passed.');
 
 // Two queued requests share a worker: cancelling the turn must reject both,
@@ -47,10 +49,10 @@ const browser={exports:{},window:{dispatchEvent(){}},localStorage:{getItem:()=>n
  fetch:async()=>{remote++;return new Response('{}');}};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/piper-web.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,browser);
 const api=browser.exports,abort=new AbortController();
-/* La parole demande son chemin avant que choixVoixBia() n'ait converti
-   l'ancien nom : si piperWebActif() ne le reconnaissait pas lui aussi, le
-   tout premier mot après la mise à jour partait sur l'autre moteur. */
-for(const [garde,attendu] of [['piper-web',true],['piper',true],['female',false],[null,false]]){
+/* Le moteur du navigateur ne s'ouvre que sur un choix EXPLICITE. L'ancien
+   nom « piper » n'y mène plus : un téléphone qui l'avait gardé parlerait
+   sinon avec une voix qui traîne, sans que personne l'ait demandé. */
+for(const [garde,attendu] of [['piper-web',true],['piper',false],['female',false],[null,false]]){
  browser.localStorage.getItem=k=>k==='bia-choix-voix-v1'?garde:null;
  assert.equal(api.piperWebActif(),attendu,'choix gardé : '+garde);
 }

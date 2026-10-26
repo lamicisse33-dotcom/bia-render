@@ -1,10 +1,9 @@
 import type {MorceauVoix} from './flux-khalam';
-/* Un téléphone déjà ouvert a pu garder « piper » : c'était le moteur
-   INSTALLÉ, remplacé par Khalam Gratuit le 25 octobre. choixVoixBia() le
-   convertit à sa première lecture, mais pas forcément avant que la parole
-   ne demande son chemin : sans cette reconnaissance immédiate, le tout
-   premier mot après la mise à jour partait sur l'autre moteur. */
-export function piperWebActif(){try{if(typeof window==='undefined')return false;const choix=localStorage.getItem('bia-choix-voix-v1');return choix==='piper-web'||choix==='piper';}catch{return false;}}
+/* « piper » — l'ancien moteur INSTALLÉ — ne mène plus ici. choixVoixBia()
+   reloge ces téléphones sur KHALAM Voice, parce que Khalam Gratuit s'est
+   révélée inaudible à l'écoute du 26 octobre. Seul un choix EXPLICITE de
+   Khalam Gratuit passe par ce moteur : personne n'y tombe par héritage. */
+export function piperWebActif(){try{if(typeof window==='undefined')return false;return localStorage.getItem('bia-choix-voix-v1')==='piper-web';}catch{return false;}}
 export function vitessePiperWeb(){try{const v=Number(localStorage.getItem('bia-piper-web-speed'));return v>=.7&&v<=1.2?v:1;}catch{return 1;}}
 export function mesurerPiperWeb(etape:string,ms=0){void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'piper_web',etape,ms}),keepalive:true}).catch(()=>{});}
 export type VoixFemininePiper = 0 | 1;

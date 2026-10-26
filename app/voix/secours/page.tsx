@@ -55,7 +55,7 @@ export default function BancKhalamGratuit(){
   <a href="/?reglages=voix">← Retour à BIA</a>
   <h1>Khalam Gratuit — écouter avant de choisir</h1>
   <p>Cette voix est fabriquée par le téléphone lui-même : aucun aller-retour au serveur, aucun coût. Le modèle de 63,5 Mo est téléchargé <strong>une seule fois</strong>, puis gardé sur cet appareil si le navigateur le permet.</p>
-  <p>Écoute-la en wolof avant de la garder. Si ses mots ne sont pas les tiens, dis-le : on ne la branchera pas pour autant.</p>
+  <p><strong>Elle n’est pas finie, et ça s’entend.</strong> Son entraînement s’est arrêté après 1 200 pas, et la partie du modèle qui décide de la durée de chaque son n’a presque rien appris : sa propre note de qualité s’arrête à 1,8 sur 5. Écoutée le 26 octobre, elle traîne comme une cassette. Elle reste ici pour être réécoutée après un vrai entraînement — pas pour servir aujourd’hui.</p>
   {!code?<p>Ouvre d’abord <a href="/">BIA avec ton code</a>, puis reviens ici.</p>:null}
   <div style={{display:'flex',flexDirection:'column',gap:16,margin:'24px 0'}}>
    <button className="voix-ecouter" disabled={!code||occupe} onClick={()=>void preparer()}>Préparer la voix (une seule fois)</button>

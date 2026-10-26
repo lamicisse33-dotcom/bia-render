@@ -8161,7 +8161,7 @@ export default function Home() {
           {([
             ["male", "Homme — KHALAM Voice"],
             ["female", "Femme — KHALAM Voice"],
-            ["piper-web", "Khalam Gratuit — navigateur du téléphone"],
+            ["piper-web", "Khalam Gratuit — inachevée (sa voix traîne)"],
           ] as const).map(([valeur, label]) => (
             <label key={valeur} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 48, cursor: "pointer" }}>
               <input type="radio" name="bia-voix" value={valeur} checked={choixVoix === valeur}
@@ -8170,9 +8170,9 @@ export default function Home() {
             </label>
           ))}
         </fieldset>
-        <p className="papier-note">Ton choix est mémorisé dans ce navigateur. Khalam Gratuit fonctionne dans le navigateur du téléphone. Le modèle de 63,5 Mo est téléchargé une fois puis conservé sur cet appareil.</p>
+        <p className="papier-note">Ton choix est mémorisé dans ce navigateur. Khalam Gratuit est fabriquée par le téléphone lui-même, sans serveur ni coût — mais elle n’est pas finie : son entraînement s’est arrêté bien trop tôt et sa voix traîne. Écoute-la avant de la choisir.</p>
         {etatSecours && <p className="papier-note" role="status">{etatSecours}</p>}
-        <a className="papier-lien" href="/voix/secours">Écouter Khalam Gratuit avant de choisir →</a>
+        <a className="papier-lien" href="/voix/secours">Écouter Khalam Gratuit et voir où en est son entraînement →</a>
         {erreurChoixVoix && <p className="panne" role="alert">{erreurChoixVoix}</p>}
         <button type="button" className="papier-lien" disabled={mode !== "ready" || conversation}
           onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
