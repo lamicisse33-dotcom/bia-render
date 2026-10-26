@@ -3,8 +3,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
 const compile=s=>ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+/* Les planchers viennent de lib/micro.ts — la SEULE source, pour qu'un
+   nombre affiché dans /api/etat ne puisse pas diverger de celui qui décide.
+   Toute autre dépendance reste refusée : ce module ne doit rien tirer
+   d'autre. */
+function moduleMicro(){const m={exports:{}};
+ new Function('require','module','exports',compile(fs.readFileSync('lib/micro.ts','utf8')))(id=>assert.fail(id),m,m.exports);return m.exports;}
 function charger(){delete globalThis.biaMicroEtat;const m={exports:{}};
- new Function('require','module','exports',compile(fs.readFileSync('lib/micro-etat.ts','utf8')))(id=>assert.fail(id),m,m.exports);return m.exports;}
+ new Function('require','module','exports',compile(fs.readFileSync('lib/micro-etat.ts','utf8')))(
+  id=>{assert.equal(id,'./micro',id);return moduleMicro();},m,m.exports);return m.exports;}
 
 /* ── LES QUATRE TOURS RÉELS, TELS QUE /api/etat LES A PUBLIÉS ─────────────
    micro_capture.derniers, 23 octobre 2026 à 23:36. Ces nombres ne sont pas
@@ -78,11 +85,52 @@ test('le champ déclare qu’aucun seuil n’est touché, et ne porte aucun son'
   vocales_dans_la_parole:24,intervalle_ms:60,seuil:9,actuel:true,contexte:'running',
   texte:'phrase privée',audio:'AAAA'});
  const r=etat.resumeMicro();
- assert.equal(r.detection_inchangee,true);
- assert.equal(r.revision,'capture-etages-v1');
- assert(r.limite.includes('aucun seuil de détection'));
+ /* ── 26 OCTOBRE : LE CHAMP NE PEUT PLUS DIRE « RIEN N'A CHANGÉ » ─────────
+
+    Il le disait, et c'était vrai jusqu'ici. Mais « je dis oui tout court,
+    rien n'est entendu » a fait baisser UN plancher, exprès. Un champ qui
+    continuerait d'annoncer une détection inchangée serait un champ qui
+    ment — et c'est exactement ce que ce filet doit interdire. Il exige donc
+    que le changement soit DÉCLARÉ, avec ses deux nombres, et que le son et
+    le texte de Lamine n'entrent toujours pas dans /api/etat. */
+ assert.equal(r.detection_inchangee,false);
+ assert.equal(r.revision,'capture-etages-v2-refus-visibles');
+ assert(r.limite.includes('UN seuil est modifié'),r.limite);
+ assert(r.limite.includes('150')&&r.limite.includes('350'),'les deux planchers doivent être lisibles');
+ assert(r.limite.includes('porte qui claque'),'le prix du changement doit être écrit');
+ assert(r.mots_courts.includes('150'),r.mots_courts);
  const brut=JSON.stringify(r);
  for(const secret of ['phrase privée','AAAA'])assert(!brut.includes(secret),secret);
+});
+
+/* ── UN MOT ÉCARTÉ LAISSE MAINTENANT UNE TRACE ────────────────────────────
+
+   Le vrai défaut derrière « rien n'est entendu » n'était pas seulement le
+   plancher : c'est qu'un refus ne se comptait NULLE PART. Sans ce compteur,
+   le jour où un plancher se remet à jeter ses mots, personne ne le verra. */
+test('une parole écartée se compte, avec ce qui a servi à la refuser',()=>{
+ const etat=charger();
+ etat.noterRefusMicro({parole_comptee_ms:120,part_vocale:62,hauteur:48,morceaux:3,focus:true});
+ etat.noterRefusMicro({parole_comptee_ms:300,part_vocale:20,hauteur:10,morceaux:4,focus:true});
+ const r=etat.resumeMicro().paroles_ecartees;
+ assert.equal(r.paroles_ecartees,2);
+ /* 120 ms est sous le plancher des mots courts : c'est LE nombre à voir
+    tomber à zéro. 300 ms, lui, est au-dessus du plancher court mais sous
+    les 350 ms ordinaires — il a donc été refusé parce que sa périodicité
+    (10 %) ne prouvait pas une voix, et c'est le comportement voulu. */
+ assert.equal(r.dont_trop_courtes,1);
+ assert.equal(r.plancher_mot_court_ms,150);
+ assert.equal(r.plancher_ordinaire_ms,350);
+ assert.equal(r.parole_comptee_ms_mediane,210);
+ assert.equal(r.derniers.length,2);
+ assert.equal(r.derniers[0].part_vocale,62);
+});
+
+test('un refus sans durée mesurable ne gonfle pas le compteur',()=>{
+ const etat=charger();
+ etat.noterRefusMicro({parole_comptee_ms:'beaucoup'});
+ etat.noterRefusMicro({});
+ assert.equal(etat.resumeMicro().paroles_ecartees.paroles_ecartees,0);
 });
 
 /* ── LES DEUX SEUILS DE L'ANTICIPATION : DÉFAUTS, BORNES, RETOUR EN ARRIÈRE ─

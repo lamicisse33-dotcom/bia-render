@@ -228,7 +228,8 @@ async function unTour(navigateur,cas){
  await page.click('button.clavier-ouvrir');
  await page.waitForSelector('.clavier[aria-hidden="false"]',{timeout:10000});
  const dit=await visible('.ligne-moi .bulle-moi');
- assert.ok(dit.includes('Salam'),`la bulle de Lamine ne contient pas sa phrase : ${JSON.stringify(dit)}`);
+ const attenduDit=cas.attenduDit||'Salam';
+ assert.ok(dit.includes(attenduDit),`la bulle de Lamine ne contient pas sa phrase : ${JSON.stringify(dit)}`);
  const repondu=await visible('.ligne-bia .bulle-bia');
  assert.ok(repondu.includes(cas.attendu),
   `la réponse attendue (${JSON.stringify(cas.attendu)}) n'est pas affichée : ${JSON.stringify(repondu)}`);
@@ -305,6 +306,21 @@ async function unTour(navigateur,cas){
       réglage (1 200 ms de silence exigé), ça doit rester UN seul tour.
       Un seul micro ici : toute seconde bulle ne peut venir que d'une
       coupure, jamais de la phrase suivante. */
+   /* ── « JE DIS OUI TOUT COURT, RIEN N'EST ENTENDU » ─────────────────────
+
+      Lamine, le 26 octobre. Un quart de seconde de voix, et rien ne partait
+      à l'oreille : l'anti-scintillement mangeait la première trame, la durée
+      n'était qu'un écart entre trames, et le plancher valait 350 ms — il
+      fallait donc près d'une demi-seconde de son pour qu'un mot existe.
+
+      C'EST LE SEUL FILET QUI PASSE PAR LE VRAI MICRO : vraie AudioContext,
+      vrai analyseur, vraie `partVocale`, vraie `hauteurDeVoix`. L'épreuve
+      d'unité, elle, simule la boucle — elle ne peut pas prouver la page.
+      Le son commence à 600 ms pour que la boucle de veille soit lancée
+      quand il parle, comme en vrai quand il appuie puis parle. */
+   {nom:'« waaw » tout court — un quart de seconde doit être entendu',
+    phrase:'Waaw',attenduDit:'Waaw',briques:false,attendu:REPONSE_CHAT,
+    tranches:[[0.6,0.85]],unSeulMicro:true},
    {nom:'une hésitation d’une seconde au milieu — elle ne coupe pas',
     phrase:LONGUE,briques:false,attendu:REPONSE_CHAT,silence:1200,
     tranches:[[0,1.2],[2.2,3.4]],unSeulMicro:true,toursAttendus:1},

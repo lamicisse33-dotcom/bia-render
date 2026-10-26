@@ -411,6 +411,38 @@ export function suivreLeBruit(): Suiveur {
     répondrait à une porte. */
 export const PAROLE_MINIMALE = 350;
 
+/* ── 26 OCTOBRE : « JE DIS OUI TOUT COURT, RIEN N'EST ENTENDU » ───────────
+
+   Lamine a raison, et le défaut était à trois endroits qui s'additionnent.
+   Compté en trames de 60 ms, pour un mot qui dure D :
+
+     1. l'anti-scintillement exige 2 trames sur les 4 dernières, donc la
+        PREMIÈRE trame audible n'est jamais une trame de parole : elle amorce
+        le filtre et disparaît ;
+     2. `parole_ms` est un ÉCART — de la première à la dernière trame
+        reconnue — donc la trame elle-même ne compte pas non plus ;
+     3. et le plancher valait 350 ms.
+
+   Il fallait donc environ HUIT trames, soit près d'une demi-seconde de son,
+   pour qu'un mot existe. « oui », « waaw », « ok » durent deux à trois
+   dixièmes. Ils étaient jetés, en silence, sans même un compteur.
+
+   LA PREUVE EST DANS SES PROPRES MESURES : /api/etat → micro_capture gardait
+   un tour à `vocales: 4, parole_ms: 180`. Quatre trames reconnues, 180 ms
+   déclarés : (4 − 1) × 60. L'écart, exactement, et 180 < 350.
+
+   ── POURQUOI ON PEUT DESCENDRE SANS LAISSER ENTRER LES PORTES ────────────
+
+   Parce que 350 a été choisi quand le VOLUME était le seul juge — c'est
+   écrit au-dessus de `vraimentUneVoix` : « le filtre existant ne coupe que ce
+   qui est COURT ». Depuis le 25 septembre il y a deux autres juges, et une
+   porte échoue aux deux : son énergie n'est pas dans la bande de la voix, et
+   surtout elle n'est pas PÉRIODIQUE — un claquement n'a pas de fondamentale.
+
+   Alors le plancher court ne s'applique QU'À un son dont la périodicité et
+   la bande prouvent que c'est une voix. Tout le reste garde ses 350 ms. */
+export const PAROLE_MINIMALE_VOIX = 150;
+
 /** Deux minutes de parole à partir du premier mot (demande du 17 octobre). */
 export const INTERVENTION_MAXIMALE = 120000;
 
@@ -423,8 +455,9 @@ export const SILENCE_QUI_CLÔT_LA_CONVERSATION = 150000;
  * Cette parole vaut-elle d'être envoyée à la transcription ?
  * @param dureeDeParole durée cumulée de ce qui a été entendu, en millisecondes
  */
-export function vautLaPeine(dureeDeParole: number): boolean {
-  return Number.isFinite(dureeDeParole) && dureeDeParole >= PAROLE_MINIMALE;
+export function vautLaPeine(dureeDeParole: number, voixProuvee = false): boolean {
+  const plancher = voixProuvee ? PAROLE_MINIMALE_VOIX : PAROLE_MINIMALE;
+  return Number.isFinite(dureeDeParole) && dureeDeParole >= plancher;
 }
 
 /* ═══ 4. LUI COUPER LA PAROLE ════════════════════════════════════════════ */
@@ -837,7 +870,16 @@ export function vraimentUneVoix(
   partVocaleMoyenne: number | null,
   hauteurMoyenne: number | null = null,
 ): boolean {
-  if (!vautLaPeine(dureeDeParole)) return false;
+  /* Une voix PROUVÉE, et pas supposée : les deux mesures doivent exister et
+     passer. `null` veut dire qu'on n'a pas pu mesurer — dans ce cas on ne
+     prouve rien, donc on garde le plancher long. Le doute profite à l'envoi
+     partout ailleurs, mais ici il profiterait aux portes. */
+  const voixProuvee = ECARTER_LES_BRUITS
+    && partVocaleMoyenne !== null && Number.isFinite(partVocaleMoyenne)
+    && partVocaleMoyenne >= PART_VOCALE_MINIMALE
+    && hauteurMoyenne !== null && Number.isFinite(hauteurMoyenne)
+    && hauteurMoyenne >= HAUTEUR_MINIMALE;
+  if (!vautLaPeine(dureeDeParole, voixProuvee)) return false;
   if (!ECARTER_LES_BRUITS) return true;
   if (partVocaleMoyenne !== null && Number.isFinite(partVocaleMoyenne) && partVocaleMoyenne < PART_VOCALE_MINIMALE) {
     return false;

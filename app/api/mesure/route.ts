@@ -3,7 +3,7 @@ import {noterKhalamRapide} from '@/lib/khalam-rapide-etat';
 import {noterTourDeParole} from '@/lib/journal-parole';
 import {noterEligibilite} from '@/lib/eligibilite-etat';
 import {noterTourRapidite,noterPremierSonRapidite} from '@/lib/rapidite-etat';
-import {noterMicro} from '@/lib/micro-etat';
+import {noterMicro,noterRefusMicro} from '@/lib/micro-etat';
 import {noterReprise} from '@/lib/reprise-etat';
 import {noterProtectionParole} from '@/lib/protection-parole-etat';
 import {noterBriques} from '@/lib/briques-etat';
@@ -49,6 +49,7 @@ export async function POST(requete: Request) {
        comparent sans calcul de tête. */
     else if (corps && corps.type === "journal_parole") noterTourDeParole(corps);
     else if (corps && corps.type === "micro_capture") noterMicro(corps);
+    else if (corps && corps.type === "micro_refus") noterRefusMicro(corps);
     else if (corps && corps.type === "reprise_reflexion") noterReprise(corps);
     else if (corps && corps.type === "briques") {noterBriques(corps);noterPremierSonRapidite(corps);}
     else if (corps && corps.type === "ecoute_progressive") noterEcouteProgressive(corps);

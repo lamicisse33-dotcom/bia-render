@@ -5289,6 +5289,11 @@ export default function Home() {
       let dernierSon = 0;
       let debutParole = 0;
       let dureeParlee = 0;
+      /* La trame qui a AMORCÉ l'anti-scintillement : audible, compatible avec
+         une voix, mais rejetée parce qu'elle était seule. C'est du son réel
+         qu'il a prononcé, et on le perdait. Voir « JE DIS OUI TOUT COURT »
+         dans lib/micro.ts. */
+      let amorceAudible = 0;
       const ouverture = Date.now();
       let causeArret='exterieur',mesuresMicro=0,picMicro=0;
       const terminerCapture=(cause:string)=>{
@@ -5384,6 +5389,7 @@ export default function Home() {
           proportionVocale = partVocale(spectre, ctxMicro.sampleRate);
         } catch { /* L'écoute reste utilisable sans analyse fréquentielle. */ }
         const candidateVocale=filtrerDeclenchement(audible, proportionVocale);
+        if(audible&&!candidateVocale)amorceAudible=Date.now();
         if(audible)audiblesMicro++;
         if(proportionVocale===null||proportionVocale>=0.2)bandeVocaleMicro++;
         if(candidateVocale)candidatesMicro++;
@@ -5422,7 +5428,24 @@ export default function Home() {
             mesuresVocales++;
           } catch { /* pas de spectre : on enverra, comme avant */ }
 
-          if (!aParle) { debutParole = Date.now(); setEntendParler(true); }
+          if (!aParle) {
+            /* ── DEUX TRAMES QU'ON NE COMPTAIT PAS, ET « OUI » TOMBAIT ─────
+
+               L'anti-scintillement a eu besoin d'une trame d'amorce pour se
+               déclencher : elle était audible et dans la bande de la voix,
+               donc c'était déjà sa parole. On la REPREND quand elle est
+               juste avant — jamais au-delà de deux tours de veille, sinon ce
+               serait un bruit d'il y a trois secondes.
+
+               Et la trame actuelle compte pour elle-même : `dureeParlee`
+               était un écart entre deux instants, donc une seule trame
+               mesurait zéro. Une trame reconnue, c'est une fenêtre d'analyse
+               de son — elle vaut un tour de veille. */
+            debutParole = amorceAudible && Date.now() - amorceAudible <= 2 * TOUR_DE_VEILLE
+              ? amorceAudible : Date.now();
+            dureeParlee += Date.now() - debutParole + TOUR_DE_VEILLE;
+            setEntendParler(true);
+          }
           else dureeParlee += Date.now() - dernierSon;
           aParle = true;
           dernierSon = Date.now();
@@ -5515,7 +5538,7 @@ export default function Home() {
       };
       enregistreur.onstop = async () => {
         const finMicroBriques=Date.now();
-        void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'micro_capture',cause:causeArret,duree_ms:Date.now()-ouverture,parole_ms:debutParole?dernierSon-debutParole:0,silence_ms:dernierSon?Date.now()-dernierSon:0,pic:picMicro,mesures:mesuresMicro,vocales:mesuresVocales,
+        void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'micro_capture',cause:causeArret,duree_ms:Date.now()-ouverture,parole_ms:debutParole?dernierSon-debutParole:0,parole_comptee_ms:Math.round(dureeParlee),silence_ms:dernierSon?Date.now()-dernierSon:0,pic:picMicro,mesures:mesuresMicro,vocales:mesuresVocales,
           audibles:audiblesMicro,bande_vocale_ok:bandeVocaleMicro,candidates:candidatesMicro,periodiques:periodiquesMicro,refus_focus:refusFocusMicro,
           vocales_dans_la_parole:vocalesDansLaParole+(debutParole?1:0),intervalle_ms:mesuresMicro?Math.round((Date.now()-ouverture)/mesuresMicro):0,seuil:Math.round(seuilRef.current||0),
           plat:analyseurMort,actuel:estCetEnregistrement(idEnr),contexte:ctxMicro.state}),keepalive:true}).catch(()=>{});
@@ -5624,6 +5647,22 @@ export default function Home() {
         const hauteurMoyenne = mesuresVocales > 0 ? hauteurTotale / mesuresVocales : null;
         if (!aParle || !morceaux.length || !focusLocuteurRef.current?.autoriser() || !vraimentUneVoix(dureeParlee, partVocaleMoyenne, hauteurMoyenne)) {
           void progressive?.annuler();
+          /* ── UN MOT JETÉ NE DOIT PLUS L'ÊTRE EN SILENCE ───────────────────
+
+             « Je dis oui tout court, rien n'est entendu. » Le seul témoin
+             était un `console.warn` juste en dessous — et il ne se déclenche
+             QUE si la durée passait déjà le plancher, donc jamais pour un mot
+             court. Un refus de mot court était donc invisible dans
+             /api/etat : rien à lire, rien à mesurer, rien à corriger.
+             Maintenant il se compte, avec ce qui a servi à le refuser. */
+          if (aParle) {
+            void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},
+              body:JSON.stringify({type:'micro_refus',parole_comptee_ms:Math.round(dureeParlee),
+                part_vocale:partVocaleMoyenne===null?null:Math.round(partVocaleMoyenne*100),
+                hauteur:hauteurMoyenne===null?null:Math.round(hauteurMoyenne*100),
+                morceaux:morceaux.length,focus:focusLocuteurRef.current?.autoriser()!==false}),
+              keepalive:true}).catch(()=>{});
+          }
           if (aParle && partVocaleMoyenne !== null && vautLaPeine(dureeParlee)) {
             /* Silencieux à l'écran, mais pas invisible : sans cette ligne, le
                jour où le filtre jetterait une vraie voix, on n'aurait aucun

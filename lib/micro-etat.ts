@@ -21,11 +21,24 @@
    était une erreur de lecture ; `vocales_dans_la_parole` tranche, en disant
    combien de trames ont été reconnues À L'INTÉRIEUR de cet écart. */
 
+import {PAROLE_MINIMALE,PAROLE_MINIMALE_VOIX} from './micro';
+
 type Fin={cause:string;duree_ms:number;parole_ms:number;silence_ms:number;pic:number;mesures:number;vocales:number;
  audibles:number|null;bande_vocale_ok:number|null;candidates:number|null;periodiques:number|null;refus_focus:number|null;
  vocales_dans_la_parole:number|null;intervalle_ms:number|null;seuil:number|null;
  plat:boolean;actuel:boolean;contexte:string;quand:string};
-type Etat={fins:number;courts:number;causes:Record<string,number>;derniers:Fin[]};
+/* ── 26 OCTOBRE : CE QUI ÉTAIT REFUSÉ NE LAISSAIT AUCUNE TRACE ────────────
+
+   « Je dis oui tout court, rien n'est entendu. » Le refus d'un mot court
+   était muet : pas de compteur, pas de journal, et le seul `console.warn` de
+   la page ne se déclenche que si la durée passait DÉJÀ le plancher — donc
+   jamais pour un mot court. On ne pouvait ni le voir ni le mesurer.
+
+   Un filet qui ne peut pas voir le trou ne sert à rien. Ces compteurs disent
+   combien de paroles ont été écartées, et avec quelles mesures. */
+type Refus={parole_comptee_ms:number;part_vocale:number|null;hauteur:number|null;morceaux:number;focus:boolean;quand:string};
+type Etat={fins:number;courts:number;causes:Record<string,number>;derniers:Fin[];
+ refuses?:number;refuses_courts?:number;refus_derniers?:Refus[]};
 const g=globalThis as typeof globalThis&{biaMicroEtat?:Etat};
 const etat:Etat=g.biaMicroEtat??={fins:0,courts:0,causes:{},derniers:[]};
 
@@ -62,11 +75,27 @@ function etages(){
  };
 }
 
+/** Ce qui a été entendu puis écarté sans jamais partir à la transcription. */
+function refus(){
+ const l=etat.refus_derniers||[];
+ if(!l.length)return {paroles_ecartees:etat.refuses||0,dont_trop_courtes:etat.refuses_courts||0,derniers:[]};
+ return {
+  paroles_ecartees:etat.refuses||0,
+  dont_trop_courtes:etat.refuses_courts||0,
+  parole_comptee_ms_mediane:mediane(l.map(r=>r.parole_comptee_ms)),
+  plancher_mot_court_ms:PAROLE_MINIMALE_VOIX,
+  plancher_ordinaire_ms:PAROLE_MINIMALE,
+  derniers:l,
+ };
+}
+
 export const resumeMicro=()=>({
- revision:'capture-etages-v1',
- detection_inchangee:true,
+ revision:'capture-etages-v2-refus-visibles',
+ detection_inchangee:false,
+ mots_courts:'plancher abaissé à '+PAROLE_MINIMALE_VOIX+' ms pour une voix PROUVÉE (bande + périodicité) ; '+PAROLE_MINIMALE+' ms pour tout le reste',
  etages_de_detection:etages(),
- limite:'Compteurs seulement : aucun seuil de détection n’est modifié par cette mesure. `parole_ms` est l’écart de la première à la dernière trame vocale, pas une durée d’enregistrement ; `duree_ms` contient en plus le silence d’avant la parole et les 400 ms de fin.',
+ paroles_ecartees:refus(),
+ limite:'UN seuil est modifié depuis le 26 octobre, et il est écrit ici : le plancher de durée tombe à '+PAROLE_MINIMALE_VOIX+' ms quand la bande de la voix ET la périodicité prouvent une voix ; il reste à '+PAROLE_MINIMALE+' ms pour tout le reste, donc une porte qui claque est toujours écartée. Rien d’autre ne bouge : aucun seuil de volume, aucun filtre de bruit. `parole_ms` reste l’écart de la première à la dernière trame vocale ; `parole_comptee_ms` est ce qui DÉCIDE, trames comprises ; `duree_ms` contient en plus le silence d’avant la parole et les 400 ms de fin.',
  ...etat,
 });
 
@@ -81,4 +110,18 @@ export function noterMicro(d:Record<string,unknown>){
   vocales_dans_la_parole:o('vocales_dans_la_parole',10000),intervalle_ms:o('intervalle_ms',10000),seuil:o('seuil',255),
   plat:d.plat===true,actuel:d.actuel===true,contexte:['running','suspended','closed','interrupted'].includes(String(d.contexte))?String(d.contexte):'inconnu',quand:new Date().toISOString()};
  etat.fins++;if(fin.duree_ms<1000)etat.courts++;etat.causes[cause]=(etat.causes[cause]||0)+1;etat.derniers.push(fin);etat.derniers=etat.derniers.slice(-20);
+}
+
+/** Une parole entendue par le micro puis écartée avant la transcription. */
+export function noterRefusMicro(d:Record<string,unknown>){
+ const ms=Number(d.parole_comptee_ms);
+ if(!Number.isFinite(ms)||ms<0||ms>180000)return;
+ const pourcent=(k:string)=>{const v=Number(d[k]);return Number.isFinite(v)&&v>=0&&v<=100?Math.round(v):null;};
+ const r:Refus={parole_comptee_ms:Math.round(ms),part_vocale:pourcent('part_vocale'),hauteur:pourcent('hauteur'),
+  morceaux:Math.max(0,Math.min(10000,Number(d.morceaux)||0)),focus:d.focus!==false,quand:new Date().toISOString()};
+ etat.refuses=(etat.refuses||0)+1;
+ /* « Trop court » veut dire : même le plancher des mots courts n'est pas
+    atteint. C'est le nombre que Lamine doit voir tomber à zéro. */
+ if(r.parole_comptee_ms<PAROLE_MINIMALE_VOIX)etat.refuses_courts=(etat.refuses_courts||0)+1;
+ etat.refus_derniers=[...(etat.refus_derniers||[]),r].slice(-20);
 }
