@@ -2,7 +2,7 @@
  "commit": "441951c3c93f426bfa186731c3ab4c284e966b09",
  "reason": "Stable listening and production voice paths. Experimental changes must stay separate. Baseline updates require an explicit measured migration.",
  "files": {
-  "app/page.tsx": "2d85a4380a295918d9c1739ecefabeadbfb1117b9e17f59f649ab05c96494c48",
+  "app/page.tsx": "7537015cbecb86392c70f07fa84a9b3af1bc6be469baa6c4cf218015b49172df",
   "lib/micro.ts": "96d1bab2a14b6752523975a4a9f4059a67cc6b5d96d44e8a279de33e3ec35802",
   "lib/preparer-ecoute.ts": "764ff19b952085a577a0be0cd662a030bace9910001479d8cf58dcd203e59e83",
   "lib/ecoute-locale.ts": "c7695d9eaba01be6747cec5ee2e7c8cde6b4e3036d67c42c6d3e4c3c930ed88d",
@@ -430,5 +430,13 @@
   "filet": "tests/piper-web.test.mjs : prouvé rouge en remettant l'ancienne bascule (actual 'piper-web' / expected 'female'), vert une fois relogée.",
   "reversible": "Une seule ligne dans lib/chatterbox-essai.ts rend l'héritage à piper-web. Le modèle, le seau privé et la route /api/piper-gratuit ne sont pas touchés : un vrai entraînement se rebranche sans rien défaire.",
   "ce_que_ca_ne_dit_pas": "Le code ne peut pas rendre cette voix écoutable. Il faut réentraîner : warmstart du modèle COMPLET (pas seulement le vocodeur) et un budget de l'ordre de 50 000 à 100 000 pas, pas 1 200. Décision de Lamine, car cela coûte un GPU."
+ },
+ "migration_chronometres_latence_20261026": {
+  "pourquoi": "Mandat latence du 26 octobre : « le temps entre la FIN de ma phrase et le PREMIER SON de BIA doit devenir le plus court possible. D'abord on MESURE, ensuite on réduit. » Il demande huit bornes T0 à T7. Six existaient déjà depuis le 15 septembre (lib/tour.ts : parole, micro, ecoute, modele, enMain, syllabe). Deux manquaient.",
+  "ce_qui_est_ajoute": "1) Borne pretAParler = son T5, « première phrase prête à être prononcée ». Elle coupe en deux l'ancien voix_ms, qui mélangeait NOTRE décision (quoi dire en premier) et la fabrication du GPU — deux choses qu'on ne réduit pas de la même façon. 2) ecouteServeur = ce que le serveur dit avoir mis à transcrire, d'où la part RÉSEAU de la transcription par soustraction. 3) Étiquette de langue par tour (wo/fr) et froid/chaud calculé côté serveur sur l'écart entre deux tours. 4) tableauDesEtapes() : les huit bornes avec MOYENNE et PIRE CAS, classées, plus le total vécu mesuré de bout en bout et la somme des étapes pour vérifier qu'aucune borne ne manque. Lisible dans /api/etat sous tours.etapes_t0_t7, tours.par_langue, tours.par_temperature.",
+  "pourquoi_pas_deux_horloges": "T2 et T3 sont des instants du serveur. L'horloge d'un iPhone et celle de Francfort ne sont pas réglées ensemble : les soustraire produirait des durées négatives. On ne compare donc jamais les deux montres — le serveur déclare SA durée, et le reste de l'attente du téléphone est le réseau. Même procédé que `fabrication` pour la voix depuis le 19 septembre.",
+  "comportement_inchange": "Ce chantier ne POSE que des dates et des étiquettes, et soustrait. Aucun seuil, aucune route, aucun réglage n'est touché. La partition des étapes reste exacte : quand pretAParler manque (vieil onglet, chemin qui ne la pose pas), mise_en_voix_ms vaut zéro et voix_ms repart du modèle, exactement comme avant — donc le contrôle `somme > vecu` de finir() garde toute sa valeur.",
+  "mesure_avant": "Six vrais tours déjà au journal avant ce chantier, vécu médian 5 482 ms : transcription 2 268 ms (38 %), modèle 1 942 ms (32 %), silence qui ferme le micro 1 214 ms (20 %), fabrication de la voix 525 ms (9 %), démarrage du son 71 ms, transport de la voix 7 ms. Côté serveur, preparation_ecoute dit 855 ms dont 744 ms de reconnaissance : donc environ 1 400 ms des 2 268 ms ne sont PAS l'oreille. C'est ce que les nouvelles bornes rendent lisible.",
+  "ce_que_ca_ne_dit_pas": "Rien n'est encore réduit. Et six tours ne sont pas dix : les groupes wolof/français et froid/chaud restent vides jusqu'à ce que Lamine fasse le test sur son iPhone."
  }
 }

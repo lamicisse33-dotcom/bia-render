@@ -133,10 +133,22 @@ export function resumeLectures() {
    coup pour voir, puis d'autres plus tard ; quarante effaceraient les
    premiers avant qu'on ait comparé. */
 import type { Tour } from "./tour";
-import { ouPasseLeTemps, aPayeLeModele } from "./tour";
+import { ouPasseLeTemps, aPayeLeModele, tableauDesEtapes } from "./tour";
 
 const TOURS_GARDES = 60;
 let tours: Tour[] = [];
+
+/* ── FROID OU CHAUD : CALCULÉ ICI, PAS SUR LE TÉLÉPHONE ────────────────────
+   Lamine veut comparer « serveur froid (après plusieurs minutes de repos) » et
+   « serveur chaud ». L'écart entre deux tours se lit déjà d'ici : chaque tour
+   arrive par /api/mesure, et l'intervalle entre deux arrivées EST l'intervalle
+   entre deux tours. Le mesurer sur le serveur évite d'ajouter un nom de plus
+   dans app/page.tsx — et les épreuves qui extraient ses callbacks échouent sur
+   le moindre nom qu'elles ne savent pas fournir (le piège documenté dans
+   envoyerJournalParole). Le premier tour est froid par définition : rien n'a
+   encore réveillé les moteurs. */
+const REPOS_QUI_REFROIDIT_MS = 5 * 60_000;
+let dernierTourRecuA = 0;
 
 export function noterTour(t: Partial<Tour>) {
   const entier = (n: unknown) => {
@@ -155,6 +167,9 @@ export function noterTour(t: Partial<Tour>) {
     queue_ms: entier(t.queue_ms),
     transcription_ms: entier(t.transcription_ms),
     modele_ms: entier(t.modele_ms),
+    transcription_serveur_ms: Math.min(entier(t.transcription_serveur_ms), entier(t.transcription_ms)),
+    transcription_reseau_ms: entier(t.transcription_ms) - Math.min(entier(t.transcription_serveur_ms), entier(t.transcription_ms)),
+    mise_en_voix_ms: entier(t.mise_en_voix_ms),
     voix_ms: entier(t.voix_ms),
     /* Bornés par voix_ms : un serveur ne peut pas avoir fabriqué plus
        longtemps que le téléphone n'a attendu. */
@@ -164,8 +179,11 @@ export function noterTour(t: Partial<Tour>) {
     attente_porte_ms: entier(t.attente_porte_ms),
     ailleurs_ms: entier(t.ailleurs_ms),
     vecu_ms: vecu,
+    langue: (t.langue === "wo" || t.langue === "fr" ? t.langue : "") as Tour["langue"],
+    froid: !dernierTourRecuA || Date.now() - dernierTourRecuA > REPOS_QUI_REFROIDIT_MS,
     quand: Date.now(),
   }].slice(-TOURS_GARDES);
+  dernierTourRecuA = Date.now();
 }
 
 /** Ce que /api/etat rend — et ce qu'on lira pour répondre à sa question. */
@@ -191,6 +209,23 @@ export function resumeTours() {
     tours: tours.length,
     /* La réponse à sa question, en clair, sans calcul mental à faire. */
     ou_passe_le_temps: ouPasseLeTemps(avecModele.length ? avecModele : parole),
+    /* ── LE TABLEAU DU MANDAT « LATENCE » (26 octobre 2026) ────────────────
+       Les huit bornes T0→T7, moyenne et pire cas, classées. Et les tris qu'il
+       a demandés pour ses dix phrases : wolof contre français, serveur froid
+       contre serveur chaud. Chaque groupe est séparé plutôt que moyenné —
+       c'est exactement la comparaison qu'il veut lire, et une moyenne des
+       deux ne décrirait ni l'un ni l'autre. */
+    etapes_t0_t7: tableauDesEtapes(avecModele.length ? avecModele : parole),
+    par_langue: {
+      wolof: tableauDesEtapes(avecModele.filter((t) => t.langue === "wo")),
+      francais: tableauDesEtapes(avecModele.filter((t) => t.langue === "fr")),
+      sans_langue_declaree: avecModele.filter((t) => !t.langue).length,
+    },
+    par_temperature: {
+      froid: tableauDesEtapes(avecModele.filter((t) => t.froid)),
+      chaud: tableauDesEtapes(avecModele.filter((t) => !t.froid)),
+      ce_qu_est_froid: "premier tour de la page, ou plus de cinq minutes sans parler",
+    },
     reponse_du_modele: groupe(avecModele),
     reponse_enregistree: groupe(sansModele),
     avec_phrase_dattente: parole.filter((t) => t.attente).length,

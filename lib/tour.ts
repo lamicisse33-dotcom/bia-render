@@ -89,8 +89,27 @@ export type Bornes = {
   micro: number;
   ecoute: number;
   modele: number;
+  /* ── T5, AJOUTÉE LE 26 OCTOBRE 2026 ──────────────────────────────────────
+     Lamine : « T5 première phrase prête à être prononcée ». Entre le premier
+     mot du cerveau (T4) et le premier son fabriqué (T6), il y avait un seul
+     nombre : `voix_ms`. Il mélangeait DEUX choses très différentes — le
+     temps qu'on met à décider quoi dire en premier, et le temps que le GPU
+     met à le fabriquer. On ne peut pas réduire ce qu'on ne sait pas séparer.
+     Cette borne se pose à l'instant où la première phrase est arrêtée et où
+     on demande son audio. */
+  pretAParler: number;
   enMain: number;
   syllabe: number;
+  /* Ce que le SERVEUR dit avoir mis à transcrire, de la même façon que
+     `fabrication` pour la voix : T2 et T3 sont des instants de Francfort, pas
+     du téléphone, et comparer deux horloges qui ne sont pas réglées ensemble
+     fabriquerait des durées négatives. On ne compare donc jamais les deux
+     montres — on retranche la part serveur de la durée vécue, et le reste est
+     le réseau. C'est exact sans supposer aucune synchronisation. */
+  ecouteServeur: number;
+  /* Pour trier ses dix phrases sans qu'il ait à se souvenir de l'ordre. */
+  langue?: "wo" | "fr";
+  froid?: boolean;
   /** D'où vient la réponse — `source` tel que /api/chat le rend. */
   source: string;
   /** Une phrase d'attente a-t-elle parlé pendant ce tour ? */
@@ -126,7 +145,16 @@ export type Tour = {
   transcription_ms: number;
   /** Transcription → le modèle a fini d'écrire. */
   modele_ms: number;
-  /** Modèle → premier morceau de voix en main. */
+  /** La part de transcription_ms passée DANS le serveur (oreille comprise),
+      dite par le serveur lui-même. */
+  transcription_serveur_ms: number;
+  /** Et la part passée sur le réseau : l'audio qui monte, le texte qui
+      redescend, et l'attente d'un tour de file GPU. */
+  transcription_reseau_ms: number;
+  /** T4 → T5 : le premier mot du cerveau est là, on décide quoi dire en
+      premier et on demande son audio. */
+  mise_en_voix_ms: number;
+  /** T5 → T6 : premier morceau de voix en main. */
   voix_ms: number;
   /** La part de voix_ms passée CHEZ SOYNADE (et à encoder), dite par le
       serveur. */
@@ -142,12 +170,17 @@ export type Tour = {
   ailleurs_ms: number;
   /** Sa dernière syllabe à lui → la première syllabe d'elle. TOUT le tour. */
   vecu_ms: number;
+  langue: "wo" | "fr" | "";
+  /** Premier tour, ou plus de cinq minutes sans parler : les moteurs ont pu
+      refroidir. Mélanger un tour froid aux chauds déplace toute la médiane,
+      et c'est précisément la comparaison qu'il demande. */
+  froid: boolean;
   quand: number;
 };
 
 export function tourVide(voie: "parole" | "ecrit" = "parole"): Bornes {
-  return { voie, parole: 0, micro: 0, ecoute: 0, modele: 0, enMain: 0, syllabe: 0,
-    source: "", attente: false, surLaTete: false, fabrication: 0, porte: 0 };
+  return { voie, parole: 0, micro: 0, ecoute: 0, modele: 0, pretAParler: 0, enMain: 0, syllabe: 0,
+    ecouteServeur: 0, source: "", attente: false, surLaTete: false, fabrication: 0, porte: 0 };
 }
 
 /* Une borne ne se pose qu'UNE FOIS. Un tour peut repasser par le même point —
@@ -171,9 +204,9 @@ export function tourVide(voie: "parole" | "ecrit" = "parole"): Bornes {
    app/page.tsx), et ici on refuse tout ce qui arrive avant que le micro se
    soit fermé. Aucune de ces trois bornes ne PEUT le précéder — une mesure qui
    accepte l'impossible ne mesure plus rien. */
-const APRES_LE_MICRO = new Set(["ecoute", "modele", "enMain"]);
+const APRES_LE_MICRO = new Set(["ecoute", "modele", "pretAParler", "enMain"]);
 
-export function poser(b: Bornes, quoi: keyof Bornes & ("parole"|"micro"|"ecoute"|"modele"|"enMain"|"syllabe"),
+export function poser(b: Bornes, quoi: keyof Bornes & ("parole"|"micro"|"ecoute"|"modele"|"pretAParler"|"enMain"|"syllabe"),
                       quand = Date.now()): Bornes {
   if (b[quoi]) return b;
   if (APRES_LE_MICRO.has(quoi) && !b.micro) return b;
@@ -202,11 +235,17 @@ export function finir(b: Bornes, quand = Date.now()): Tour | null {
   /* La porte ne peut pas avoir duré plus que l'écart en main → syllabe où
      elle s'est passée. */
   const porte = Math.min(Math.max(0, Number(b.porte) || 0), ecart(b.enMain, b.syllabe));
+  /* La nouvelle case s'INSÈRE : quand `pretAParler` manque — un vieil onglet,
+     un chemin qui ne la pose pas — `mise_en_voix_ms` vaut zéro et `voix_ms`
+     repart du modèle, exactement comme avant le 26 octobre. La somme reste
+     donc le total vécu dans les deux cas, et le contrôle `somme > vecu`
+     ci-dessous garde toute sa valeur. */
   const morceaux = {
     queue_ms: ecart(b.parole, b.micro),
     transcription_ms: ecart(b.micro, b.ecoute),
     modele_ms: ecart(b.ecoute || b.micro, b.modele),
-    voix_ms: ecart(b.modele, b.enMain),
+    mise_en_voix_ms: ecart(b.modele, b.pretAParler),
+    voix_ms: ecart(b.pretAParler || b.modele, b.enMain),
     demarrage_ms: ecart(b.enMain, b.syllabe) - porte,
     attente_porte_ms: porte,
   };
@@ -215,6 +254,9 @@ export function finir(b: Bornes, quand = Date.now()): Tour | null {
      plus que ce que le téléphone a attendu, c'est une borne d'un autre tour,
      et on ne lui fait pas confiance. */
   const fabrication = Math.min(Math.max(0, Number(b.fabrication) || 0), morceaux.voix_ms);
+  /* Même garde-fou que pour la voix : un serveur ne peut pas avoir transcrit
+     plus longtemps que le téléphone n'a attendu sa transcription. */
+  const ecouteServeur = Math.min(Math.max(0, Number(b.ecouteServeur) || 0), morceaux.transcription_ms);
   /* ── LE CONTRÔLE QUI AURAIT ATTRAPÉ LE DÉFAUT TOUT SEUL ────────────────
 
      Les morceaux ne peuvent pas dépasser le tour : c'est de l'arithmétique,
@@ -232,6 +274,8 @@ export function finir(b: Bornes, quand = Date.now()): Tour | null {
     attente: b.attente,
     surLaTete: b.surLaTete,
     ...morceaux,
+    transcription_serveur_ms: ecouteServeur,
+    transcription_reseau_ms: morceaux.transcription_ms - ecouteServeur,
     voix_fabrication_ms: fabrication,
     voix_transfert_ms: morceaux.voix_ms - fabrication,
     /* Le temps qu'aucune borne n'a couvert. Zéro quand tout est mesuré ;
@@ -240,6 +284,8 @@ export function finir(b: Bornes, quand = Date.now()): Tour | null {
        autres : un morceau qu'on ne sait pas nommer doit se voir. */
     ailleurs_ms: vecu - somme,
     vecu_ms: vecu,
+    langue: b.langue === "wo" || b.langue === "fr" ? b.langue : "",
+    froid: Boolean(b.froid),
     quand,
   };
 }
@@ -268,6 +314,7 @@ export function ouPasseLeTemps(tours: Tour[]): Part[] {
     ["le silence avant la coupure du micro", par((t) => t.queue_ms)],
     ["la transcription", par((t) => t.transcription_ms)],
     ["le modèle", par((t) => t.modele_ms)],
+    ["la mise en voix de la première phrase", par((t) => t.mise_en_voix_ms || 0)],
     ["la fabrication de la voix", par((t) => t.voix_fabrication_ms || 0)],
     ["le transport de la voix (réseau + décodage)", par((t) => (t.voix_fabrication_ms ? t.voix_transfert_ms : t.voix_ms) || 0)],
     ["le démarrage du son", par((t) => t.demarrage_ms)],
@@ -277,6 +324,69 @@ export function ouPasseLeTemps(tours: Tour[]): Part[] {
   return morceaux
     .map(([quoi, ms]) => ({ quoi, ms, part: Math.round((ms / somme) * 100) }))
     .sort((a, b) => b.ms - a.ms);
+}
+
+/* ── LE TABLEAU DEMANDÉ LE 26 OCTOBRE 2026 ──────────────────────────────────
+
+   Lamine : « un tableau avec, pour chaque étape, le temps MOYEN et le PIRE
+   CAS, classé de la plus longue à la plus courte, avec le total. »
+
+   Pourquoi les trois chiffres et pas un seul. La MÉDIANE dit ce qu'il vit
+   d'habitude ; la MOYENNE est celle qu'il demande et elle se laisse tirer par
+   un seul mauvais tour ; le PIRE CAS est celui qui l'a fait soupirer. Une
+   étape dont la médiane est bonne et le pire cas trois fois pire n'est pas
+   une étape lente, c'est une étape INSTABLE — et on ne la répare pas de la
+   même façon. Les trois sont donc côte à côte, jamais l'un à la place des
+   autres.
+
+   Le classement est fait sur la MOYENNE parce que c'est ce qu'il a demandé.  */
+export type Etape = {
+  repere: string;
+  quoi: string;
+  moyen_ms: number;
+  pire_ms: number;
+  median_ms: number;
+  part_du_total: number;
+};
+
+const moyenne = (n: number[]) => (n.length ? Math.round(n.reduce((a, x) => a + x, 0) / n.length) : 0);
+const pire = (n: number[]) => (n.length ? Math.max(...n) : 0);
+
+/** Les huit bornes de son mandat, étape par étape, du plus long au plus court. */
+export function tableauDesEtapes(tours: Tour[]) {
+  if (!tours.length) return null;
+  const lignes: Array<[string, string, (t: Tour) => number]> = [
+    ["T0→T1", "le silence qui ferme le micro", (t) => t.queue_ms],
+    ["T1→T3", "la transcription, part SERVEUR (l'oreille elle-même)", (t) => t.transcription_serveur_ms || 0],
+    ["T1→T3", "la transcription, part RÉSEAU (l'audio monte, le texte redescend)",
+      (t) => (t.transcription_serveur_ms ? t.transcription_reseau_ms : t.transcription_ms) || 0],
+    ["T3→T4", "le cerveau, jusqu'à son premier mot utilisable", (t) => t.modele_ms],
+    ["T4→T5", "la mise en voix de la première phrase", (t) => t.mise_en_voix_ms || 0],
+    ["T5→T6", "la fabrication du premier son, part GPU", (t) => t.voix_fabrication_ms || 0],
+    ["T5→T6", "la fabrication du premier son, part réseau et décodage",
+      (t) => (t.voix_fabrication_ms ? t.voix_transfert_ms : t.voix_ms) || 0],
+    ["T6→T7", "le démarrage du haut-parleur", (t) => t.demarrage_ms],
+    ["—", "on l'attend parce qu'il parle encore (la porte)", (t) => t.attente_porte_ms || 0],
+    ["—", "ce qu'aucune borne ne couvre", (t) => t.ailleurs_ms || 0],
+  ];
+  const vecus = tours.map((t) => t.vecu_ms);
+  const total = moyenne(vecus) || 1;
+  const etapes: Etape[] = lignes
+    .map(([repere, quoi, f]) => {
+      const v = tours.map(f);
+      return { repere, quoi, moyen_ms: moyenne(v), pire_ms: pire(v), median_ms: mediane(v),
+        part_du_total: Math.round((moyenne(v) / total) * 100) };
+    })
+    .filter((e) => e.moyen_ms > 0 || e.pire_ms > 0)
+    .sort((a, b) => b.moyen_ms - a.moyen_ms);
+  return {
+    tours: tours.length,
+    etapes,
+    total_vecu: { moyen_ms: moyenne(vecus), pire_ms: pire(vecus), median_ms: mediane(vecus) },
+    /* Le total vécu est mesuré de bout en bout, PAS additionné : si la somme
+       des étapes s'en écarte, une borne manque et il faut le voir. */
+    somme_des_etapes_ms: etapes.reduce((a, e) => a + e.moyen_ms, 0),
+  };
 }
 
 /** Une réponse a-t-elle coûté le modèle ? Le répertoire, les services et les

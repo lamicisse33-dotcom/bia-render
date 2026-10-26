@@ -3152,6 +3152,20 @@ export default function Home() {
          chaque appel, il n'a rien à mémoriser. Attendre le premier pour
          demander le second, c'était ajouter la fabrication de l'un à celle de
          l'autre — et ce temps-là s'entendait, en plein milieu de sa phrase. */
+      /* ── T5 DU MANDAT LATENCE (26 octobre 2026) ────────────────────────
+         « T5 première phrase prête à être prononcée ». C'est ici, et nulle
+         part ailleurs : la phrase est arrêtée, la route est choisie, on va
+         demander son audio. Avant cette borne, T4→T6 était un seul nombre
+         qui mélangeait notre décision et la fabrication du GPU — deux choses
+         qu'on ne réduit pas de la même façon. Et la langue du tour est posée
+         au même endroit, parce que c'est le seul où elle est déjà connue :
+         sans elle on ne pourrait pas comparer ses cinq phrases wolof à ses
+         cinq phrases françaises. Rien de tout ça ne change le comportement :
+         on pose une date et une étiquette. */
+      if (ou === "réponse") {
+        poserBorne(bornesRef.current, "pretAParler");
+        bornesRef.current.langue = langueDite === "fr" ? "fr" : "wo";
+      }
       const premier = demander(0);
       // One test GPU: start the first audible segment before queuing the next.
       let second = essaiChatterboxActif() ? null : demander(1).catch(() => null);
@@ -5852,6 +5866,17 @@ export default function Home() {
           }
           tTranscritRef.current = Date.now();
           poserBorne(bornesRef.current, "ecoute");
+          /* ── T2 ET T3 SANS COMPARER DEUX MONTRES ─────────────────────────
+             Lamine veut « T2 audio reçu par le serveur » et « T3 transcription
+             terminée ». Ce sont des instants de Francfort ; l'horloge d'un
+             iPhone et celle d'un serveur ne sont pas réglées ensemble, et les
+             soustraire l'une de l'autre fabriquerait des durées négatives ou
+             fantaisistes. On prend donc la seule mesure juste : le serveur dit
+             combien de temps IL a passé, et le reste de l'attente du téléphone
+             est le réseau. Même procédé que `fabrication` pour la voix depuis
+             le 19 septembre. */
+          bornesRef.current.ecouteServeur =
+            Number((d as { chronometrage?: { total_ms?: number } }).chronometrage?.total_ms) || 0;
           transcritRef.current = true;
           /* ── SA PHRASE ENTIÈRE, MÊME S'IL L'A COUPÉE EN DEUX ────────────
 
