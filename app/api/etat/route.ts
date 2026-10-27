@@ -317,6 +317,11 @@ export async function GET(request: Request) {
       francais: process.env.STT_PROVIDER === "local_wolof" && process.env.WOLOF_LOCAL_ALL_LANGUAGES === "true" ? "local_wolof" : "elevenlabs",
     },
     fournisseur_modele: (process.env.BIA_LLM_PROVIDER || "anthropic").toLowerCase(),
+    /* Le cerveau de la FENÊTRE ÉCRITE, qui peut différer de celui de la voix
+       depuis le 27 octobre 2026. `null` veut dire « le même que la voix » —
+       et il faut pouvoir le lire, sinon personne ne saurait quel cerveau
+       répond dans cette fenêtre ni ce qu'il coûte (voir depense.chat_ecrit). */
+    fournisseur_modele_ecrit: (process.env.BIA_LLM_PROVIDER_ECRIT || "").toLowerCase().trim() || null,
     cerveau_local: resumeCerveauLocal(),
     conversation: etatConversation(),
     anthropic: resumeAnthropic(),

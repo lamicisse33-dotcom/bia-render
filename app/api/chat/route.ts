@@ -1,7 +1,7 @@
 import { SOCLE_BIA } from "@/lib/socle-bia";
 import {consommerReponseAnticipee} from '@/lib/anticipation-reponse';
 import {profilRapiditeAutorise,modeleRapidite,rapiditeOptimisee,type ProfilRapidite} from '@/lib/rapidite-core';
-import {choisirModeleConversation} from '@/lib/routage-cerveaux';
+import {cerveauDuTour, choisirModeleConversation} from '@/lib/routage-cerveaux';
 import {noterModeleRapidite} from '@/lib/rapidite-etat';
 import {anticiperLexiqueVoix} from '@/lib/anticipation-lexique-voix';
 import {chronometrerPreparation as chrono} from '@/lib/profil-preparation';
@@ -1409,7 +1409,25 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
     /* CERVEAU INTERCHANGEABLE.
        Pour les essais, Gemini peut remplacer Anthropic sans toucher au reste de
        BIA. Une seule variable suffit pour revenir en arrière. */
-    const fournisseur=(process.env.BIA_LLM_PROVIDER||"anthropic").toLowerCase();
+    /* ── UN CERVEAU À PART POUR LA FENÊTRE ÉCRITE ──────────────────────────
+
+       Lamine, le 27 octobre 2026 : « le moteur Khalam ne marche pas,
+       actuellement il y a un problème du serveur d'hébergement. Si on peut
+       avoir un moteur local qui comprend le texte sans entraînement, ou un
+       petit moteur juste pour la fenêtre de discussion texte uniquement, ce
+       serait préférable. »
+
+       `BIA_LLM_PROVIDER` est GLOBALE : la changer changerait aussi sa voix.
+       Cette variable-ci ne s'applique qu'aux tours qui portent le drapeau
+       `ecrit`, celui que la fenêtre de discussion pose elle-même. La
+       conversation vocale ne la voit jamais.
+
+       ABSENTE, RIEN NE CHANGE. C'est la règle de Lamine : tout levier doit
+       être annulable par une seule variable Render, sans toucher au code. Et
+       tout changement de modèle se juge sur SES phrases wolof avant d'être
+       gardé — ce n'est pas à moi de décider de quel cerveau elle parle. */
+    const fournisseur=cerveauDuTour({ecrit:body.ecrit,
+      global:process.env.BIA_LLM_PROVIDER,pourLEcrit:process.env.BIA_LLM_PROVIDER_ECRIT});
     const gemini=fournisseur==="gemini";
     const local=fournisseur==="local";
     // Local Oolel uses the same compact OpenAI-compatible conversation path.
