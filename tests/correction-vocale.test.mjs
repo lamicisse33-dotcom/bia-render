@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import ts from 'typescript';
 function load(path,deps={},env={}){const m={exports:{}};new Function('require','module','exports',...Object.keys(env),ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(n=>{assert(n in deps,n);return deps[n];},m,m.exports,...Object.values(env));return m.exports;}
 const mode=load('lib/mode-apprentissage.ts'),correction=load('lib/correction-maitre.ts');
+const rapidite=load('lib/rapidite-core.ts');
 const dialogue=load('lib/dialogue-devoirs-core.ts'),racine=load('lib/correction-devoir-core.ts',{'./dialogue-devoirs-core':dialogue});
 function service(verifier,read=async()=>({devoirs:[]})){return load('lib/correction-vocale.ts',{'./mode-apprentissage':mode,'./correction-maitre':correction,'./correction-devoir-core':racine,'./devoirs-apprentissage':{devoirsALire:read},'./transcription-contextuelle':{verifierTranscriptionContextuelle:verifier}});}
 const verdict=(texte,statut='corrigee')=>({texte,verification:{statut,ms:10}});
@@ -39,7 +40,7 @@ test('actual authenticated chat awaits verification before either repetition sho
  function visit(n){if(ts.isFunctionDeclaration(n)&&n.name?.text==='POST')post=n;ts.forEachChild(n,visit);}visit(ast);
  const js=ts.transpileModule(post.getText(ast).replace(/^export /,''),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
  for(const diffuse of [false,true]){
-  let release,called=0,saved=0;const api=new Function('env',`with(env){${js};return POST;}`)({verifierCode:()=>({ok:true,maitre:true}),lireLOrdre:()=>null,preparerCorrectionVocale:()=>new Promise(r=>release=r),DIFFUSER_LE_MODELE:true,
+  let release,called=0,saved=0;const api=new Function('env',`with(env){${js};return POST;}`)({profilRapiditeAutorise:rapidite.profilRapiditeAutorise,verifierCode:()=>({ok:true,maitre:true}),lireLOrdre:()=>null,preparerCorrectionVocale:()=>new Promise(r=>release=r),DIFFUSER_LE_MODELE:true,
    repondre:async body=>{called++;assert.equal(body.message,'Répète : Dama soxla.');return {corps:{reply:'Dama soxla.'}};},garderCeTour:()=>saved++,NextResponse:Response});
   const pending=api(new Request('https://bia.test/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'Répète : Dama sokhla.',parole:true,diffuse})}));
   await new Promise(r=>setTimeout(r,5));assert.equal(called,0);
