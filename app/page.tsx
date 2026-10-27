@@ -30,6 +30,7 @@ import { ouvrirFluxVoix, type MorceauVoix } from "@/lib/flux-khalam";
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { chargerPortrait } from "@/lib/portrait-images";
+import { useHabillageBia, ChoixPersonnage, PortraitTenue } from "./personnages/Personnages";
 import { lienMessage } from "@/lib/communication";
 import {
   A_FABRIQUER, CHAPEAU, PARTIE_1, PARTIE_1_CONNU,
@@ -551,6 +552,7 @@ export default function Home() {
   const restaurationAccesRef=useRef(0);
   const [moteurs, setMoteurs] = useState<{ voix: string; ecoute: string } | null>(null);
   const [tenue, setTenue] = useState<string>("nouvelle");
+  const habillageBia = useHabillageBia();
   /* ── RARA, LE DEUXIÈME PERSONNAGE ───────────────────────────────────────
      Demandé par Lamine le 25 septembre 2026 : un choix personnel, propre à
      chaque personne sur son téléphone — pas un réglage global comme la
@@ -8495,7 +8497,7 @@ export default function Home() {
           <button type="button" className="qui" onClick={() => { setPapierOuvert(false); setQuiParle(true); }}>Changer d’utilisateur</button>
           <button type="button" onClick={() => { setPapierOuvert(false); nouvelleConversation(); }}>Nouvelle conversation</button>
           {resume ? <button type="button" onClick={() => { setPapierOuvert(false); toutOublier(); }}>Tout oublier</button> : null}
-          <button type="button" onClick={() => choisirPersona(persona === "rara" ? "bia" : "rara")}>Apparence de Bia : {persona === "rara" ? "1" : "2"}</button>
+          <ChoixPersonnage {...habillageBia} persona={persona} choisirPersona={choisirPersona} />
           {conversation ? <button type="button" onClick={annulerCeQueJeDis}>Annuler ma phrase</button> : null}
           <button type="button" disabled={mode !== "ready" || conversation} onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
         </div>
@@ -8808,7 +8810,7 @@ export default function Home() {
   if (!code && restaurationAcces!=='terminee') {
     return (
       <main className="bia-presence" data-mode="ready">
-        <div className="portrait" aria-hidden="true" data-tenue={tenue} data-persona={persona}><div className="avatar" data-face="yeux_ouverts" /></div>
+        <div className="portrait" aria-hidden="true" data-tenue={tenue} data-persona={persona}><div className="avatar" data-face="yeux_ouverts" />{habillageBia.habillage && <PortraitTenue tenue={habillageBia.habillage} face="yeux_ouverts" />}</div>
         <section className="porte" aria-busy={restaurationAcces==='verification'}>
           <p className="porte-titre">BIA</p>
           <p className="porte-texte" role="status">{restaurationAcces==='verification'?'Vérification de ton accès…':codeErreur}</p>
@@ -8821,7 +8823,7 @@ export default function Home() {
   if (!code) {
     return (
       <main className="bia-presence" data-mode="ready">
-        <div className="portrait" aria-hidden="true" data-tenue={tenue} data-persona={persona}><div className="avatar" data-face="yeux_ouverts" /></div>
+        <div className="portrait" aria-hidden="true" data-tenue={tenue} data-persona={persona}><div className="avatar" data-face="yeux_ouverts" />{habillageBia.habillage && <PortraitTenue tenue={habillageBia.habillage} face="yeux_ouverts" />}</div>
         <section className="porte">
           <p className="porte-titre">BIA</p>
           <p className="porte-texte">Entre ton code d’accès pour parler avec BIA.</p>
@@ -8915,6 +8917,7 @@ export default function Home() {
         )}
         <div className="avatar avatar-socle" data-face="yeux_ouverts" />
         <div className="avatar" data-face={portraitPret ? face : "yeux_ouverts"} />
+        {habillageBia.habillage && <PortraitTenue tenue={habillageBia.habillage} face={face} parle={mode === "speaking"} />}
         {introRara !== null && (
           <div className="intro-rara" aria-hidden="true">
             {/* eslint-disable-next-line @next/next/no-img-element */}
