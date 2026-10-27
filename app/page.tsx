@@ -4734,9 +4734,23 @@ export default function Home() {
      rechargée. */
   const salueRef = useRef(false);
   useEffect(() => {
-    const reveiller = () => {
+    const reveiller = (e?: Event) => {
       contexte();
       if (essaiChatterboxActif() || piperWebActif()) return;
+      /* ── LE PREMIER APPUI NE DOIT PAS SALUER DANS UNE FENÊTRE MUETTE ────
+
+         Trouvé le 27 octobre 2026 par le compteur de sons de
+         tests/discussion-ecrite-browser.cjs. Cet éveil se déclenche au
+         PREMIER appui de la séance, où qu'il tombe. Si cet appui est celui
+         qui ouvre la discussion écrite, BIA dit « salut » à voix haute au
+         moment même où s'ouvre une fenêtre qui doit rester muette — et la
+         règle de Lamine est « AUCUN son » dans cette fenêtre.
+
+         On garde `contexte()` : réveiller le haut-parleur ne fait aucun
+         bruit, et c'est le seul moment où iOS l'autorise. C'est la
+         SALUTATION qu'on laisse tomber, et elle seule. */
+      const cible = e && e.target instanceof Element ? e.target : null;
+      if (cible && cible.closest(".discussion-ouvrir, .discussion")) return;
       if (salueRef.current || !code) return;
       salueRef.current = true;
       /* Elle ne coupe jamais la parole à personne : si elle est déjà en
@@ -8462,8 +8476,25 @@ export default function Home() {
       <>
         <p className="papier-titre">Moi</p>
         {estMaitre&&<a className="papier-lien" href="/codes">Créer des codes utilisateurs →</a>}
+        {/* ── CE QUI RESTE À TOUT LE MONDE, ET CE QUI PART AU MAÎTRE ──────
+
+            Lamine, le 27 octobre 2026 : « laisse sur Moi l'option que
+            n'importe qui pourra utiliser, par exemple changer la voix homme /
+            femme et choisir Moteur gratuit ou autre, mais tout le reste doit
+            être caché ».
+
+            ET CE QU'ON NE LUI RETIRE PAS AU PASSAGE. « Changer d'utilisateur »
+            et « Nouvelle conversation » vivaient dans le panneau du clavier,
+            qui vient de passer au maître. Sur un téléphone qui se prête, le
+            premier est le bouton le plus important de tous : sans lui, elle
+            appelle le suivant par le prénom du précédent. Ils descendent donc
+            ici, où tout le monde entre. Rien n'est perdu, seul l'accès change
+            de porte. */}
         <div className="papier-actions">
-          <button type="button" onClick={() => { setPapierOuvert(false); ouvrirClavier(); }}>Conversation écrite</button>
+          {estMaitre ? <button type="button" onClick={() => { setPapierOuvert(false); ouvrirClavier(); }}>Conversation écrite</button> : null}
+          <button type="button" className="qui" onClick={() => { setPapierOuvert(false); setQuiParle(true); }}>Changer d’utilisateur</button>
+          <button type="button" onClick={() => { setPapierOuvert(false); nouvelleConversation(); }}>Nouvelle conversation</button>
+          {resume ? <button type="button" onClick={() => { setPapierOuvert(false); toutOublier(); }}>Tout oublier</button> : null}
           <button type="button" onClick={() => choisirPersona(persona === "rara" ? "bia" : "rara")}>Apparence de Bia : {persona === "rara" ? "1" : "2"}</button>
           {conversation ? <button type="button" onClick={annulerCeQueJeDis}>Annuler ma phrase</button> : null}
           <button type="button" disabled={mode !== "ready" || conversation} onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
@@ -8488,7 +8519,10 @@ export default function Home() {
         </fieldset>
         <p className="papier-note">Ton choix est mémorisé dans ce navigateur. Khalam Gratuit est fabriquée par le téléphone lui-même, sans serveur ni coût — mais elle n’est pas finie : son entraînement s’est arrêté bien trop tôt et sa voix traîne. Écoute-la avant de la choisir.</p>
         {etatSecours && <p className="papier-note" role="status">{etatSecours}</p>}
-        <a className="papier-lien" href="/voix/secours">Écouter Khalam Gratuit et voir où en est son entraînement →</a>
+        {/* Une page d'ENTRAÎNEMENT : elle part avec les autres au maître.
+            Le choix de la voix, lui, reste au-dessus pour tout le monde — on
+            retire la page qui explique son entraînement, pas la voix. */}
+        {estMaitre ? <a className="papier-lien" href="/voix/secours">Écouter Khalam Gratuit et voir où en est son entraînement →</a> : null}
         {erreurChoixVoix && <p className="panne" role="alert">{erreurChoixVoix}</p>}
         <button type="button" className="papier-lien" disabled={mode !== "ready" || conversation}
           onClick={ecouterVoixChoisie}>Écouter la voix choisie</button>
@@ -8990,6 +9024,14 @@ export default function Home() {
               <path d="M12 3c5 0 9 3.3 9 7.4 0 4.1-4 7.4-9 7.4-.9 0-1.8-.1-2.6-.3L5 20.5l.9-3.3C4.1 15.8 3 13.3 3 10.4 3 6.3 7 3 12 3Zm-4 6.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm4 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm4 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z" />
             </svg>
           </button>
+        {/* ── LE CLAVIER PASSE AU MAÎTRE ────────────────────────────────
+            Lamine, le 27 octobre 2026 : « le bouton clavier et les autres
+            options sur Moi doivent être réservés uniquement au Maître ».
+            C'est le BOUTON qu'on retire, pas le panneau : une panne appelle
+            encore `setClavier(true)` pour afficher son texte, et un visiteur
+            doit pouvoir lire l'erreur qui le concerne. Pour écrire, il a
+            maintenant la fenêtre de discussion, qui est à tout le monde. */}
+        {estMaitre ? (
         <button className="clavier-ouvrir" type="button"
           onClick={ouvrirClavier} aria-label="Ouvrir le clavier et la conversation écrite"
           title="Clavier" aria-expanded={clavier} aria-controls="conversation-ecrite">
@@ -8997,6 +9039,7 @@ export default function Home() {
             <path d="M3 5h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v10h18V7H3Zm2 2h2v2H5V9Zm4 0h2v2H9V9Zm4 0h2v2h-2V9Zm4 0h2v2h-2V9ZM5 13h2v2H5v-2Zm4 0h10v2H9v-2Z" />
           </svg>
         </button>
+        ) : null}
         </div>
         {/* ── L'ÉTAT, PAS SEULEMENT LA DESTINATION ──────────────────────────
 

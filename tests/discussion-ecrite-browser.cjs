@@ -55,9 +55,18 @@ const APPRENTISSAGE='Apprentissage / lecture continue';
    localStorage.setItem('bia-mode-conversation','khalam');
    /* ── LE COMPTEUR DE HAUT-PARLEUR ────────────────────────────────────
       Toutes les portes du son, comptées à la source. */
-   window.__sons=0;
+   window.__sons=0;window.__contextes=0;
+   /* ── ON COMPTE CE QUI SORT, PAS CE QUI S'OUVRE ───────────────────────
+      Un AudioContext fabriqué ne fait AUCUN bruit : la page en ouvre un au
+      premier appui de la séance, parce que c'est le seul moment où iOS
+      l'autorise. Le compter comme un son donnerait une fausse alerte — et
+      une fausse alerte apprend à desserrer le filet. On compte donc les
+      trois portes par lesquelles un son SORT vraiment, et on note les
+      contextes à part. */
    const AC=window.AudioContext;
-   if(AC)window.AudioContext=function(...a){window.__sons++;return new AC(...a);};
+   if(AC)window.AudioContext=function(...a){window.__contextes++;return new AC(...a);};
+   const partir=window.AudioBufferSourceNode&&window.AudioBufferSourceNode.prototype.start;
+   if(partir)window.AudioBufferSourceNode.prototype.start=function(...a){window.__sons++;return partir.apply(this,a);};
    const jouer=HTMLMediaElement.prototype.play;
    HTMLMediaElement.prototype.play=function(...a){window.__sons++;return jouer.apply(this,a);};
    try{
@@ -80,11 +89,19 @@ const APPRENTISSAGE='Apprentissage / lecture continue';
   const bouton=page.getByRole('button',{name:'Ouvrir la discussion écrite'});
   await bouton.waitFor({state:'visible'});
 
-  /* ── L'INTERDIT : la fenêtre d'apprentissage reste au code maître ─────── */
-  await page.getByRole('button',{name:'Ouvrir le clavier et la conversation écrite'}).click();
-  const apprentissage=page.locator('.clavier .outils button').filter({hasText:APPRENTISSAGE});
-  assert.equal(await apprentissage.count(),maitre?1:0,nom+' : la fenêtre d’apprentissage doit rester au code maître');
-  await page.getByRole('button',{name:'Replier le clavier'}).click();
+  /* ── L'INTERDIT : la fenêtre d'apprentissage reste au code maître ───────
+     Depuis le 27 octobre, le BOUTON du clavier est lui aussi au maître (voir
+     tests/moi-reserve-au-maitre-browser.cjs). Pour un code ordinaire, le
+     panneau n'est donc plus atteignable du tout : l'interdit tient par la
+     porte, et on le vérifie comme tel. */
+  const porteClavier=page.getByRole('button',{name:'Ouvrir le clavier et la conversation écrite'});
+  assert.equal(await porteClavier.count(),maitre?1:0,nom+' : le bouton clavier doit être au code maître');
+  if(maitre){
+   await porteClavier.click();
+   const apprentissage=page.locator('.clavier .outils button').filter({hasText:APPRENTISSAGE});
+   assert.equal(await apprentissage.count(),1,'le maître doit garder sa fenêtre d’apprentissage');
+   await page.getByRole('button',{name:'Replier le clavier'}).click();
+  }
 
   /* ── POINT 2 : L'ÉCRAN BLANC, PLEIN ÉCRAN, AVEC SA FLÈCHE ─────────────── */
   const sonsAvant=await page.evaluate(()=>window.__sons);
@@ -163,7 +180,8 @@ const APPRENTISSAGE='Apprentissage / lecture continue';
 
   assert.equal(erreurs.length,0,erreurs.join('\n'));
   rapport[nom]={bouton_visible:true,apprentissage_present:maitre,bulles:bulles.length,
-   sons:sonsApres-sonsAvant,routes_pendant:[...new Set(pendant)],fil_garde:true,voix_repart:true};
+   sons:sonsApres-sonsAvant,contextes_ouverts:await page.evaluate(()=>window.__contextes),
+   routes_pendant:[...new Set(pendant)],fil_garde:true,voix_repart:true};
   await contexte.close();
  }
 
@@ -183,7 +201,7 @@ const APPRENTISSAGE='Apprentissage / lecture continue';
   const vues=await page.evaluate(()=>{
    const avant=window.__sons;
    const portes=[];
-   try{new window.AudioContext();portes.push('AudioContext');}catch{}
+   try{const c=new window.AudioContext();const n=c.createBufferSource();n.buffer=c.createBuffer(1,128,c.sampleRate);n.connect(c.destination);n.start();portes.push('source.start');}catch{}
    try{const a=new Audio();a.muted=true;a.play().catch(()=>{});portes.push('audio.play');}catch{}
    try{window.speechSynthesis.speak(new SpeechSynthesisUtterance('essai'));portes.push('speechSynthesis');}catch{}
    return {portes,comptees:window.__sons-avant};

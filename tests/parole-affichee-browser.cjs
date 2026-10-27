@@ -146,6 +146,9 @@ async function unTour(navigateur,cas){
   appels[chemin]=(appels[chemin]||0)+1;
   const json=(corps,statut=200)=>route.fulfill({status:statut,contentType:'application/json',body:JSON.stringify(corps)});
   if(chemin==='/api/acces')return json({ok:true,maitre:true});
+  /* Le décor doit AUSSI répondre ici : c'est /api/codes qui pose `estMaitre`
+     dans la page, et depuis le 27 octobre le bouton du clavier en dépend. */
+  if(chemin==='/api/codes')return json({ok:true,maitre:true});
   if(chemin==='/api/etat')return json(etatDuCas(cas));
   if(chemin==='/api/rappels')return json({rappels:[]});
   if(chemin==='/api/prises-validees')return json({prises:[]});
