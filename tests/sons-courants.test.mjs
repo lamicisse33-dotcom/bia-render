@@ -7,6 +7,7 @@ const compile=s=>ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.Com
 function load(path,deps={},env={}){const m={exports:{}};new Function('require','module','exports',...Object.keys(env),compile(fs.readFileSync(path,'utf8')))(n=>{assert(n in deps,n);return deps[n];},m,m.exports,...Object.values(env));return m.exports;}
 const texts=load('lib/repertoire-textes.ts'),base=load('lib/base-textes.ts'),services=load('lib/services-textes.ts');
 const core=load('lib/sons-courants-core.ts',{'./repertoire-textes':texts,'./base-textes':base,'./services-textes':services});
+const {mesurerDemarrageVoix}=load('lib/mesure-demarrage-voix.ts',{}, {fetch:async()=>({ok:true})});
 const ready=core.PHRASES_COURANTES.map(p=>({...p,version:core.VERSION_SONS_COURANTS,adresse:'https://example.test/'+p.cle,secondes:1,octets:2000}));
 test('all reviewed greetings are bilingual and exact; audio lookup never rewrites the reply',()=>{
  assert.equal(new Set(ready.map(p=>p.cle+p.langue)).size,ready.length);
@@ -60,7 +61,7 @@ test('durable generation reuses verified entries and refuses an unknown store st
 test('a cancelled acknowledgement cannot stop a newer reply animation',async()=>{
  const page=fs.readFileSync('app/page.tsx','utf8'),ast=ts.createSourceFile('page.tsx',page,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let arrow;
  const visit=n=>{if(ts.isVariableDeclaration(n)&&n.name.getText(ast)==='jouerEtAnimer')arrow=n.initializer.arguments[0].getText(ast);ts.forEachChild(n,visit);};visit(ast);assert(arrow);
- let source,cancelled=0,started;const ready=new Promise(resolve=>started=resolve);const env={numeroDuTourRef:{current:1},autoriserLaVoix:async actuel=>actuel(),reveillerLeSon:async()=>({currentTime:0,decodeAudioData:async()=>({duration:.02}),createBufferSource:()=>source={connect(){},start(){started();}}}),ralentir:(_c,x)=>x,sansSilence:(_c,x)=>x,vitesseAudioBia:()=>1,enveloppeDe:()=>({valeurs:[0],pic:1,pas:.02}),sourceRef:{current:null},animationRef:{current:null},requestAnimationFrame:()=>1,cancelAnimationFrame:()=>cancelled++,setMode(){},envoyerLeTour(){}};
+ let source,cancelled=0,started;const ready=new Promise(resolve=>started=resolve);const env={mesurerDemarrageVoix,numeroDuTourRef:{current:1},autoriserLaVoix:async actuel=>actuel(),reveillerLeSon:async()=>({currentTime:0,decodeAudioData:async()=>({duration:.02}),createBufferSource:()=>source={connect(){},start(){started();}}}),ralentir:(_c,x)=>x,sansSilence:(_c,x)=>x,vitesseAudioBia:()=>1,enveloppeDe:()=>({valeurs:[0],pic:1,pas:.02}),sourceRef:{current:null},animationRef:{current:null},requestAnimationFrame:()=>1,cancelAnimationFrame:()=>cancelled++,setMode(){},envoyerLeTour(){}};
  const play=new Function('env',`with(env){return ${compile('const f='+arrow+';').replace(/^const f = /,'').replace(/;\s*$/,'')};}`)(env);
  const p=play(new ArrayBuffer(2000));await ready;assert(source);
  const newer={};env.sourceRef.current=newer;env.animationRef.current=99;source.onended();await p;
