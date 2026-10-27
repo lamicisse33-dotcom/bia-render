@@ -52,8 +52,16 @@ const AU_MAITRE_BOUTONS=['Conversation écrite',"Ce qu'on te demande et qu'elle 
    localStorage.setItem('bia-code','SYNTHETICMASTER');
    localStorage.setItem('bia-mode-conversation','khalam');
   });
+  /* ── ON ATTEND LE CONTRÔLE DU CODE, PAS L'AFFICHAGE ───────────────────
+     `estMaitre` arrive d'un appel à /api/codes, APRÈS le premier rendu. Lire
+     la barre dès que le micro s'affiche, c'est la lire une fois sur trois
+     avant que la réponse soit là — l'épreuve passait au vert par chance. On
+     arme donc l'attente AVANT d'ouvrir la page. */
+  const controleMaitre=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/codes');
   await page.goto('http://127.0.0.1:'+PORT+'/');
+  await controleMaitre;
   await page.locator('button.microphone').waitFor({state:'visible'});
+  if(maitre)await page.getByRole('button',{name:'Ouvrir le clavier et la conversation écrite'}).waitFor({state:'visible'});
 
   /* ── LA BARRE DU BAS ────────────────────────────────────────────────── */
   const barre={
@@ -84,6 +92,33 @@ const AU_MAITRE_BOUTONS=['Conversation écrite',"Ce qu'on te demande et qu'elle 
   await contexte.close();
   return {barre,boutons,liens,voix,vitesse,renseignements};
  };
+
+ /* ── LA PORTE : LE CHAMP, ET RIEN QUI DÉSIGNE LA SERRURE DU MAÎTRE ─────
+    Lamine, le 27 octobre 2026, copie d'écran à l'appui. Le lien « Espace
+    maître — créer des codes » s'affichait AVANT toute authentification : il
+    n'ouvrait rien, mais il annonçait à quiconque où se fabriquent les codes.
+    On vérifie donc l'écran d'entrée SANS code en mémoire. */
+ {
+  const contexte=await browser.newContext({viewport:{width:375,height:812}});
+  const page=await contexte.newPage();
+  await page.route('**/api/**',async route=>{
+   const chemin=new URL(route.request().url()).pathname;
+   let data={};
+   if(chemin==='/api/acces'||chemin==='/api/codes')data={ok:false,maitre:false};
+   if(chemin==='/api/etat')data={ecoute:'runpod',voix:'runpod',version:'local-synthetic'};
+   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
+  });
+  await page.goto('http://127.0.0.1:'+PORT+'/');
+  await page.getByLabel("Code d'accès").waitFor({state:'visible'});
+  /* Le champ et son bouton restent : c'est tout ce que la porte doit offrir. */
+  assert.equal(await page.getByRole('button',{name:'Entrer'}).count(),1);
+  /* Et rien n'y désigne l'espace du maître. */
+  assert.equal(await page.locator('a[href="/codes"]').count(),0,'la porte ne doit pas montrer le lien des codes');
+  const texte=await page.locator('body').innerText();
+  assert(!texte.includes('Espace maître'),'« Espace maître » ne doit pas être écrit sur la porte : '+JSON.stringify(texte));
+  assert(!texte.includes('créer des codes'),'la porte ne doit pas annoncer la création des codes : '+JSON.stringify(texte));
+  await contexte.close();
+ }
 
  const simple=await regarder(false);
  const maitre=await regarder(true);

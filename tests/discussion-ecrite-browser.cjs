@@ -74,8 +74,14 @@ const APPRENTISSAGE='Apprentissage / lecture continue';
     if(dire)window.speechSynthesis.speak=function(...a){window.__sons++;return dire.apply(window.speechSynthesis,a);};
    }catch{}
   });
+  /* Même raison que dans tests/moi-reserve-au-maitre-browser.cjs :
+     `estMaitre` arrive après le premier rendu, et le bouton du clavier en
+     dépend. On attend la réponse, pas l'affichage. */
+  const controleMaitre=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/codes');
   await page.goto('http://127.0.0.1:'+PORT+'/');
+  await controleMaitre;
   await page.locator('button.microphone').waitFor({state:'visible'});
+  if(maitre)await page.getByRole('button',{name:'Ouvrir le clavier et la conversation écrite'}).waitFor({state:'visible'});
   return {contexte,page,erreurs,routes,demandes};
  };
 

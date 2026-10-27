@@ -8845,7 +8845,17 @@ export default function Home() {
           </div>
           {verificationCode ? <p className="porte-texte" role="status">Vérification du code…</p> : null}
           {codeErreur ? <p className="porte-erreur" role="alert">{codeErreur}</p> : null}
-          <p style={{textAlign:'center',marginBottom:0}}><a href="/codes" style={{color:'#d4af37'}}>Espace maître — créer des codes</a></p>
+          {/* ── LA PORTE NE DIT PLUS OÙ EST LA SERRURE DU MAÎTRE ───────────
+              Lamine, le 27 octobre 2026, copie d'écran à l'appui : « cette
+              écriture ne doit pas apparaître sur l'écran. Il faut juste le
+              champ et les autres, mais pas de texte. »
+
+              C'était un lien « Espace maître — créer des codes » offert à
+              QUICONQUE arrive devant la porte, avant même d'avoir un code.
+              Il n'ouvrait rien — /codes exige le code maître, à l'écran comme
+              au serveur — mais il annonçait à tout le monde où se fabriquent
+              les codes. Lui-même y entre par « Moi », une fois son code
+              donné : la porte d'entrée n'a pas à la montrer. */}
         </section>
 
         {/* ── ELLE S'INSTALLE AUSSI DEPUIS LA PORTE ──────────────────────────
