@@ -25,7 +25,15 @@ type Echo = { coupures_pendant_parole: number; coupures_au_silence: number; tram
    explique son refus. `avant_setup` sépare les deux pannes : un setup refusé
    et une session coupée en cours ne se soignent pas pareil. */
 type Fermeture = { code: number; motif: string; avant_setup: boolean; fois: number; quand: string };
-type Etat = { mesures: Mesure[]; tours: number; refusees: number; doublons: number; vus: Map<string, number>; basculements: { vers_rapide: number; vers_khalam: number }; echo: Echo; fermetures: Fermeture[] };
+/* ── LA BOUCHE SUIT-ELLE LE SON, ET DE COMBIEN A-T-ELLE ÉTÉ RECALÉE ───────
+   27 octobre 2026. Sur Khalam Rapide la bouche tournait sur une minuterie
+   aveugle ; elle lit maintenant l'enveloppe du son. Deux choses doivent se
+   lire ici, sinon on ne pourra que croire sur parole : combien de téléphones
+   suivent vraiment le son, et le retard du haut-parleur qu'ils déclarent —
+   c'est lui qui décide du recalage, et il n'est pas le même sur chaque
+   appareil. `repli` compte les sessions retombées sur la minuterie. */
+type Bouche = { sur_le_son: number; repli: number; retards_ms: number[]; pas_ms: number };
+type Etat = { mesures: Mesure[]; tours: number; refusees: number; doublons: number; vus: Map<string, number>; basculements: { vers_rapide: number; vers_khalam: number }; echo: Echo; fermetures: Fermeture[]; bouche?: Bouche };
 const g = globalThis as typeof globalThis & { biaKhalamRapide?: Etat };
 const etat: Etat = (g.biaKhalamRapide ??= { mesures: [], tours: 0, refusees: 0, doublons: 0, vus: new Map<string, number>(), basculements: { vers_rapide: 0, vers_khalam: 0 }, echo: { coupures_pendant_parole: 0, coupures_au_silence: 0, trames_retenues: 0, trames_laissees: 0, echo_plancher: 0, tours: 0, arrets: {}, code_fermeture: 0, versions: {} }, fermetures: [] });
 
@@ -75,6 +83,19 @@ export function noterKhalamRapide(d: Record<string, unknown>) {
     if (vue) { vue.fois += 1; vue.quand = new Date().toISOString(); }
     else etat.fermetures.push({ code, motif, avant_setup: avant, fois: 1, quand: new Date().toISOString() });
     etat.fermetures = etat.fermetures.slice(-20);
+    return;
+  }
+  if (d.etape === "bouche") {
+    const b = (etat.bouche ??= { sur_le_son: 0, repli: 0, retards_ms: [], pas_ms: 0 });
+    if (d.sur_le_son === true) b.sur_le_son += 1; else b.repli += 1;
+    const retard = Number(d.retard_ms);
+    /* Un retard de haut-parleur au-delà de 150 ms n'est pas un retard, c'est
+       une valeur fantaisiste : le client la borne déjà, on la refuse ici
+       aussi, et on la COMPTE plutôt que de la laisser passer en silence. */
+    if (Number.isFinite(retard) && retard >= 0 && retard <= 150) { b.retards_ms.push(Math.round(retard)); b.retards_ms = b.retards_ms.slice(-40); }
+    else if (d.sur_le_son === true) etat.refusees += 1;
+    const pas = Number(d.pas_ms);
+    if (Number.isFinite(pas) && pas > 0 && pas <= 1000) b.pas_ms = Math.round(pas);
     return;
   }
   if (d.etape === "echo") {
@@ -153,6 +174,18 @@ export function resumeKhalamRapide() {
       derniers_ms: etat.mesures.slice(-12),
     },
     basculements: { ...etat.basculements },
+    /* `sur_le_son` = sessions où la bouche a lu l'enveloppe ; `repli` =
+       sessions retombées sur la minuterie aveugle d'avant. Un `repli` qui
+       monte est le signe que l'enveloppe n'arrive pas, et il faut le voir.
+       Une absence de ligne ne veut pas dire « ça marche » : elle veut dire
+       qu'aucun téléphone n'a encore parlé en Khalam Rapide depuis la mise en
+       ligne — voir `mesure_recue`. */
+    bouche: etat.bouche
+      ? { sur_le_son: etat.bouche.sur_le_son, repli: etat.bouche.repli,
+          retard_haut_parleur_median_ms: mediane(etat.bouche.retards_ms),
+          retard_haut_parleur_max_ms: etat.bouche.retards_ms.length ? Math.max(...etat.bouche.retards_ms) : null,
+          tranche_ms: etat.bouche.pas_ms || null, mesure_recue: true }
+      : { sur_le_son: 0, repli: 0, retard_haut_parleur_median_ms: null, retard_haut_parleur_max_ms: null, tranche_ms: null, mesure_recue: false },
     /* `avant_setup: true` = Google refuse la CONFIGURATION ; le motif dit
        laquelle. `false` = la session était établie et a été coupée en cours.
        Une liste vide ne veut pas dire « aucune fermeture » : elle veut dire
@@ -172,6 +205,7 @@ export function resumeKhalamRapide() {
       "Mesure navigateur déclarée : de la fin de sa parole au premier son, avance de planification audio comprise. " +
       "Une seule mesure par tour, armée par une parole entendue pendant qu'elle se tait : un tour où on lui coupe la parole n'est pas mesuré. " +
       "Le silence de fin de parole décidé par la détection d'activité et le réseau du téléphone sont dedans sans être séparés. " +
+      "La bouche suit l'enveloppe du son depuis le 27 octobre 2026, recalée du retard déclaré par le haut-parleur ; `repli` compte les sessions restées sur l'ancienne minuterie. " +
       "Aucun texte, transcription ni son n'est exporté.",
   };
 }

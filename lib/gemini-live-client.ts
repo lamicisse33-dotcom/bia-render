@@ -12,6 +12,33 @@ export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',t
     `accordPosition` montre la question à l'écran et rend ce qu'elle répond.
     Jamais en silence : sans ces deux rappels, l'outil refuse de partir.
     `carte` ouvre l'écran de guidage sur le lieu trouvé. */
+ /* ── LA BOUCHE SUIVAIT UNE MINUTERIE, PAS LE SON ─────────────────────────
+
+    Lamine, le 27 octobre 2026 : « synchronise davantage la bouche de BIA,
+    elle est sur la voix Khalam Rapide ».
+
+    Sur Khalam, la bouche lit l'énergie du son, tranche par tranche, et
+    s'ouvre d'autant (voir `enveloppeDe` et `formeBouche` dans app/page.tsx).
+    Sur Khalam Rapide, elle n'avait RIEN à lire : le client ne disait que
+    `parle(true)` / `parle(false)`, et la page faisait tourner une minuterie
+    aveugle — une forme toutes les 110 ms, sans aucun rapport avec ce qui
+    sortait du haut-parleur. Trois décalages s'additionnaient :
+
+      1. `parle(true)` part quand le morceau est PROGRAMMÉ, pas quand il est
+         audible. Les morceaux s'empilent sur `this.next` : la bouche
+         commençait à bouger jusqu'à plusieurs centaines de millisecondes
+         avant le son.
+      2. 110 ms fixes ne suivent ni les syllabes, ni les silences entre deux
+         phrases : elle mâchait dans le vide.
+      3. Le haut-parleur lui-même a un retard (`outputLatency`) que rien ne
+         compensait.
+
+    Le son est pourtant ICI, en clair, dans `jouer()`. On en rend donc
+    l'enveloppe — l'énergie moyenne par tranche de 40 ms — avec l'instant
+    exact où ce morceau commencera, DANS L'HORLOGE DU HAUT-PARLEUR. La page
+    n'a plus qu'à la lire. Elle ne change rien à ce qui se dit ni à ce qui
+    s'entend : c'est une mesure, pas un réglage. */
+ bouche?:(segment:{debut:number;fin:number;valeurs:number[];pic:number;pas:number})=>void;
  accordPosition?:()=>Promise<boolean>;carte?:(lieu:{dit:string;lat:number;lon:number;sur?:boolean})=>void;
  /* ── UN RAPPEL VIENT D'ÊTRE POSÉ ─────────────────────────────────────────
     La page a besoin de le savoir pour demander les notifications au prochain
@@ -228,6 +255,26 @@ export class BiaGeminiLive{
     d'écho du haut-parleur, qui ré-armait la mesure juste après sa dernière
     syllabe. */
  private elleParle(){return this.nodes.size>0||(this.finDuSon>0&&performance.now()-this.finDuSon<300);}
+ /* ── CE QU'IL ENTEND MAINTENANT A ÉTÉ CALCULÉ IL Y A UN INSTANT ──────────
+    `currentTime` est l'horloge de CALCUL du son, pas celle de l'oreille : un
+    échantillon programmé à T sort du haut-parleur à T + le retard matériel.
+    Pour que la bouche montre ce qu'il ENTEND, et non ce qui se calcule, on
+    recule l'horloge de ce retard. Safari ne publie pas toujours
+    `outputLatency` ; `baseLatency` prend le relais, zéro en dernier recours.
+    Borné à 150 ms : un chiffre aberrant rendu par un navigateur ne doit pas
+    pouvoir fermer la bouche avant la fin de la phrase. */
+ retardDuHautParleur(){
+  const ctx=this.output;if(!ctx)return 0;
+  const brut=Number((ctx as AudioContext&{outputLatency?:number}).outputLatency);
+  const repli=Number(ctx.baseLatency);
+  const v=Number.isFinite(brut)&&brut>0?brut:Number.isFinite(repli)&&repli>0?repli:0;
+  return Math.min(Math.max(0,v),0.15);
+ }
+ /** L'instant, dans l'horloge du son, de ce qui sort du haut-parleur MAINTENANT. */
+ horlogeDuSon(){
+  const ctx=this.output;if(!ctx||ctx.state==='closed')return null;
+  return ctx.currentTime-this.retardDuHautParleur();
+ }
  async demarrer(){
   this.stoppe=false;this.events.etat('Connexion…');
   try{
@@ -508,10 +555,22 @@ export class BiaGeminiLive{
   if(bytes.length%2)throw Error('PCM incomplet');
   const view=new DataView(bytes.buffer),rate=Number(mime?.match(/rate=(\d+)/)?.[1]||24000),buffer=ctx.createBuffer(1,bytes.length/2,rate),a=buffer.getChannelData(0);
   for(let i=0;i<a.length;i++)a[i]=view.getInt16(i*2,true)/32768;
+  /* L'enveloppe : l'énergie moyenne par tranche de 40 ms. Même règle que
+     `enveloppeDe` sur Khalam, en plus fin — les morceaux de la connexion
+     rapide sont courts, et une tranche de 75 ms en aurait avalé certains
+     entiers. Un seul passage de plus sur des échantillons déjà en mémoire. */
+  const pas=0.04,fenetre=Math.max(1,Math.round(rate*pas)),valeurs:number[]=[];let pic=0;
+  for(let i=0;i<a.length;i+=fenetre){
+   const bout=Math.min(i+fenetre,a.length);let somme=0;
+   for(let j=i;j<bout;j++)somme+=a[j]*a[j];
+   const v=Math.sqrt(somme/(bout-i));if(v>pic)pic=v;valeurs.push(v);
+  }
   const node=ctx.createBufferSource();node.buffer=buffer;node.connect(ctx.destination);this.nodes.add(node);
   const start=Math.max(ctx.currentTime+0.015,this.next);this.next=start+buffer.duration;
   node.onended=()=>{node.disconnect();this.nodes.delete(node);if(!this.nodes.size){this.finDuSon=performance.now();this.events.parle(false);}};
-  node.start(start);this.events.parle(true);this.events.etat('Bia te répond');
+  node.start(start);
+  this.events.bouche?.({debut:start,fin:start+buffer.duration,valeurs,pic,pas});
+  this.events.parle(true);this.events.etat('Bia te répond');
   /* Le premier morceau de SA réponse, et lui seul. L'avance de planification
      compte : ce morceau-ci n'est pas encore audible, et c'est le son qu'on
      mesure, pas l'arrivée du paquet. */

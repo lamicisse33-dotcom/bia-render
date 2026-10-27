@@ -1912,6 +1912,84 @@ export default function Home() {
     return { valeurs, pic: pic || 1, pas: 0.075 };
   };
 
+  /* ── LA BOUCHE DE KHALAM RAPIDE NE REGARDAIT PAS LE SON ─────────────────
+
+     Lamine, le 27 octobre 2026 : « synchronise davantage la bouche de BIA,
+     elle est sur la voix Khalam Rapide ».
+
+     Sur Khalam, la bouche lit l'énergie du son (voir `suivre` plus bas).
+     Sur Khalam Rapide, elle ne lisait RIEN : `bouche(true)` lançait une
+     minuterie aveugle, une forme toutes les 110 ms, du début à la fin de sa
+     réponse. Trois décalages s'additionnaient, et ils sont nommés dans
+     lib/gemini-live-client.ts : la minuterie partait à la PROGRAMMATION du
+     morceau et non à sa sortie, 110 ms fixes ne suivaient ni les syllabes
+     ni les blancs, et le retard du haut-parleur n'était compensé nulle part.
+
+     Le client rend maintenant l'enveloppe de chaque morceau avec l'instant
+     où il sortira, dans l'horloge du son. Ici on ne fait que la lire — même
+     règle et même `formeBouche` que Khalam, pour que ce soit la MÊME bouche
+     sur les deux moteurs. RIEN n'est changé à ce qui se dit ni à ce qui
+     s'entend : aucun son n'est touché, aucun délai n'est ajouté. */
+  const segmentsRapideRef = useRef<{debut:number;fin:number;valeurs:number[];pic:number;pas:number}[]>([]);
+  const horlogeRapideRef = useRef<(() => number | null) | null>(null);
+  const picRapideRef = useRef(0);
+  const animationRapideRef = useRef<number | null>(null);
+  /* Le silence doit rester un silence. Sans ce plancher, une réponse
+     entièrement chuchotée serait normalisée par son propre pic et ouvrirait
+     la bouche en grand — et un blanc entre deux phrases ferait pareil. */
+  const PIC_PLANCHER_RAPIDE = 0.02;
+
+  const noterSegmentDeBouche = useCallback((seg:{debut:number;fin:number;valeurs:number[];pic:number;pas:number}) => {
+    /* Le pic est celui de TOUTE la réponse, pas du morceau : un morceau plus
+       calme que les autres doit rester plus fermé, pas se remettre à fond. */
+    if (seg.pic > picRapideRef.current) picRapideRef.current = seg.pic;
+    const segs = segmentsRapideRef.current;
+    segs.push(seg);
+    const t = horlogeRapideRef.current?.();
+    /* Ce qui est joué depuis plus d'une seconde ne sera plus relu. On garde
+       toujours le dernier : la liste ne doit jamais tomber vide pendant
+       qu'elle parle, sinon la bouche repasserait par la minuterie aveugle. */
+    if (typeof t === "number") while (segs.length > 1 && segs[0].fin < t - 1) segs.shift();
+    if (segs.length > 400) segs.splice(0, segs.length - 400);
+  }, []);
+
+  /* Rend `true` si elle a de quoi suivre le son ; `false` si la page doit
+     retomber sur la minuterie aveugle — une bouche figée serait pire. */
+  const boucheSurLeSon = useCallback((actif: boolean) => {
+    if (!actif) {
+      if (animationRapideRef.current !== null) cancelAnimationFrame(animationRapideRef.current);
+      animationRapideRef.current = null;
+      segmentsRapideRef.current = [];
+      picRapideRef.current = 0;
+      return false;
+    }
+    if (!segmentsRapideRef.current.length || !horlogeRapideRef.current) return false;
+    if (animationRapideRef.current !== null) return true;
+    setMode("speaking");
+    let precedente: Face | null = null;
+    let dernierChangement = -1e9;
+    const MINIMUM = 0.13;   // secondes entre deux images de bouche
+    const suivre = () => {
+      const t = horlogeRapideRef.current?.();
+      if (typeof t === "number") {
+        const seg = segmentsRapideRef.current.find((s) => t >= s.debut && t < s.fin);
+        const i = seg ? Math.floor((t - seg.debut) / seg.pas) : 0;
+        /* Hors d'un morceau, on n'invente pas une bouche : c'est un blanc,
+           et un blanc se voit — les lèvres se ferment. */
+        const part = seg ? Math.min(1, (seg.valeurs[i] ?? 0) / Math.max(picRapideRef.current, PIC_PLANCHER_RAPIDE)) : 0;
+        const forme: Face = seg ? formeBouche(part, i) : "bouche_fermee";
+        if (forme !== precedente && t - dernierChangement >= MINIMUM) {
+          precedente = forme;
+          dernierChangement = t;
+          setFace(forme);
+        }
+      }
+      animationRapideRef.current = requestAnimationFrame(suivre);
+    };
+    animationRapideRef.current = requestAnimationFrame(suivre);
+    return true;
+  }, []);
+
   /* Joue un morceau et fait suivre la bouche. Les seuils sont choisis pour
      que le silence ferme vraiment les lèvres : sinon elle mâche dans le vide
      entre deux phrases, et c'est ce qui se voyait le plus. */
@@ -5087,9 +5165,10 @@ export default function Home() {
       const terminer=(erreur?:string)=>{
         if(liveMaitreRef.current!==moteur)return;
         liveMaitreRef.current=null;sessionRapide(false);conversationRef.current=false;setConversation(false);
-        bouche(false);setEntendParler(false);
+        boucheSurLeSon(false);horlogeRapideRef.current=null;bouche(false);setEntendParler(false);
         if(erreur){setPanne(erreur);setClavier(true);setMode('error');}
       };
+      let boucheMesuree=false;
       const moteur=new BiaGeminiLive(codeRef.current,{
         etat:s=>{
           if(liveMaitreRef.current!==moteur)return;
@@ -5105,7 +5184,33 @@ export default function Home() {
           setHistory(items=>[...items,message]);
           if(role==='user')langueDuFil.current=estWolof(text)?'wo':'fr';
         },
-        parle:actif=>{if(liveMaitreRef.current!==moteur){if(!actif&&!liveMaitreRef.current)bouche(false);return;}bouche(actif);if(!actif&&conversationRef.current){setMode('listening');setFace('ecoute');}},
+        /* ── L'ENVELOPPE DU SON, QUI N'EXISTAIT PAS SUR CE MOTEUR ────────
+           Chaque morceau arrive avec l'instant exact où il sortira du
+           haut-parleur. On la range, et `boucheSurLeSon` la lit. */
+        bouche:seg=>{
+          if(liveMaitreRef.current!==moteur)return;
+          horlogeRapideRef.current=()=>moteur.horlogeDuSon();
+          noterSegmentDeBouche(seg);
+          /* Le retard du haut-parleur, DÉCLARÉ par le téléphone : sans lui on
+             ne saurait pas de combien la bouche a été recalée, et un réglage
+             qu'on ne peut pas lire est un réglage qu'on ne peut pas juger. */
+          if(!boucheMesuree){
+            boucheMesuree=true;
+            void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},
+              body:JSON.stringify({type:'khalam_rapide',etape:'bouche',sur_le_son:true,
+                retard_ms:Math.round(moteur.retardDuHautParleur()*1000),pas_ms:Math.round(seg.pas*1000)}),
+              keepalive:true}).catch(()=>{});
+          }
+        },
+        parle:actif=>{
+          if(liveMaitreRef.current!==moteur){if(!actif&&!liveMaitreRef.current){boucheSurLeSon(false);bouche(false);}return;}
+          /* La minuterie aveugle n'est plus la règle : c'est le repli, pour
+             le cas où aucune enveloppe ne serait arrivée. Une bouche figée
+             serait pire qu'une bouche approximative. */
+          if(actif){if(!boucheSurLeSon(true))bouche(true);return;}
+          boucheSurLeSon(false);bouche(false);
+          if(conversationRef.current){setMode('listening');setFace('ecoute');}
+        },
         /* ── LA SEULE MESURE QUI COMPTE, ET ELLE PARTAIT À LA POUBELLE ────
 
            `latence:()=>{}` : le client mesurait déjà la fin de parole → le
