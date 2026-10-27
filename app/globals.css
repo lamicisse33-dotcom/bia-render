@@ -580,7 +580,8 @@ button { font: inherit; touch-action: manipulation; }
 .barre .microphone:active { transform: scale(.94); }
 .cale { width: 52px; height: 52px; }
 
-.clavier-ouvrir {
+.clavier-ouvrir,
+.discussion-ouvrir {
   justify-self: end;
   width: 52px; height: 52px;
   display: grid; place-items: center;
@@ -593,9 +594,12 @@ button { font: inherit; touch-action: manipulation; }
   cursor: pointer;
   transition: transform .16s ease, background .16s ease, color .16s ease;
 }
-.clavier-ouvrir:active { transform: scale(.92); }
-.clavier-ouvrir:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
-.clavier-ouvrir svg { width: 24px; height: 24px; fill: currentColor; }
+.clavier-ouvrir:active,
+.discussion-ouvrir:active { transform: scale(.92); }
+.clavier-ouvrir:focus-visible,
+.discussion-ouvrir:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
+.clavier-ouvrir svg,
+.discussion-ouvrir svg { width: 24px; height: 24px; fill: currentColor; }
 
 /* ── Le clavier : replié par défaut, il ne mange jamais l'image ─────────── */
 .clavier {
@@ -3154,4 +3158,152 @@ button { font: inherit; touch-action: manipulation; }
 @media (max-width: 380px) {
   .ecrit-feuille { padding: 14px 12px 20px; }
   .ecrit-chiffre h1 { font-size: 22px; }
+}
+
+/* ── LA DISCUSSION ÉCRITE : UN ÉCRAN BLANC, PAR-DESSUS TOUT ────────────────
+
+   Lamine, le 27 octobre 2026 : « un écran blanc plein écran, comme la
+   discussion de Claude ou de ChatGPT : liste des messages, zone d'écriture
+   en bas, bouton envoyer, flèche en haut pour revenir ».
+
+   Posée en `fixed` par-dessus la page, comme le papier plein écran : rien
+   n'est démonté derrière, donc la flèche de retour retrouve son visage et
+   son micro exactement où ils étaient. Le reste de BIA est sombre ; cet
+   écran-là est blanc parce qu'il l'a demandé, et parce qu'on y lit. */
+.discussion {
+  position: fixed;
+  inset: 0;
+  z-index: 80;                 /* au-dessus du papier plein écran (60) */
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  color: #121212;
+}
+
+.discussion-haut {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* L'encoche de l'iPhone : sans ça, la flèche tombe sous l'heure. */
+  padding: max(10px, env(safe-area-inset-top)) 10px 10px;
+  border-bottom: 1px solid #ececef;
+  background: #ffffff;
+}
+
+.discussion-retour {
+  width: 44px; height: 44px;   /* 44 px : la cible tactile d'Apple */
+  display: grid; place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #1b1b1f;
+  cursor: pointer;
+}
+.discussion-retour:active { background: #f1f1f4; }
+.discussion-retour:focus-visible { outline: 2px solid #7a5c1c; outline-offset: 2px; }
+.discussion-retour svg { width: 24px; height: 24px; fill: currentColor; }
+
+.discussion-titre {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+.discussion-fil {
+  flex: 1;
+  min-height: 0;               /* sans lui, le défilement interne ne marche pas */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 14px 20px;
+}
+
+.discussion-vide {
+  margin: auto 0;
+  text-align: center;
+  color: #8a8a90;
+  font-size: 15px;
+}
+
+.discussion-ligne { display: flex; }
+.discussion-ligne-moi { justify-content: flex-end; }
+
+.discussion-bulle {
+  max-width: 82%;
+  display: flex;
+  flex-direction: column;
+  gap: .45em;
+  padding: 10px 13px;
+  border-radius: 16px;
+  /* 16 px : en dessous, iOS zoome la page tout seul au premier appui. */
+  font-size: 16px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;     /* une adresse très longue ne déborde pas */
+}
+.discussion-bulle-bia { background: #f3f3f5; color: #141417; border-bottom-left-radius: 5px; }
+.discussion-bulle-moi { background: #7a5c1c; color: #fff6de; border-bottom-right-radius: 5px; }
+.discussion-attend { color: #8a8a90; letter-spacing: .18em; }
+
+.discussion-souci {
+  margin: 0;
+  padding: 10px 13px;
+  border-radius: 12px;
+  background: #fdeceb;
+  color: #8a1c13;
+  font-size: 15px;
+}
+
+.discussion-saisie {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+  padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+  border-top: 1px solid #ececef;
+  background: #ffffff;
+}
+
+.discussion-saisie textarea {
+  flex: 1;
+  min-height: 44px;
+  max-height: 38vh;            /* une longue question ne mange pas tout l'écran */
+  padding: 11px 14px;
+  border: 1px solid #dcdce1;
+  border-radius: 22px;
+  background: #fafafc;
+  color: #121212;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.4;
+  resize: none;
+}
+.discussion-saisie textarea:focus { outline: 2px solid #7a5c1c; outline-offset: -1px; }
+
+.discussion-saisie button {
+  width: 44px; height: 44px;
+  flex: none;
+  display: grid; place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #7a5c1c;
+  color: #fff6de;
+  cursor: pointer;
+}
+.discussion-saisie button:disabled { background: #d9d9de; color: #ffffff; cursor: default; }
+.discussion-saisie button svg { width: 21px; height: 21px; fill: currentColor; }
+
+/* Les deux boutons de la case de gauche de la barre. Le micro reste seul
+   dans la case du milieu : sa place ne bouge pas d'un pixel. */
+.barre-gauche {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }

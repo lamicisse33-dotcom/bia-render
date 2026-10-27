@@ -446,6 +446,14 @@ type Corps={mesureDiagnostic?:{forcer_calcul?:boolean;chemin?:string;preparation
      sa mémoire par personne et non par appareil. Le maître, lui, est reconnu
      par son code : ce champ ne peut pas usurper sa mémoire. */
   personne?:string;
+  /* ── LE COÛT D'UN MESSAGE ÉCRIT, LISIBLE À PART ─────────────────────────
+     Lamine, le 27 octobre 2026, point 6 : « donne-moi le coût d'un message
+     écrit (le cerveau seulement) ». Sans ce champ, les tours de la fenêtre
+     écrite se mélangent à ceux de la conversation vocale sur la même ligne
+     « chat » de la dépense, et le chiffre qu'il demande ne serait qu'une
+     estimation. Posé par app/discussion.tsx, il range la dépense sur sa
+     propre ligne — `chat_ecrit` — et ne change RIEN à la réponse. */
+  ecrit?:boolean;
   /* Le point qui clignote en bas de son écran, s'il est allumé. C'est le
      TÉLÉPHONE qui l'allume, pas elle — voir sorteEvoquee() dans
      lib/documents.ts. Sans ce champ elle ne peut ni l'expliquer ni
@@ -2764,7 +2772,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
        qu'il a consommé, et combien lui est revenu du cache. Ça se lit dans
        /api/etat, champ « depense ». */
     noterRecherche(cherche,data.types||(data.content||[]).map(b=>b.type),data.usage,data.content);
-    noterModele(data.usage, "chat");
+    noterModele(data.usage, body.ecrit ? "chat_ecrit" : "chat");
     /* ── ET ON MESURE, PARCE QUE JE LE LUI AI PROMIS ──────────────────────
        « Je le mesure avant et après plutôt que de te le promettre », le 16
        septembre 2026. Les deux moyennes côte à côte — avec et sans réflexion
@@ -2840,7 +2848,7 @@ nataal », et l'image apparaît toute seule sous ta phrase. Quelqu'un qui dit
           const t=(second.content||[]).filter(b=>b.type==="text").map(b=>b.text||"").join("");
           if(t){ try{ emettre(t); }catch{} }
         }
-        noterModele(second.usage,"chat");
+        noterModele(second.usage,body.ecrit?"chat_ecrit":"chat");
         const texte=texteDe(second);
         /* On ne garde la seconde que si elle dit quelque chose : une deuxième
            réponse vide ne vaut pas mieux que la première, et l'écraser ferait

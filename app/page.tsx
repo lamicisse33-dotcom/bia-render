@@ -71,6 +71,7 @@ import type { Devis, Document as Papier, Lettre, Mot, Partie, Sorte, Totaux } fr
 import { lireMesures, noterMesure } from "@/lib/chrono";
 import { jetonAppareil, entetesAppareil } from "@/lib/appareil";
 import Ecrit, { type SorteEcrit } from "@/app/ecrit/Ecrit";
+import Discussion from "@/app/discussion";
 import { abonnerSiDejaAccorde, abonnerSurGeste } from "@/lib/abonner-notifications";
 import { sessionRapide } from "@/lib/voix-page";
 import { finir as finirLeTour, poser as poserBorne, tourVide, type Bornes } from "@/lib/tour";
@@ -768,6 +769,15 @@ export default function Home() {
   const microAvantLaCarte = useRef(false);
   /* Le même témoin pour la vidéo en plein écran — voir l'effet plus bas. */
   const microAvantLeFilm = useRef(false);
+  /* ── LA DISCUSSION ÉCRITE ───────────────────────────────────────────────
+     Demandée par Lamine le 27 octobre 2026, pour TOUT LE MONDE : un écran
+     blanc plein écran, uniquement du texte. Elle vit dans app/discussion.tsx,
+     qui ne peut faire aucun son — voir l'en-tête de ce fichier. Ici on ne
+     tient que l'ouverture, et le micro qu'on referme pendant qu'elle est
+     ouverte : un micro laissé ouvert la ferait répondre à voix haute à côté
+     d'une fenêtre qui doit rester muette. */
+  const [discussion, setDiscussion] = useState(false);
+  const microAvantLaDiscussion = useRef(false);
   /* Et le même pour la rangée des tuiles. Il manquait : on fermait le micro
      en entrant et personne ne le rouvrait en sortant. Voir « LA FENÊTRE DES
      SERVICES FERME LE MICRO » plus bas. */
@@ -1537,6 +1547,9 @@ export default function Home() {
       if (e.key !== "Escape") return;
       /* Le plein écran passe devant : c'est lui qui couvre tout, donc c'est
          lui qu'on veut refermer d'abord. */
+      /* La discussion écrite couvre même le papier plein écran (z-index 80
+         contre 60) : c'est donc elle qui se referme la première. */
+      if (discussion) { setDiscussion(false); return; }
       if (ecritPlein) { setEcritPlein(null); return; }
       if (corrige !== null) { setCorrige(null); setCorrection(""); setPropositions([]); return; }
       if (quiParle) { setQuiParle(false); return; }
@@ -1545,7 +1558,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", auClavier);
     return () => window.removeEventListener("keydown", auClavier);
-  }, [corrige, papierOuvert, quiParle, clavier, ecritPlein]);
+  }, [corrige, papierOuvert, quiParle, clavier, ecritPlein, discussion]);
 
   useEffect(() => {
     mesuresRef.current = lireMesures();
@@ -5158,6 +5171,25 @@ export default function Home() {
     setConversation(true);
     void ecouterRef.current?.();
   }, [film, fermerConversation]);
+
+  /* MÊME RÈGLE QUE LE FILM, pour la même raison : la fenêtre écrite doit
+     rester muette, et un micro ouvert derrière elle la ferait parler. Il
+     revient seul à la fermeture, s'il était ouvert avant — on ne rallume pas
+     un micro qu'il venait de couper. */
+  useEffect(() => {
+    if (discussion) {
+      if (!microAvantLaDiscussion.current) {
+        microAvantLaDiscussion.current = conversationRef.current;
+        if (conversationRef.current) { taireRef.current?.(); fermerConversation(); }
+      }
+      return;
+    }
+    if (!microAvantLaDiscussion.current) return;
+    microAvantLaDiscussion.current = false;
+    conversationRef.current = true;
+    setConversation(true);
+    void ecouterRef.current?.();
+  }, [discussion, fermerConversation]);
 
   const ecouter = useCallback(async () => {
     if(utiliserLiveMaitre()){
@@ -8811,6 +8843,10 @@ export default function Home() {
           le fil et le micro restent où ils sont, simplement cachés — donc
           rien n'est démonté, et « Revenir à BIA » retrouve la conversation
           exactement où elle était. */}
+      {discussion ? (
+        <Discussion code={code} personne={estMaitre ? "maitre" : (profil || "")}
+          onFermer={() => setDiscussion(false)} />
+      ) : null}
       {ecritPlein ? (
         <Ecrit
           doc={papier?.doc ?? null}
@@ -8937,6 +8973,23 @@ export default function Home() {
       </button>
 
       <div className="barre">
+        {/* ── DEUX BOUTONS DANS LA CASE DE GAUCHE, ET LE MICRO NE BOUGE PAS ─
+            La barre est une grille `1fr auto 1fr` : le micro est seul dans la
+            case du milieu, et sa place est une habitude. Le nouveau bouton
+            entre donc DANS la case de gauche, à côté du clavier. Rien
+            d'autre n'est ajouté à l'écran principal. */}
+        <div className="barre-gauche">
+          {/* SA PROPRE CLASSE, et pas celle du clavier : deux boutons qui
+              partagent `clavier-ouvrir` et c'est le premier venu qu'on
+              attrape — une épreuve de bout en bout est partie en rouge
+              comme ça. Le style, lui, est bien le même (globals.css). */}
+          <button className="discussion-ouvrir" type="button"
+            onClick={() => setDiscussion(true)} aria-label="Ouvrir la discussion écrite"
+            title="Discussion">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3c5 0 9 3.3 9 7.4 0 4.1-4 7.4-9 7.4-.9 0-1.8-.1-2.6-.3L5 20.5l.9-3.3C4.1 15.8 3 13.3 3 10.4 3 6.3 7 3 12 3Zm-4 6.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm4 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm4 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z" />
+            </svg>
+          </button>
         <button className="clavier-ouvrir" type="button"
           onClick={ouvrirClavier} aria-label="Ouvrir le clavier et la conversation écrite"
           title="Clavier" aria-expanded={clavier} aria-controls="conversation-ecrite">
@@ -8944,6 +8997,7 @@ export default function Home() {
             <path d="M3 5h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v10h18V7H3Zm2 2h2v2H5V9Zm4 0h2v2H9V9Zm4 0h2v2h-2V9Zm4 0h2v2h-2V9ZM5 13h2v2H5v-2Zm4 0h10v2H9v-2Z" />
           </svg>
         </button>
+        </div>
         {/* ── L'ÉTAT, PAS SEULEMENT LA DESTINATION ──────────────────────────
 
             Lamine, le 23 octobre 2026 : « en Khalam Rapide j'entends
