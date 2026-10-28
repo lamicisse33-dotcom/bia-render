@@ -1,7 +1,9 @@
 .presence { position:absolute; inset:0; z-index:5; background:#000; display:grid; place-items:center; container-type:size; pointer-events:none; }
 /* Pas de zoom de respiration sur une photo HD : évite le rééchantillonnage
    permanent et l'impression de poupée qui se gonfle. Les anciens restent tels quels. */
-:global(.portrait):has(> .presence) { animation:none; transform:none; }
+/* L'arrêt de la respiration retire le contexte créé par transform.
+   Enfermer les couches HD ici : leur z-index 5 doit rester sous la barre (3). */
+:global(.portrait):has(> .presence) { animation:none; transform:none; isolation:isolate; z-index:0; }
 .cadre { position:relative; width:min(96cqw, 64cqh, 1024px); aspect-ratio:2 / 3; overflow:hidden; }
 .repos { position:absolute; inset:0; background-size:100% 100%; background-repeat:no-repeat; background-color:#000; }
 .mains { position:absolute; inset:52.0833333333% 0 0; background-size:300% 100%; background-repeat:no-repeat; transition:opacity 180ms ease-in-out; mask-image:linear-gradient(transparent, #000 9%); -webkit-mask-image:linear-gradient(transparent, #000 9%); }

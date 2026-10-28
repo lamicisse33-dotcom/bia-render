@@ -4,17 +4,30 @@ import {createRoot} from 'react-dom/client';
 import {useHabillageBia,ChoixPersonnage,PortraitTenue} from '../app/personnages/Personnages';
 import '../app/globals.css';
 function Atelier(){
+ const [commande,setCommande]=useState('Aucune commande activée');
  const h=useHabillageBia();const [persona,setPersona]=useState('rara');const [parle,setParle]=useState(false);const [face,setFace]=useState('yeux_ouverts');
  useEffect(()=>{if(!parle)return;let i=0;const timer=setInterval(()=>setFace(['bouche_a','bouche_o','bouche_entr','bouche_fermee'][i++%4]),180);return()=>clearInterval(timer)},[parle]);
  return <main style={{height:'100svh',overflow:'auto',padding:20,color:'white',display:'flex',flexWrap:'wrap',gap:20}}>
-  <section style={{width:460,height:800,position:'relative',background:'#000',flexShrink:0}}>
-   <div className="portrait" data-persona={persona} data-tenue="nouvelle"><div className="avatar" data-face="yeux_ouverts"/>
+  <section style={{width:375,height:812,position:'relative',background:'#000',flexShrink:0}}>
+   <div className="portrait" style={{bottom:52}} data-persona={persona} data-tenue="nouvelle"><div className="avatar" data-face="yeux_ouverts"/>
    {h.habillage&&<PortraitTenue tenue={h.habillage} face={face} parle={parle}/>}</div>
+   <div className="barre">
+    <div className="barre-gauche">
+     <button className="discussion-ouvrir" aria-label="Ouvrir la discussion écrite" onClick={()=>setCommande('Discussion activée')}>✉</button>
+     <button className="clavier-ouvrir" aria-label="Ouvrir le clavier" onClick={()=>setCommande('Clavier activé')}>⌨</button>
+    </div>
+    <div className="micro-et-mode"><span className="mode-actuel">Khalam</span>
+     <button className="microphone" aria-label="Activer le micro simulé" onClick={()=>setCommande('Micro activé')}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V5a3.5 3.5 0 0 0-7 0v6a3.5 3.5 0 0 0 3.5 3.5Zm-6-4a1 1 0 0 1 2 0V11a4 4 0 0 0 8 0v-.5a1 1 0 1 1 2 0V11a6 6 0 0 1-5 5.92V19h3a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3v-2.08A6 6 0 0 1 6 11v-.5Z"/></svg>
+     </button>
+    </div>
+    <button className="papier-ouvrir" aria-label="Moi — réglages et services" onClick={()=>setCommande('Moi activé')}>Moi</button>
+   </div>
   </section>
   <section style={{width:375}}><h1>Vérification des personnages</h1><ChoixPersonnage {...h} persona={persona} choisirPersona={setPersona}/>
    <button onClick={()=>setParle(v=>!v)}>{parle?'Arrêter la parole simulée':'Simuler la parole'}</button>
    <label>Expression<select value={face} onChange={e=>{setParle(false);setFace(e.target.value)}}>{['yeux_ouverts','yeux_fermes','joie','surprise','pensive','triste','salut_2','coeur_double_4','priere_2','compter_4','rire_main_4'].map(f=><option key={f}>{f}</option>)}</select></label>
-   <p>Identité vocale conservée : {persona}</p>
+   <p>Identité vocale conservée : {persona}</p><p role="status">{commande}</p>
   </section>
  </main>
 }
