@@ -542,6 +542,36 @@ export default function Home() {
   /* Quand la reponse ne vient pas du modele, on le dit a l ecran. Sans ce
      temoin, une panne du moteur ressemblait a une reponse ordinaire. */
   const [panne, setPanne] = useState("");
+
+  /* ── QUAND SA VOIX NE PEUT PAS SORTIR, ELLE LE DIT — PAR ÉCRIT ──────────
+
+     Lamine, le 28 octobre 2026 : « quand la voix ne peut pas sortir, BIA doit
+     au moins répondre par écrit et le dire clairement, jamais en silence ».
+
+     CE QUI SE PASSAIT. Le message existait déjà : `setPanne` l'écrivait. Mais
+     il n'est affiché QU'À L'INTÉRIEUR du panneau du clavier, et aucun des
+     chemins de panne ne l'ouvrait. Ce jour-là, dix-sept écoutes ratées de
+     suite (oreille à HTTP 404) n'ont donc rien affiché du tout : silence
+     complet, rien à lire, rien à comprendre. C'est exactement ce qu'il
+     décrit — « la voix ne sort pas ».
+
+     UNE FOIS PAR CAUSE ET PAR SÉANCE. Dix-sept lignes identiques dans le fil
+     ne sont pas une explication, elles sont un deuxième problème. Une
+     réussite réarme la cause : si l'oreille revient puis retombe, elle le
+     redira.
+
+     La phrase est ÉCRITE ICI, en clair, et ne contient aucun mot technique :
+     le motif brut, lui, part dans /api/etat et dans la ligne `panne`, qui est
+     pour moi. */
+  const dejaDitEnPanne=useRef<Record<string,boolean>>({});
+  const direParEcrit=useCallback((cause:string,phrase:string)=>{
+    if(dejaDitEnPanne.current[cause])return;
+    dejaDitEnPanne.current[cause]=true;
+    setHistory(items=>[...items,{role:"bia",text:phrase}]);
+    setClavier(true);
+  },[]);
+  const PHRASE_SOURDE="Je ne t’entends pas en ce moment : mon oreille ne répond pas. Écris-moi ici, je te réponds par écrit.";
+  const PHRASE_MUETTE="Ma voix ne sort pas en ce moment. Je continue à te répondre par écrit, ici.";
   const [choixVoix, setChoixVoix] = useState<ChoixVoixBia>("female");
   const essaiChatterbox = choixVoix === "male" || choixVoix === "female";
   const [etatSecours,setEtatSecours]=useState("");
@@ -3568,6 +3598,9 @@ export default function Home() {
          langue inconnue. Le motif exact se lit dans /api/etat. */
       noterRouteVoixBia("erreur", locale, e);
       setPanne(`panne : sa voix — ${String(e).replace(/^Error:\s*/, "").slice(0, 100)}`);
+      /* Sa réponse est DÉJÀ dans le fil (askBia l'y met avant de parler) : on
+         ouvre donc le fil et on dit pourquoi on ne l'entend pas. */
+      direParEcrit("voix", PHRASE_MUETTE);
       await prendreLaParole();
       if (!await peutParler()) return;
       /* Même règle qu'en haut : pendant une leçon, se taire vaut mieux que
@@ -5316,6 +5349,14 @@ export default function Home() {
           const live=liveMaitreRef.current;liveMaitreRef.current=null;sessionRapide(false);live?.arreter();
           poserMode(false);noterRefusRapide();
           setPanne(message);
+          /* ET ÇA SE COMPTE. `basculements.vers_khalam` ne comptait que le
+             bouton, qui n'existe plus : un refus de quota faisait basculer
+             tout le monde sans laisser UNE ligne dans /api/etat. Le motif
+             exact, lui, est déjà dans `fermetures` (code 1011). */
+          void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},
+            body:JSON.stringify({type:'khalam_rapide',etape:'bascule',vers:'khalam'}),keepalive:true}).catch(()=>{});
+          /* Et elle le DIT : ce message ne s'affichait nulle part. */
+          setHistory(items=>[...items,{role:"bia",text:message}]);setClavier(true);
           conversationRef.current=false;setConversation(false);
           setMode('ready');setFace('yeux_ouverts');
         },
@@ -6116,8 +6157,14 @@ export default function Home() {
           if (d.panne) {
             setPanne(`panne : l'écoute — ${d.motif || "moteur muet"}`);
             noteEcouteRef.current = d.motif || "moteur muet";
+            /* Son oreille ne répond pas : elle n'a RIEN entendu, donc elle n'a
+               rien à répondre. Le maximum honnête est de le dire et d'ouvrir
+               la porte écrite, qui ne dépend ni du GPU ni du fournisseur. */
+            direParEcrit("oreille", PHRASE_SOURDE);
           } else {
             noteEcouteRef.current = "";
+            /* Elle entend de nouveau : la phrase se redira si ça retombe. */
+            dejaDitEnPanne.current.oreille = false;
           }
           tTranscritRef.current = Date.now();
           poserBorne(bornesRef.current, "ecoute");

@@ -154,8 +154,13 @@ async function unTour(navigateur,cas){
   if(chemin==='/api/prises-validees')return json({prises:[]});
   if(chemin==='/api/sons-courants')return json({sons:[],attendus:0});
   if(chemin==='/api/ecouter/morceau')return json({recu:0});
-  if(chemin==='/api/anticipation/segment'||chemin==='/api/ecouter')
+  if(chemin==='/api/anticipation/segment'||chemin==='/api/ecouter'){
+   /* SON OREILLE RÉPOND « PANNE ». C'est la forme EXACTE que renvoie la vraie
+      route quand le pod ne répond pas : 200, avec `panne:true` et le motif.
+      Le 28 octobre 2026 ce motif était HTTP_404, dix-sept fois de suite. */
+   if(cas.oreilleMorte)return json({panne:true,motif:'HTTP_404'});
    return json({texte:cas.phrase,texte_brut:cas.phrase,suggestions_ecriture:[]});
+  }
   if(chemin==='/api/chat')return json({reply:REPONSE_CHAT,source:'epreuve'});
   if(chemin==='/api/anticipation/briques'){
    if(!cas.briques)return json({erreur:'epreuve'},503);
@@ -216,6 +221,36 @@ async function unTour(navigateur,cas){
  const depart=Date.now();
  await page.click('button.microphone');
 
+ /* ── SON OREILLE EST MORTE : ELLE DOIT LE DIRE, JAMAIS SE TAIRE ────────
+
+    Lamine, le 28 octobre 2026 : « quand la voix ne peut pas sortir, BIA doit
+    au moins répondre par écrit et le dire clairement, jamais en silence ».
+
+    Ce jour-là son oreille (le pod RunPod) répondait HTTP 404 : /api/etat
+    comptait dix-sept écoutes, zéro réussite, et l'écran ne disait RIEN. Le
+    message existait, `setPanne` l'écrivait — mais il ne s'affiche qu'à
+    l'intérieur du panneau du clavier, et aucun chemin de panne ne l'ouvrait.
+
+    On exige donc trois choses : le panneau S'OUVRE tout seul, la phrase est
+    VISIBLE à l'œil, et elle est dite UNE SEULE FOIS. */
+ if(cas.oreilleMorte){
+  await page.waitForSelector('.clavier[aria-hidden="false"]',{timeout:90000});
+  const dite=await visible('.ligne-bia .bulle-bia');
+  assert.ok(/ne t.entends pas/.test(dite),'elle doit dire qu\'elle n\'entend pas : '+JSON.stringify(dite));
+  assert.ok(/écris-moi|Ecris-moi/i.test(dite),'elle doit proposer l\'écrit : '+JSON.stringify(dite));
+  /* Dix-sept lignes identiques dans le fil ne sont pas une explication. On
+     laisse la conversation retenter, puis on compte. */
+  await page.waitForTimeout(5000);
+  const lignes=await page.locator('.ligne-bia .bulle-bia').count();
+  assert.equal(lignes,1,lignes+' lignes identiques dans le fil au lieu d\'une seule');
+  const ecoutes=(appels['/api/ecouter']||0)+(appels['/api/anticipation/segment']||0);
+  assert.ok(ecoutes>0,'le faux micro n\'a pas parlé : l\'épreuve ne prouverait rien');
+  const gravesOreille=erreurs.filter(t=>!/503|epreuve|Failed to load resource|AudioContext|NotAllowedError|onnxruntime|cpuid/i.test(t));
+  assert.equal(gravesOreille.length,0,'erreurs de page : '+gravesOreille.slice(0,3).join(' | '));
+  await contexte.close();
+  return {oreilleMorte:true,lignes,ecoutes,dite};
+ }
+
  /* 1. MON TEXTE ARRIVE DANS LE FIL. C'est la moitié qui manquait le
        25 octobre : « AUCUNE transcription de ce que je dis n'apparaît ». */
  await page.waitForSelector('.ligne-moi .bulle-moi',{state:'attached',timeout:90000});
@@ -228,7 +263,13 @@ async function unTour(navigateur,cas){
  /* 3. ET LA FENÊTRE LES MONTRE VRAIMENT. Le panneau de la conversation
        couvre le micro : on l'ouvre APRÈS le tour, comme Lamine quand il
        relit. Une bulle présente mais invisible est la même panne. */
- await page.click('button.clavier-ouvrir');
+ /* Depuis le 28 octobre 2026, une voix qui refuse ouvre ce panneau TOUTE
+    SEULE et dit par écrit pourquoi on ne l'entend pas — et dans ce décor la
+    voix répond 503 à chaque scène. On ne clique donc que s'il est encore
+    replié : cliquer sur un panneau déjà ouvert échouait sur son propre
+    bouton « Fermer ». */
+ if(await page.locator('.clavier[aria-hidden="false"]').count()===0)
+  await page.click('button.clavier-ouvrir');
  await page.waitForSelector('.clavier[aria-hidden="false"]',{timeout:10000});
  const dit=await visible('.ligne-moi .bulle-moi');
  const attenduDit=cas.attenduDit||'Salam';
@@ -327,9 +368,14 @@ async function unTour(navigateur,cas){
    {nom:'une hésitation d’une seconde au milieu — elle ne coupe pas',
     phrase:LONGUE,briques:false,attendu:REPONSE_CHAT,silence:1200,
     tranches:[[0,1.2],[2.2,3.4]],unSeulMicro:true,toursAttendus:1},
+   {nom:'son oreille répond HTTP 404 — elle le dit par écrit, une seule fois',
+    phrase:COURTE,briques:false,attendu:REPONSE_CHAT,oreilleMorte:true},
   ]){
    const m=await unTour(navigateur,cas);
-   console.log(`✔ ${cas.nom} : je parle → mon texte s’affiche (${m.tTexte} ms) → elle répond (${m.tReponse} ms), ${m.segments} segment(s) d’écoute`);
+   if(m.oreilleMorte)
+    console.log(`✔ ${cas.nom} : ${m.ecoutes} écoute(s) ratée(s), ${m.lignes} ligne écrite et visible — ${JSON.stringify(m.dite)}`);
+   else
+    console.log(`✔ ${cas.nom} : je parle → mon texte s’affiche (${m.tTexte} ms) → elle répond (${m.tReponse} ms), ${m.segments} segment(s) d’écoute`);
   }
   console.log('✔ bout en bout : les deux chemins affichent sa phrase et répondent (services simulés)');
  }catch(e){

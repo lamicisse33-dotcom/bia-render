@@ -82,6 +82,48 @@ test('le refus périme tout seul, et le choix à la main n’est plus lu',()=>{
  assert.ok(!/bascule-mode/.test(page),'aucun bouton de sélection de moteur à l’écran');
 });
 
+/* ── « JAMAIS EN SILENCE » ────────────────────────────────────
+
+   Lamine, le 28 octobre 2026 : « quand la voix ne peut pas sortir, BIA doit au
+   moins répondre par écrit et le dire clairement, jamais en silence ».
+
+   Ce jour-là, trois pannes se taisaient complètement. Le message était bien
+   écrit par `setPanne` — mais il ne s'affiche qu'À L'INTÉRIEUR du panneau du
+   clavier, et aucun des trois chemins ne l'ouvrait. /api/etat comptait
+   dix-sept écoutes ratées ; l'écran, lui, ne disait rien du tout. */
+test('une oreille morte et une voix muette parlent par écrit, et une seule fois',()=>{
+ const page=lire('app/page.tsx');
+ assert.match(page,/direParEcrit\("oreille", PHRASE_SOURDE\)/,'l’oreille morte doit le dire');
+ assert.match(page,/direParEcrit\("voix", PHRASE_MUETTE\)/,'la voix muette doit le dire');
+ /* Le fil ET le panneau : une ligne dans un panneau fermé n'est pas dite. */
+ assert.match(page,/setHistory\(items=>\[\.\.\.items,\{role:"bia",text:phrase\}\]\)/);
+ assert.match(page,/dejaDitEnPanne\.current\[cause\]\)return/,'une seule fois par cause');
+ assert.match(page,/dejaDitEnPanne\.current\.oreille = false/,'une réussite doit réarmer');
+ /* Et ce qu'elle DIT n'est pas un motif technique : celui-là part dans
+    /api/etat et dans la ligne `panne`, qui sont pour moi, pas pour lui. */
+ for(const nom of ['PHRASE_SOURDE','PHRASE_MUETTE']){
+  const m=page.match(new RegExp('const '+nom+'="([^"]+)"'));
+  assert.ok(m,nom+' doit être une constante');
+  assert.ok(!/HTTP|404|GPU|RunPod|quota|Gemini/i.test(m[1]),
+   'elle ne doit pas réciter un motif technique : '+m[1]);
+ }
+ const sourde=page.match(/const PHRASE_SOURDE="([^"]+)"/)[1];
+ assert.match(sourde,/Écris-moi ici/,'elle doit proposer la porte écrite, qui ne dépend d’aucun GPU');
+});
+
+test('le refus du fournisseur s’affiche, se dit, et SE COMPTE',()=>{
+ const page=lire('app/page.tsx');
+ const bloc=page.slice(page.indexOf('indisponible:(message:string)=>{'));
+ const corps=bloc.slice(0,bloc.indexOf('photo:()=>'));
+ assert.match(corps,/setHistory\(items=>\[\.\.\.items,\{role:"bia",text:message\}\]\)/,
+  'la phrase de repli ne s’affichait nulle part');
+ assert.match(corps,/setClavier\(true\)/,'et le panneau doit s’ouvrir');
+ /* `basculements.vers_khalam` ne comptait que le bouton, qui n'existe plus
+    depuis ce matin : un refus de quota faisait basculer tout le monde sans
+    laisser UNE ligne dans /api/etat. */
+ assert.match(corps,/etape:'bascule',vers:'khalam'/,'la bascule automatique doit être comptée');
+});
+
 /* ── COMBIEN DE SESSIONS, ET PAR QUI ─────────────────────────────────────── */
 test('les ouvertures sont comptées par origine, et un nom inventé n’entre pas',()=>{
  delete globalThis.biaSessionsLive;
