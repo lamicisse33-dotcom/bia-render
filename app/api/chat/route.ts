@@ -1,7 +1,7 @@
 import { SOCLE_BIA } from "@/lib/socle-bia";
 import {consommerReponseAnticipee} from '@/lib/anticipation-reponse';
 import {profilRapiditeAutorise,modeleRapidite,rapiditeOptimisee,type ProfilRapidite} from '@/lib/rapidite-core';
-import {cerveauDuTour, choisirModeleConversation} from '@/lib/routage-cerveaux';
+import {cerveauDeLEcrit, choisirModeleConversation} from '@/lib/routage-cerveaux';
 import {noterModeleRapidite} from '@/lib/rapidite-etat';
 import {anticiperLexiqueVoix} from '@/lib/anticipation-lexique-voix';
 import {chronometrerPreparation as chrono} from '@/lib/profil-preparation';
@@ -1282,7 +1282,17 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        depuis plusieurs téléphones. */
     if(verdict.ok){
       const attache=await verifierNumero(code||'',numero,verdict.maitre);
-      if(!attache.ok)return {corps:{erreur:attache.message},statut:401};
+      /* ── UN REFUS SANS PHRASE EST UN SILENCE ───────────────────────────
+         Ce retour ne portait QUE `erreur`. Or le téléphone, sur un 401,
+         affiche `reply` — et `reply` était absent. Le serveur refusait donc
+         proprement, avec un motif en français, et l'écran ne montrait
+         RIEN : ni réponse, ni raison, ni panne. C'est le silence que Lamine
+         a vu toute la soirée du 28 octobre 2026.
+         Les deux champs partent désormais ensemble : `erreur` pour les
+         routes qui le lisent déjà, `reply` pour qu'une raison s'affiche
+         toujours. */
+      if(!attache.ok)return {corps:{reply:attache.message,erreur:attache.message,
+        source:"code",motif:"numero"},statut:401};
     }
     if(!verdict.ok){
       const messages={
@@ -1440,18 +1450,25 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
        être annulable par une seule variable Render, sans toucher au code. Et
        tout changement de modèle se juge sur SES phrases wolof avant d'être
        gardé — ce n'est pas à moi de décider de quel cerveau elle parle. */
-    const fournisseur=cerveauDuTour({ecrit:body.ecrit,
-      global:process.env.BIA_LLM_PROVIDER,pourLEcrit:process.env.BIA_LLM_PROVIDER_ECRIT});
+    /* La clé de chaque cerveau, nommée une seule fois : le repli de la
+       fenêtre écrite a besoin de SAVOIR si une clé existe avant de choisir,
+       et pas seulement après. */
+    const cleDe=(f:string)=> f==="cerebras" ? process.env.CEREBRAS_API_KEY
+      : f==="local" ? process.env.LOCAL_LLM_API_KEY
+      : f==="gemini" ? process.env.GEMINI_API_KEY
+      : f==="groq" ? process.env.GROQ_API_KEY
+      : (process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY);
+    const {fournisseur,repli:repliEcrit}=cerveauDeLEcrit({ecrit:body.ecrit,
+      global:process.env.BIA_LLM_PROVIDER,pourLEcrit:process.env.BIA_LLM_PROVIDER_ECRIT,
+      aLaCle:f=>Boolean(cleDe(f))});
+    if(repliEcrit)noterPanne("cerveau de l’écrit replié",
+      `${repliEcrit.voulu} n’a pas sa clé : la fenêtre écrite répond avec le cerveau ordinaire.`,"chat");
     const gemini=fournisseur==="gemini";
     const local=fournisseur==="local";
     // Local Oolel uses the same compact OpenAI-compatible conversation path.
     const cerebras=fournisseur==="cerebras";
     const groq=fournisseur==="groq" || local || cerebras;
-    const apiKey=cerebras ? process.env.CEREBRAS_API_KEY : local ? process.env.LOCAL_LLM_API_KEY : gemini
-      ? process.env.GEMINI_API_KEY
-      : groq
-        ? process.env.GROQ_API_KEY
-        : (process.env.BIA_LLM_API_KEY||process.env.ANTHROPIC_API_KEY);
+    const apiKey=cleDe(fournisseur);
     const modeleAnthropic=modeleRapidite(body.essaiRapidite,process.env.BIA_LLM_MODEL||MODELE_SONNET);
     let model=cerebras ? (process.env.CEREBRAS_MODEL || "gpt-oss-120b") : local ? (process.env.LOCAL_LLM_MODEL || "Oolel-v0.1-Q8_0") : gemini
       ? (process.env.GEMINI_MODEL||"gemini-3.7-flash")

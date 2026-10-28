@@ -181,10 +181,51 @@ test('code maître : il entre depuis n’importe quel téléphone, et n’est ja
   assert.deepEqual(await lien.verifierNumero('MAITRE', LUI, true), { ok: true, lie: 'maitre' });
   assert.deepEqual(await lien.verifierNumero('MAITRE', ELLE, true), { ok: true, lie: 'maitre' });
   assert.equal(lignes.size, 0, 'le code maître ne doit RIEN ranger : Lamine ouvre BIA de plusieurs téléphones');
-  /* Mais son numéro reste obligatoire : les deux champs le sont pour tous. */
-  const sans = await lien.verifierNumero('MAITRE', '', true);
-  assert.equal(sans.ok, false);
-  assert.equal(sans.message, 'Saisis ton numéro de téléphone.');
+  /* ── C'EST CETTE ÉPREUVE QUI TENAIT LE DÉFAUT DU 28 OCTOBRE AU SOIR ─────
+
+     Elle exigeait l'inverse : « son numéro reste obligatoire, les deux
+     champs le sont pour tous », code maître compris. Elle était verte, et
+     elle avait tort. Le résultat, le soir même : un en-tête `x-bia-numero`
+     absent, et Lamine mis dehors de sa propre BIA par son propre code
+     maître — la fenêtre écrite muette pendant deux heures.
+
+     Un code maître n'est JAMAIS lié à un téléphone : c'est écrit trois
+     lignes au-dessus et c'est le sens même du code maître. Il n'a donc
+     aucune raison d'exiger un numéro. La porte de l'application continue de
+     réclamer les deux champs à l'écran — ça, c'est le travail de la porte,
+     pas celui d'une route qui se paie à chaque réponse. */
+  for (const rien of ['', null, undefined, '   ', 'pas-un-numero']) {
+    assert.deepEqual(await lien.verifierNumero('MAITRE', rien, true), { ok: true, lie: 'maitre' },
+      'le code maître entre même sans numéro : sinon un en-tête manquant le met dehors');
+  }
+});
+
+/* ── LES DEUX REFUS QUI N'AVAIENT AUCUN COMPTEUR ──────────────────────────
+
+   « Ne jamais aveugler un compteur » (AVANT-DE-DIRE-QUE-C-EST-BON.md). Ces
+   deux-là repartaient sans rien incrémenter : le refus le PLUS probable était
+   le seul invisible dans /api/etat, et il a fallu une heure d'élimination
+   pour le nommer. Plus jamais. */
+test('un numéro absent ou illisible est compté et nommé, pas seulement refusé', async () => {
+  const { lien } = montrerLeRangement();
+  const avant = lien.resumeAccesNumero();
+  assert.equal(avant.refuses_numero_absent, 0);
+  assert.equal(avant.refuses_numero_invalide, 0);
+
+  const absent = await lien.verifierNumero(CODE, '', false);
+  assert.equal(absent.ok, false);
+  assert.equal(lien.resumeAccesNumero().refuses_numero_absent, 1);
+  assert.equal(lien.resumeAccesNumero().dernier_refus, 'absent');
+
+  const illisible = await lien.verifierNumero(CODE, 'bonjour', false);
+  assert.equal(illisible.ok, false);
+  assert.equal(lien.resumeAccesNumero().refuses_numero_invalide, 1);
+  assert.equal(lien.resumeAccesNumero().dernier_refus, 'invalide');
+
+  /* Et le motif ne doit JAMAIS porter le numéro lui-même. */
+  const resume = JSON.stringify(lien.resumeAccesNumero());
+  assert(!resume.includes('bonjour'), 'le résumé ne doit contenir aucun numéro, même refusé');
+  assert(!resume.includes(LUI), 'le résumé ne doit contenir aucun numéro');
 });
 
 test('utilisateur actuel : son code marchait avant les numéros, il se lie au premier qu’il donne', async () => {

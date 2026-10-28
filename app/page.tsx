@@ -567,6 +567,24 @@ export default function Home() {
      le motif brut, lui, part dans /api/etat et dans la ligne `panne`, qui est
      pour moi. */
   const dejaDitEnPanne=useRef<Record<string,boolean>>({});
+  /* ── ELLE DIT LA RAISON, À CHAQUE TOUR, SANS EXCEPTION ────────────────────
+
+     Lamine, le 28 octobre 2026 au soir : « quand la fenêtre écrite échoue,
+     elle doit AFFICHER la raison en français simple au lieu de rester
+     muette. »
+
+     `direParEcrit` ne convient pas ici : il ne parle qu'UNE FOIS par cause et
+     par session, ce qui est juste pour une panne durable (une oreille morte
+     ne se redit pas à chaque phrase) et faux pour un tour raté — le
+     deuxième message resterait muet, et c'est exactement ce qu'on répare.
+
+     Celui-ci parle toujours, et il ouvre le panneau : une raison écrite dans
+     une fenêtre fermée est une raison que personne ne lit. */
+  const direLaRaison=useCallback((phrase:string)=>{
+    setHistory(items=>[...items,{role:"bia",text:phrase}]);
+    setClavier(true);
+  },[]);
+
   const direParEcrit=useCallback((cause:string,phrase:string)=>{
     if(dejaDitEnPanne.current[cause])return;
     /* UNE SEULE EXPLICATION À LA FOIS. Quand son oreille est morte, elle n'a
@@ -3845,6 +3863,17 @@ export default function Home() {
           message: clean,
           anticipationId:anticipee?.id,voixAnticipee:anticipee?.voice,
           parole,
+          /* ── LE DRAPEAU QUE PERSONNE NE POSAIT ──────────────────────────
+             `lib/routage-cerveaux.ts` sait depuis le 27 octobre choisir un
+             cerveau à part pour la fenêtre écrite — et le serveur ne l'a
+             jamais fait, parce qu'AUCUNE ligne de cette page n'envoyait
+             `ecrit`. Le levier existait, débranché.
+             Le voici branché. Tant que `BIA_LLM_PROVIDER_ECRIT` n'est pas
+             posée sur Render, cela ne change RIEN : cerveauDuTour retombe
+             sur le cerveau ordinaire. Le jour où Lamine veut essayer un
+             autre cerveau pour le texte seul, une variable suffit — et sa
+             voix n'y touche pas. */
+          ecrit: !parole,
           continuationBriques:dejaInscrit,
           salutationOuverture,
           suggestionsTranscription,
@@ -4131,10 +4160,34 @@ export default function Home() {
          L'attente garde la parole ; c'est speak() qui la reprendra, une fois
          le son en main. */
       if (statut === 401) {
-        // Code refusé : on renvoie le testeur à l'écran d'entrée avec le motif.
+        /* ── CE QUI RENDAIT LA FENÊTRE ÉCRITE MUETTE ──────────────────────
+
+           `setCodeErreur(data.reply)` avec un `reply` ABSENT : le refus du
+           numéro ne portait que `erreur`, donc l'écran recevait `undefined`
+           et n'affichait rien du tout. Pire, la ligne du dessus jetait le
+           code mémorisé au passage. Résultat, le 28 octobre : « cc » marchait
+           (le répertoire répond AVANT la porte) et tout le reste se taisait.
+
+           Deux règles maintenant, et elles tiennent ensemble :
+           — une raison est TOUJOURS affichée, dans le fil et sur la porte ;
+           — un refus qui porte sur le NUMÉRO ne jette pas le code. On ne
+             redemande que ce qui manque, comme à la restauration. */
+        const motifRecu=(data as {motif?:string}).motif;
+        const raison=String(data.reply||(data as {erreur?:string}).erreur||"").trim()
+          || "BIA n’a pas pu vérifier ton accès. Entre à nouveau ton numéro et ton code.";
+        direLaRaison(raison);
+        if (motifRecu === "numero") {
+          /* Son code reste bon et reste mémorisé : on ne lui redemande que
+             son téléphone, une seule fois. */
+          setCodeLie(codeRef.current);
+          setCodeErreur(raison);
+          setMode("ready"); setFace("yeux_ouverts");
+          await finirAttente(langueRef.current, false);
+          return;
+        }
         try { localStorage.removeItem("bia-code"); } catch {}
         setCode(null);
-        setCodeErreur(data.reply);
+        setCodeErreur(raison);
         setMode("ready"); setFace("yeux_ouverts");
         await finirAttente(langueRef.current, false);
         /* ── ET ELLE LE DIT, AVEC SA VOIX ────────────────────────────────
@@ -4285,6 +4338,17 @@ export default function Home() {
       /* Elle a quelque chose à montrer. On ne garde que la clé du sujet : le
          fil est rangé dans la mémoire du téléphone, et des images y tiendraient
          trois échanges avant de la remplir. */
+      /* ── UNE BULLE VIDE EST UN SILENCE ────────────────────────────────
+         Une réponse sans texte ET sans geste ne laissait rien à l'écran :
+         indiscernable d'une panne, et sans la moindre raison. Les tours qui
+         n'ont rien à DIRE parce qu'ils AGISSENT (se taire, fermer un écran,
+         ouvrir un papier, montrer une image) sont exclus — eux ont déjà
+         montré quelque chose. */
+      if(!String(data.reply||"").trim()&&!data.ordre&&!data.son&&!data.voir
+         &&!data.trouve&&!data.papier&&!data.film&&!parole){
+        direLaRaison("Je n’ai rien reçu à te répondre pour cette question. Réessaie, ou dis-le-moi autrement.");
+        return;
+      }
       setHistory((items) => [...items, {
         role: "bia", text: data.reply,
         /* Ses gestes voyagent avec sa phrase : c'est le seul moyen qu'elle
@@ -4366,8 +4430,16 @@ export default function Home() {
       annulerReaction();
       if (!estLeTour(monTour)) return;
       emotionRef.current = "concernee";
-      const fallback = "Jokkoo bi am na jafe-jafe. Jéemal beneen yoon.";
+      /* ── LA RAISON DANS LA LANGUE DE CELUI QUI LA LIT ──────────────────
+         Cette phrase était en wolof dans les deux cas. À la voix, c'est
+         juste — elle parle. Dans la fenêtre écrite, Lamine a demandé du
+         « français simple » : il lit, il ne devine pas. La voie est connue
+         ici, on s'en sert. */
+      const fallback = parole
+        ? "Jokkoo bi am na jafe-jafe. Jéemal beneen yoon."
+        : "Je n’ai pas pu répondre : la connexion avec mon cerveau a échoué. Réessaie, ou demande-moi autrement.";
       setHistory((items) => [...items, { role: "bia", text: fallback }]);
+      setClavier((ouvert) => ouvert || !parole);
       setFace("concernee");
       setMode("error");
       await speak(fallback);
@@ -4380,7 +4452,7 @@ export default function Home() {
         questionEnVolRef.current = "";
       }
     }
-  }, [speak, prisesValidees.api, installerAudioMemoire, finirAttente, ouvrirUnTour, estLeTour, lectureContinue, stopMouth, couperSon, jouerEtAnimer]);
+  }, [speak, prisesValidees.api, installerAudioMemoire, finirAttente, ouvrirUnTour, estLeTour, lectureContinue, stopMouth, couperSon, jouerEtAnimer, direLaRaison]);
 
   /* LE TEXTE FRANÇAIS QU'ON COLLE, DIT EN WOLOF.
 

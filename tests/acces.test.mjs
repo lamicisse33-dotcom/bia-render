@@ -15,7 +15,11 @@ function fixture(){
     Elle a ses propres épreuves (tests/acces-numero.test.mjs), avec son
     rangement en mémoire. Ici on éprouve LA PORTE : que le code soit encore
     jugé comme avant, et qu'un numéro manquant la ferme. */
- const lien={verifierNumero:async(_code,numero,maitre)=>numero&&String(numero).trim()
+ /* Le bouchon respecte la règle du vrai `verifierNumero` : le code maître
+    passe AVANT tout refus de numéro. Il l'ignorait, et c'est ce qui a rendu
+    verte une épreuve qui tenait le défaut du 28 octobre 2026 au soir —
+    Lamine mis dehors de sa propre BIA par un en-tête manquant. */
+ const lien={verifierNumero:async(_code,numero,maitre)=>maitre||numero&&String(numero).trim()
    ?{ok:true,lie:maitre?'maitre':'deja'}
    :{ok:false,message:'Saisis ton numéro de téléphone.'},
   noterEssaiRate:()=>{},tropDEssais:()=>false,resumeAccesNumero:()=>({}),
@@ -42,13 +46,17 @@ test('entry rejects missing, invalid, expired and exhausted codes; access checks
  const {codes,acces,gestion}=fixture();
  for(const code of [null,'WRONG',codes.creerCode(-2)])assert.equal((await acces.GET(req(code))).status,401);
  assert.deepEqual(await (await acces.GET(req('TEST-MASTER-ONLY'))).json(),{ok:true,maitre:true,lie:'maitre'});
- /* ── LES DEUX SONT OBLIGATOIRES ───────────────────────────────
+ /* ── LES DEUX SONT OBLIGATOIRES, POUR UN UTILISATEUR ──────────
     Lamine, 28 octobre 2026. Un bon code SANS numéro n'ouvre plus rien, et
-    c'est le SERVEUR qui le dit — pas seulement la page. */
- const sansNumero=await acces.GET(req('TEST-MASTER-ONLY',''));
+    c'est le SERVEUR qui le dit — pas seulement la page.
+    SAUF LE CODE MAÎTRE : il n'est jamais lié à un téléphone, donc il n'en
+    exige pas. La porte, elle, réclame bien les deux champs à l'écran. */
+ const code=codes.creerCode(1);
+ const sansNumero=await acces.GET(req(code,''));
  assert.equal(sansNumero.status,401);
  assert.equal((await sansNumero.json()).erreur,'Saisis ton numéro de téléphone.');
- const code=codes.creerCode(1);
+ assert.equal((await acces.GET(req('TEST-MASTER-ONLY',''))).status,200,
+   'le code maître entre sans numéro : sinon un en-tête manquant enferme Lamine dehors');
  for(let i=0;i<5;i++){
   const r=await acces.GET(req(code));assert.equal(r.status,200);assert.equal(r.headers.get('cache-control'),'no-store');assert.deepEqual(await r.json(),{ok:true,maitre:false,lie:'deja'});
   assert.equal((await gestion.GET(req(code))).status,401);

@@ -123,7 +123,26 @@ export function tropDEssais(cle: string): boolean {
   return (ratés.get(cle) || []).filter((t) => maintenant - t < FENETRE_MS).length >= MAX_RATES;
 }
 
-const compte = { lies: 0, nouveaux: 0, refuses_autre_numero: 0, refuses_essais: 0, sans_memoire: 0, crees: 0, delies: 0 };
+/* ── LES DEUX REFUS QUI N'AVAIENT AUCUN COMPTEUR ───────────────────────────
+
+   Le 28 octobre 2026 au soir, la fenêtre écrite de BIA est restée muette
+   toute la soirée. J'ai mis une heure à nommer la cause, et voici pourquoi :
+   `absent` et `invalide` repartaient d'ici SANS rien incrémenter. Le refus le
+   plus probable était donc le seul invisible dans /api/etat — j'ai dû le
+   trouver par élimination, en remarquant qu'aucune étape de préparation
+   déclarée après la porte n'apparaissait jamais.
+
+   C'est exactement la faute écrite dans AVANT-DE-DIRE-QUE-C-EST-BON.md :
+   « ne jamais aveugler un compteur ». Les voici ouverts, et le dernier motif
+   est nommé en clair — aucun numéro, jamais : seulement la raison. */
+const compte = { lies: 0, nouveaux: 0, refuses_numero_absent: 0, refuses_numero_invalide: 0,
+  refuses_autre_numero: 0, refuses_essais: 0, sans_memoire: 0, crees: 0, delies: 0,
+  dernier_refus: "" as string, dernier_refus_quand: "" as string };
+function refuser(motif: "absent" | "invalide" | "autre" | "essais", message: string) {
+  compte.dernier_refus = motif;
+  compte.dernier_refus_quand = new Date().toISOString();
+  return { ok: false as const, message };
+}
 export function resumeAccesNumero() { return { ...compte, memoire_vive: enMemoire.size }; }
 
 export type VerdictNumero =
@@ -147,13 +166,25 @@ function correspond(lien: Lien, numero: string): boolean {
  */
 export async function verifierNumero(code: string, numeroBrut: string | null, maitre: boolean): Promise<VerdictNumero> {
   const numero = normaliserNumero(numeroBrut);
-  if (!numeroBrut || !String(numeroBrut).trim()) return { ok: false, message: MESSAGES_NUMERO.absent };
-  if (!numero) return { ok: false, message: MESSAGES_NUMERO.invalide };
+  /* ── LE CODE MAÎTRE PASSE AVANT TOUT REFUS, ET C'EST LE DÉFAUT DU SOIR ───
+
+     Ces trois lignes étaient dans l'autre ordre, et l'ordre était faux. Le
+     numéro manquant était jugé AVANT le code maître : il suffisait donc d'un
+     en-tête absent pour que Lamine soit mis dehors de sa propre BIA, sur sa
+     propre route payante, avec son propre code.
+
+     Le commentaire au-dessus de cette fonction disait déjà la règle —
+     « `maitre` entre sans être lié : lier son code à un téléphone
+     l'enfermerait dehors sur les autres » — et le code ne la tenait pas. Un
+     code maître n'est jamais lié à un numéro ; il n'a donc aucune raison
+     d'en exiger un. */
   if (maitre) return { ok: true, lie: "maitre" };
+  if (!numeroBrut || !String(numeroBrut).trim()) { compte.refuses_numero_absent += 1; return refuser("absent", MESSAGES_NUMERO.absent); }
+  if (!numero) { compte.refuses_numero_invalide += 1; return refuser("invalide", MESSAGES_NUMERO.invalide); }
 
   const cle = empreinteCode(code);
   if (!cle || !lexiqueConfig.actif) { compte.sans_memoire += 1; return { ok: true, lie: "sans_memoire" }; }
-  if (tropDEssais(cle)) { compte.refuses_essais += 1; return { ok: false, message: MESSAGES_NUMERO.essais }; }
+  if (tropDEssais(cle)) { compte.refuses_essais += 1; return refuser("essais", MESSAGES_NUMERO.essais); }
 
   let lien: Lien | null;
   try { lien = await lireLien(cle); }
@@ -167,7 +198,7 @@ export async function verifierNumero(code: string, numeroBrut: string | null, ma
   if (correspond(lien, numero)) { compte.lies += 1; return { ok: true, lie: "deja" }; }
   noterEssaiRate(cle);
   compte.refuses_autre_numero += 1;
-  return { ok: false, message: MESSAGES_NUMERO.autre };
+  return refuser("autre", MESSAGES_NUMERO.autre);
 }
 
 /* ── LIER UN CODE DÈS SA CRÉATION ──────────────────────────────────────────

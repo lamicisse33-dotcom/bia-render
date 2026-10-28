@@ -6,7 +6,7 @@ import ts from 'typescript';
 function load(path,deps={}){const m={exports:{}};const code=ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function('require','module','exports',code)(id=>{assert(id in deps,id);return deps[id];},m,m.exports);return m.exports;}
 const normaliser=load('lib/normaliser.ts');
 const reflexion=load('lib/reflechir.ts',{'./normaliser':normaliser});
-const {choisirModeleConversation,cerveauDuTour}=load('lib/routage-cerveaux.ts',{'./reflechir':reflexion,'./normaliser':normaliser});
+const {choisirModeleConversation,cerveauDuTour,cerveauDeLEcrit,resumeCerveauEcrit}=load('lib/routage-cerveaux.ts',{'./reflechir':reflexion,'./normaliser':normaliser});
 const choisir=(question,options={})=>choisirModeleConversation(question,{modeleConfigure:'claude-sonnet-5-5',...options});
 
 test('Haiku handles short everyday turns without adding a classifier call',()=>{
@@ -57,4 +57,54 @@ test('une variable absente, vide ou faite d’espaces ne change rien',()=>{
  assert.equal(cerveauDuTour({ecrit:true}),'anthropic');
  assert.equal(cerveauDuTour({ecrit:false}),'anthropic');
  assert.equal(cerveauDuTour({ecrit:true,global:'   '}),'anthropic');
+});
+
+/* ── LE REPLI, POUR QUE L'ÉCRIT RÉPONDE TOUJOURS ───────────────────────────
+
+   Lamine, le 28 octobre 2026 au soir, après deux heures de fenêtre écrite
+   muette : « en attendant, REPLI AUTOMATIQUE sur le cerveau ordinaire pour
+   que l'écrit réponde toujours. »
+
+   Le danger qu'on ferme ici : poser `BIA_LLM_PROVIDER_ECRIT` sans poser la
+   clé qui va avec rendait la fenêtre écrite muette d'une seule variable, et
+   pour toujours. Une variable mal posée ne doit jamais pouvoir faire ça. */
+const toutesLesCles=()=>true;
+const aucuneCle=(f)=>f==='anthropic';
+
+test('le cerveau de l’écrit sans sa clé se replie sur le cerveau ordinaire',()=>{
+ const r=cerveauDeLEcrit({ecrit:true,global:'anthropic',pourLEcrit:'gemini',aLaCle:aucuneCle});
+ assert.equal(r.fournisseur,'anthropic','elle doit répondre quand même');
+ assert.deepEqual(r.repli,{voulu:'gemini',motif:'cle_absente'});
+ /* Et le repli est COMPTÉ : « ça répond » ne doit pas cacher « ça ne répond
+    pas avec ce que tu croyais ». */
+ const vu=resumeCerveauEcrit();
+ assert(vu.replis>=1);
+ assert.equal(vu.voulu,'gemini');
+ assert.equal(vu.variable,'BIA_LLM_PROVIDER_ECRIT');
+});
+
+test('quand la clé est là, le cerveau choisi est respecté et rien ne se replie',()=>{
+ const r=cerveauDeLEcrit({ecrit:true,global:'anthropic',pourLEcrit:'gemini',aLaCle:toutesLesCles});
+ assert.equal(r.fournisseur,'gemini');
+ assert.equal(r.repli,null);
+});
+
+test('la voix ne se replie jamais : elle ne porte pas le drapeau de l’écrit',()=>{
+ const r=cerveauDeLEcrit({ecrit:false,global:'gemini',pourLEcrit:'groq',aLaCle:aucuneCle});
+ assert.equal(r.fournisseur,'gemini','le cerveau global de la voix reste le sien, clé ou pas');
+ assert.equal(r.repli,null);
+});
+
+test('on ne replie pas vers un cerveau qui n’a pas sa clé non plus',()=>{
+ /* Sinon on remplacerait une panne par la même panne, en cachant la
+    première — et la raison affichée serait fausse. */
+ const r=cerveauDeLEcrit({ecrit:true,global:'anthropic',pourLEcrit:'gemini',aLaCle:()=>false});
+ assert.equal(r.fournisseur,'gemini');
+ assert.equal(r.repli,null);
+});
+
+test('aucune variable posée : la fenêtre écrite garde le cerveau ordinaire',()=>{
+ const r=cerveauDeLEcrit({ecrit:true,global:'',pourLEcrit:'',aLaCle:toutesLesCles});
+ assert.equal(r.fournisseur,'anthropic');
+ assert.equal(r.repli,null);
 });

@@ -1,3 +1,4 @@
+import {resumeCerveauEcrit} from "@/lib/routage-cerveaux";
 import {resumeControleRapidite} from '@/lib/rapidite-controle-http';
 import {resumeAccesNumero} from '@/lib/acces-lien';
 import {resumeDemandesCode,verifierLaTable} from '@/lib/demandes-code';
@@ -324,6 +325,9 @@ export async function GET(request: Request) {
        et il faut pouvoir le lire, sinon personne ne saurait quel cerveau
        répond dans cette fenêtre ni ce qu'il coûte (voir depense.chat_ecrit). */
     fournisseur_modele_ecrit: (process.env.BIA_LLM_PROVIDER_ECRIT || "").toLowerCase().trim() || null,
+    /* Le 28 octobre 2026 : la fenêtre écrite muette n'a laissé AUCUNE trace
+       ici. On ne peut pas diagnostiquer ce qu'on ne compte pas. */
+    cerveau_ecrit: resumeCerveauEcrit(),
     /* ── LA PORTE À DEUX CLÉS, EN CHIFFRES ─────────────────────────
        Des nombres, jamais un numéro ni un code. `sans_memoire` est celui qu'il
        faut surveiller : il compte les entrées accordées SANS liaison parce

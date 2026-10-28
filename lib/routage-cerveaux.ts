@@ -39,3 +39,47 @@ export function cerveauDuTour(options: { ecrit?: boolean; global?: string; pourL
   const choisi = (pourLEcrit || "").toLowerCase().trim();
   return choisi || ordinaire;
 }
+
+/* ── ET SI LE CERVEAU DE L'ÉCRIT N'A PAS SA CLÉ ─────────────────────────────
+
+   Lamine, le 28 octobre 2026 au soir : « si la clé manque, dis-moi laquelle
+   poser ; en attendant, REPLI AUTOMATIQUE sur le cerveau ordinaire pour que
+   l'écrit réponde toujours. »
+
+   Sans ce repli, poser `BIA_LLM_PROVIDER_ECRIT=gemini` sans poser la clé qui
+   va avec rendait la fenêtre écrite DÉFINITIVEMENT muette d'une seule
+   variable — une phrase de panne à la place de chaque réponse. C'est trop
+   facile à faire pour que ce soit permis.
+
+   On ne replie QUE la fenêtre écrite, et seulement vers le cerveau ordinaire.
+   La voix n'est jamais concernée : elle ne porte pas le drapeau `ecrit`.
+   Et un repli n'est pas silencieux — il est compté et nommé dans /api/etat,
+   pour que « ça répond » ne cache pas « ça ne répond pas avec ce que tu
+   croyais ». */
+const replis = { tours_ecrits: 0, replis: 0, voulu: "", motif: "", dernier: "" };
+
+export function resumeCerveauEcrit() {
+  return {
+    ...replis,
+    variable: "BIA_LLM_PROVIDER_ECRIT",
+    limite: "Des noms de cerveaux et des comptes. Aucune question, aucun texte, aucune clé.",
+  };
+}
+
+export function cerveauDeLEcrit(options: {
+  ecrit?: boolean; global?: string; pourLEcrit?: string; aLaCle: (fournisseur: string) => boolean;
+}): { fournisseur: string; repli: null | { voulu: string; motif: "cle_absente" } } {
+  const { ecrit = false, global = "", pourLEcrit = "", aLaCle } = options;
+  const ordinaire = cerveauDuTour({ ecrit: false, global });
+  const voulu = cerveauDuTour({ ecrit, global, pourLEcrit });
+  if (ecrit) replis.tours_ecrits += 1;
+  /* Rien de choisi à part, ou la clé est là : on ne touche à rien. Et on ne
+     replie jamais vers un cerveau qui n'a pas sa clé non plus — ça
+     remplacerait une panne par la même panne, en cachant la première. */
+  if (voulu === ordinaire || aLaCle(voulu) || !aLaCle(ordinaire)) return { fournisseur: voulu, repli: null };
+  replis.replis += 1;
+  replis.voulu = voulu;
+  replis.motif = "cle_absente";
+  replis.dernier = new Date().toISOString();
+  return { fournisseur: ordinaire, repli: { voulu, motif: "cle_absente" } };
+}

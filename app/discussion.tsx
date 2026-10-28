@@ -56,6 +56,24 @@ function ecrire(personne: string, liste: MessageEcrit[]) {
    vit déjà dans ses souvenirs. Les vingt derniers tours suffisent au fil. */
 const FENETRE = 20;
 
+/* ── LE NUMÉRO, QUI MANQUAIT ICI ET NULLE PART AILLEURS ────────────────────
+
+   Le 28 octobre 2026 : entrer dans BIA demande désormais un NUMÉRO et un
+   CODE, et /api/chat revérifie les deux à chaque réponse — c'est là que
+   chaque réponse se paie, donc c'est là qu'on regarde.
+
+   Toute l'application l'avait suivi. Cette fenêtre-ci, non : elle a son
+   propre appel à /api/chat, écrit le 27 octobre, et il n'envoyait que le
+   code. Le soir même, dans la fenêtre écrite, « cc » répondait — le
+   répertoire répond AVANT la porte, ses sons vivent dans un seau public — et
+   TOUT LE RESTE était refusé pour numéro manquant.
+
+   On le lit au même endroit que le reste de l'application : `bia-numero`,
+   rangé par la porte au moment où le serveur a dit oui. */
+function numeroDeCetAppareil(): string {
+  try { return localStorage.getItem("bia-numero") || ""; } catch { return ""; }
+}
+
 export default function Discussion({ code, personne, onFermer }: { code: string; personne: string; onFermer: () => void }) {
   const [messages, setMessages] = useState<MessageEcrit[]>([]);
   const [saisie, setSaisie] = useState("");
@@ -88,7 +106,11 @@ export default function Discussion({ code, personne, onFermer }: { code: string;
     try {
       const r = await fetch("/api/chat", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-bia-code": code, ...(personne && personne !== "maitre" ? { "x-bia-personne": personne } : {}) },
+        /* Le numéro voyage par un EN-TÊTE, jamais par l'adresse : une adresse
+           se retrouve dans l'historique du téléphone et dans les journaux. */
+        headers: { "content-type": "application/json", "x-bia-code": code,
+          ...(numeroDeCetAppareil() ? { "x-bia-numero": numeroDeCetAppareil() } : {}),
+          ...(personne && personne !== "maitre" ? { "x-bia-personne": personne } : {}) },
         body: JSON.stringify({
           message: dit,
           /* `parole: false` : ce tour n'est pas une parole. C'est ce que le
@@ -112,10 +134,24 @@ export default function Discussion({ code, personne, onFermer }: { code: string;
       if (!vivant.current) return;
       const texte = String(d?.reply || "").trim();
       if (!r.ok || !texte) {
-        /* Une panne se dit, elle ne s'affiche pas comme une phrase de BIA :
+        /* ── LA RAISON, PAS UNE PHRASE PASSE-PARTOUT ────────────────────
+           Une panne se dit, elle ne s'affiche pas comme une phrase de BIA :
            ranger un message d'erreur dans le fil le ferait remonter un jour
-           comme une chose qu'elle aurait dite. */
-        setSouci(texte || "Je n’ai pas pu répondre. Réessaie dans un instant.");
+           comme une chose qu'elle aurait dite.
+           Mais elle doit DIRE LAQUELLE. Le 28 octobre, ce chemin affichait
+           « Je n'ai pas pu répondre » pour un refus de numéro parfaitement
+           nommé par le serveur : la vraie raison était là, dans `erreur`, et
+           personne ne la lisait. On prend ce que le serveur dit, dans
+           l'ordre, et la phrase passe-partout n'est plus que le dernier
+           recours. */
+        const raison = texte
+          || String(d?.erreur || "").trim()
+          || (r.status === 401
+            ? "Ton accès n’a pas été reconnu. Ouvre l’écran d’entrée et saisis à nouveau ton numéro et ton code."
+            : r.status >= 500
+              ? "Mon cerveau n’a pas répondu. Réessaie dans un instant."
+              : "Je n’ai pas pu répondre. Réessaie dans un instant.");
+        setSouci(raison);
         return;
       }
       const apres = [...avant, { role: "bia" as const, texte }];
