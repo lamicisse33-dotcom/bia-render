@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-28",
+  "reference": "exec-9d7929d0-a780-4e32-80b8-7c1c3a36c1cd.png",
+  "encodage": "H264 CRF21, définition native, pistes audio retirées, faststart",
+  "limite": "Animation visuelle liée aux états de Bia ; les phonèmes des vidéos ne sont pas resynchronisés aux mots de la réponse.",
+  "videos": [
+    {
+      "fichier": "bisou.mp4",
+      "task": "4d77c16d-a140-433a-8b88-aac672efa829",
+      "largeur": 1176,
+      "hauteur": 1764,
+      "duree": 10.041667,
+      "audio": false,
+      "octets": 4501654,
+      "sha256": "c2869adbeac25e7ef897521032d844433172d073271c0f6a5ab0453a948ef0a5"
+    },
+    {
+      "fichier": "coeurs.mp4",
+      "task": "9930d779-103a-415e-8019-6dc8f428a1dd",
+      "largeur": 1176,
+      "hauteur": 1764,
+      "duree": 10.041667,
+      "audio": false,
+      "octets": 3585101,
+      "sha256": "8b2c0a403e2ff7b863b26b8a77c574f8d6aa4bd41e2dfb0eb91e67e37fadf617"
+    },
+    {
+      "fichier": "ecoute.mp4",
+      "task": "segment parole 1.5–3.15 s, aller-retour",
+      "largeur": 1176,
+      "hauteur": 1764,
+      "duree": 3.333333,
+      "audio": false,
+      "octets": 943891,
+      "sha256": "a6722c36e1bd00a61a756757c165dcbb5a1a901ae2954bbf2ca7c5209e0bf985"
+    },
+    {
+      "fichier": "joie.mp4",
+      "task": "768a5287-9895-4e23-841f-1071ceee9a9b",
+      "largeur": 1176,
+      "hauteur": 1764,
+      "duree": 10.041667,
+      "audio": false,
+      "octets": 4793205,
+      "sha256": "8cf5855d249d6ee1a98bcf17b80655c66a6042c1a3cecb9df6399dc6a0a65930"
+    },
+    {
+      "fichier": "parole.mp4",
+      "task": "ad14252c-d3d4-48e8-91b8-eac27a437f4b",
+      "largeur": 1176,
+      "hauteur": 1764,
+      "duree": 10.041667,
+      "audio": false,
+      "octets": 3705803,
+      "sha256": "961a4a82c6c47a8b5a060f61b7f3f3c4e0304c7c83c0c8e344bf482a953669f4"
+    },
+    {
+      "fichier": "rire.mp4",
+      "task": "68502acb-73c3-4ad2-a4bc-ce465604da17",
+      "largeur": 1176,
+      "hauteur": 1764,
+      "duree": 10.041667,
+      "audio": false,
+      "octets": 4173946,
+      "sha256": "52c3e613e865d457d73e5d0bec0b78cc9fac0aa64e5cf597ba873c167763c454"
+    }
+  ]
+}

@@ -4,13 +4,14 @@ import {createRoot} from 'react-dom/client';
 import {useHabillageBia,ChoixPersonnage,PortraitTenue} from '../app/personnages/Personnages';
 import '../app/globals.css';
 function Atelier(){
+ const [ecoute,setEcoute]=useState(false);
  const [commande,setCommande]=useState('Aucune commande activée');
  const h=useHabillageBia();const [persona,setPersona]=useState('rara');const [parle,setParle]=useState(false);const [face,setFace]=useState('yeux_ouverts');
  useEffect(()=>{if(!parle)return;let i=0;const timer=setInterval(()=>setFace(['bouche_a','bouche_o','bouche_entr','bouche_fermee'][i++%4]),180);return()=>clearInterval(timer)},[parle]);
  return <main style={{height:'100svh',overflow:'auto',padding:20,color:'white',display:'flex',flexWrap:'wrap',gap:20}}>
   <section style={{width:375,height:812,position:'relative',background:'#000',flexShrink:0}}>
    <div className="portrait" style={{bottom:52}} data-persona={persona} data-tenue="nouvelle"><div className="avatar" data-face="yeux_ouverts"/>
-   {h.habillage&&<PortraitTenue tenue={h.habillage} face={face} parle={parle}/>}</div>
+   {h.habillage&&<PortraitTenue tenue={h.habillage} face={face} parle={parle} ecoute={ecoute}/>}</div>
    <div className="barre">
     <div className="barre-gauche">
      <button className="discussion-ouvrir" aria-label="Ouvrir la discussion écrite" onClick={()=>setCommande('Discussion activée')}>✉</button>
@@ -26,6 +27,7 @@ function Atelier(){
   </section>
   <section style={{width:375}}><h1>Vérification des personnages</h1><ChoixPersonnage {...h} persona={persona} choisirPersona={setPersona}/>
    <button onClick={()=>setParle(v=>!v)}>{parle?'Arrêter la parole simulée':'Simuler la parole'}</button>
+   <button onClick={()=>setEcoute(v=>!v)}>{ecoute?'Terminer la reprise utilisateur':'Simuler la reprise utilisateur'}</button>
    <label>Expression<select value={face} onChange={e=>{setParle(false);setFace(e.target.value)}}>{['yeux_ouverts','yeux_fermes','joie','surprise','pensive','triste','salut_2','coeur_double_4','priere_2','compter_4','rire_main_4'].map(f=><option key={f}>{f}</option>)}</select></label>
    <p>Identité vocale conservée : {persona}</p><p role="status">{commande}</p>
   </section>

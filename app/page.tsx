@@ -9218,7 +9218,7 @@ export default function Home() {
         )}
         <div className="avatar avatar-socle" data-face="yeux_ouverts" />
         <div className="avatar" data-face={portraitPret ? face : "yeux_ouverts"} />
-        {habillageBia.habillage && <PortraitTenue tenue={habillageBia.habillage} face={face} parle={mode === "speaking"} />}
+        {habillageBia.habillage && <PortraitTenue tenue={habillageBia.habillage} face={face} parle={mode === "speaking"} ecoute={entendParler} emotion={emotionRef.current} />}
       </div>
 
       {/* ── LE CHOIX DU PERSONNAGE ─────────────────────────────────────────

@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { TENUES_BIA, CLE_APPARENCE_BIA, estTenueBia, imagesTenueBia, visagePourFace,
-  positionVisage, programmerGestesBia, chargerTenueBia, type TenueBia } from "@/lib/apparences-bia";
+import { APPARENCES_BIA, CLE_APPARENCE_BIA, estApparenceBia, imagesTenueBia, visagePourFace,
+  positionVisage, programmerGestesBia, chargerApparenceBia, type ApparenceBia, type TenueBia } from "@/lib/apparences-bia";
+import {SATIN_ID, SATIN_POSTER} from '@/lib/animation-satin';
+import {PortraitSatin} from './PortraitSatin';
 import styles from "./personnages.module.css";
 
 export function useHabillageBia() {
-  const [habillage, setHabillage] = useState<TenueBia | "">("");
+  const [habillage, setHabillage] = useState<ApparenceBia | "">("");
   const [chargement, setChargement] = useState(false);
   const [erreur, setErreur] = useState("");
   const demande = useRef(0);
@@ -13,19 +15,19 @@ export function useHabillageBia() {
     const id = ++demande.current;
     try {
       const garde = localStorage.getItem(CLE_APPARENCE_BIA);
-      if (estTenueBia(garde)) {
-        void chargerTenueBia(garde).then(() => {
+      if (estApparenceBia(garde)) {
+        void chargerApparenceBia(garde).then(() => {
           if (id === demande.current) setHabillage(garde);
         }).catch(() => { if (id === demande.current) setErreur("La tenue n’a pas pu être chargée. Tu peux réessayer."); });
       }
     } catch { /* Le personnage existant reste affiché si le stockage est fermé. */ }
     return () => { demande.current++; };
   }, []);
-  async function choisir(valeur: TenueBia | "", original?: () => void) {
+  async function choisir(valeur: ApparenceBia | "", original?: () => void) {
     const id = ++demande.current;
     setErreur(""); setChargement(true);
     try {
-      if (valeur) await chargerTenueBia(valeur);
+      if (valeur) await chargerApparenceBia(valeur);
       if (id !== demande.current) return;
       original?.();
       setHabillage(valeur);
@@ -52,12 +54,17 @@ export function ChoixPersonnage({ habillage, choisir, chargement, erreur, person
         {([['rara', 'Bia actuelle'], ['bia', 'Autre personnage existant']] as const).map(([id, nom]) =>
           <button key={id} type="button" aria-pressed={!habillage && persona === id}
             onClick={() => void choisir("", () => choisirPersona(id))}>{nom}</button>)}
-        {TENUES_BIA.map(t => <button key={t.id} type="button" aria-pressed={habillage === t.id}
+        {APPARENCES_BIA.map(t => <button key={t.id} type="button" aria-pressed={habillage === t.id}
           onClick={() => void choisir(t.id)}>
-          <span className={styles.vignette} aria-hidden="true" style={{ backgroundImage: `url("${imagesTenueBia(t.id).repos}")` }} />
+          <span className={styles.vignette} aria-hidden="true" style={{ backgroundImage: `url("${t.id === SATIN_ID ? SATIN_POSTER : imagesTenueBia(t.id).repos}")` }} />
           <span>{t.nom}</span>
         </button>)}
       </div>
+      {habillage === SATIN_ID && <div className={styles.apercusSatin}>
+        <span>Voir ses gestes</span>
+        {([['parole','Parole'], ['joie','Joie'], ['rire','Rire'], ['coeurs','Cœur'], ['bisou','Bisou']] as const).map(([id, nom]) =>
+          <button key={id} type="button" onClick={() => window.dispatchEvent(new CustomEvent('bia-apercu-satin', {detail:id}))}>{nom}</button>)}
+      </div>}
       <p className={styles.note} role="status">{chargement ? "Préparation du personnage…" : "Ton choix est mémorisé sur cet appareil."}</p>
       {erreur && <p role="alert">{erreur}</p>}
       <button type="button" onClick={() => setOuvert(false)}>Fermer le choix</button>
@@ -65,7 +72,13 @@ export function ChoixPersonnage({ habillage, choisir, chargement, erreur, person
   </div>;
 }
 
-export function PortraitTenue({ tenue, face, parle = false }: { tenue: TenueBia; face: string; parle?: boolean }) {
+export function PortraitTenue({tenue, face, parle = false, ecoute = false, emotion = 'neutre'}: {
+  tenue: ApparenceBia; face: string; parle?: boolean; ecoute?: boolean; emotion?: string;
+}) {
+  return tenue === SATIN_ID ? <PortraitSatin face={face} parle={parle} ecoute={ecoute} emotion={emotion} />
+    : <PortraitTenueFixe tenue={tenue} face={face} parle={parle} />;
+}
+function PortraitTenueFixe({ tenue, face, parle = false }: { tenue: TenueBia; face: string; parle?: boolean }) {
   const [mouvement, setMouvement] = useState({ tenue, pose: 0 });
   const [anime, setAnime] = useState(false);
   useEffect(() => {

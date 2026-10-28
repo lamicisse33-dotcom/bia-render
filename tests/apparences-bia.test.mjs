@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import ts from 'typescript';
 import sharp from 'sharp';
 const code = fs.readFileSync('lib/apparences-bia.ts', 'utf8');
-const js = ts.transpileModule(code, {compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+const js = ts.transpileModule(fs.readFileSync('lib/animation-satin.ts','utf8')+'\n'+code.replace(/^import[^\n]*\n/,''), {compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
 const a = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'));
 
 test('les trois tenues gardent 1024 pixels par portrait et les anciennes restent disponibles', async () => {
