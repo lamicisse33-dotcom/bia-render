@@ -50,9 +50,6 @@ const APPRENTISSAGE='Apprentissage / lecture continue';
   });
   await page.addInitScript(()=>{
    localStorage.setItem('bia-code','SYNTHETICMASTER');
-   /* Khalam, pas la connexion rapide : aucune session à ouvrir, et le
-      compteur de sons reste lisible. */
-   localStorage.setItem('bia-mode-conversation','khalam');
    /* ── LE COMPTEUR DE HAUT-PARLEUR ────────────────────────────────────
       Toutes les portes du son, comptées à la source. */
    window.__sons=0;window.__contextes=0;
@@ -78,7 +75,10 @@ const APPRENTISSAGE='Apprentissage / lecture continue';
      `estMaitre` arrive après le premier rendu, et le bouton du clavier en
      dépend. On attend la réponse, pas l'affichage. */
   const controleMaitre=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/codes');
-  await page.goto('http://127.0.0.1:'+PORT+'/');
+  /* Khalam, pas la connexion rapide : aucune session à ouvrir, et le compteur
+     de sons reste lisible. Par l'ADRESSE depuis le 28 octobre 2026 : le choix
+     gardé dans le téléphone n'est plus lu, c'est tout l'objet du chantier. */
+  await page.goto('http://127.0.0.1:'+PORT+'/?mode=khalam');
   await controleMaitre;
   await page.locator('button.microphone').waitFor({state:'visible'});
   if(maitre)await page.getByRole('button',{name:'Ouvrir le clavier et la conversation écrite'}).waitFor({state:'visible'});

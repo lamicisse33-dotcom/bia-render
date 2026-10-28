@@ -54,12 +54,32 @@ test('un refus fait BASCULER, et la bascule est gardée sur le téléphone',()=>
  /* La session rapide est arrêtée pour de bon… */
  assert.match(corps,/liveMaitreRef\.current=null/);
  assert.match(corps,/sessionRapide\(false\)/,'sinon la page resterait muette');
- /* …le mode passe sur Khalam, et c'est GARDÉ : sans ça, le prochain appui
-    retomberait sur la connexion refusée, et il verrait le même échec en
-    boucle. */
- assert.match(corps,/poserMode\(false,true\)/,'la bascule doit être gardée');
+ /* …le mode passe sur Khalam, et le refus est GARDÉ sur le téléphone :
+    sans ça, la prochaine ouverture redemanderait la connexion refusée, et il
+    verrait le même échec en boucle. */
+ assert.match(corps,/poserMode\(false\)/,'le mode doit passer sur Khalam');
+ assert.match(corps,/noterRefusRapide\(\)/,'le refus doit être gardé sur le téléphone');
  /* Et la phrase vient du client, pas d'une seconde écrite ici. */
  assert.match(corps,/setPanne\(message\)/);
+});
+
+/* ── CE QUI EST GARDÉ EST UNE HEURE, PAS UN CHOIX ──────────────────────
+
+   Le 28 octobre 2026, le bouton de bascule quitte l'écran : « je veux que
+   rapide soit le moteur par défaut et que tu enlèves l'option de sélection de
+   Moteur sur l'écran ». Il n'y a donc plus rien à toucher pour revenir sur
+   Khalam Rapide quand le quota revient. Le filet ne peut plus garder un CHOIX
+   — il garderait l'utilisateur sur le chemin lent pour toujours. Il garde une
+   HEURE, qui périme au bout d'une heure. */
+test('le refus périme tout seul, et le choix à la main n’est plus lu',()=>{
+ const page=lire('app/page.tsx');
+ assert.match(page,/const REFUS_TIENT_MS=60\*60\*1000/,'le refus doit avoir une durée écrite');
+ assert.match(page,/Date\.now\(\)-t<REFUS_TIENT_MS/,'et cette durée doit être vérifiée à la lecture');
+ assert.match(page,/poserMode\(!refusRapideRecent\(\)\)/,'le défaut est rapide, sauf refus récent');
+ /* Et l'ancienne préférence à la main n'est plus lue nulle part : un
+    téléphone qui avait gardé « khalam » y serait resté pour toujours. */
+ assert.ok(!/bia-mode-conversation/.test(page),'le choix gardé à la main ne doit plus être lu');
+ assert.ok(!/bascule-mode/.test(page),'aucun bouton de sélection de moteur à l’écran');
 });
 
 /* ── COMBIEN DE SESSIONS, ET PAR QUI ─────────────────────────────────────── */

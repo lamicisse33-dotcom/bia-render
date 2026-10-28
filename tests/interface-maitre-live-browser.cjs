@@ -51,41 +51,50 @@ let browser;
  await page.locator('.outils button').filter({hasText:'Apprentissage / lecture continue'}).waitFor({state:'attached'});
  await page.getByRole('button',{name:'Ouvrir le clavier et la conversation écrite'}).waitFor();
 
- /* ── LE BOUTON DE BASCULE, À L'ÉCRAN ────────────────────────────────────
-    Décidé par Lamine le 23 octobre 2026 : Khalam Rapide par défaut pour tout
-    le monde, un bouton visible pour revenir à Khalam, le choix gardé sur le
-    téléphone — et le mot « Gemini » nulle part à l'écran. */
- const bascule=page.locator('button.bascule-mode');
- await bascule.waitFor({state:'visible'});
- assert.equal((await bascule.innerText()).trim(),'Basculer vers Khalam');
- assert.equal(await bascule.getAttribute('data-mode-actuel'),'rapide');
- assert(!(await page.locator('body').innerText()).includes('Gemini'));
- await bascule.click();
- assert.equal((await bascule.innerText()).trim(),'Basculer vers Khalam Rapide');
- assert.equal(await page.evaluate(()=>localStorage.getItem('bia-mode-conversation')),'khalam');
- /* Le choix tient au rechargement : c'est tout l'objet du localStorage. */
- await page.reload();
- await page.locator('.outils button').filter({hasText:'Apprentissage / lecture continue'}).waitFor({state:'attached'});
- const basculeApres=page.locator('button.bascule-mode');
- await basculeApres.waitFor({state:'visible'});
- assert.equal((await basculeApres.innerText()).trim(),'Basculer vers Khalam Rapide');
- assert.equal(await basculeApres.getAttribute('data-mode-actuel'),'khalam');
- /* `?mode=khalam` garde sa valeur de consigne, sans toucher au choix gardé. */
- await page.goto('http://127.0.0.1:3112/?mode=khalam');
- await page.locator('button.bascule-mode').waitFor({state:'visible'});
- assert.equal((await page.locator('button.bascule-mode').innerText()).trim(),'Basculer vers Khalam Rapide');
- /* On revient au défaut : la suite vérifie la conversation rapide elle-même. */
- await page.goto('http://127.0.0.1:3112/');
- await page.locator('button.bascule-mode').waitFor({state:'visible'});
- await page.locator('button.bascule-mode').click();
- assert.equal(await page.evaluate(()=>localStorage.getItem('bia-mode-conversation')),'rapide');
- await page.getByRole('button',{name:'Ouvrir le clavier et la conversation écrite'}).waitFor();
-
- /* Le nom du chemin courant est écrit en permanence, pas seulement sur le
-    bouton : c'est ce qui manquait pour qu'on sache lequel répond. */
+ /* ── PLUS AUCUNE SÉLECTION DE MOTEUR À L'ÉCRAN ─────────────────────
+    Lamine, le 28 octobre 2026 : « je veux que rapide soit le moteur par
+    défaut et que tu enlèves l'option de sélection de Moteur sur l'écran pour
+    le moment ». Une pastille « Basculer vers Khalam » se tenait au-dessus de
+    la barre depuis le 23 octobre. On exige maintenant QU'ELLE N'EXISTE PLUS,
+    et que ce qui s'ouvre soit Khalam Rapide — avec le mot « Gemini »
+    toujours nulle part à l'écran. */
+ assert.equal(await page.locator('button.bascule-mode').count(),0,'aucun bouton de bascule à l\'écran');
+ const texteEcran=await page.locator('body').innerText();
+ assert(!texteEcran.includes('Basculer vers'),texteEcran);
+ assert(!texteEcran.includes('Gemini'));
+ /* Le nom du chemin courant reste écrit en permanence : il dit ce qui
+    répond, il ne propose rien. C'est ce qui manquait pour qu'on sache
+    lequel des deux chemins parle. */
  const nomDuMode=page.locator('.micro-et-mode .mode-actuel');
  await nomDuMode.waitFor({state:'visible'});
  assert.equal((await nomDuMode.innerText()).trim(),'Khalam Rapide');
+ assert.equal(await nomDuMode.getAttribute('data-mode-actuel'),'rapide');
+
+ /* ── LE FILET SOUS LE VRAI TROU : LE CHOIX GARDÉ NE RAMÈNE PLUS EN ARRIÈRE ─
+    Le bouton retiré écrivait `bia-mode-conversation` dans le téléphone. Tout
+    appareil qui a servi aux essais — dont le sien — a donc « khalam » dans
+    son rangement. Si cette clé était encore lue, « rapide par défaut »
+    serait faux exactement là où ça compte, et il n'y aurait plus rien à
+    l'écran pour en sortir. On la pose à la main et on recharge. */
+ await page.evaluate(()=>localStorage.setItem('bia-mode-conversation','khalam'));
+ await page.reload();
+ await page.locator('.outils button').filter({hasText:'Apprentissage / lecture continue'}).waitFor({state:'attached'});
+ await page.locator('.micro-et-mode .mode-actuel').waitFor({state:'visible'});
+ assert.equal((await page.locator('.micro-et-mode .mode-actuel').innerText()).trim(),'Khalam Rapide');
+ assert.equal(await page.locator('button.bascule-mode').count(),0);
+
+ /* `?mode=khalam` reste une porte — pour diagnostiquer et pour les épreuves
+    — mais elle ne s'affiche nulle part. */
+ await page.goto('http://127.0.0.1:3112/?mode=khalam');
+ await page.locator('.micro-et-mode .mode-actuel').waitFor({state:'visible'});
+ assert.equal((await page.locator('.micro-et-mode .mode-actuel').innerText()).trim(),'Khalam');
+ assert.equal(await page.locator('button.bascule-mode').count(),0);
+
+ /* On revient au défaut : la suite vérifie la conversation rapide elle-même. */
+ await page.goto('http://127.0.0.1:3112/');
+ await page.getByRole('button',{name:'Ouvrir le clavier et la conversation écrite'}).waitFor();
+ await page.locator('.micro-et-mode .mode-actuel').waitFor({state:'visible'});
+ assert.equal((await page.locator('.micro-et-mode .mode-actuel').innerText()).trim(),'Khalam Rapide');
  assert(/Khalam Rapide$/.test(await page.locator('button.microphone').getAttribute('aria-label')));
 
  const routesRapide=depuis();
@@ -133,9 +142,10 @@ let browser;
  await pageKhalam.goto('http://127.0.0.1:3112/');
  await pageKhalam.locator('.micro-et-mode .mode-actuel').waitFor({state:'visible'});
  assert.equal((await pageKhalam.locator('.micro-et-mode .mode-actuel').innerText()).trim(),'Khalam Rapide');
- await pageKhalam.locator('button.bascule-mode').click();
+ /* On y va par l'adresse : il n'y a plus de bouton pour changer de chemin. */
+ await pageKhalam.goto('http://127.0.0.1:3112/?mode=khalam');
+ await pageKhalam.locator('.micro-et-mode .mode-actuel').waitFor({state:'visible'});
  assert.equal((await pageKhalam.locator('.micro-et-mode .mode-actuel').innerText()).trim(),'Khalam');
- assert.equal((await pageKhalam.locator('button.bascule-mode').innerText()).trim(),'Basculer vers Khalam Rapide');
  vuesKhalam.length=0;
  await pageKhalam.locator('button.microphone').click();
  await pageKhalam.waitForTimeout(3000);
@@ -146,8 +156,11 @@ let browser;
  assert.equal(errors.length,0,errors.join('\n'));
  const bascules=mesures.filter(m=>m.type==='khalam_rapide'&&m.etape==='bascule');
  const premiersSons=mesures.filter(m=>m.type==='khalam_rapide'&&m.etape==='premier_son');
- assert.equal(bascules.length,2,JSON.stringify(mesures));
- assert.deepEqual(bascules.map(m=>m.vers),['khalam','rapide']);
+ /* ZÉRO BASCULE MESURÉE, et c'est le résultat attendu depuis le 28 octobre
+    2026 : le geste qui en envoyait une n'existe plus. Le compteur du serveur,
+    lui, n'est pas touché — le filet `indisponible` garde sa voie si le
+    fournisseur refuse un jour. */
+ assert.equal(bascules.length,0,JSON.stringify(mesures));
  /* ── POURQUOI ZÉRO MESURE ICI, ET POURQUOI C'EST LE BON RÉSULTAT ────────
 
     La mesure ne s'arme plus que sur une parole entendue PENDANT QU'ELLE SE
@@ -186,10 +199,12 @@ let browser;
  });
  await pageVisiteur.addInitScript(decor);
  await pageVisiteur.goto('http://127.0.0.1:3112/');
- const basculeVisiteur=pageVisiteur.locator('button.bascule-mode');
- await basculeVisiteur.waitFor({state:'visible'});
- assert.equal((await basculeVisiteur.innerText()).trim(),'Basculer vers Khalam');
- assert.equal(await basculeVisiteur.getAttribute('data-mode-actuel'),'rapide');
+ const nomVisiteur=pageVisiteur.locator('.micro-et-mode .mode-actuel');
+ await nomVisiteur.waitFor({state:'visible'});
+ assert.equal((await nomVisiteur.innerText()).trim(),'Khalam Rapide');
+ assert.equal(await nomVisiteur.getAttribute('data-mode-actuel'),'rapide');
+ assert.equal(await pageVisiteur.locator('button.bascule-mode').count(),0);
+ /* Rien n'écrit plus de préférence de moteur dans le téléphone. */
  assert.equal(await pageVisiteur.evaluate(()=>localStorage.getItem('bia-mode-conversation')),null);
  const texteVisiteur=await pageVisiteur.locator('body').innerText();
  assert(!texteVisiteur.includes('Gemini'),texteVisiteur);
@@ -201,6 +216,6 @@ let browser;
  assert.equal(erreursVisiteur.length,0,erreursVisiteur.join('\n'));
  await visite.close();
 
- console.log(JSON.stringify({live:true,interface_maitre:true,bien_dit:1,mal_dit:1,fil:true,correction:true,bascules:bascules.map(m=>m.vers),latences_declarees:premiersSons.map(m=>m.ms),visiteur_khalam_rapide:true,
+ console.log(JSON.stringify({live:true,interface_maitre:true,bien_dit:1,mal_dit:1,fil:true,correction:true,bascules:bascules.length,bouton_de_bascule:0,latences_declarees:premiersSons.map(m=>m.ms),visiteur_khalam_rapide:true,
   routes_en_rapide:[...new Set(vuesRapide)],routes_en_khalam:[...new Set(vuesKhalam)],erreurs:errors}));
  }catch(e){console.error(e);process.exitCode=1;}finally{await browser?.close();server.kill();}})();

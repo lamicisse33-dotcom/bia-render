@@ -24,7 +24,11 @@ let browser;
 /* Ce qu'un utilisateur simple doit GARDER : la voix, l'apparence, et les deux
    boutons descendus du clavier parce qu'il en a besoin sur un téléphone
    qu'on se prête. */
-const POUR_TOUS=['Changer d’utilisateur','Nouvelle conversation','Apparence de Bia','Écouter la voix choisie'];
+/* « Apparence de Bia : 1/2 » s'appelle « Changer de personnage » depuis les
+   trois tenues du 28 octobre 2026 : même capacité, même place, autre nom. Ce
+   que ce filet garantit n'a pas changé — n'importe qui doit pouvoir changer
+   l'apparence de BIA sans le code maître. */
+const POUR_TOUS=['Changer d’utilisateur','Nouvelle conversation','Changer de personnage','Écouter la voix choisie'];
 /* Les trois voix nommées par Lamine. */
 const VOIX=['male','female','piper-web'];
 /* Ce que le maître SEUL doit voir. Les liens sont la preuve la plus sûre :
@@ -50,7 +54,6 @@ const AU_MAITRE_BOUTONS=['Conversation écrite',"Ce qu'on te demande et qu'elle 
   });
   await page.addInitScript(()=>{
    localStorage.setItem('bia-code','SYNTHETICMASTER');
-   localStorage.setItem('bia-mode-conversation','khalam');
   });
   /* ── ON ATTEND LE CONTRÔLE DU CODE, PAS L'AFFICHAGE ───────────────────
      `estMaitre` arrive d'un appel à /api/codes, APRÈS le premier rendu. Lire
@@ -58,7 +61,10 @@ const AU_MAITRE_BOUTONS=['Conversation écrite',"Ce qu'on te demande et qu'elle 
      avant que la réponse soit là — l'épreuve passait au vert par chance. On
      arme donc l'attente AVANT d'ouvrir la page. */
   const controleMaitre=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/codes');
-  await page.goto('http://127.0.0.1:'+PORT+'/');
+  /* `?mode=khalam` : on ne veut pas ouvrir de connexion rapide pour lire une
+     barre. Par l'adresse depuis le 28 octobre 2026 — le choix gardé dans le
+     téléphone n'est plus lu. */
+  await page.goto('http://127.0.0.1:'+PORT+'/?mode=khalam');
   await controleMaitre;
   await page.locator('button.microphone').waitFor({state:'visible'});
   if(maitre)await page.getByRole('button',{name:'Ouvrir le clavier et la conversation écrite'}).waitFor({state:'visible'});
@@ -87,10 +93,19 @@ const AU_MAITRE_BOUTONS=['Conversation écrite',"Ce qu'on te demande et qu'elle 
   for(const v of VOIX) voix[v]=await panneau.locator('input[name="bia-voix"][value="'+v+'"]').count();
   const vitesse=await panneau.getByLabel('Vitesse de la voix').count();
   const renseignements=await panneau.getByLabel('Nom ou raison sociale').count();
+  /* ── ET LE CHOIX S'OUVRE VRAIMENT ───────────────────────────────
+     Un bouton présent n'est pas une capacité : on l'ouvre et on compte les
+     personnages proposés, pour un simple utilisateur comme pour le maître. */
+  let personnages=0;
+  if(boutons['Changer de personnage']){
+   await panneau.getByRole('button',{name:'Changer de personnage'}).first().click();
+   await panneau.getByText('Le personnage de Bia',{exact:true}).waitFor();
+   personnages=await panneau.getByRole('button',{name:'Bia actuelle'}).count();
+  }
 
   assert.equal(erreurs.length,0,erreurs.join('\n'));
   await contexte.close();
-  return {barre,boutons,liens,voix,vitesse,renseignements};
+  return {barre,boutons,liens,voix,vitesse,renseignements,personnages};
  };
 
  /* ── LA PORTE : LE CHAMP, ET RIEN QUI DÉSIGNE LA SERRURE DU MAÎTRE ─────
@@ -137,6 +152,7 @@ const AU_MAITRE_BOUTONS=['Conversation écrite',"Ce qu'on te demande et qu'elle 
  /* Les renseignements servent aux devis et aux factures, que tout le monde a
     dans la rangée des services : les cacher casserait un service ouvert. */
  assert.equal(simple.renseignements,1,'« Mes renseignements » sert aux devis de tout le monde');
+ assert.equal(simple.personnages,1,'l’apparence de BIA doit rester changeable sans code maître');
 
  /* ── CE QUI DISPARAÎT POUR L'UTILISATEUR SIMPLE ────────────────────────── */
  assert.equal(simple.barre.clavier,0,'le bouton clavier doit être invisible sans le code maître');

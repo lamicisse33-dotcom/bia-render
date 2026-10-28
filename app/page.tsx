@@ -439,45 +439,64 @@ function phoneticWolof(text: string) {
 
 
 
-/* Le choix de conversation gardé sur CE téléphone. Hors du composant : une
-   clé de rangement n'a pas à être recréée à chaque rendu. */
-const MODE_GARDE='bia-mode-conversation';
+/* ── CE QUE LE TÉLÉPHONE GARDE ENCORE, ET CE QU'IL NE GARDE PLUS ───────────
+
+   `bia-mode-conversation` était le choix à la main du bouton de bascule. Ce
+   bouton est retiré de l'écran (Lamine, 28 octobre 2026) et cette clé n'est
+   plus lue : elle dort dans les téléphones qui l'avaient, inerte.
+
+   `bia-rapide-refuse` est autre chose : l'heure du dernier REFUS du
+   fournisseur. Elle n'exprime aucune préférence, elle évite de redemander
+   une connexion qu'on vient de refuser à chaque ouverture de l'application.
+   Elle périme d'elle-même au bout d'une heure : le quota revient, et Khalam
+   Rapide revient avec lui, sans que personne ait un bouton à toucher. */
+const REFUS_RAPIDE='bia-rapide-refuse';
+const REFUS_TIENT_MS=60*60*1000;
+const refusRapideRecent=()=>{
+  try{const t=Number(localStorage.getItem(REFUS_RAPIDE));
+    return Number.isFinite(t)&&t>0&&Date.now()-t<REFUS_TIENT_MS;}catch{return false;}
+};
+const noterRefusRapide=()=>{try{localStorage.setItem(REFUS_RAPIDE,String(Date.now()));}catch{}};
 
 export default function Home() {
   const [history, setHistory] = useState<Message[]>([]);
   const liveMaitreRef=useRef<BiaGeminiLive|null>(null);
-  /* ── KHALAM RAPIDE, PAR DÉFAUT, POUR TOUT LE MONDE ─────────────────────
+  /* ── KHALAM RAPIDE, ET PLUS AUCUN CHOIX À L'ÉCRAN ─────────────────
 
-     Décidé par Lamine le 23 octobre 2026. Avant ce jour, la connexion rapide
-     était réservée à son code maître ; elle est maintenant celle que trouve
-     n'importe qui en ouvrant l'application, à la première ouverture comme
-     après un redémarrage de Render.
+     Lamine, le 28 octobre 2026 : « je veux que rapide soit le moteur par
+     défaut et que tu enlèves l'option de sélection de Moteur sur l'écran pour
+     le moment ». Khalam Rapide était déjà le défaut depuis le 23 octobre ;
+     ce qui change, c'est qu'il n'y a plus rien à choisir.
 
      TROIS CHOSES DÉCIDENT, DANS CET ORDRE :
-       1. `?mode=khalam` dans l'adresse — la consigne écrite gagne toujours,
-          et elle ne touche pas à ce que le téléphone a gardé ;
-       2. le choix gardé sur CE téléphone (bouton « Basculer vers… ») ;
-       3. le défaut, qui est Khalam Rapide.
+       1. `?mode=khalam` dans l'adresse — une porte qui ne s'affiche pas,
+          gardée pour diagnostiquer et pour les épreuves de bout en bout ;
+       2. un refus du fournisseur de moins d'une heure — le filet ci-dessous ;
+       3. Khalam Rapide, toujours.
+
+     LE CHOIX GARDÉ SUR LE TÉLÉPHONE N'EST PLUS LU, et c'est le cœur de la
+     demande. Le bouton retiré, un appareil qui avait gardé « khalam » y
+     serait resté pour toujours, sans rien à l'écran pour en sortir : « rapide
+     par défaut » aurait été faux précisément sur les téléphones qui ont servi
+     aux essais, dont le sien.
 
      L'APPRENTISSAGE RESTE SUR KHALAM : la lecture continue, les corrections
      de devoirs et l'enregistrement de phrases passent par les briques et le
      chemin habituel. `apprend.current` sort donc du mode rapide, quel que
-     soit le choix gardé — ce n'est pas une préférence, c'est une capacité.
+     soit le défaut — ce n'est pas une préférence, c'est une capacité.
 
      L'état de départ est `true` des deux côtés du rendu : le téléphone et le
      serveur disent la même chose au premier affichage, et l'effet ci-dessous
      corrige ensuite sans faire clignoter l'écran. */
   const [khalamRapide,setKhalamRapide]=useState(true);
   const khalamRapideRef=useRef(true);
-  const poserMode=useCallback((rapide:boolean,garder:boolean)=>{
+  const poserMode=useCallback((rapide:boolean)=>{
     khalamRapideRef.current=rapide;setKhalamRapide(rapide);
-    if(garder)try{localStorage.setItem(MODE_GARDE,rapide?'rapide':'khalam');}catch{}
   },[]);
   useEffect(()=>{
     const demande=new URL(window.location.href).searchParams.get('mode');
-    if(demande==='khalam'||demande==='rapide'){poserMode(demande==='rapide',false);return;}
-    let garde:string|null=null;try{garde=localStorage.getItem(MODE_GARDE);}catch{}
-    poserMode(garde!=='khalam',false);
+    if(demande==='khalam'||demande==='rapide'){poserMode(demande==='rapide');return;}
+    poserMode(!refusRapideRecent());
   },[poserMode]);
   const utiliserLiveMaitre=()=>khalamRapideRef.current&&!apprend.current;
   useEffect(()=>()=>{liveMaitreRef.current?.arreter();liveMaitreRef.current=null;sessionRapide(false);},[]);
@@ -5287,14 +5306,15 @@ export default function Home() {
            "Khalam Rapide est indisponible pour le moment, je passe sur
            Khalam" et bascule tout seul ». Une assistante plus lente vaut
            mieux qu'une assistante muette.
-           La bascule est GARDÉE sur le téléphone : sans ça, il retomberait
-           sur la connexion refusée au prochain appui, et verrait le même
-           échec en boucle. Le bouton reste là pour revenir quand le quota
-           revient. */
+           CE QU'ON GARDE SUR LE TÉLÉPHONE, c'est l'HEURE du refus, pas un
+           choix : sans ça il redemanderait la connexion refusée à chaque
+           ouverture et verrait le même échec en boucle. L'heure périme au
+           bout d'une heure, donc Khalam Rapide revient tout seul quand le
+           quota revient — il n'y a plus de bouton pour l'y ramener. */
         indisponible:(message:string)=>{
           if(liveMaitreRef.current!==moteur)return;
           const live=liveMaitreRef.current;liveMaitreRef.current=null;sessionRapide(false);live?.arreter();
-          poserMode(false,true);
+          poserMode(false);noterRefusRapide();
           setPanne(message);
           conversationRef.current=false;setConversation(false);
           setMode('ready');setFace('yeux_ouverts');
@@ -7335,26 +7355,17 @@ export default function Home() {
     try { recognitionRef.current.start(); } catch { setMode("error"); }
   }
 
-  /* ── CHANGER DE CONVERSATION, SANS CONNAÎTRE L'ADRESSE ─────────────────
+  /* ── OÙ ÉTAIT LE BOUTON DE BASCULE ─────────────────────────────
 
-     Demandé par Lamine le 23 octobre 2026 : un bouton visible, et le choix
-     gardé sur le téléphone. `?mode=khalam` continue de marcher par-dessus.
+     Ici se tenait `basculerMode()`, derrière le bouton « Basculer vers
+     Khalam » posé au-dessus de la barre. Retiré le 28 octobre 2026 à la
+     demande de Lamine : plus d'option de sélection de moteur à l'écran.
 
-     ON FERME AVANT DE CHANGER. Les deux chemins tiennent un micro, un
-     AudioContext et — pour le rapide — une connexion ouverte. Basculer
-     dessous laisserait deux moteurs écouter la même bouche : on coupe le son,
-     on ferme la conversation, on arrête le moteur rapide s'il tournait, et
-     c'est le prochain appui sur le micro qui ouvre l'autre chemin. */
-  function basculerMode() {
-    const vers = !khalamRapideRef.current;
-    taire();
-    fermerConversation();
-    const live = liveMaitreRef.current; liveMaitreRef.current = null; live?.arreter();
-    poserMode(vers, true);
-    setPanne("");
-    void fetch("/api/mesure", { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: "khalam_rapide", etape: "bascule", vers: vers ? "rapide" : "khalam" }) }).catch(() => {});
-  }
+     Ce qu'il faisait reste vrai et reste nécessaire : on ne change pas de
+     chemin sous une conversation ouverte. C'est pourquoi le seul changement
+     de mode qui subsiste — le filet `indisponible` quand le fournisseur
+     refuse — coupe le son, ferme la conversation et arrête le moteur rapide
+     AVANT de poser le nouveau mode. */
 
   /* Annuler ce qu'on est en train de dire. On coupe l'enregistreur avec le
      drapeau levé : c'est onstop qui jettera, et le chemin reste unique —
@@ -9013,11 +9024,10 @@ export default function Home() {
         </section>
       ) : null}
 
-      <button className="bascule-mode" type="button" data-mode-actuel={khalamRapide ? "rapide" : "khalam"}
-        onClick={basculerMode}
-        aria-label={khalamRapide ? "Basculer vers Khalam" : "Basculer vers Khalam Rapide"}>
-        {khalamRapide ? "Basculer vers Khalam" : "Basculer vers Khalam Rapide"}
-      </button>
+      {/* Le bouton « Basculer vers Khalam » se tenait ici, au-dessus de la
+          barre. Retiré le 28 octobre 2026 : aucune sélection de moteur à
+          l'écran. Le nom du chemin courant, lui, reste écrit au-dessus du
+          micro — il dit ce qui répond, il ne propose rien. */}
 
       <div className="barre">
         {/* ── DEUX BOUTONS DANS LA CASE DE GAUCHE, ET LE MICRO NE BOUGE PAS ─
