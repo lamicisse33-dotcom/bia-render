@@ -23,6 +23,10 @@
     .closing{text-align:center;padding:86px 0 100px;background:radial-gradient(ellipse at 50% 100%,rgba(215,173,80,.11),transparent 58%)}.closing h2{font:500 clamp(36px,5vw,58px)/1.08 Georgia,serif;max-width:720px;margin:15px auto}.closing p{color:#b7b6aa;max-width:550px;margin:0 auto 24px}.footer{border-top:1px solid var(--line);padding:22px 0 30px;display:flex;align-items:center;justify-content:space-between;color:#929287;font-size:11px}.footer .brand{font-size:11px;color:var(--paper)}.pill{border:1px solid rgba(199,216,189,.3);color:var(--mint);border-radius:99px;padding:5px 10px;font-size:10px;letter-spacing:.08em;text-transform:uppercase}
     @media(max-width:800px){.wrap{width:min(100% - 32px,var(--max))}.nav{height:68px}.nav-links{display:none}.hero{grid-template-columns:1fr;gap:8px;padding:62px 0 48px;min-height:0}.hero-art{height:350px;order:-1}.portrait{width:190px;height:230px}.halo{width:300px}.float.a{left:2%;top:44px}.float.b{right:1%;bottom:47px}.spark.one{right:9%;top:45px}h1{font-size:clamp(45px,12vw,68px)}.intro{font-size:15px}.trust{grid-template-columns:1fr;gap:12px;padding:18px}.trust div{border:0!important}.grid{grid-template-columns:1fr 1fr}.card{padding:20px;min-height:215px}.how{grid-template-columns:1fr;gap:34px}section{padding:70px 0}.gate{align-items:flex-start;flex-wrap:wrap}.gate .button{margin:0 0 0 68px}.footer{gap:15px;flex-wrap:wrap}}
     @media(max-width:520px){.wrap{width:calc(100% - 28px)}.nav-cta{padding:10px 13px;font-size:11px}.hero{padding-top:43px}.hero-art{height:300px}.portrait{width:164px;height:203px}.halo{width:260px}.float{padding:9px 11px;font-size:10px}.float.a{top:26px}.float.b{bottom:32px}.actions{display:grid}.button{width:100%;padding:14px}.grid,.example-grid{grid-template-columns:1fr}.card{min-height:0}.card p{max-width:350px}.section-head{margin-bottom:27px}.gate{padding:21px}.gate .button{margin-left:0;width:100%}.footer{justify-content:center;text-align:center}.footer .brand{width:100%;justify-content:center}}
+    /* « En phase de test » : dit deux fois, en haut et au-dessus du
+       formulaire, parce que ce sont les deux endroits où quelqu'un décide
+       d'essayer. */
+    .phase-essai{display:inline-block;margin:14px 0 0;padding:5px 12px;border:1px solid rgba(199,216,189,.32);border-radius:99px;color:var(--mint);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:650}
     /* ── DEMANDER UN CODE ───────────────────────────────────────────────
        Une colonne, des champs hauts de 48 px et un texte de 16 px : en
        dessous de 16 px, Safari zoome tout seul quand on touche un champ, et
@@ -60,6 +64,7 @@
     <section class="wrap hero" id="accueil">
       <div>
         <div class="eyebrow">L’assistante de KHALAM</div>
+        <p class="phase-essai">BIA est en phase de test : accès sur invitation.</p>
         <h1>Votre voix.<br>Vos mots.<br><em>Plus de possibilités.</em></h1>
         <p class="intro">BIA vous accompagne en wolof et en français. Parlez comme vous êtes, demandez ce dont vous avez besoin : elle vous aide à comprendre, écrire et avancer.</p>
         <div class="actions"><a class="button" href="https://app.khalam.app/">Accéder à BIA avec mon code <span aria-hidden="true">→</span></a><a class="button outline" href="#services">Découvrir BIA</a></div>
@@ -90,9 +95,9 @@
     <section class="examples" id="exemples"><div class="wrap">
       <div class="section-head"><div class="eyebrow">Quelques exemples</div><h2>Vous pouvez commencer comme ça.</h2><p>Pas besoin de chercher les mots parfaits. Dites à BIA ce que vous voulez faire.</p></div>
       <div class="example-grid">
-        <article class="example"><span class="tag">Écrire un message</span><blockquote>« Aide-moi à écrire un message poli pour confirmer le rendez-vous de demain. »</blockquote><small>Vous expliquez l’intention; BIA vous aide à formuler le texte.</small></article>
+        <article class="example"><span class="tag">Écrire un message</span><blockquote>« Aide-moi à écrire un message poli pour confirmer le rendez-vous de demain. »</blockquote><small>Vous expliquez l’intention ; BIA vous aide à formuler le texte.</small></article>
         <article class="example"><span class="tag">Lire un papier</span><blockquote>« Je ne comprends pas cette lettre. Lis-la et explique-moi ce qu’on me demande. »</blockquote><small>Vous photographiez le document et demandez une lecture à voix haute.</small></article>
-        <article class="example"><span class="tag">Préparer un devis</span><blockquote>« Prépare un devis avec ces articles, les quantités et les prix. »</blockquote><small>Vous donnez les informations; BIA les met en forme dans un PDF.</small></article>
+        <article class="example"><span class="tag">Préparer un devis</span><blockquote>« Prépare un devis avec ces articles, les quantités et les prix. »</blockquote><small>Vous donnez les informations ; BIA les met en forme dans un PDF.</small></article>
         <article class="example"><span class="tag">Parler wolof</span><blockquote>« Dama bëgg nga dimbali ma bind message bii ci français. »</blockquote><small>Vous pouvez mélanger wolof et français pour vous faire comprendre.</small></article>
       </div>
     </div></section>
@@ -113,6 +118,7 @@
     <section class="wrap" id="demander">
       <div class="section-head">
         <div class="eyebrow">Demander un code</div>
+        <p class="phase-essai">BIA est en phase de test : accès sur invitation.</p>
         <h2>Votre code vient de KHALAM.</h2>
         <p>Laissez votre numéro : KHALAM vous envoie votre code par WhatsApp. C’est gratuit, il n’y a pas d’abonnement, et c’est une personne qui vous répond — jamais une machine.</p>
       </div>
@@ -133,7 +139,7 @@
         <button class="button" type="submit">Demander mon code</button>
         <p class="demande-etat" id="demande-etat" role="status" aria-live="polite"></p>
       </form>
-      <p class="demande-note">Votre numéro est gardé par KHALAM pour vous envoyer votre code, et pour rien d’autre. Il n’est jamais revendu ni partagé. Vous pouvez demander sa suppression à tout moment.</p>
+      <p class="demande-note">Votre numéro sert à KHALAM pour vous envoyer votre code.</p>
     </section>
 
     <section class="closing"><div class="wrap"><div class="eyebrow" style="justify-content:center">BIA · KHALAM</div><h2>Parlez comme vous êtes.<br>Avancez à votre rythme.</h2><p>BIA vous attend en wolof et en français. L’accès à l’assistante se fait avec un code émis par KHALAM.</p><a class="button" href="https://app.khalam.app/">Accéder à BIA avec mon code <span aria-hidden="true">→</span></a></div></section>
