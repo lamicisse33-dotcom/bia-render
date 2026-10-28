@@ -5384,6 +5384,7 @@ export default function Home() {
         if(erreur){setPanne(erreur);setClavier(true);setMode('error');}
       };
       let boucheMesuree=false;
+      let lectureBiaActive=false;
       const moteur=new BiaGeminiLive(codeRef.current,{
         etat:s=>{
           if(liveMaitreRef.current!==moteur)return;
@@ -5422,7 +5423,14 @@ export default function Home() {
           /* La minuterie aveugle n'est plus la règle : c'est le repli, pour
              le cas où aucune enveloppe ne serait arrivée. Une bouche figée
              serait pire qu'une bouche approximative. */
-          if(actif){if(!boucheSurLeSon(true))bouche(true);return;}
+          if(actif){
+            // La transcription utilisateur peut rester partielle jusqu'à la fin
+            // du tour Gemini. Au premier son de Bia, sortir de cet ancien état.
+            // Ne pas effacer une NOUVELLE reprise sur chaque paquet audio.
+            if(!lectureBiaActive){lectureBiaActive=true;setEntendParler(false);}
+            if(!boucheSurLeSon(true))bouche(true);return;
+          }
+          lectureBiaActive=false;
           boucheSurLeSon(false);bouche(false);
           if(conversationRef.current){setMode('listening');setFace('ecoute');}
         },

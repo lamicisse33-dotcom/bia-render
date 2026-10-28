@@ -41,3 +41,11 @@ export function chargerPosterSatin() {
   void preparation.catch(() => { preparation = undefined; });
   return preparation;
 }
+
+/** Fenêtre où les lèvres parlent réellement dans les prises validées.
+ * Le début de la prise générique est une attente de plusieurs secondes. */
+export function fenetreParoleSatin(clip: SequenceSatin): {debut: number; fin: number} | null {
+  if (clip === 'parole') return {debut: 3.65, fin: 8.35};
+  if (clip === 'joie') return {debut: 2, fin: 8.8};
+  return null;
+}

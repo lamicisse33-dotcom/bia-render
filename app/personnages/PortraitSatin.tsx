@@ -1,6 +1,6 @@
 "use client";
 import {useEffect, useRef, useState} from 'react';
-import {SATIN_BASE, SATIN_POSTER, estSequenceSatin, reactionSatin, sequenceSatin, type SequenceSatin} from '@/lib/animation-satin';
+import {SATIN_BASE, SATIN_POSTER, estSequenceSatin, reactionSatin, sequenceSatin, fenetreParoleSatin, type SequenceSatin} from '@/lib/animation-satin';
 import styles from './personnages.module.css';
 
 /** Les pistes audio des clips sont retirées à la préparation ET le lecteur
@@ -68,8 +68,15 @@ export function PortraitSatin({face, parle, ecoute = false, emotion = 'neutre'}:
     setVisible(false); setPanne(false);
     if (!v || !anime) return;
     v.muted = true;
-    void v.play().catch(() => { if (video.current === v) setVisible(false); });
-    return () => { v.pause(); annulerAttente(); };
+    const lancer = () => {
+      if (video.current !== v) return;
+      const fenetre = etat.current.parle ? fenetreParoleSatin(clip) : null;
+      if (fenetre) v.currentTime = fenetre.debut;
+      void v.play().catch(() => { if (video.current === v) setVisible(false); });
+    };
+    if (v.readyState >= 1) lancer();
+    else v.addEventListener('loadedmetadata', lancer, {once:true});
+    return () => { v.removeEventListener('loadedmetadata', lancer); v.pause(); annulerAttente(); };
   }, [clip, anime]);
 
   function terminer() {
@@ -77,7 +84,7 @@ export function PortraitSatin({face, parle, ecoute = false, emotion = 'neutre'}:
     if (!e.anime) return;
     if (e.parle && !e.ecoute) {
       const v = video.current;
-      if (v) { v.currentTime = 0; void v.play().catch(() => setVisible(false)); }
+      if (v) { v.currentTime = fenetreParoleSatin(clip)?.debut || 0; void v.play().catch(() => setVisible(false)); }
       return;
     }
     reactionEnCours.current = null;
@@ -103,6 +110,11 @@ export function PortraitSatin({face, parle, ecoute = false, emotion = 'neutre'}:
         src={`${SATIN_BASE}/${clip}.mp4`} poster={SATIN_POSTER}
         muted playsInline preload="auto" disablePictureInPicture
         onPlaying={() => setVisible(true)} onEnded={terminer}
+        onTimeUpdate={event => {
+          const v = event.currentTarget, e = etat.current;
+          const fenetre = e.parle && !e.ecoute ? fenetreParoleSatin(clip) : null;
+          if (fenetre && v.currentTime >= fenetre.fin) v.currentTime = fenetre.debut;
+        }}
         onError={() => { setPanne(true); setVisible(false); }}
         style={{opacity: autorise && visible ? 1 : 0}} />
     </div>
