@@ -113,7 +113,7 @@ const fauxMicro=(cas)=>`
   }
   return dest.stream;
  };
- try{localStorage.setItem('bia-code','EPREUVE2026');}catch{}
+ try{localStorage.setItem('bia-code','EPREUVE2026');localStorage.setItem('bia-numero','+221771234567');}catch{}
 `;
 
 function attendreLeServeur(){

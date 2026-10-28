@@ -237,7 +237,7 @@ export class BiaGeminiLive{
  private motifFermeture='';private erreurGoogle='';
  private sessionMesure=Math.random().toString(36).slice(2,10)+Date.now().toString(36);private tourMesure=0;
  private userText='';private biaText='';private history:Array<{role:string;parts:Array<{text:string}>}>=[];private muted=false;
- constructor(private code:string,private events:LiveEvents,private historique?:Array<{role:'user'|'bia';text:string}>,private tours=40,private personne='',private version='',private appareil=''){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');this.tours=Number.isFinite(tours)&&tours>=4&&tours<=80?Math.round(tours):40;}
+ constructor(private code:string,private events:LiveEvents,private historique?:Array<{role:'user'|'bia';text:string}>,private tours=40,private personne='',private version='',private appareil='',private numero=''){this.code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');this.tours=Number.isFinite(tours)&&tours>=4&&tours<=80?Math.round(tours):40;}
  /* ── LE RANGEMENT DES RAPPELS, ET POURQUOI LE JETON ARRIVE DE DEHORS ─────
     Le code pour le maître, un jeton d'appareil pour les autres : sans lui,
     tous les rappels des visiteurs tomberaient dans le même tas et chacun
@@ -248,7 +248,7 @@ export class BiaGeminiLive{
     que ce piège se referme, après lib/micro.ts et lib/conversation-groq.ts.
     Le jeton arrive donc du constructeur — une seule source, lib/appareil.ts,
     lue par la page. */
- private entetes(){return {'x-bia-code':this.code,...(this.personne&&this.personne!=='maitre'?{'x-bia-personne':this.personne}:{}),...(this.appareil?{'x-bia-appareil':this.appareil}:{})};}
+ private entetes(){return {'x-bia-code':this.code,...(this.numero?{'x-bia-numero':this.numero}:{}),...(this.personne&&this.personne!=='maitre'?{'x-bia-personne':this.personne}:{}),...(this.appareil?{'x-bia-appareil':this.appareil}:{})};}
  private send(data:unknown){if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify(data));}
  private viderSon(){for(const n of this.nodes){n.onended=null;try{n.stop();}catch{}}this.nodes.clear();this.next=0;this.finDuSon=performance.now();this.events.parle(false);}
  /* Elle parle, ou elle vient de finir. Les 300 ms de marge couvrent la queue
@@ -337,7 +337,7 @@ export class BiaGeminiLive{
   }catch(e){this.arreter();this.events.erreur(e instanceof Error?e.message:'Connexion impossible.');}
  }
  private async connecter(){
-  const response=await fetch('/api/gemini-live/session',{method:'POST',headers:{'x-bia-code':this.code},signal:AbortSignal.timeout(25000),cache:'no-store'});
+  const response=await fetch('/api/gemini-live/session',{method:'POST',headers:this.entetes(),signal:AbortSignal.timeout(25000),cache:'no-store'});
   const data=await response.json();
   if(!response.ok){
    /* Le fournisseur refuse — quota, panne, surcharge. On bascule au lieu

@@ -605,6 +605,17 @@ export default function Home() {
   const [verificationCode, setVerificationCode] = useState(false);
   const verificationCodeRef = useRef(false);
   const [restaurationAcces,setRestaurationAcces]=useState<'verification'|'indisponible'|'terminee'>('verification');
+  /* ── LE NUMÉRO DE TÉLÉPHONE ────────────────────────────────
+
+     Lamine, le 28 octobre 2026 : pour entrer, un numéro ET un code, les deux
+     obligatoires, et le code se lie au numéro à sa première utilisation.
+
+     `codeLie` porte le cas de ceux qui utilisaient déjà BIA : leur code est
+     mémorisé, leur numéro ne l'est pas. On ne leur redemande pas leur code,
+     seulement leur numéro, une fois. */
+  const [numeroSaisi,setNumeroSaisi]=useState('');
+  const numeroRef=useRef('');
+  const [codeLie,setCodeLie]=useState('');
   const restaurationAccesRef=useRef(0);
   const [moteurs, setMoteurs] = useState<{ voix: string; ecoute: string } | null>(null);
   const [tenue, setTenue] = useState<string>("nouvelle");
@@ -1629,7 +1640,14 @@ export default function Home() {
     if(tentative!==restaurationAccesRef.current)return;
     if(acces.etat==='valide'){
       setEstMaitre(acces.maitre);estMaitreRef.current=acces.maitre;
+      /* Le numéro accompagne désormais le code à chaque appel : sans cette
+         ligne, le téléphone repartirait sans lui après un rechargement. */
+      try{numeroRef.current=localStorage.getItem('bia-numero')||'';}catch{}
       setCode(acces.code);setCodeErreur('');setRestaurationAcces('terminee');
+    }else if(acces.etat==='numero_manquant'){
+      /* Son code est bon et il reste mémorisé : on ne lui redemande que son
+         numéro, et une seule fois. */
+      setCodeLie(acces.code);setCodeErreur('');setRestaurationAcces('terminee');
     }else if(acces.etat==='indisponible'){
       setCodeErreur(acces.message);setRestaurationAcces('indisponible');
     }else{
@@ -3809,7 +3827,7 @@ export default function Home() {
       const response = salutLocal?new Response(JSON.stringify(salutLocal),{headers:{"content-type":"application/json"}}):await fetch("/api/chat", {
         method: "POST",
         signal: requeteChat.signal,
-        headers: { "content-type": "application/json", "x-bia-code": codeRef.current, ...entetesRapidite() },
+        headers: { "content-type": "application/json", "x-bia-code": codeRef.current, ...(numeroRef.current?{"x-bia-numero":numeroRef.current}:{}), ...entetesRapidite() },
         body: (corpsChat = JSON.stringify({
           message: clean,
           anticipationId:anticipee?.id,voixAnticipee:anticipee?.voice,
@@ -5434,7 +5452,10 @@ export default function Home() {
       versionChargee.current,
       /* Le jeton de l'appareil, pour que les rappels d'un visiteur restent
          les siens. Il ne dit pas qui c'est — voir lib/appareil.ts. */
-      jetonAppareil());
+      jetonAppareil(),
+      /* Le numéro lié à ce code : cette route ouvre le moteur, donc elle
+         consomme le quota du fournisseur. */
+      numeroRef.current);
       liveMaitreRef.current=moteur;sessionRapide(true);setPanne('');
       await moteur.demarrer();return;
     }
@@ -8862,15 +8883,22 @@ export default function Home() {
 
   async function entrer() {
     if(verificationCodeRef.current)return;
-    const propre = codeSaisi.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    /* Le code déjà mémorisé gagne : c'est le cas de celui qui utilisait BIA
+       avant le numéro, et à qui on ne redemande que son téléphone. */
+    const propre = (codeLie || codeSaisi).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const numero = numeroSaisi.trim();
     if (!propre) { setCodeErreur("Saisis ton code d’accès."); return; }
+    if (!numero) { setCodeErreur("Saisis ton numéro de téléphone."); return; }
     verificationCodeRef.current=true;setVerificationCode(true);
     setCodeErreur("");
     try{
-      const v=await verifierAcces(propre);
-      try { localStorage.setItem("bia-code", propre); } catch {}
+      const v=await verifierAcces(propre,numero);
+      /* Rangés ENSEMBLE, et seulement quand le serveur a dit oui : un numéro
+         gardé avant la réponse ferait croire à une liaison qui n'existe pas. */
+      try { localStorage.setItem("bia-code", propre); localStorage.setItem("bia-numero", numero); } catch {}
+      numeroRef.current=numero;
       setEstMaitre(v.maitre);estMaitreRef.current=v.maitre;
-      setCode(propre);setCodeSaisi("");
+      setCode(propre);setCodeSaisi("");setCodeLie("");
     }catch(e){
       setCodeErreur(e instanceof Error?e.message:'Connexion indisponible. Réessaie dans un instant.');
     }finally{verificationCodeRef.current=false;setVerificationCode(false);}
@@ -8895,10 +8923,36 @@ export default function Home() {
         <div className="portrait" aria-hidden="true" data-tenue={tenue} data-persona={persona}><div className="avatar" data-face="yeux_ouverts" />{habillageBia.habillage && <PortraitTenue tenue={habillageBia.habillage} face="yeux_ouverts" />}</div>
         <section className="porte">
           <p className="porte-titre">BIA</p>
-          <p className="porte-texte">Entre ton code d’accès pour parler avec BIA.</p>
-          <p className="porte-texte">Duggal sa kod ngir waxtaan ak BIA.</p>
+          {codeLie ? (
+            /* ── CELUI QUI UTILISAIT DÉJÀ BIA ──────────────────────
+               Son code est bon et reste mémorisé. On ne le met pas dehors, on
+               ne lui redemande pas son code : son numéro, une seule fois. */
+            <>
+              <p className="porte-texte">Entre ton numéro de téléphone pour continuer.</p>
+              <p className="porte-texte">On te le demande une seule fois.</p>
+            </>
+          ) : (
+            <>
+              <p className="porte-texte">Entre ton numéro et ton code pour parler avec BIA.</p>
+              <p className="porte-texte">Duggal sa limero ak sa kod ngir waxtaan ak BIA.</p>
+            </>
+          )}
           <div className="saisie">
             <input
+              type="tel"
+              disabled={verificationCode}
+              value={numeroSaisi}
+              onChange={(e) => setNumeroSaisi(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void entrer(); }}
+              placeholder="+221 77 123 45 67"
+              aria-label="Numéro de téléphone"
+              autoComplete="tel"
+              inputMode="tel"
+              enterKeyHint={codeLie ? "go" : "next"}
+            />
+          </div>
+          <div className="saisie">
+            {codeLie ? null : <input
               type="password"
               disabled={verificationCode}
               value={codeSaisi}
@@ -8909,8 +8963,8 @@ export default function Home() {
               autoCapitalize="characters"
               autoComplete="off"
               enterKeyHint="go"
-            />
-            <button type="button" onClick={() => void entrer()} disabled={verificationCode||!codeSaisi.trim()} aria-label="Entrer">
+            />}
+            <button type="button" onClick={() => void entrer()} disabled={verificationCode||!numeroSaisi.trim()||(!codeLie&&!codeSaisi.trim())} aria-label="Entrer">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12 2-12 2Z" /></svg>
             </button>
           </div>

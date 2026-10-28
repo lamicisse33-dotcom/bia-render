@@ -36,6 +36,7 @@ import { repetitionExacteDuMaitre, CONSIGNE_MAITRE, messagesConversation, effort
 import { appelerCerveauLocal, type MessageLocal } from "@/lib/cerveau-local";
 import { NextRequest, NextResponse } from "next/server";
 import { verifierCode } from "@/lib/codes";
+import { verifierNumero } from "@/lib/acces-lien";
 import { budgetGroq, fetchGroqAvecSecours } from "@/lib/reprise-modele";
 import { correctionExacte, exemplesPour, motsCorriges, seSuffitAElleMeme } from "@/lib/lexique";
 import { garderLaReponse, porteUnNomDeLaPersonne, questionReutilisable, reponseGardee } from "@/lib/reponses-gardees";
@@ -553,6 +554,9 @@ export async function POST(request:NextRequest){
   const arrivee=Date.now();
   let body=await request.json().catch(()=>({})) as Corps;
   const code=request.headers.get("x-bia-code");
+  /* Le numéro voyage par un en-tête, jamais par l'adresse : une adresse se
+     retrouve dans l'historique du téléphone et dans les journaux du serveur. */
+  const numero=request.headers.get("x-bia-numero");
   // Even cached greetings require a valid code, before any response or stream.
   const acces=verifierCode(code,false);
   if(!acces.ok)return NextResponse.json({reply:'Entre un code d’accès valide pour parler avec BIA.',source:'code',motif:acces.raison},{status:401});
@@ -569,7 +573,7 @@ export async function POST(request:NextRequest){
     if(anticipee){if(!vocale)garderCeTour(body,code,anticipee);return NextResponse.json(avecTranscription(anticipee));}
   }
   if(!DIFFUSER_LE_MODELE||!body.diffuse){
-    const r=await repondre(body,code,null);
+    const r=await repondre(body,code,null,numero);
     if(!vocale)garderCeTour(body,code,r.corps,r.statut);
     return NextResponse.json(avecTranscription(r.corps),r.statut?{status:r.statut}:undefined);
   }
@@ -590,7 +594,7 @@ export async function POST(request:NextRequest){
         envoyer("chrono",{serveur_ms:Date.now()-arrivee});
       };
       try{
-        const r=await repondre(body,code,(morceau)=>{direLeChrono();envoyer("texte",{morceau});});
+        const r=await repondre(body,code,(morceau)=>{direLeChrono();envoyer("texte",{morceau});},numero);
         direLeChrono();
         if(body.mesureDiagnostic)body.mesureDiagnostic.reponse_prete_ms=Date.now()-debutDiagnostic;
         envoyer("fin",{corps:avecTranscription(r.corps),statut:r.statut||200,...(body.mesureDiagnostic?{chronometrage:body.mesureDiagnostic}:{})});
@@ -796,7 +800,7 @@ function lieuDemandeDans(question: string): string {
    serait arrivée en retard, on sert la phrase du modèle au lieu de
    l'enregistrement gratuit. Ca coûte une fabrication de voix. Une phrase
    contredite coûte la confiance. */
-async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string)=>void)|null):Promise<Rendu>{
+async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string)=>void)|null,numero:string|null=null):Promise<Rendu>{
   const departPreparation=Date.now();
   /* Ce que le téléphone a recu, et ce qu'il en a fait. */
   let envoye="";
@@ -1270,6 +1274,16 @@ async function repondre(body:Corps,code:string|null,emettreBrut:((morceau:string
 
     // Sans ce contrôle, quiconque trouve l'adresse dépense le crédit de Lamine.
     const verdict=verifierCode(code);
+    /* ── ET LE CODE DOIT ÊTRE SUR SON TÉLÉPHONE ──────────────────────
+       Lamine, 28 octobre 2026. Vérifier le numéro à la porte seulement ne
+       protégerait rien : qui connaît l'adresse de cette route peut sauter la
+       porte. C'est ICI que chaque réponse se paie, donc c'est ici qu'on
+       regarde à nouveau. Le code maître n'est jamais lié — Lamine ouvre BIA
+       depuis plusieurs téléphones. */
+    if(verdict.ok){
+      const attache=await verifierNumero(code||'',numero,verdict.maitre);
+      if(!attache.ok)return {corps:{erreur:attache.message},statut:401};
+    }
     if(!verdict.ok){
       const messages={
         absent:"Duggal sa kod ngir waxtaan ak BIA.",

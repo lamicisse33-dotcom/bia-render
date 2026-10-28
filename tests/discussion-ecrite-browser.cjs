@@ -50,6 +50,9 @@ const APPRENTISSAGE='Apprentissage / lecture continue';
   });
   await page.addInitScript(()=>{
    localStorage.setItem('bia-code','SYNTHETICMASTER');
+   /* Le numéro, depuis le 28 octobre 2026 : sans lui, la page demanderait à
+      cet appareil son téléphone avant d'ouvrir BIA. */
+   localStorage.setItem('bia-numero','+221771234567');
    /* ── LE COMPTEUR DE HAUT-PARLEUR ────────────────────────────────────
       Toutes les portes du son, comptées à la source. */
    window.__sons=0;window.__contextes=0;

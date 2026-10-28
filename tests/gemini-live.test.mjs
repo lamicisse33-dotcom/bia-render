@@ -29,6 +29,10 @@ test('session authentication precedes Google and returns only a constrained ephe
   '@/lib/gemini-live-diagnostic':{resumeGeminiLive:()=>({statut:'non_lance'})},
   'next/server':{NextResponse:{json:(d,o)=>Response.json(d,o)}},
   '@/lib/codes':{verifierCode:code=>code==='MASTER'?{ok:true,maitre:true}:code==='VISITOR'?{ok:true,maitre:false}:{ok:false}},
+  /* La liaison code-numéro a ses propres épreuves (acces-numero.test.mjs) :
+     ici on éprouve que la session exige les DEUX avant d'appeler Google. */
+  '@/lib/acces-lien':{verifierNumero:async(_c,numero,maitre)=>numero&&String(numero).trim()
+    ?{ok:true,lie:maitre?'maitre':'deja'}:{ok:false,message:'Saisis ton numéro de téléphone.'}},
   '@/lib/instructions-apprentissage':{contexteInstructions:async()=>'Consignes apprises'},
   '@/lib/gemini-live-prompt':{BIA_LIVE_CONSIGNES_BASE:'Identité de Bia',BIA_LIVE_LANGUES:'FR_WO_UNIQUEMENT'},
   /* La mémoire part désormais DÈS l'ouverture de session (24 octobre 2026) :
@@ -62,8 +66,16 @@ test('session authentication precedes Google and returns only a constrained ephe
  process.env.GEMINI_API_KEY='FAKE-SERVER-KEY';delete process.env.GOOGLE_API_KEY;
  try{
   new Function('module','exports','require',compile('app/api/gemini-live/session/route.ts'))(module,module.exports,n=>dependencies[n]||require(n));
-  const request=code=>({headers:new Headers({'x-bia-code':code,origin:'https://app.khalam.app'}),nextUrl:{origin:'https://app.khalam.app'}});
+  const request=(code,numero='+221771234567')=>({headers:new Headers({'x-bia-code':code,...(numero?{'x-bia-numero':numero}:{}),origin:'https://app.khalam.app'}),nextUrl:{origin:'https://app.khalam.app'}});
   assert.equal((await module.exports.POST(request('INVALID'))).status,401);assert.equal(calls.length,0);
+  /* ── ET LE NUMÉRO, DEPUIS LE 28 OCTOBRE 2026 ────────────────────
+     Cette route OUVRE le moteur rapide : elle consomme le quota du
+     fournisseur. Un bon code sans numéro ne doit pas l'ouvrir, et Google ne
+     doit pas être appelé du tout. */
+  const sansNumero=await module.exports.POST(request('MASTER',''));
+  assert.equal(sansNumero.status,401);
+  assert.equal((await sansNumero.json()).erreur,'Saisis ton numéro de téléphone.');
+  assert.equal(calls.length,0,'Google ne doit pas être appelé sans numéro');
   const foreign=request('MASTER');foreign.headers.set('origin','https://evil.example');
   assert.equal((await module.exports.POST(foreign)).status,403);assert.equal(calls.length,0);
   /* Khalam Rapide est la connexion par défaut de tout le monde depuis le 23

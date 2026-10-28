@@ -29,6 +29,9 @@ let browser;
  });
  const decor=()=>{
   localStorage.setItem('bia-code','SYNTHETICMASTER');
+  /* Le numéro, depuis le 28 octobre 2026 : sans lui, la page demanderait à
+    cet appareil son téléphone avant d'ouvrir BIA. */
+  localStorage.setItem('bia-numero','+221771234567');
   window.__liveConnections=0;
   class FakeSocket{
    static OPEN=1;readyState=1;

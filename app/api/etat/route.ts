@@ -1,4 +1,5 @@
 import {resumeControleRapidite} from '@/lib/rapidite-controle-http';
+import {resumeAccesNumero} from '@/lib/acces-lien';
 import {resumeKhalamRapide} from '@/lib/khalam-rapide-etat';
 import {resumeEligibilite} from '@/lib/eligibilite-etat';
 import {resumeLecturesSupabase} from '@/lib/lectures-supabase';
@@ -322,6 +323,12 @@ export async function GET(request: Request) {
        et il faut pouvoir le lire, sinon personne ne saurait quel cerveau
        répond dans cette fenêtre ni ce qu'il coûte (voir depense.chat_ecrit). */
     fournisseur_modele_ecrit: (process.env.BIA_LLM_PROVIDER_ECRIT || "").toLowerCase().trim() || null,
+    /* ── LA PORTE À DEUX CLÉS, EN CHIFFRES ─────────────────────────
+       Des nombres, jamais un numéro ni un code. `sans_memoire` est celui qu'il
+       faut surveiller : il compte les entrées accordées SANS liaison parce
+       que le rangement ne répondait pas. S'il monte, la liaison ne protège
+       plus rien. */
+    acces_numero: resumeAccesNumero(),
     cerveau_local: resumeCerveauLocal(),
     conversation: etatConversation(),
     anthropic: resumeAnthropic(),

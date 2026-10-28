@@ -54,6 +54,9 @@ const AU_MAITRE_BOUTONS=['Conversation écrite',"Ce qu'on te demande et qu'elle 
   });
   await page.addInitScript(()=>{
    localStorage.setItem('bia-code','SYNTHETICMASTER');
+   /* Le numéro, depuis le 28 octobre 2026 : sans lui, la page demanderait à
+      cet appareil son téléphone avant d'ouvrir BIA. */
+   localStorage.setItem('bia-numero','+221771234567');
   });
   /* ── ON ATTEND LE CONTRÔLE DU CODE, PAS L'AFFICHAGE ───────────────────
      `estMaitre` arrive d'un appel à /api/codes, APRÈS le premier rendu. Lire
@@ -127,6 +130,22 @@ const AU_MAITRE_BOUTONS=['Conversation écrite',"Ce qu'on te demande et qu'elle 
   await page.getByLabel("Code d'accès").waitFor({state:'visible'});
   /* Le champ et son bouton restent : c'est tout ce que la porte doit offrir. */
   assert.equal(await page.getByRole('button',{name:'Entrer'}).count(),1);
+  /* ── ET DEPUIS LE 28 OCTOBRE 2026, LE NUMÉRO AUSSI ────────────────
+     Lamine : « l'utilisateur saisit son NUMÉRO DE TÉLÉPHONE et son CODE
+     UTILISATEUR. Les deux sont obligatoires. » On exige donc les deux champs,
+     et un bouton qui reste mort tant qu'il en manque un. */
+  const champNumero=page.getByLabel('Numéro de téléphone');
+  await champNumero.waitFor({state:'visible'});
+  assert.equal(await page.getByRole('button',{name:'Entrer'}).isDisabled(),true,
+   'sans rien, on ne doit pas pouvoir entrer');
+  await page.getByLabel("Code d'accès").fill('ABCD23EFGH');
+  assert.equal(await page.getByRole('button',{name:'Entrer'}).isDisabled(),true,
+   'un code SANS numéro ne doit pas ouvrir la porte');
+  await champNumero.fill('+221 77 123 45 67');
+  assert.equal(await page.getByRole('button',{name:'Entrer'}).isDisabled(),false,
+   'les deux remplis, le bouton s\'allume');
+  /* Et le numéro n'est JAMAIS dans l'adresse. */
+  assert.ok(!page.url().includes('77'),'le numéro ne doit pas apparaître dans l\'adresse : '+page.url());
   /* Et rien n'y désigne l'espace du maître. */
   assert.equal(await page.locator('a[href="/codes"]').count(),0,'la porte ne doit pas montrer le lien des codes');
   const texte=await page.locator('body').innerText();

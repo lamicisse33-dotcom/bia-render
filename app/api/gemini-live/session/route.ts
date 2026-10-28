@@ -15,6 +15,7 @@ const rechercheLiveActive=()=>String(process.env.BIA_LIVE_RECHERCHE||'').trim()=
 import {NextRequest,NextResponse} from 'next/server';
 import {createHash} from 'node:crypto';
 import {verifierCode} from '@/lib/codes';
+import {verifierNumero} from '@/lib/acces-lien';
 import {motsCorriges} from '@/lib/lexique';
 import {contexteInstructions} from '@/lib/instructions-apprentissage';
 import {BIA_LIVE_CONSIGNES_BASE,BIA_LIVE_LANGUES} from '@/lib/gemini-live-prompt';
@@ -36,6 +37,11 @@ export async function GET(){return NextResponse.json({configure:Boolean(cle()),h
 export async function POST(req:NextRequest){
  const acces=verifierCode(req.headers.get('x-bia-code'),false);
  if(!acces.ok)return NextResponse.json({erreur:'Code d’accès refusé.'},{status:401,headers});
+ /* Le numéro aussi : cette route ouvre le moteur rapide, donc elle consomme
+    le quota du fournisseur. Un code prêté à dix téléphones le viderait dix
+    fois plus vite. */
+ const attache=await verifierNumero(req.headers.get('x-bia-code')||'',req.headers.get('x-bia-numero'),acces.maitre);
+ if(!attache.ok)return NextResponse.json({erreur:attache.message},{status:401,headers});
  // Render can expose an internal nextUrl origin behind its HTTPS reverse proxy.
  const origine=req.headers.get('origin');
  if(origine&&origine!==req.nextUrl.origin&&origine!=='https://app.khalam.app')return NextResponse.json({erreur:'Origine refusée.'},{status:403,headers});

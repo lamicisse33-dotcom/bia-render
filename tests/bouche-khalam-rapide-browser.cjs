@@ -51,6 +51,9 @@ const OUVERTES=['bouche_entr','bouche_a','bouche_A','bouche_o','bouche_ou','bouc
   });
   await page.addInitScript((amp)=>{
    localStorage.setItem('bia-code','SYNTHETICMASTER');
+   /* Le numéro, depuis le 28 octobre 2026 : sans lui, la page demanderait à
+      cet appareil son téléphone avant d'ouvrir BIA. */
+   localStorage.setItem('bia-numero','+221771234567');
    /* Khalam Rapide est le défaut : rien à poser dans le téléphone. */
    /* Une seconde et demie de PCM 24 kHz, 16 bits, petit-boutiste. */
    const RATE=24000,N=Math.round(1.5*RATE),morceaux=[];
