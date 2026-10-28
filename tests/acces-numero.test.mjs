@@ -49,6 +49,8 @@ test('toutes les façons d’écrire un numéro sénégalais donnent le même', 
 test('les numéros internationaux passent, les bouillies non', () => {
   assert.equal(numero.normaliserNumero('+33 6 12 34 56 78'), '+33612345678');
   assert.equal(numero.normaliserNumero('+1 202 555 0147'), '+12025550147');
+  assert.equal(numero.normaliserNumero('+39 320 123 4567'), '+393201234567');
+  assert.equal(numero.normaliserNumero('+221 77 123 45 67'), '+221771234567');
   for (const faux of ['', '   ', 'bonjour', '12', '0612345678', '+0123456789',
                       '+1234567890123456', null, undefined])
     assert.equal(numero.normaliserNumero(faux), null, 'accepté à tort : ' + JSON.stringify(faux));
