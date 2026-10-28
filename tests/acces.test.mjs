@@ -18,9 +18,18 @@ function fixture(){
  const lien={verifierNumero:async(_code,numero,maitre)=>numero&&String(numero).trim()
    ?{ok:true,lie:maitre?'maitre':'deja'}
    :{ok:false,message:'Saisis ton numéro de téléphone.'},
-  noterEssaiRate:()=>{},tropDEssais:()=>false,resumeAccesNumero:()=>({})};
+  noterEssaiRate:()=>{},tropDEssais:()=>false,resumeAccesNumero:()=>({}),
+  /* La liaison à la création : son contenu est éprouvé dans
+     acces-numero.test.mjs. Ici on éprouve que la ROUTE l'exige et refuse
+     de rendre un code quand elle échoue. */
+  creerLien:async(_c,n)=>String(n||'').trim()?{ok:true}:{ok:false,message:'Saisis ton numéro de téléphone.'},
+  delierCode:async()=>true,relierCode:async()=>({ok:true})};
  const numeros={empreinteCode:c=>'empreinte-'+c,empreinteNumero:n=>'empreinte-'+n,
-  normaliserNumero:n=>n||null,
+  normaliserNumero:n=>{const t=String(n||'').trim();if(!t)return null;
+   const c=t.replace(/\D/g,'');if(!c||/[a-z]/i.test(t.replace(/^\+/,'')))return null;
+   if(t.startsWith('+'))return '+'+c;
+   if(c.length===9&&c.startsWith('7'))return '+221'+c;
+   return null;},
   MESSAGES_NUMERO:{absent:'Saisis ton numéro de téléphone.',invalide:'Ce numéro n’est pas valide. Exemple : +221 77 123 45 67.',autre:'Ce code est déjà utilisé avec un autre numéro.',essais:'Trop d’essais. Attends quelques minutes avant de réessayer.'}};
  const deps={'next/server':{NextResponse:Response},'@/lib/codes':codes,'@/lib/nombre-env':nombre,
   '@/lib/acces-lien':lien,'@/lib/acces-numero':numeros};
@@ -50,12 +59,67 @@ test('entry rejects missing, invalid, expired and exhausted codes; access checks
 });
 test('only master can create usable codes; foreign origins are rejected',async()=>{
  const {codes,acces,gestion}=fixture();
- const post=(code,origin='https://app.khalam.app')=>gestion.POST(new Request('https://app.khalam.app/api/codes',{method:'POST',headers:{'content-type':'application/json','x-bia-code':code,origin},body:JSON.stringify({heures:24,nom:'Awa'})}));
+ const post=(code,origin='https://app.khalam.app')=>gestion.POST(new Request('https://app.khalam.app/api/codes',{method:'POST',headers:{'content-type':'application/json','x-bia-code':code,origin},body:JSON.stringify({heures:24,nom:'Awa',numero:'+221771234567'})}));
  assert.equal((await post(codes.creerCode(1))).status,403);
  assert.equal((await post('TEST-MASTER-ONLY','https://foreign.test')).status,403);
  const r=await post('TEST-MASTER-ONLY');assert.equal(r.status,200);const d=await r.json();assert.equal(d.adresse,'app.khalam.app');assert.equal(d.nom,'Awa');
  assert.deepEqual(await (await acces.GET(req(d.code))).json(),{ok:true,maitre:false,lie:'deja'});
 });
+/* ── LE GÉNÉRATEUR EXIGE LE NUMÉRO ────────────────────────────
+
+   Lamine, 28 octobre 2026 au soir. Un code ne doit plus naître anonyme. */
+test('créer un code sans numéro est refusé, et aucun code n’est rendu',async()=>{
+ const {gestion}=fixture();
+ const envoyer=corps=>gestion.POST(new Request('https://app.khalam.app/api/codes',
+  {method:'POST',headers:{'content-type':'application/json','x-bia-code':'TEST-MASTER-ONLY'},body:JSON.stringify(corps)}));
+ for(const [corps,attendu] of [[{heures:24},'Saisis ton numéro de téléphone.'],
+                               [{heures:24,numero:'   '},'Saisis ton numéro de téléphone.'],
+                               [{heures:24,numero:'bonjour'},'Ce numéro n’est pas valide. Exemple : +221 77 123 45 67.']]){
+  const r=await envoyer(corps);
+  assert.equal(r.status,400,JSON.stringify(corps));
+  const d=await r.json();
+  assert.equal(d.erreur,attendu);
+  assert.equal(d.code,undefined,'aucun code ne doit sortir d’une demande refusée');
+ }
+ /* Avec un numéro, le code sort — et la route dit sur quel numéro il marche. */
+ const bon=await envoyer({heures:24,numero:'77 123 45 67'});
+ assert.equal(bon.status,200);
+ const d=await bon.json();
+ assert.equal(d.numero,'+221771234567');
+ assert.equal(typeof d.code,'string');
+ assert.equal(d.code.length,16,'un code neuf fait seize signes : '+d.code);
+});
+
+/* ── LES DEUX LONGUEURS ────────────────────────────────────
+
+   « Les codes déjà distribués gardent leur fonctionnement : personne n'est
+   bloqué. » Un code de dix signes doit donc encore ouvrir la porte, et un
+   code de seize aussi. */
+test('un ancien code de dix signes reste valable, et le neuf en fait seize',async()=>{
+ const {codes}=fixture();
+ const neuf=codes.creerCode(1);
+ assert.equal(neuf.length,16);
+ assert.equal(codes.LONGUEUR_CODE,16);
+ assert.equal(codes.verifierCode(neuf,false).ok,true,'le code neuf doit être accepté');
+ /* L'ancien format : quatre signes d'expiration, deux de hasard, quatre de
+    signature. On le REFABRIQUE ici, à la main, avec le même secret que la
+    fixture — c'est la seule façon de prouver qu'un code distribué avant ce
+    soir ouvre encore la porte. */
+ const ALPHABET='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+ const ORIGINE=Date.UTC(2026,0,1)/60000;
+ const encode=(v,n)=>{let o='';for(let i=0;i<n;i++){o=ALPHABET[v%32]+o;v=Math.floor(v/32);}return o;};
+ const sig=(corps,n)=>[...crypto.createHmac('sha256','test-signing-key').update(corps).digest().subarray(0,n)].map(o=>ALPHABET[o%32]).join('');
+ const corps=encode(Math.floor(Date.now()/60000)-ORIGINE+60,4)+'AB';
+ const ancien=corps+sig(corps,4);
+ assert.equal(ancien.length,10);
+ assert.equal(codes.verifierCode(ancien,false).ok,true,'un code de dix signes doit encore marcher : '+ancien);
+ /* Et un ancien code dont la signature est fausse reste refusé. */
+ assert.equal(codes.verifierCode(corps+'2222',false).ok,false);
+ /* Et une longueur inconnue est refusée, quoi qu'il arrive. */
+ for(const faux of [neuf.slice(0,12),neuf+'AB','ABC'])
+  assert.equal(codes.verifierCode(faux,false).ok,false,'accepté à tort : '+faux);
+});
+
 test('client requires positive server validation before accepting access',async()=>{
  for(const response of [Response.json({ok:false,erreur:'Code refusé'},{status:401}),Response.json({maitre:true}),Response.json({ok:true},{status:500})]){
   const api=load('lib/acces-client.ts',{}, {fetch:async()=>response});await assert.rejects(api.verifierAcces('test'));

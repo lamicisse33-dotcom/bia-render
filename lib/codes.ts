@@ -29,18 +29,46 @@ function decode(texte: string) {
   return [...texte].reduce((acc, c) => acc * 32 + ALPHABET.indexOf(c), 0);
 }
 
-function signature(corps: string) {
+function signature(corps: string, longueur = 4) {
   const octets = createHmac("sha256", secret()).update(corps).digest();
-  return [...octets.subarray(0, 4)].map((o) => ALPHABET[o % 32]).join("");
+  return [...octets.subarray(0, longueur)].map((o) => ALPHABET[o % 32]).join("");
 }
 
-/** Fabrique un code valable `heures` heures. */
+/* ── DEUX LONGUEURS, ET POURQUOI ─────────────────────────────────
+
+   Lamine, 28 octobre 2026 : « dis-moi la longueur des codes. Ils doivent être
+   longs et aléatoires, pas devinables. »
+
+   L'ANCIEN FORMAT FAISAIT DIX SIGNES, et il était plus court qu'il n'en avait
+   l'air : quatre pour l'expiration, deux de hasard, quatre de signature.
+   Celui qui devine n'a pas le secret, donc il doit tomber juste sur la
+   SIGNATURE : quatre signes sur trente-deux, soit un peu plus d'un million de
+   possibilités. C'est beaucoup pour une main, peu pour une machine — surtout
+   que le frein de la porte vit en mémoire et repart à zéro à chaque
+   redémarrage de Render.
+
+   LE NOUVEAU FAIT SEIZE SIGNES : quatre d'expiration, quatre de hasard, HUIT
+   de signature. L'espace à deviner passe de 32⁴ ≈ 10⁶ à 32⁸ ≈ 1,1 × 10¹² —
+   un million de fois plus. À mille essais par seconde sans aucun frein, il
+   faudrait encore dix-sept ans.
+
+   LES DEUX SONT ACCEPTÉS À L'ENTRÉE. Les codes déjà distribués continuent de
+   marcher — personne n'est mis dehors — et seuls les nouveaux sont longs.
+   L'alphabet, lui, ne change pas : ni O/0 ni I/1, parce qu'un code se dicte
+   au téléphone. */
+const ANCIEN = { corps: 6, signature: 4 };
+const NOUVEAU = { corps: 8, signature: 8 };
+
+/** Fabrique un code valable `heures` heures. Seize signes, format du 28 octobre 2026. */
 export function creerCode(heures: number) {
   const expiration = Math.floor(Date.now() / 60000) - ORIGINE + Math.round(heures * 60);
-  const nonce = [...randomBytes(2)].map((o) => ALPHABET[o % 32]).join("");
+  const nonce = [...randomBytes(4)].map((o) => ALPHABET[o % 32]).join("");
   const corps = encode(expiration, 4) + nonce;
-  return corps + signature(corps);
+  return corps + signature(corps, NOUVEAU.signature);
 }
+
+/** La longueur d'un code neuf, pour l'écrire à l'écran sans la deviner. */
+export const LONGUEUR_CODE = NOUVEAU.corps + NOUVEAU.signature;
 
 export type Verdict = { ok: true; maitre: boolean } | { ok: false; raison: "absent" | "invalide" | "expire" | "epuise" };
 
@@ -56,10 +84,11 @@ export function verifierCode(brut: string | null, compter=true): Verdict {
   const maitre = (process.env.BIA_CODE_MAITRE || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (maitre && code === maitre) return { ok: true, maitre: true };
 
-  if (!secret() || code.length !== 10) return { ok: false, raison: "invalide" };
-  const corps = code.slice(0, 6);
+  const forme = code.length === LONGUEUR_CODE ? NOUVEAU : code.length === 10 ? ANCIEN : null;
+  if (!secret() || !forme) return { ok: false, raison: "invalide" };
+  const corps = code.slice(0, forme.corps);
   if ([...corps].some((c) => !ALPHABET.includes(c))) return { ok: false, raison: "invalide" };
-  if (signature(corps) !== code.slice(6)) return { ok: false, raison: "invalide" };
+  if (signature(corps, forme.signature) !== code.slice(forme.corps)) return { ok: false, raison: "invalide" };
 
   const expiration = decode(corps.slice(0, 4)) + ORIGINE;
   if (Math.floor(Date.now() / 60000) > expiration) return { ok: false, raison: "expire" };

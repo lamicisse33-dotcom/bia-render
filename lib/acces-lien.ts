@@ -1,100 +1,108 @@
 import { lexiqueConfig } from "./lexique";
 import { empreinteCode, empreinteNumero, normaliserNumero, MESSAGES_NUMERO } from "./acces-numero";
 
-/* ── LE CODE SE LIE À UN TÉLÉPHONE, ET À UN SEUL ───────────────────────────
+/* ── LE CODE EST LIÉ À UN TÉLÉPHONE, ET À UN SEUL ──────────────────────────
 
-   Lamine, le 28 octobre 2026 : « le code est lié au numéro à la première
-   utilisation : ensuite il ne marche que sur ce numéro ».
+   Lamine, le 28 octobre 2026, deux fois dans la même journée.
 
-   CE QUI EST RANGÉ, EXACTEMENT, ET OÙ. Un objet par code, dans un seau
-   Supabase PRIVÉ (`bia-acces`), qui n'est atteignable qu'avec la clé de
-   service — jamais depuis un téléphone, jamais depuis la page. L'objet
-   s'appelle de l'empreinte du code, et contient l'empreinte du numéro :
+   LE MATIN : « le code est lié au numéro à la première utilisation ». Rangé
+   alors en EMPREINTES dans un seau privé — on ne savait répondre qu'à une
+   question, « est-ce le même téléphone qu'hier ? », et personne, nous compris,
+   ne pouvait retrouver un numéro.
 
-       bia-acces/8f3c…b1.json   { "numero": "2a7e…90", "depuis": "2026-10-28T…" }
+   LE SOIR : « le générateur de codes doit exiger le numéro […] garde le
+   numéro EN CLAIR dans une table privée, pour que je le lise dans Supabase.
+   Le code lui-même reste en empreinte. »
 
-   NI LE NUMÉRO NI LE CODE N'Y SONT EN CLAIR. Les deux sont signés avec le
-   secret du serveur. On peut donc répondre « même téléphone qu'hier ? » et
-   rien d'autre : ce rangement, volé, ne rend aucun numéro — et nous non plus
-   ne pourrons jamais en tirer la liste des numéros de ses utilisateurs.
+   C'EST UN RENONCEMENT, ET IL FAUT LE DIRE : à partir d'ici, la liste des
+   numéros de ses utilisateurs EXISTE et se lit. C'est sa décision, et elle a
+   une raison — il fabrique les codes à la main, un par personne, et il doit
+   savoir à qui il a donné quoi. Ce qui protège n'est donc plus le
+   chiffrement, c'est la porte : RLS activé, AUCUNE règle, donc seule la clé
+   de service ouvre la table. Ni la page, ni un téléphone, ni la clé publique.
 
-   QUAND LE RANGEMENT NE RÉPOND PAS, ON N'ENFERME PERSONNE DEHORS. Supabase
-   peut tomber, ou n'être pas configuré. Refuser tout le monde à ce
-   moment-là serait une panne bien pire que le partage d'un code : on laisse
-   donc entrer, sans lier, et `/api/etat` le dit (`acces_numero.sans_memoire`).
+   LE CODE, LUI, RESTE UNE EMPREINTE. Voler la table ne donne les codes de
+   personne.
 
-   LE COMPTEUR D'ESSAIS vit en mémoire, et repart à zéro quand Render
-   redémarre. C'est une limite réelle et elle est écrite ici : il freine celui
-   qui devine des codes à la main, il n'arrêterait pas une machine patiente
-   qui attendrait un redémarrage. */
+   L'ANCIEN SEAU EST ENCORE LU, jamais écrit : les liaisons posées le matin y
+   dorment, et leurs propriétaires ne doivent pas être mis dehors. Elles
+   s'éteindront d'elles-mêmes avec leurs codes.
 
+   QUAND LE RANGEMENT NE RÉPOND PAS, ON N'ENFERME PERSONNE DEHORS. Refuser
+   tout le monde pendant une panne de Supabase serait pire que le partage d'un
+   code : on laisse entrer, sans lier, et `/api/etat` le dit
+   (`acces_numero.sans_memoire`). */
+
+const TABLE = process.env.SUPABASE_TABLE_CODES || "khalam_codes";
 const SEAU = process.env.SUPABASE_BUCKET_ACCES || "bia-acces";
-const entetes = () => ({ apikey: lexiqueConfig.cle, Authorization: "Bearer " + lexiqueConfig.cle });
-const adresse = (nom: string) => lexiqueConfig.url + "/storage/v1/object/" + SEAU + "/" + nom;
 
-/* Le seau est créé à la première utilisation, comme celui de la mémoire
-   audio : une case à cocher de plus dans Supabase, c'est une soirée perdue le
-   jour où on l'oublie. Un seau déjà là rend 400 ou 409 : ce n'est pas une
-   erreur. */
-let seauPret = false;
-async function assurerLeSeau() {
-  if (seauPret) return;
-  const r = await fetch(lexiqueConfig.url + "/storage/v1/bucket/" + SEAU,
-    { headers: entetes(), cache: "no-store", signal: AbortSignal.timeout(8000) });
-  if (r.ok) {
-    if ((await r.json()).public !== false) throw Error("Le rangement des accès doit être privé.");
-    seauPret = true; return;
-  }
-  if (![400, 404].includes(r.status)) throw Error("Rangement des accès indisponible.");
-  const cree = await fetch(lexiqueConfig.url + "/storage/v1/bucket", {
-    method: "POST", headers: { ...entetes(), "content-type": "application/json" },
-    body: JSON.stringify({ id: SEAU, name: SEAU, public: false }), signal: AbortSignal.timeout(8000),
-  });
-  if (!cree.ok && cree.status !== 409) throw Error("Création du rangement des accès impossible.");
-  seauPret = true;
-}
+const entetes = () => ({
+  apikey: lexiqueConfig.cle,
+  Authorization: "Bearer " + lexiqueConfig.cle,
+  "content-type": "application/json",
+});
+
+export type Lien = {
+  code_empreinte: string;
+  numero: string | null;
+  numero_empreinte: string | null;
+  prenom: string | null;
+  origine: string | null;
+  cree_le?: string;
+};
 
 /* Un lien lu reste en mémoire quelques minutes : une conversation appelle le
    cerveau à chaque tour, et chaque tour n'a pas à repasser par le réseau pour
-   relire la même ligne. Seuls les liens TROUVÉS sont gardés — mettre en
-   cache une absence ferait rater la liaison qu'un autre onglet vient de
-   poser. */
-type Lien = { numero: string; depuis: string };
+   relire la même ligne. Seuls les liens TROUVÉS sont gardés — mettre en cache
+   une absence ferait rater la liaison qu'un autre téléphone vient de poser. */
 const enMemoire = new Map<string, { lien: Lien; jusqua: number }>();
 const CACHE_MS = 5 * 60 * 1000;
+export function oublierLien(cle: string) { enMemoire.delete(cle); }
+
+async function lireDansLaTable(cle: string): Promise<Lien | null> {
+  const r = await fetch(lexiqueConfig.url + "/rest/v1/" + TABLE
+    + "?select=code_empreinte,numero,numero_empreinte,prenom,origine,cree_le&code_empreinte=eq." + encodeURIComponent(cle),
+    { headers: entetes(), cache: "no-store", signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw Error("Lecture des accès indisponible.");
+  const lignes = await r.json();
+  return Array.isArray(lignes) && lignes.length ? lignes[0] as Lien : null;
+}
+
+/* L'ancien seau, en lecture seule. On n'y écrit plus rien. */
+async function lireDansLeSeau(cle: string): Promise<Lien | null> {
+  const r = await fetch(lexiqueConfig.url + "/storage/v1/object/" + SEAU + "/" + cle + ".json",
+    { headers: entetes(), cache: "no-store", signal: AbortSignal.timeout(8000) });
+  if (!r.ok) return null;
+  const vieux = await r.json() as { numero?: string };
+  if (!vieux || typeof vieux.numero !== "string" || !vieux.numero) return null;
+  return { code_empreinte: cle, numero: null, numero_empreinte: vieux.numero, prenom: null, origine: "seau" };
+}
 
 async function lireLien(cle: string): Promise<Lien | null> {
   const garde = enMemoire.get(cle);
   if (garde && garde.jusqua > Date.now()) return garde.lien;
-  await assurerLeSeau();
-  const r = await fetch(adresse(cle + ".json"),
-    { headers: entetes(), cache: "no-store", signal: AbortSignal.timeout(8000) });
-  if (r.status === 400 || r.status === 404) return null;
-  if (!r.ok) throw Error("Lecture des accès indisponible.");
-  const lien = await r.json() as Lien;
-  if (!lien || typeof lien.numero !== "string" || !lien.numero) return null;
-  enMemoire.set(cle, { lien, jusqua: Date.now() + CACHE_MS });
+  let lien = await lireDansLaTable(cle);
+  if (!lien) lien = await lireDansLeSeau(cle).catch(() => null);
+  if (lien) enMemoire.set(cle, { lien, jusqua: Date.now() + CACHE_MS });
   return lien;
 }
 
-async function poserLien(cle: string, numero: string): Promise<Lien> {
-  await assurerLeSeau();
-  const lien: Lien = { numero, depuis: new Date().toISOString() };
-  const r = await fetch(adresse(cle + ".json"), {
-    method: "POST",
-    headers: { ...entetes(), "content-type": "application/json", "x-upsert": "false" },
-    body: JSON.stringify(lien), signal: AbortSignal.timeout(8000),
+/**
+ * Pose une liaison. `x-upsert`-less : une insertion qui arrive deuxième
+ * échoue en 409, et c'est ce qui rend la course entre deux téléphones
+ * inoffensive — sans ça, le dernier arrivé écraserait la liaison du premier.
+ */
+async function poserLien(ligne: Omit<Lien, "cree_le">): Promise<Lien> {
+  const r = await fetch(lexiqueConfig.url + "/rest/v1/" + TABLE, {
+    method: "POST", headers: { ...entetes(), Prefer: "return=minimal" },
+    body: JSON.stringify(ligne), signal: AbortSignal.timeout(8000),
   });
-  /* 409 : deux téléphones ont tenté le même code à la même seconde. Le
-     premier a gagné ; on relit pour savoir lequel, et le second sera refusé
-     comme il doit l'être. `x-upsert: false` est ce qui rend la course
-     inoffensive — sans lui, le dernier arrivé écraserait la liaison. */
   if (r.status === 409) {
-    const deja = await lireLien(cle);
-    if (deja) return deja;
+    const deja = await lireDansLaTable(ligne.code_empreinte);
+    if (deja) { enMemoire.set(ligne.code_empreinte, { lien: deja, jusqua: Date.now() + CACHE_MS }); return deja; }
   } else if (!r.ok) throw Error("Enregistrement de l’accès refusé (" + r.status + ").");
-  enMemoire.set(cle, { lien, jusqua: Date.now() + CACHE_MS });
-  return lien;
+  enMemoire.set(ligne.code_empreinte, { lien: ligne as Lien, jusqua: Date.now() + CACHE_MS });
+  return ligne as Lien;
 }
 
 /* ── LE FREIN CONTRE CELUI QUI DEVINE ──────────────────────────────────── */
@@ -107,27 +115,33 @@ export function noterEssaiRate(cle: string) {
   const vus = (ratés.get(cle) || []).filter((t) => maintenant - t < FENETRE_MS);
   vus.push(maintenant);
   ratés.set(cle, vus);
-  /* On ne laisse pas la carte grandir sans fin : un serveur qui tourne des
-     semaines finirait par garder une ligne par code jamais revu. */
   if (ratés.size > 5000) for (const [k, v] of ratés) if (!v.some((t) => maintenant - t < FENETRE_MS)) ratés.delete(k);
 }
 
 export function tropDEssais(cle: string): boolean {
   const maintenant = Date.now();
-  const vus = (ratés.get(cle) || []).filter((t) => maintenant - t < FENETRE_MS);
-  return vus.length >= MAX_RATES;
+  return (ratés.get(cle) || []).filter((t) => maintenant - t < FENETRE_MS).length >= MAX_RATES;
 }
 
-/* Ce que /api/etat montre : des nombres, jamais un numéro ni un code. */
-const compte = { lies: 0, nouveaux: 0, refuses_autre_numero: 0, refuses_essais: 0, sans_memoire: 0 };
+const compte = { lies: 0, nouveaux: 0, refuses_autre_numero: 0, refuses_essais: 0, sans_memoire: 0, crees: 0, delies: 0 };
 export function resumeAccesNumero() { return { ...compte, memoire_vive: enMemoire.size }; }
 
 export type VerdictNumero =
   | { ok: true; lie: "nouveau" | "deja" | "sans_memoire" | "maitre" }
   | { ok: false; message: string };
 
+/** Le numéro correspond-il à la liaison de ce code ? */
+function correspond(lien: Lien, numero: string): boolean {
+  if (lien.numero) return normaliserNumero(lien.numero) === numero;
+  if (lien.numero_empreinte) return lien.numero_empreinte === empreinteNumero(numero);
+  return false;
+}
+
 /**
- * Le numéro est-il celui de ce code ? Lie à la première utilisation.
+ * Le numéro est-il celui de ce code ? Lie à la première utilisation quand le
+ * code n'a pas été créé pour un numéro précis — c'est le cas de tous les codes
+ * distribués avant le 28 octobre 2026, et ils doivent continuer de marcher.
+ *
  * `maitre` entre sans être lié : Lamine ouvre BIA depuis plusieurs téléphones,
  * et lier son code à l'un d'eux l'enfermerait dehors sur les autres.
  */
@@ -138,22 +152,62 @@ export async function verifierNumero(code: string, numeroBrut: string | null, ma
   if (maitre) return { ok: true, lie: "maitre" };
 
   const cle = empreinteCode(code);
-  const empreinte = empreinteNumero(numero);
-  if (!cle || !empreinte || !lexiqueConfig.actif) { compte.sans_memoire += 1; return { ok: true, lie: "sans_memoire" }; }
-
-  if (tropDEssais(cle) || tropDEssais(empreinte)) { compte.refuses_essais += 1; return { ok: false, message: MESSAGES_NUMERO.essais }; }
+  if (!cle || !lexiqueConfig.actif) { compte.sans_memoire += 1; return { ok: true, lie: "sans_memoire" }; }
+  if (tropDEssais(cle)) { compte.refuses_essais += 1; return { ok: false, message: MESSAGES_NUMERO.essais }; }
 
   let lien: Lien | null;
   try { lien = await lireLien(cle); }
   catch { compte.sans_memoire += 1; return { ok: true, lie: "sans_memoire" }; }
 
   if (!lien) {
-    try { lien = await poserLien(cle, empreinte); }
+    try { lien = await poserLien({ code_empreinte: cle, numero, numero_empreinte: null, prenom: null, origine: "premiere_utilisation" }); }
     catch { compte.sans_memoire += 1; return { ok: true, lie: "sans_memoire" }; }
-    if (lien.numero === empreinte) { compte.nouveaux += 1; return { ok: true, lie: "nouveau" }; }
+    if (correspond(lien, numero)) { compte.nouveaux += 1; return { ok: true, lie: "nouveau" }; }
   }
-  if (lien.numero === empreinte) { compte.lies += 1; return { ok: true, lie: "deja" }; }
-  noterEssaiRate(cle); noterEssaiRate(empreinte);
+  if (correspond(lien, numero)) { compte.lies += 1; return { ok: true, lie: "deja" }; }
+  noterEssaiRate(cle);
   compte.refuses_autre_numero += 1;
   return { ok: false, message: MESSAGES_NUMERO.autre };
+}
+
+/* ── LIER UN CODE DÈS SA CRÉATION ──────────────────────────────────────────
+   Lamine, 28 octobre 2026 : « il doit demander le numéro et lier le code à CE
+   numéro dès la création. Ce code ne marche ensuite que pour ce numéro. » */
+export async function creerLien(code: string, numeroBrut: string, prenom?: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  const numero = normaliserNumero(numeroBrut);
+  if (!numeroBrut || !String(numeroBrut).trim()) return { ok: false, message: MESSAGES_NUMERO.absent };
+  if (!numero) return { ok: false, message: MESSAGES_NUMERO.invalide };
+  if (!lexiqueConfig.actif) return { ok: false, message: "Le rangement des accès n’est pas joignable." };
+  const cle = empreinteCode(code);
+  if (!cle) return { ok: false, message: "Le serveur n’a pas de secret configuré." };
+  try {
+    await poserLien({
+      code_empreinte: cle, numero, numero_empreinte: null,
+      prenom: (prenom || "").trim().slice(0, 40) || null, origine: "genere",
+    });
+    compte.crees += 1;
+    return { ok: true };
+  } catch { return { ok: false, message: "Le code n’a pas pu être lié à ce numéro." }; }
+}
+
+/* ── DÉLIER, POUR UN CHANGEMENT DE TÉLÉPHONE ───────────────────────────────
+   Lamine : « un moyen de délier ou de régénérer un code (changement de
+   téléphone) ». Délier est le geste le plus doux : le code reste valable et
+   se reliera au prochain téléphone qui l'emploie. */
+export async function delierCode(code: string): Promise<boolean> {
+  if (!lexiqueConfig.actif) return false;
+  const cle = empreinteCode(code);
+  if (!cle) return false;
+  const r = await fetch(lexiqueConfig.url + "/rest/v1/" + TABLE + "?code_empreinte=eq." + encodeURIComponent(cle),
+    { method: "DELETE", headers: { ...entetes(), Prefer: "return=minimal" }, signal: AbortSignal.timeout(8000) });
+  if (r.ok) { oublierLien(cle); compte.delies += 1; }
+  return r.ok;
+}
+
+/** Déplacer un code vers un autre numéro, sans le refabriquer. */
+export async function relierCode(code: string, numeroBrut: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  const numero = normaliserNumero(numeroBrut);
+  if (!numero) return { ok: false, message: MESSAGES_NUMERO.invalide };
+  if (!(await delierCode(code))) return { ok: false, message: "L’ancienne liaison n’a pas pu être retirée." };
+  return creerLien(code, numero);
 }

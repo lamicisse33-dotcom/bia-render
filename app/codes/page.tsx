@@ -5,9 +5,9 @@ import './style.css';
 
 export default function Codes(){
  const [saisie,setSaisie]=useState(''),[maitre,setMaitre]=useState('');
- const [nom,setNom]=useState(''),[heures,setHeures]=useState('24');
+ const [nom,setNom]=useState(''),[heures,setHeures]=useState('24'),[numero,setNumero]=useState('');
  const [occupe,setOccupe]=useState(false),[erreur,setErreur]=useState('');
- const [resultat,setResultat]=useState<{code:string;expire:string;quota:number;nom:string}|null>(null);
+ const [resultat,setResultat]=useState<{code:string;expire:string;quota:number;nom:string;numero:string}|null>(null);
  const [copie,setCopie]=useState(false);
  async function ouvrir(e:React.FormEvent){
   e.preventDefault();if(occupe)return;setOccupe(true);setErreur('');
@@ -18,7 +18,7 @@ export default function Codes(){
  async function generer(e:React.FormEvent){
   e.preventDefault();if(occupe)return;setOccupe(true);setErreur('');setResultat(null);setCopie(false);
   try{
-   const r=await fetch('/api/codes',{method:'POST',headers:{'content-type':'application/json','x-bia-code':maitre},body:JSON.stringify({nom,heures:Number(heures),nombre:1}),signal:AbortSignal.timeout(8000)});
+   const r=await fetch('/api/codes',{method:'POST',headers:{'content-type':'application/json','x-bia-code':maitre},body:JSON.stringify({nom,numero,heures:Number(heures),nombre:1}),signal:AbortSignal.timeout(8000)});
    const d=await r.json();if(!r.ok){if(r.status===403)setMaitre('');throw Error(d.erreur||'Création impossible.');}setResultat(d);
   }catch(e){setErreur(e instanceof Error&&e.name==='Error'?e.message:'Connexion indisponible. Réessaie.');}
   finally{setOccupe(false);}
@@ -32,16 +32,25 @@ export default function Codes(){
    <button disabled={occupe||!saisie.trim()}>{occupe?'Vérification…':'Ouvrir l’espace maître'}</button>
   </form>:<>
    <form onSubmit={generer}>
+    {/* ── LE NUMÉRO D'ABORD, ET IL EST OBLIGATOIRE ──────────────────
+        Lamine, 28 octobre 2026 : le code naît déjà attribué à un téléphone.
+        Avant, il se liait au premier qui l'employait — celui qui
+        l'interceptait sur WhatsApp pouvait le prendre avant son
+        destinataire. */}
+    <label htmlFor="numero-code">Numéro de téléphone de l’utilisateur</label>
+    <input id="numero-code" type="tel" inputMode="tel" autoComplete="off" placeholder="+221 77 123 45 67"
+     value={numero} onChange={e=>setNumero(e.target.value)} required/>
     <label htmlFor="nom-code">Prénom de l’utilisateur (facultatif)</label>
     <input id="nom-code" value={nom} onChange={e=>setNom(e.target.value)} maxLength={16}/>
     <label htmlFor="duree-code">Durée de validité</label>
     <select id="duree-code" value={heures} onChange={e=>setHeures(e.target.value)}>
      <option value="2">2 heures</option><option value="24">24 heures</option><option value="168">7 jours</option><option value="720">30 jours</option>
     </select>
-    <button disabled={occupe}>{occupe?'Création…':'Créer un code utilisateur'}</button>
+    <button disabled={occupe||!numero.trim()}>{occupe?'Création…':'Créer un code utilisateur'}</button>
    </form>
    {resultat&&<section aria-label="Code créé" role="status">
     <h2>Code créé{resultat.nom?' pour '+resultat.nom:''}</h2><output>{resultat.code}</output>
+    <p><b>Il ne s’affichera qu’une fois.</b> Il ne marche que sur le numéro {resultat.numero}.</p>
     <p>Valable jusqu’au {new Date(resultat.expire).toLocaleString('fr-FR',{timeZone:'Africa/Dakar'})} (Dakar). Limite : {resultat.quota} questions.</p>
     <p>À saisir sur <a href="/">app.khalam.app</a>.</p>
     <button onClick={async()=>{try{await navigator.clipboard.writeText(resultat.code);setCopie(true);}catch{setErreur('Sélectionne le code pour le copier.');}}}>{copie?'Code copié':'Copier le code'}</button>

@@ -74,30 +74,47 @@ test('l’empreinte est stable, signée, et ne contient pas le numéro', () => {
   process.env.BIA_SECRET = avant;
 });
 
-/* ── LE RANGEMENT, REMPLACÉ PAR UN SEAU EN MÉMOIRE ────────────────────── */
-function montrerLeRangement({ actif = true } = {}) {
-  const objets = new Map();
-  const appels = { lectures: 0, ecritures: 0, adresses: [] };
+/* ── LE RANGEMENT, REMPLACÉ PAR UNE TABLE EN MÉMOIRE ──────────────────────
+
+   Depuis le soir du 28 octobre 2026, la liaison vit dans une table Supabase
+   (`khalam_codes`) avec le numéro EN CLAIR, et non plus en empreintes dans un
+   seau. On remplace donc PostgREST par une mémoire qui répond comme lui :
+   200 avec un tableau sur un SELECT, 201 sur une insertion, 409 sur un
+   doublon, 204 sur une suppression.
+
+   L'ancien seau est encore lu, jamais écrit : `seau` ci-dessous permet d'y
+   poser une vieille liaison et de vérifier que son propriétaire entre
+   toujours. */
+function montrerLeRangement({ actif = true, seau = null } = {}) {
+  const lignes = new Map();
+  const appels = { lectures: 0, ecritures: 0, seau: 0 };
   globalThis.fetch = async (url, options = {}) => {
     const adresse = String(url);
-    appels.adresses.push(adresse);
-    const json = (corps, status = 200) => new Response(JSON.stringify(corps), { status });
-    if (adresse.includes('/storage/v1/bucket')) return json({ public: false });
-    const nom = adresse.split('/').pop();
-    if (!options.method || options.method === 'GET') {
-      appels.lectures += 1;
-      return objets.has(nom) ? json(objets.get(nom)) : new Response('', { status: 404 });
+    const methode = options.method || 'GET';
+    if (adresse.includes('/storage/v1/')) {
+      appels.seau += 1;
+      const nom = adresse.split('/').pop().replace('.json', '');
+      return seau && seau.cle === nom
+        ? Response.json({ numero: seau.empreinte })
+        : new Response(null, { status: 404 });
     }
-    appels.ecritures += 1;
-    if (objets.has(nom) && options.headers?.['x-upsert'] === 'false') return new Response('', { status: 409 });
-    objets.set(nom, JSON.parse(String(options.body)));
-    return json({ ok: true });
+    const corps = options.body ? JSON.parse(String(options.body)) : null;
+    const cle = decodeURIComponent((adresse.split('code_empreinte=eq.')[1] || '').split('&')[0]);
+    if (methode === 'GET') { appels.lectures += 1; const l = lignes.get(cle); return Response.json(l ? [l] : []); }
+    if (methode === 'POST') {
+      appels.ecritures += 1;
+      if (lignes.has(corps.code_empreinte)) return new Response(null, { status: 409 });
+      lignes.set(corps.code_empreinte, { ...corps, cree_le: new Date().toISOString() });
+      return new Response(null, { status: 201 });
+    }
+    if (methode === 'DELETE') { lignes.delete(cle); return new Response(null, { status: 204 }); }
+    return new Response(null, { status: 400 });
   };
   const lien = charger('lib/acces-lien.ts', {
     './lexique': { lexiqueConfig: { url: 'https://rangement.epreuve', cle: 'cle-de-service', actif } },
     './acces-numero': numero,
   });
-  return { lien, objets, appels };
+  return { lien, lignes, appels };
 }
 
 const CODE = 'ABCD23EFGH';
@@ -108,15 +125,19 @@ const ELLE = '77 765 43 21';
 /* ── LES CINQ SCÈNES DEMANDÉES ────────────────────────────────────────── */
 
 test('bon code + bon numéro : il entre, et le code se lie à ce téléphone', async () => {
-  const { lien, objets } = montrerLeRangement();
+  const { lien, lignes } = montrerLeRangement();
   const premier = await lien.verifierNumero(CODE, LUI, false);
   assert.deepEqual(premier, { ok: true, lie: 'nouveau' });
-  assert.equal(objets.size, 1, 'une liaison, et une seule, doit être rangée');
+  assert.equal(lignes.size, 1, 'une liaison, et une seule, doit être rangée');
   /* Et ce qui est rangé ne contient NI le code NI le numéro en clair. */
-  const [nom, contenu] = [...objets.entries()][0];
-  assert.match(nom, /^[0-9a-f]{32}\.json$/);
-  assert.ok(!nom.includes(CODE) && !JSON.stringify(contenu).includes('771234567'),
-    'ni le code ni le numéro ne doivent être lisibles : ' + nom + ' ' + JSON.stringify(contenu));
+  const [cle, ligne] = [...lignes.entries()][0];
+  /* LE CODE reste une empreinte — voler la table ne donne le code de personne. */
+  assert.match(cle, /^[0-9a-f]{32}$/);
+  assert.ok(!cle.includes(CODE), 'le code ne doit pas être lisible : ' + cle);
+  /* LE NUMÉRO, lui, est EN CLAIR, et c'est sa décision du 28 octobre au soir :
+     il fabrique les codes un par un et doit savoir à qui il a donné quoi. */
+  assert.equal(ligne.numero, '+221771234567');
+  assert.equal(ligne.origine, 'premiere_utilisation');
   /* Le lendemain, le même téléphone repasse. */
   const second = await lien.verifierNumero(CODE, LUI, false);
   assert.deepEqual(second, { ok: true, lie: 'deja' });
@@ -139,21 +160,21 @@ test('mauvais numéro, ou pas de numéro : refusé, en français clair', async (
 });
 
 test('bon code + AUTRE numéro : refusé, et la liaison d’origine ne bouge pas', async () => {
-  const { lien, objets } = montrerLeRangement();
+  const { lien, lignes } = montrerLeRangement();
   await lien.verifierNumero(CODE, LUI, false);
   const vole = await lien.verifierNumero(CODE, ELLE, false);
   assert.equal(vole.ok, false);
   assert.equal(vole.message, 'Ce code est déjà utilisé avec un autre numéro.');
-  assert.equal(objets.size, 1, 'un code prêté ne doit pas créer une deuxième liaison');
+  assert.equal(lignes.size, 1, 'un code prêté ne doit pas créer une deuxième liaison');
   /* Le propriétaire, lui, entre toujours. */
   assert.deepEqual(await lien.verifierNumero(CODE, LUI, false), { ok: true, lie: 'deja' });
 });
 
 test('code maître : il entre depuis n’importe quel téléphone, et n’est jamais lié', async () => {
-  const { lien, objets } = montrerLeRangement();
+  const { lien, lignes } = montrerLeRangement();
   assert.deepEqual(await lien.verifierNumero('MAITRE', LUI, true), { ok: true, lie: 'maitre' });
   assert.deepEqual(await lien.verifierNumero('MAITRE', ELLE, true), { ok: true, lie: 'maitre' });
-  assert.equal(objets.size, 0, 'le code maître ne doit RIEN ranger : Lamine ouvre BIA de plusieurs téléphones');
+  assert.equal(lignes.size, 0, 'le code maître ne doit RIEN ranger : Lamine ouvre BIA de plusieurs téléphones');
   /* Mais son numéro reste obligatoire : les deux champs le sont pour tous. */
   const sans = await lien.verifierNumero('MAITRE', '', true);
   assert.equal(sans.ok, false);
@@ -161,10 +182,10 @@ test('code maître : il entre depuis n’importe quel téléphone, et n’est ja
 });
 
 test('utilisateur actuel : son code marchait avant les numéros, il se lie au premier qu’il donne', async () => {
-  const { lien, objets } = montrerLeRangement();
+  const { lien, lignes } = montrerLeRangement();
   /* Rien n'est rangé pour lui : son code existe, sa liaison non. Il ne doit
      pas être mis dehors — il donne son numéro une fois, et c'est tout. */
-  assert.equal(objets.size, 0);
+  assert.equal(lignes.size, 0);
   assert.deepEqual(await lien.verifierNumero(CODE, LUI, false), { ok: true, lie: 'nouveau' });
   assert.deepEqual(await lien.verifierNumero(CODE, LUI, false), { ok: true, lie: 'deja' });
 });
@@ -200,24 +221,96 @@ test('rangement absent ou muet : on laisse entrer sans lier, et on le dit', asyn
 
 /* ── DEUX TÉLÉPHONES À LA MÊME SECONDE ────────────────────────────────── */
 test('course : le premier arrivé garde le code, le second est refusé', async () => {
-  const { lien, objets } = montrerLeRangement();
+  const { lien, lignes } = montrerLeRangement();
   const [a, b] = await Promise.all([
     lien.verifierNumero(CODE, LUI, false),
     lien.verifierNumero(CODE, ELLE, false),
   ]);
-  assert.equal(objets.size, 1, 'une seule liaison doit survivre à la course');
+  assert.equal(lignes.size, 1, 'une seule liaison doit survivre à la course');
   assert.equal([a, b].filter((v) => v.ok).length, 1, 'un seul des deux doit entrer : ' + JSON.stringify([a, b]));
 });
 
 /* ── DEUX CODES NE SE MARCHENT PAS DESSUS ─────────────────────────────── */
 test('un autre code sur le même téléphone reste possible', async () => {
-  const { lien, objets } = montrerLeRangement();
+  const { lien, lignes } = montrerLeRangement();
   await lien.verifierNumero(CODE, LUI, false);
   /* Un même téléphone peut recevoir un deuxième code — une famille, un
      renouvellement. Ce qui est interdit, c'est un code sur deux téléphones,
      pas deux codes sur un téléphone. */
   assert.deepEqual(await lien.verifierNumero(AUTRE, LUI, false), { ok: true, lie: 'nouveau' });
-  assert.equal(objets.size, 2);
+  assert.equal(lignes.size, 2);
+});
+
+/* ── LE CODE NAÎT DÉJÀ ATTRIBUÉ ───────────────────────────────────────────
+
+   Lamine, le 28 octobre 2026 au soir : « il doit demander le numéro et lier
+   le code à CE numéro dès la création. Ce code ne marche ensuite que pour ce
+   numéro. »
+
+   Avant ce jour, un code naissait anonyme et se liait au premier téléphone
+   qui l'employait : celui qui interceptait le code sur WhatsApp pouvait le
+   prendre avant son destinataire. */
+test('code créé pour le numéro A : il marche avec A, il est refusé avec B', async () => {
+  const { lien, lignes } = montrerLeRangement();
+  const A = '+221771234567', B = '+221776543210';
+  assert.deepEqual(await lien.creerLien(CODE, A, 'Awa'), { ok: true });
+  assert.equal(lignes.size, 1);
+  assert.equal([...lignes.values()][0].origine, 'genere');
+  assert.equal([...lignes.values()][0].prenom, 'Awa');
+  /* A entre. */
+  assert.deepEqual(await lien.verifierNumero(CODE, A, false), { ok: true, lie: 'deja' });
+  assert.deepEqual(await lien.verifierNumero(CODE, '77 123 45 67', false), { ok: true, lie: 'deja' });
+  /* B est refusé, et la liaison d'origine ne bouge pas. */
+  const vole = await lien.verifierNumero(CODE, B, false);
+  assert.equal(vole.ok, false);
+  assert.equal(vole.message, 'Ce code est déjà utilisé avec un autre numéro.');
+  assert.equal(lignes.size, 1);
+  assert.equal([...lignes.values()][0].numero, A);
+});
+
+test('créer un lien sans numéro, ou avec un numéro invalide, est refusé', async () => {
+  const { lien, lignes } = montrerLeRangement();
+  for (const [saisi, attendu] of [['', 'Saisis ton numéro de téléphone.'],
+                                  ['   ', 'Saisis ton numéro de téléphone.'],
+                                  ['bonjour', 'Ce numéro n’est pas valide. Exemple : +221 77 123 45 67.']]) {
+    const r = await lien.creerLien(CODE, saisi);
+    assert.equal(r.ok, false, 'accepté à tort : ' + JSON.stringify(saisi));
+    assert.equal(r.message, attendu);
+  }
+  assert.equal(lignes.size, 0, 'aucun code ne doit être lié à rien');
+});
+
+/* ── CHANGEMENT DE TÉLÉPHONE ──────────────────────────────────────────────
+   « Un moyen de délier ou de régénérer un code. » */
+test('délier rend le code libre ; relier le déplace d’un coup', async () => {
+  const { lien, lignes } = montrerLeRangement();
+  const A = '+221771234567', B = '+221776543210';
+  await lien.creerLien(CODE, A);
+  assert.equal(await lien.delierCode(CODE), true);
+  assert.equal(lignes.size, 0);
+  /* Délié, il se relie au prochain téléphone qui l'emploie — y compris un
+     nouveau, ce qui est tout l'objet du geste. */
+  assert.deepEqual(await lien.verifierNumero(CODE, B, false), { ok: true, lie: 'nouveau' });
+
+  const { lien: deux } = montrerLeRangement();
+  await deux.creerLien(CODE, A);
+  assert.deepEqual(await deux.relierCode(CODE, B), { ok: true });
+  assert.deepEqual(await deux.verifierNumero(CODE, B, false), { ok: true, lie: 'deja' });
+  const ancien = await deux.verifierNumero(CODE, A, false);
+  assert.equal(ancien.ok, false, 'l’ancien téléphone ne doit plus entrer');
+});
+
+/* ── LES LIAISONS DU MATIN NE SONT PAS PERDUES ────────────────────────────
+   Elles vivaient dans un seau, en empreintes. On les lit encore, on n'y
+   écrit plus : leurs propriétaires ne doivent pas être mis dehors. */
+test('une liaison posée dans l’ancien seau laisse toujours entrer son propriétaire', async () => {
+  const A = '+221771234567', B = '+221776543210';
+  const { lien } = montrerLeRangement({
+    seau: { cle: numero.empreinteCode(CODE), empreinte: numero.empreinteNumero(A) },
+  });
+  assert.deepEqual(await lien.verifierNumero(CODE, A, false), { ok: true, lie: 'deja' });
+  const autre = await lien.verifierNumero(CODE, B, false);
+  assert.equal(autre.ok, false, 'et un autre téléphone reste refusé');
 });
 
 /* ── CE QUE CES ÉPREUVES NE DISENT PAS ─────────────────────────────────────

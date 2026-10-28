@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { creerCode, verifierCode } from "@/lib/codes";
+import { creerLien, delierCode, relierCode } from "@/lib/acces-lien";
+import { normaliserNumero, MESSAGES_NUMERO } from "@/lib/acces-numero";
 import { nombreDeLEnvironnement } from "@/lib/nombre-env";
 
 /* ── FABRIQUER DES CODES DE TESTEUR POUR BIA ────────────────────────────────
@@ -98,6 +100,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as {
       maitre?: string; heures?: number; nombre?: number; nom?: string;
+      numero?: string; delier?: string; relier?: string;
     };
 
     /* Le code maître vient de l'en-tête (comme pour l'Interprète) ou du corps :
@@ -108,14 +111,49 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ erreur: "Code maître refusé." }, { status: 403, headers: tete });
     }
 
+    /* ── LE NUMÉRO EST OBLIGATOIRE, ET LE CODE EST LIÉ DÈS SA NAISSANCE ───
+
+       Lamine, 28 octobre 2026 : « le générateur de codes doit exiger le
+       NUMÉRO DE TÉLÉPHONE […] ce code ne marche ensuite que pour ce numéro ».
+
+       Avant ce jour, un code naissait anonyme et se liait au premier
+       téléphone qui l'employait. C'était une porte ouverte de quelques
+       heures : celui qui interceptait le code sur WhatsApp pouvait le prendre
+       avant son destinataire. Maintenant il naît déjà attribué. */
+    /* ── CHANGEMENT DE TÉLÉPHONE ─────────────────────────────
+       Délier est le geste le plus doux : le code reste valable et se reliera
+       au prochain téléphone qui l'emploie. Relier le déplace d'un coup. */
+    if (body.delier) {
+      const fait = await delierCode(body.delier);
+      return NextResponse.json(fait ? { ok: true, delie: true } : { erreur: "Ce code n’a pas pu être délié." },
+        { status: fait ? 200 : 503, headers: tete });
+    }
+    if (body.relier) {
+      const fait = await relierCode(body.relier, String(body.numero || ""));
+      return NextResponse.json(fait.ok ? { ok: true, relie: true } : { erreur: fait.message },
+        { status: fait.ok ? 200 : 400, headers: tete });
+    }
+
+    const numero = normaliserNumero(body.numero);
+    if (!String(body.numero ?? "").trim())
+      return NextResponse.json({ erreur: MESSAGES_NUMERO.absent }, { status: 400, headers: tete });
+    if (!numero)
+      return NextResponse.json({ erreur: MESSAGES_NUMERO.invalide }, { status: 400, headers: tete });
+
     const heures = Math.min(Math.max(Number(body.heures) || 2, 0.25), 720);
-    const nombre = Math.min(Math.max(Number(body.nombre) || 1, 1), 50);
-    const codes = Array.from({ length: nombre }, () => creerCode(heures));
+    /* UN SEUL CODE À LA FOIS : un code appartient désormais à un numéro, et
+       dix codes pour un seul numéro n'ont aucun sens. */
+    const codes = [creerCode(heures)];
     const questions = nombreDeLEnvironnement(process.env.BIA_MAX_QUESTIONS, 15, "BIA_MAX_QUESTIONS");
 
     /* Le prénom revient tel qu'il a été tapé, nettoyé de ce qui n'a rien à
        faire dans un prénom : il finira dans le message qu'il enverra. */
     const nom = String(body.nom || "").replace(/[^\p{L}\p{M}' -]/gu, "").trim().slice(0, 16);
+
+    /* La liaison est posée AVANT de rendre le code : si le rangement refuse,
+       on ne doit surtout pas rendre un code qui circulerait sans attache. */
+    const liaison = await creerLien(codes[0], numero, nom);
+    if (!liaison.ok) return NextResponse.json({ erreur: liaison.message }, { status: 503, headers: tete });
 
     return NextResponse.json({
       // La forme que sa page attend déjà.
@@ -125,6 +163,7 @@ export async function POST(request: NextRequest) {
       nom,
       // Et ce qu'on rendait avant, pour qui appelle cette route directement.
       codes,
+      numero,
       heures,
       questions,
       application: "BIA",
