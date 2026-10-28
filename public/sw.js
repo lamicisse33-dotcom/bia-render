@@ -19,7 +19,14 @@
    connexion. Elle peut même le dire, avoir une voix déjà enregistrée. »
    ═══════════════════════════════════════════════════════════════════════ */
 
-const CACHE = "bia-secours-v1";
+/* VERSION CHANGÉE LE 28 OCTOBRE 2026, à la demande de Lamine : « que les
+   téléphones abandonnent les anciens fichiers sans que j'aie à désinstaller ».
+   Changer ce nom suffit : `activate` efface toutes les caches qui ne sont pas
+   celle-ci. À DIRE HONNÊTEMENT : ce service worker n'a JAMAIS gardé d'images
+   (il ne répond qu'aux ouvertures de page, et ne range que la page de secours
+   et son son). Ce qui fait vraiment disparaître le défilé, c'est que la page
+   ne le demande plus et que les fichiers n'existent plus sur le serveur. */
+const CACHE = "bia-secours-v2";
 const SECOURS = "/hors-ligne.html";
 /* Ce que la page de secours a besoin d'avoir sous la main. Le son peut ne pas
    exister encore : allSettled, pour qu'un fichier manquant ne fasse pas

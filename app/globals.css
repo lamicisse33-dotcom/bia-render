@@ -73,35 +73,10 @@
   --avatar-aspect: 941 / 1672;
 }
 
-/* ── LE DÉFILÉ D'ENTRÉE DE RARA ──────────────────────────────────────────
-   Une image à la fois, par-dessus le portrait habituel, le temps qu'elle
-   s'installe. `key={introRara}` (voir page.tsx) redémarre l'animation à
-   chaque image : c'est ce qui fait défiler plutôt qu'un simple fondu figé. */
-.intro-rara {
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  overflow: hidden;
-  pointer-events: none;
-  background: #000;
-}
-.intro-rara img {
-  height: 100%;
-  width: auto;
-  max-width: none;
-  object-fit: contain;
-  object-position: bottom;
-  animation: intro-rara-fondu .55s ease-in-out both;
-}
-@keyframes intro-rara-fondu {
-  0% { opacity: 0; transform: scale(1.02); }
-  15% { opacity: 1; transform: scale(1); }
-  85% { opacity: 1; }
-  100% { opacity: 0; }
-}
+/* ── OÙ ÉTAIT LE DÉFILÉ D'ENTRÉE DE RARA ────────────────────────
+   `.intro-rara` posait un fond noir plein écran et fondait quatre images
+   l'une après l'autre par-dessus le portrait, 2,2 secondes à chaque
+   ouverture. Retiré le 28 octobre 2026 : plus d'écran noir à l'entrée. */
 
 .choix-persona {
   position: absolute;

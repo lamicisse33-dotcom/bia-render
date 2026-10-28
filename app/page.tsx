@@ -631,7 +631,6 @@ export default function Home() {
      ses quatre photos (de la fiche qui a servi à générer son avatar)
      défilent avant que le portrait habituel ne s'installe — comme une
      présentation, pas seulement un changement muet d'image. */
-  const [introRara, setIntroRara] = useState<number | null>(null);
   const [resume, setResume] = useState("");
   const [corrige, setCorrige] = useState<number | null>(null);
   const [correction, setCorrection] = useState("");
@@ -1188,20 +1187,20 @@ export default function Home() {
     return () => { actif = false; };
   }, [persona, tenue]);
   const portraitPret = portraitCharge === persona + ":" + tenue;
-  useEffect(() => {
-    if (persona !== "rara" || !portraitPret) { setIntroRara(null); return; }
-    const DUREE_PAR_IMAGE = 550;
-    const TOTAL = 4;
-    let i = 0;
-    setIntroRara(0);
-    const minuteries: number[] = [];
-    for (let k = 1; k <= TOTAL; k++) {
-      minuteries.push(window.setTimeout(() => {
-        setIntroRara(k < TOTAL ? k : null);
-      }, DUREE_PAR_IMAGE * k));
-    }
-    return () => { minuteries.forEach(id => window.clearTimeout(id)); };
-  }, [persona, portraitPret]);
+  /* ── OÙ ÉTAIT LE DÉFILÉ D'ENTRÉE DE RARA ────────────────────────
+
+     Ici se tenait une minuterie qui enchaînait quatre images plein écran sur
+     fond noir — le personnage en ensemble orange à motifs qui marche de
+     face, de profil, puis de dos — pendant 2,2 secondes à CHAQUE ouverture
+     de BIA sur le personnage Rara.
+
+     Retiré le 28 octobre 2026 à la demande de Lamine : « BIA doit s'ouvrir
+     directement sur l'écran principal avec son personnage, sans écran vide ».
+     Les quatre images sont supprimées du dépôt ; le repère
+     `animation-entree-rara-20261028` les retrouve telles quelles.
+
+     Rara, elle, ne bouge pas : son portrait assis, ses gestes et ses mains
+     sont ailleurs (planchesDuPortrait) et ne sont pas touchés. */
   const busyRef = useRef(false);
   const historyRef = useRef<Message[]>([]);
   /* ── LA QUESTION EN VOL, POUR NE PAS LA PERDRE S'IL LA CONTINUE ─────────
@@ -8976,12 +8975,6 @@ export default function Home() {
         <div className="avatar avatar-socle" data-face="yeux_ouverts" />
         <div className="avatar" data-face={portraitPret ? face : "yeux_ouverts"} />
         {habillageBia.habillage && <PortraitTenue tenue={habillageBia.habillage} face={face} parle={mode === "speaking"} />}
-        {introRara !== null && (
-          <div className="intro-rara" aria-hidden="true">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img key={introRara} src={`/rara-intro-${introRara + 1}.webp`} alt="" />
-          </div>
-        )}
       </div>
 
       {/* ── LE CHOIX DU PERSONNAGE ─────────────────────────────────────────

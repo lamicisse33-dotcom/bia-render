@@ -51,6 +51,13 @@ let browser;
  await page.locator('.outils button').filter({hasText:'Apprentissage / lecture continue'}).waitFor({state:'attached'});
  await page.getByRole('button',{name:'Ouvrir le clavier et la conversation écrite'}).waitFor();
 
+ /* ── ELLE S'OUVRE SUR SON PERSONNAGE, PAS SUR UN ÉCRAN NOIR ───────────
+    Lamine, le 28 octobre 2026 : le défilé d'entrée couvrait l'écran de noir
+    pendant 2,2 secondes à chaque ouverture. Retiré : on exige qu'il ne reste
+    rien, et que le portrait soit là tout de suite. */
+ assert.equal(await page.locator('.intro-rara').count(),0,'le défilé d\'entrée ne doit plus exister');
+ await page.locator('.portrait .avatar').first().waitFor({state:'visible'});
+
  /* ── PLUS AUCUNE SÉLECTION DE MOTEUR À L'ÉCRAN ─────────────────────
     Lamine, le 28 octobre 2026 : « je veux que rapide soit le moteur par
     défaut et que tu enlèves l'option de sélection de Moteur sur l'écran pour

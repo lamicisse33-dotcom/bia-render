@@ -7,7 +7,10 @@ export function planchesDuPortrait(persona: string, tenue: string): string[] {
 }
 const images = new Map<string, Promise<HTMLImageElement>>();
 export function chargerPortrait(persona: string, tenue: string): Promise<HTMLImageElement[]> {
-  const sources = [...planchesDuPortrait(persona, tenue), ...(persona === "rara" ? [1, 2, 3, 4].map(n => `/rara-intro-${n}.webp`) : [])];
+  /* Les quatre images du défilé d'entrée de Rara étaient attendues ICI, et
+     `portraitPret` ne passait au vrai qu'une fois les neuf chargées.
+     Supprimées le 28 octobre 2026 : son portrait est donc prêt plus tôt. */
+  const sources = planchesDuPortrait(persona, tenue);
   return Promise.all(sources.map(src => {
     let pending = images.get(src);
     if (!pending) {
