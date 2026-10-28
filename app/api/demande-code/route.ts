@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
 /* Le site public et rien d'autre. Une étoile ici ouvrirait le formulaire à
    n'importe quelle page du monde, qui s'en servirait pour remplir la table
    de Lamine depuis chez elle. */
-const SITES = ["https://khalam.app", "https://www.khalam.app", "https://app.khalam.app"];
+const SITES = ["https://bia.khalam.app", "https://khalam.app", "https://www.khalam.app", "https://app.khalam.app"];
 
 function cors(origine: string | null) {
   const permis = origine && SITES.includes(origine) ? origine : SITES[0];

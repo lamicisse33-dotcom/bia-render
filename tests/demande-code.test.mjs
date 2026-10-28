@@ -186,6 +186,27 @@ test('la liste se lit et une ligne se marque « code envoyé »', async () => {
   assert.equal(await demandes.changerStatut('+221771234567', 'peut-être'), false);
 });
 
+/* ── LES ORIGINES QUI ONT LE DROIT DE DEMANDER UN CODE ────────────────────
+
+   La page officielle de BIA est bia.khalam.app, servie par GitHub Pages : il
+   n'y a pas de serveur dessous, donc son formulaire appelle cette route-ci,
+   sur Render. Sans son origine dans la liste, le navigateur refuse la réponse
+   et le bouton ne rend RIEN — sans message utile.
+
+   Une étoile ici ouvrirait le formulaire à n'importe quelle page du monde,
+   qui s'en servirait pour remplir la table de Lamine depuis chez elle. */
+test('la route accepte les quatre adresses de la maison, et rien d’autre', () => {
+  const route = fs.readFileSync('app/api/demande-code/route.ts', 'utf8');
+  const liste = route.match(/const SITES = \[([^\]]+)\]/);
+  assert.ok(liste, 'la liste des origines doit être une constante');
+  const sites = [...liste[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  for (const maison of ['https://bia.khalam.app', 'https://khalam.app',
+                        'https://www.khalam.app', 'https://app.khalam.app'])
+    assert.ok(sites.includes(maison), maison + ' doit pouvoir demander un code : ' + sites.join(', '));
+  assert.ok(!sites.some((s) => s.includes('*')), 'aucune étoile : ' + sites.join(', '));
+  for (const s of sites) assert.match(s, /^https:\/\/([a-z-]+\.)?khalam\.app$/, 'origine étrangère : ' + s);
+});
+
 /* ── CE QUE CES ÉPREUVES NE DISENT PAS ─────────────────────────────────────
 
    La vraie table n'est pas touchée : PostgREST est remplacé par une mémoire
