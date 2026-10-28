@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { TENUES_BIA, CLE_APPARENCE_BIA, estTenueBia, imagesTenueBia, imagePourFace,
-  positionCase, GESTES_PAROLE, chargerTenueBia, type TenueBia } from "@/lib/apparences-bia";
+import { useEffect, useRef, useState } from "react";
+import { TENUES_BIA, CLE_APPARENCE_BIA, estTenueBia, imagesTenueBia, visagePourFace,
+  positionVisage, programmerGestesBia, chargerTenueBia, type TenueBia } from "@/lib/apparences-bia";
 import styles from "./personnages.module.css";
 
 export function useHabillageBia() {
@@ -54,7 +54,7 @@ export function ChoixPersonnage({ habillage, choisir, chargement, erreur, person
             onClick={() => void choisir("", () => choisirPersona(id))}>{nom}</button>)}
         {TENUES_BIA.map(t => <button key={t.id} type="button" aria-pressed={habillage === t.id}
           onClick={() => void choisir(t.id)}>
-          <span className={styles.vignette} aria-hidden="true" style={{ backgroundImage: `url("${imagesTenueBia(t.id).expressions}")`, backgroundPosition: positionCase(7) }} />
+          <span className={styles.vignette} aria-hidden="true" style={{ backgroundImage: `url("${imagesTenueBia(t.id).repos}")` }} />
           <span>{t.nom}</span>
         </button>)}
       </div>
@@ -66,7 +66,7 @@ export function ChoixPersonnage({ habillage, choisir, chargement, erreur, person
 }
 
 export function PortraitTenue({ tenue, face, parle = false }: { tenue: TenueBia; face: string; parle?: boolean }) {
-  const [mouvement, setMouvement] = useState({ actuel: 0, avant: 0, numero: 0 });
+  const [mouvement, setMouvement] = useState({ tenue, pose: 0 });
   const [anime, setAnime] = useState(false);
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -75,29 +75,29 @@ export function PortraitTenue({ tenue, face, parle = false }: { tenue: TenueBia;
     return () => { media.removeEventListener("change", regler); document.removeEventListener("visibilitychange", regler); };
   }, []);
   useEffect(() => {
-    setMouvement({ actuel: 0, avant: 0, numero: 0 });
+    setMouvement({ tenue, pose: 0 });
     if (!parle || !anime) return;
-    let i = 0;
-    const timer = window.setInterval(() => {
-      i = (i + 1) % GESTES_PAROLE.length;
-      setMouvement(m => ({ actuel: GESTES_PAROLE[i], avant: m.actuel, numero: m.numero + 1 }));
-    }, 780);
-    return () => window.clearInterval(timer);
+    return programmerGestesBia({
+      emettre: pose => setMouvement({ tenue, pose }),
+      planifier: (suite, delai) => window.setTimeout(suite, delai),
+      annuler: timer => window.clearTimeout(timer),
+    });
   }, [parle, anime, tenue]);
   const sources = imagesTenueBia(tenue);
-  const image = imagePourFace(face);
-  const style = (planche: "expressions" | "gestes", n: number): CSSProperties => ({
-    backgroundImage: `url("${sources[planche]}")`, backgroundPosition: positionCase(n),
-  });
-  return <div className={styles.presence} data-bia-habillage={tenue} data-parle={parle ? "oui" : "non"} aria-hidden="true">
+  const pose = parle && anime && mouvement.tenue === tenue ? mouvement.pose : 0;
+  const visage = visagePourFace(face, parle);
+  return <div className={styles.presence} data-bia-habillage={tenue} data-parle={parle ? "oui" : "non"} data-geste={pose} aria-hidden="true">
     <div className={styles.cadre}>
-      {parle ? <>
-        <div className={styles.image} style={style("gestes", mouvement.actuel)} data-geste={mouvement.actuel} />
-        {anime && mouvement.numero > 0 && <div key={mouvement.numero} className={`${styles.image} ${styles.avant}`} style={style("gestes", mouvement.avant)} />}
-        {/* Seuls le visage et le haut du buste suivent les lèvres. Les bras
-            ont leur propre cadence lente et ne sautent pas toutes les 100 ms. */}
-        <div className={`${styles.image} ${styles.visage}`} style={style("expressions", image.planche === "expressions" ? image.case : 7)} data-expression={face} />
-      </> : <div className={styles.image} style={style(image.planche, image.case)} data-expression={face} />}
+      <div className={styles.repos} style={{ backgroundImage: `url("${sources.repos}")` }} />
+      {/* La tête et le buste restent fixes. Seul le bas du portrait change
+          lors d'un geste ; chaque case garde la définition de la source. */}
+      {[1, 2].map(n => <div key={n} className={styles.mains} style={{
+        backgroundImage: `url("${sources.gestes}")`, backgroundPosition: `${n * 50}% 0`,
+        opacity: pose >= n ? 1 : 0,
+      }} />)}
+      <div className={styles.visage} style={{
+        backgroundImage: `url("${sources.visages}")`, backgroundPosition: positionVisage(visage),
+      }} data-expression={face} data-visage={visage} />
     </div>
   </div>;
 }

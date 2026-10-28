@@ -7,45 +7,70 @@ const code = fs.readFileSync('lib/apparences-bia.ts', 'utf8');
 const js = ts.transpileModule(code, {compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
 const a = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'));
 
-test('les trois tenues ont leurs deux vraies planches carrées, sans remplacer les anciennes', async () => {
+test('les trois tenues gardent 1024 pixels par portrait et les anciennes restent disponibles', async () => {
   assert.equal(a.TENUES_BIA.length, 3);
   assert.equal(a.estTenueBia('rara'), false);
   assert.equal(a.estTenueBia('../inconnu'), false);
-  for (const tenue of a.TENUES_BIA) for (const fichier of Object.values(a.imagesTenueBia(tenue.id))) {
+  for (const tenue of a.TENUES_BIA) for (const [type, fichier] of Object.entries(a.imagesTenueBia(tenue.id))) {
     const meta = await sharp('public' + fichier).metadata();
-    assert.equal(meta.format, 'webp'); assert.equal(meta.width, meta.height);
-    assert(meta.width >= 1200, fichier);
+    const taille = {repos:[1024,1536], gestes:[3072,736], visages:[3072,1200]}[type];
+    assert.equal(meta.format, 'webp');
+    assert.deepEqual([meta.width,meta.height],taille,fichier);
   }
   for (const fichier of ['rara-24.webp', 'bia-24-nouvelle.webp', 'bia-24.webp']) assert(fs.existsSync('public/' + fichier));
 });
 
-test('toutes les expressions historiques ont une case valide dans la nouvelle garde-robe', () => {
+test('toutes les expressions historiques sont compatibles avec les visages HD', () => {
   const page = fs.readFileSync('app/page.tsx', 'utf8');
   const objets = [...page.matchAll(/const CASES(?:_DES_PLANCHES_SUIVANTES|_DE_LA_TROISIEME_PLANCHE|_DE_LA_QUATRIEME_PLANCHE)? = \{([\s\S]*?)\} as const;/g)];
   assert.equal(objets.length, 4);
   let compte = 0;
   for (const objet of objets) for (const [, face] of objet[1].matchAll(/\b(\w+)\s*:\s*\d+/g)) {
-    const image = a.imagePourFace(face);
-    assert(image.case >= 0 && image.case < 24, face);
-    assert(['expressions','gestes'].includes(image.planche), face);
+    const i = a.visagePourFace(face, true);
+    assert(Number.isInteger(i) && i >= 0 && i < 9, face);
     compte++;
   }
   assert.equal(compte, 104);
-  assert.deepEqual(a.imagePourFace('compter_4'), {planche:'gestes',case:11});
-  assert.deepEqual(a.imagePourFace('yeux_fermes'), {planche:'expressions',case:9});
-  assert.deepEqual(a.imagePourFace('inconnu'), {planche:'expressions',case:7});
+  assert.equal(a.visagePourFace('yeux_fermes'), 5);
+  assert.equal(a.visagePourFace('bouche_A', false), 0);
+  assert.equal(a.visagePourFace('bouche_A', true), 3);
+  assert.equal(a.visagePourFace('inconnu'), 0);
 });
 
-test('la préparation attend le décodage des deux images et mutualise les clics', async () => {
+test('les mains attendent la parole, reviennent au repos et ne reprennent pas après annulation', () => {
+  let heure = 0, id = 0;
+  const rappels = new Map(); const evenements = [];
+  const avancer = t => {
+    while (true) {
+      const entree = [...rappels].filter(([,v]) => v.heure <= t).sort((a,b) => a[1].heure-b[1].heure)[0];
+      if (!entree) break;
+      const [i, v] = entree; rappels.delete(i); heure=v.heure; v.suite();
+    }
+    heure=t;
+  };
+  const stop = a.programmerGestesBia({alea:()=>0, emettre:pose=>evenements.push([heure,pose]),
+    planifier:(suite,delai)=>{rappels.set(++id,{suite,heure:heure+delai});return id;}, annuler:i=>rappels.delete(i)});
+  avancer(2499); assert.deepEqual(evenements,[[0,0]]);
+  avancer(2500); assert.deepEqual(evenements.at(-1),[2500,1]);
+  avancer(3830); assert.deepEqual(evenements.map(v=>v[1]),[0,1,2,1,0]);
+  avancer(9329); assert.equal(evenements.length,5); // 5,5 s de repos minimum
+  const ancien = [...rappels.values()][0].suite;
+  stop(); ancien(); avancer(50000);
+  assert.deepEqual(evenements.map(v=>v[1]),[0,1,2,1,0,0]);
+  assert.equal(rappels.size,0);
+});
+
+test('la préparation attend le décodage des trois images et mutualise les clics', async () => {
   const decodages = [];
   globalThis.Image = class { set src(v) { queueMicrotask(() => this.onload()); } decode() { return new Promise(r => decodages.push(r)); } };
   const p = a.chargerTenueBia('vert-or');
   assert.equal(a.chargerTenueBia('vert-or'), p);
   let fini = false; void p.then(() => { fini = true; });
   await new Promise(r => setImmediate(r));
-  assert.equal(decodages.length, 2);
+  assert.equal(decodages.length, 3);
   decodages[0](); await new Promise(r => setImmediate(r)); assert.equal(fini, false);
-  decodages[1](); await p; assert.equal(fini, true);
+  decodages[1](); await new Promise(r => setImmediate(r)); assert.equal(fini, false);
+  decodages[2](); await p; assert.equal(fini, true);
 });
 
 test('une image en échec peut être chargée de nouveau', async () => {
@@ -59,5 +84,5 @@ test('la sélection de tenue ne touche pas aux identités, moteurs ni accès', (
   const composants = fs.readFileSync('app/personnages/Personnages.tsx', 'utf8');
   assert(!/fetch\(|speechSynthesis|AudioContext|setMode|setPersona|bia-persona/.test(composants));
   assert(!/fetch\(|speechSynthesis|AudioContext|bia-persona/.test(code));
-  assert(a.GESTES_PAROLE.every(i => i >= 0 && i <= 8));
+  assert(!/setInterval/.test(composants));
 });

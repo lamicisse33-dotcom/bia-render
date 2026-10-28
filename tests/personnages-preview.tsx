@@ -7,7 +7,7 @@ function Atelier(){
  const h=useHabillageBia();const [persona,setPersona]=useState('rara');const [parle,setParle]=useState(false);const [face,setFace]=useState('yeux_ouverts');
  useEffect(()=>{if(!parle)return;let i=0;const timer=setInterval(()=>setFace(['bouche_a','bouche_o','bouche_entr','bouche_fermee'][i++%4]),180);return()=>clearInterval(timer)},[parle]);
  return <main style={{height:'100svh',overflow:'auto',padding:20,color:'white',display:'flex',flexWrap:'wrap',gap:20}}>
-  <section style={{width:375,height:667,position:'relative',background:'#000',flexShrink:0}}>
+  <section style={{width:460,height:800,position:'relative',background:'#000',flexShrink:0}}>
    <div className="portrait" data-persona={persona} data-tenue="nouvelle"><div className="avatar" data-face="yeux_ouverts"/>
    {h.habillage&&<PortraitTenue tenue={h.habillage} face={face} parle={parle}/>}</div>
   </section>

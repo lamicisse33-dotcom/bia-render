@@ -1,9 +1,11 @@
 .presence { position:absolute; inset:0; z-index:5; background:#000; display:grid; place-items:center; container-type:size; pointer-events:none; }
-.cadre { position:relative; width:min(96cqw, 64cqh); aspect-ratio:2 / 3; overflow:hidden; }
-.image { position:absolute; inset:0; background-size:600% 400%; background-repeat:no-repeat; background-color:#000; clip-path:inset(.8% 3.5%); }
-.visage { mask-image:linear-gradient(#000 0%, #000 39%, transparent 43%); -webkit-mask-image:linear-gradient(#000 0%, #000 39%, transparent 43%); }
-.avant { animation:effacer .26s ease-out forwards; }
-@keyframes effacer { from {opacity:1} to {opacity:0} }
+/* Pas de zoom de respiration sur une photo HD : évite le rééchantillonnage
+   permanent et l'impression de poupée qui se gonfle. Les anciens restent tels quels. */
+:global(.portrait):has(> .presence) { animation:none; transform:none; }
+.cadre { position:relative; width:min(96cqw, 64cqh, 1024px); aspect-ratio:2 / 3; overflow:hidden; }
+.repos { position:absolute; inset:0; background-size:100% 100%; background-repeat:no-repeat; background-color:#000; }
+.mains { position:absolute; inset:52.0833333333% 0 0; background-size:300% 100%; background-repeat:no-repeat; transition:opacity 180ms ease-in-out; mask-image:linear-gradient(transparent, #000 9%); -webkit-mask-image:linear-gradient(transparent, #000 9%); }
+.visage { position:absolute; inset:0 0 auto; height:26.0416666667%; background-size:300% 300%; background-repeat:no-repeat; mask-image:linear-gradient(#000 85%, transparent 100%); -webkit-mask-image:linear-gradient(#000 85%, transparent 100%); }
 .choix { flex-basis:100%; min-width:0; }
 .options { margin:12px 0; padding:14px; border:1px solid #8c7549; border-radius:14px; min-width:0; }
 .options legend { padding:0 8px; color:#edcf82; }
@@ -11,6 +13,6 @@
 .grille button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; min-height:48px; padding:10px; border:1px solid #665c48; border-radius:12px; color:#fff; background:#151515; white-space:normal; cursor:pointer; }
 .grille button[aria-pressed="true"] { border:2px solid #edcf82; background:#302b1c; }
 .grille button:focus-visible, .choix > button:focus-visible { outline:3px solid #edcf82; outline-offset:3px; }
-.vignette { display:block; width:90px; aspect-ratio:2 / 3; background-size:600% 400%; background-repeat:no-repeat; background-color:#000; border-radius:8px; clip-path:inset(.8%); }
+.vignette { display:block; width:90px; aspect-ratio:2 / 3; background-size:100% 100%; background-repeat:no-repeat; background-color:#000; border-radius:8px; }
 .note { font-size:14px; line-height:1.4; color:#d3c9b2; }
-@media (prefers-reduced-motion:reduce) { .avant { animation:none; display:none; } }
+@media (prefers-reduced-motion:reduce) { .mains { transition:none; } }

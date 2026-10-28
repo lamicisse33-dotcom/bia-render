@@ -11,43 +11,66 @@ export function estTenueBia(v: unknown): v is TenueBia {
   return TENUES_BIA.some(t => t.id === v);
 }
 export function imagesTenueBia(id: TenueBia) {
-  const base = `/personnages/tenues-20261027/${id}`;
-  return { expressions: `${base}-expressions.webp`, gestes: `${base}-gestes.webp` };
+  const base = `/personnages/tenues-hd-20261028`;
+  return { repos: `${base}/${id}-repos.webp`, gestes: `${base}/${id}-mains.webp`, visages: `${base}/visages.webp` };
 }
 
-const FACES = ["bouche_fermee", "bouche_entr", "bouche_a", "bouche_A", "bouche_o", "bouche_ou", "bouche_i",
-  "yeux_ouverts", "yeux_mi", "yeux_fermes", "regard_cote", "douce", "joie", "etonnement", "surprise",
-  "ecoute", "concernee", "triste", "malice", "pensive", "rire", "rire_tete", "fourire", "rire_retenu"];
-// Les indices sont à base zéro. On conserve tous les noms émis par le moteur
-// d'animation historique, même lorsque plusieurs transitions partagent une pose.
-const CYCLES: Record<string, number[]> = {
-  salut: [0, 12, 13, 14], aurevoir: [0, 15, 13, 14],
-  coeur: [0, 16, 17, 16], coeur_double: [0, 1, 16, 17, 17, 16, 1, 0],
-  bisou: [0, 1, 23, 23, 6, 6, 1, 0], rire_main: [0, 1, 23, 23, 23, 6, 1, 0],
-  bouche_etonne: [0, 1, 23, 0], bouche_grosmot: [0, 23, 23, 0],
-  paume: [0, 6, 7, 0], priere: [0, 18, 18, 0], compter: [0, 9, 10, 11],
-  reflexion: [0, 19, 19, 0], compassion: [0, 20, 20, 0],
+// Chaque portrait conserve ses 1024 × 1536 pixels natifs. Le visage est un
+// découpage de 1024 × 400, pas un personnage miniature agrandi.
+export const GEOMETRIE_TENUE = { largeur: 1024, hauteur: 1536, visage: 400, mainsY: 800, poses: 3, visages: 9 } as const;
+const VISAGES: Record<string, number> = {
+  bouche_fermee: 0, bouche_entr: 1, bouche_a: 1, bouche_A: 3,
+  bouche_o: 2, bouche_ou: 2, bouche_i: 4,
+  yeux_ouverts: 0, yeux_mi: 5, yeux_fermes: 5, regard_cote: 6,
+  douce: 0, joie: 4, etonnement: 8, surprise: 8, ecoute: 0,
+  concernee: 7, triste: 7, malice: 4, pensive: 6,
+  rire: 4, rire_tete: 4, fourire: 3, rire_retenu: 4,
 };
-const EMOTIONS_CYCLES: Record<string, number[]> = {
-  ecoute: [7, 15, 8, 7], comprehension: [15, 11, 12, 7],
-  douceur: [7, 11, 11, 7], rire_apaise: [20, 12, 11, 7],
-};
-export function imagePourFace(face: string): { planche: "expressions" | "gestes"; case: number } {
-  const directe = FACES.indexOf(face);
-  if (directe >= 0) return { planche: "expressions", case: directe };
-  const match = /^(.*)_(\d+)$/.exec(face);
-  if (match) {
-    const i = Number(match[2]) - 1;
-    if (CYCLES[match[1]]?.[i] !== undefined) return { planche: "gestes", case: CYCLES[match[1]][i] };
-    if (EMOTIONS_CYCLES[match[1]]?.[i] !== undefined) return { planche: "expressions", case: EMOTIONS_CYCLES[match[1]][i] };
-  }
-  return { planche: "expressions", case: 7 };
+export function visagePourFace(face: string, parle = false): number {
+  // Un ancien mouvement de lèvres ne doit pas rester affiché après l'arrêt.
+  if (!parle && /^bouche_(fermee|entr|a|A|o|ou|i)$/.test(face)) return 0;
+  if (VISAGES[face] !== undefined) return VISAGES[face];
+  const famille = face.replace(/_\d+$/, "");
+  if (/^(reflexion)$/.test(famille)) return 6;
+  if (/^(compassion)$/.test(famille)) return 7;
+  if (/^(bouche_etonne|bouche_grosmot)$/.test(famille)) return 8;
+  if (/^(rire_apaise|rire_main|salut|aurevoir|comprehension|bisou)$/.test(famille)) return 4;
+  return 0;
 }
-export function positionCase(i: number): string {
-  return `${(i % 6) * 20}% ${Math.floor(i / 6) * 100 / 3}%`;
+export function positionVisage(i: number): string {
+  return `${(i % 3) * 50}% ${Math.floor(i / 3) * 50}%`;
 }
-// Un mouvement lent des bras, indépendant du rythme rapide des lèvres.
-export const GESTES_PAROLE = [0, 1, 2, 3, 2, 1, 0, 0, 6, 8, 6, 0];
+
+// Petits gestes ponctuels, précédés d'au moins 2,5 s de parole, puis repos long.
+// Les lèvres et les noms de gestes historiques ne commandent jamais les bras.
+export function programmerGestesBia({ emettre, planifier, annuler, alea = Math.random }: {
+  emettre: (pose: number) => void;
+  planifier: (suite: () => void, delai: number) => number;
+  annuler: (id: number) => void;
+  alea?: () => number;
+}) {
+  let actif = true;
+  let timer: number;
+  const attendre = (delai: number, suite: () => void) => {
+    timer = planifier(() => { if (actif) suite(); }, delai);
+  };
+  const geste = () => {
+    emettre(1);
+    attendre(320, () => {
+      emettre(2);
+      attendre(650 + alea() * 400, () => {
+        emettre(1);
+        attendre(360, () => {
+          emettre(0);
+          attendre(5500 + alea() * 4000, geste);
+        });
+      });
+    });
+  };
+  emettre(0);
+  attendre(2500 + alea() * 1500, geste);
+  return () => { actif = false; annuler(timer); emettre(0); };
+}
 
 const chargements = new Map<TenueBia, Promise<void>>();
 export function chargerTenueBia(id: TenueBia): Promise<void> {
