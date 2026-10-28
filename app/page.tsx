@@ -439,24 +439,25 @@ function phoneticWolof(text: string) {
 
 
 
-/* ── CE QUE LE TÉLÉPHONE GARDE ENCORE, ET CE QU'IL NE GARDE PLUS ───────────
+/* ── CE QUE LE TÉLÉPHONE NE GARDE PLUS DU TOUT ────────────────────
 
-   `bia-mode-conversation` était le choix à la main du bouton de bascule. Ce
-   bouton est retiré de l'écran (Lamine, 28 octobre 2026) et cette clé n'est
-   plus lue : elle dort dans les téléphones qui l'avaient, inerte.
+   Deux clés ont vécu ici et sont mortes le même jour, le 28 octobre 2026.
 
-   `bia-rapide-refuse` est autre chose : l'heure du dernier REFUS du
-   fournisseur. Elle n'exprime aucune préférence, elle évite de redemander
-   une connexion qu'on vient de refuser à chaque ouverture de l'application.
-   Elle périme d'elle-même au bout d'une heure : le quota revient, et Khalam
-   Rapide revient avec lui, sans que personne ait un bouton à toucher. */
-const REFUS_RAPIDE='bia-rapide-refuse';
-const REFUS_TIENT_MS=60*60*1000;
-const refusRapideRecent=()=>{
-  try{const t=Number(localStorage.getItem(REFUS_RAPIDE));
-    return Number.isFinite(t)&&t>0&&Date.now()-t<REFUS_TIENT_MS;}catch{return false;}
-};
-const noterRefusRapide=()=>{try{localStorage.setItem(REFUS_RAPIDE,String(Date.now()));}catch{}};
+   `bia-mode-conversation` était le choix à la main du bouton de bascule,
+   retiré le matin. `bia-rapide-refuse` gardait l'HEURE d'un refus du
+   fournisseur pour ne pas redemander une connexion refusée — elle avait un
+   sens tant qu'un repli vers Khalam existait.
+
+   Le soir, Lamine tranche : « Khalam Rapide = moteur UNIQUE, sur TOUS les
+   personnages », et « Khalam Voice est hors service, ne le répare pas ». Un
+   repli vers un chemin mort n'est pas un filet, c'est une trappe : il
+   emmenait silencieusement le téléphone sur une oreille qui répond HTTP 404.
+   Les deux clés ne sont donc plus ni lues ni écrites. Elles dorment, inertes,
+   dans les téléphones qui les avaient.
+
+   PLUS RIEN NE PEUT DONC POSER QUELQU'UN SUR KHALAM, sauf `?mode=khalam`
+   écrit à la main dans l'adresse — gardé, à sa demande, pour éprouver
+   Khalam le jour où le GPU reviendra. */
 
 export default function Home() {
   const [history, setHistory] = useState<Message[]>([]);
@@ -468,11 +469,13 @@ export default function Home() {
      le moment ». Khalam Rapide était déjà le défaut depuis le 23 octobre ;
      ce qui change, c'est qu'il n'y a plus rien à choisir.
 
-     TROIS CHOSES DÉCIDENT, DANS CET ORDRE :
+     DEUX CHOSES DÉCIDENT, DANS CET ORDRE :
        1. `?mode=khalam` dans l'adresse — une porte qui ne s'affiche pas,
-          gardée pour diagnostiquer et pour les épreuves de bout en bout ;
-       2. un refus du fournisseur de moins d'une heure — le filet ci-dessous ;
-       3. Khalam Rapide, toujours.
+          gardée pour éprouver Khalam et pour les épreuves de bout en bout ;
+       2. Khalam Rapide, pour tout le monde et sur tous les personnages.
+
+     IL N'Y A PAS DE TROISIÈME CAS depuis le 28 octobre 2026 au soir : un
+     refus du fournisseur ne bascule plus rien, il se DIT.
 
      LE CHOIX GARDÉ SUR LE TÉLÉPHONE N'EST PLUS LU, et c'est le cœur de la
      demande. Le bouton retiré, un appareil qui avait gardé « khalam » y
@@ -495,8 +498,7 @@ export default function Home() {
   },[]);
   useEffect(()=>{
     const demande=new URL(window.location.href).searchParams.get('mode');
-    if(demande==='khalam'||demande==='rapide'){poserMode(demande==='rapide');return;}
-    poserMode(!refusRapideRecent());
+    poserMode(demande!=='khalam');
   },[poserMode]);
   const utiliserLiveMaitre=()=>khalamRapideRef.current&&!apprend.current;
   useEffect(()=>()=>{liveMaitreRef.current?.arreter();liveMaitreRef.current=null;sessionRapide(false);},[]);
@@ -566,6 +568,11 @@ export default function Home() {
   const dejaDitEnPanne=useRef<Record<string,boolean>>({});
   const direParEcrit=useCallback((cause:string,phrase:string)=>{
     if(dejaDitEnPanne.current[cause])return;
+    /* UNE SEULE EXPLICATION À LA FOIS. Quand son oreille est morte, elle n'a
+       rien entendu : se plaindre EN PLUS de sa voix empilerait un deuxième
+       message sur une panne déjà dite, et celui qui lit n'y comprendrait
+       plus rien. L'oreille passe donc devant. */
+    if(cause!=="oreille"&&dejaDitEnPanne.current.oreille)return;
     dejaDitEnPanne.current[cause]=true;
     setHistory(items=>[...items,{role:"bia",text:phrase}]);
     setClavier(true);
@@ -2262,7 +2269,12 @@ export default function Home() {
   const parlerAvecLeTelephone = useCallback((answer: string) => new Promise<void>((fini) => {
     const tourTelephone=numeroDuTourRef.current;
     if (essaiChatterboxActif()) {
-      setPanne("KHALAM Voice n’a pas produit de son. Réessaie l’essai vocal.");
+      /* « Plus de message "KHALAM Voice n'a pas produit de son" », 28 octobre
+         2026. Un nom de produit et un ordre de réessayer ne disent rien à
+         celui qui attend une voix : on dit en français ce qui se passe, et
+         on ouvre la porte écrite. */
+      setPanne(PHRASE_MUETTE);
+      direParEcrit("voix", PHRASE_MUETTE);
       stopMouth(answer); fini(); return;
     }
     if (voixLocaleBiaDisponible(personaRef.current)) {
@@ -3329,7 +3341,8 @@ export default function Home() {
       if (!bloc.audio) {
         if (lecture) throw new Error("La voix n’a produit aucun son pour ce passage.");
         if (essaiChatterboxActif()) {
-          setPanne("KHALAM Voice n’a produit aucun son. Réessaie l’essai vocal.");
+          setPanne(PHRASE_MUETTE);
+          direParEcrit("voix", PHRASE_MUETTE);
           stopMouth(answer); return;
         }
         if (locale) {
@@ -5333,29 +5346,28 @@ export default function Home() {
            l'autorisation des notifications. Parler n'est pas un geste sur
            iPhone, donc on ne peut pas la demander ici. */
         rappelPose:(sonnera:boolean)=>{aDesRappelsRef.current=true;notificationsRef.current=sonnera;},
-        /* ── LE FOURNISSEUR REFUSE : ON BASCULE, ON N'ANNONCE PAS UNE PANNE ──
+        /* ── LE FOURNISSEUR REFUSE : ELLE LE DIT, ELLE NE BASCULE PLUS ────
+
            Lamine, 25 octobre : « quand Google refuse, le téléphone dit
            "Khalam Rapide est indisponible pour le moment, je passe sur
-           Khalam" et bascule tout seul ». Une assistante plus lente vaut
-           mieux qu'une assistante muette.
-           CE QU'ON GARDE SUR LE TÉLÉPHONE, c'est l'HEURE du refus, pas un
-           choix : sans ça il redemanderait la connexion refusée à chaque
-           ouverture et verrait le même échec en boucle. L'heure périme au
-           bout d'une heure, donc Khalam Rapide revient tout seul quand le
-           quota revient — il n'y a plus de bouton pour l'y ramener. */
+           Khalam" et bascule tout seul ». C'était juste tant que Khalam
+           répondait.
+
+           Lamine, 28 octobre au soir : « Khalam Voice (GPU RunPod) est HORS
+           SERVICE. Ne le répare pas », et « Khalam Rapide = moteur UNIQUE ».
+           Basculer vers un chemin mort n'est plus un filet, c'est une
+           trappe : l'oreille de Khalam répond HTTP 404, donc la bascule
+           menait au silence complet — exactement ce qu'il a vécu à 16 h 30.
+
+           On ne bascule donc plus. On coupe proprement, on le DIT en
+           français clair, et on ouvre la fenêtre d'écriture, qui ne dépend
+           ni du GPU ni du fournisseur. Le motif brut du refus, lui, reste
+           lisible dans /api/etat → khalam_rapide.fermetures (code 1011). */
         indisponible:(message:string)=>{
           if(liveMaitreRef.current!==moteur)return;
           const live=liveMaitreRef.current;liveMaitreRef.current=null;sessionRapide(false);live?.arreter();
-          poserMode(false);noterRefusRapide();
           setPanne(message);
-          /* ET ÇA SE COMPTE. `basculements.vers_khalam` ne comptait que le
-             bouton, qui n'existe plus : un refus de quota faisait basculer
-             tout le monde sans laisser UNE ligne dans /api/etat. Le motif
-             exact, lui, est déjà dans `fermetures` (code 1011). */
-          void fetch('/api/mesure',{method:'POST',headers:{'content-type':'application/json'},
-            body:JSON.stringify({type:'khalam_rapide',etape:'bascule',vers:'khalam'}),keepalive:true}).catch(()=>{});
-          /* Et elle le DIT : ce message ne s'affichait nulle part. */
-          setHistory(items=>[...items,{role:"bia",text:message}]);setClavier(true);
+          direParEcrit("rapide", message);
           conversationRef.current=false;setConversation(false);
           setMode('ready');setFace('yeux_ouverts');
         },

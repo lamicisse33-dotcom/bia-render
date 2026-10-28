@@ -88,7 +88,7 @@ export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',t
 /* La SEULE phrase que voit quelqu'un quand le fournisseur refuse. Écrite une
    fois, pour qu'aucun chemin ne puisse en inventer une autre — ni, surtout,
    laisser passer l'anglais de Google. */
-const INDISPONIBLE="Khalam Rapide est indisponible pour le moment, je passe sur Khalam.";
+const INDISPONIBLE="Je ne peux pas parler pour le moment. Écris-moi ici, je te réponds par écrit.";
 const SEUIL_INTERRUPTION=0.06;
 /* Le plancher appris ne monte pas au-delà, et la barre à franchir non plus :
    sans ces deux bornes, une pièce bruyante rend BIA ininterrompable, et c'est

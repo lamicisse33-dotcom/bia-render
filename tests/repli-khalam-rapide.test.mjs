@@ -32,54 +32,74 @@ test('aucun chemin ne peut afficher le texte brut de Google',()=>{
     'un texte de Google part à l’écran : '+montre+a);
   }
  }
- /* Et la phrase de repli est écrite UNE fois : plusieurs variantes
-    finiraient par diverger, et l'une d'elles laisserait passer l'anglais. */
- const phrases=[...client.matchAll(/Khalam Rapide est indisponible[^"']*/g)];
- assert.equal(phrases.length,1,'la phrase de repli doit être écrite une seule fois');
+ /* Et la phrase est écrite UNE fois : plusieurs variantes finiraient par
+    diverger, et l'une d'elles laisserait passer l'anglais. */
  assert.match(client,/const INDISPONIBLE=/);
+ assert.equal([...client.matchAll(/const INDISPONIBLE=/g)].length,1);
 });
 
-test('la phrase est exactement celle qu’il a demandée',()=>{
+/* ── CE QU'ELLE DIT QUAND LE FOURNISSEUR REFUSE ──────────────────────
+
+   Le 25 octobre, Lamine avait demandé : « elle dit "Khalam Rapide est
+   indisponible pour le moment, je passe sur Khalam" et bascule toute seule ».
+   C'était juste tant que Khalam répondait.
+
+   Le 28 octobre au soir, il tranche autrement : « Khalam Voice (GPU RunPod)
+   est HORS SERVICE, ne le répare pas » et « Khalam Rapide = moteur UNIQUE ».
+   La phrase ne doit donc plus promettre un chemin mort. */
+test('la phrase du refus est en français clair et ne promet plus Khalam',()=>{
  const client=fs.readFileSync('lib/gemini-live-client.ts','utf8');
  const m=client.match(/const INDISPONIBLE="([^"]+)"/);
  assert.ok(m,'la phrase doit être une constante');
- assert.match(m[1],/Khalam Rapide est indisponible pour le moment/);
- assert.match(m[1],/je passe sur Khalam/);
+ assert.ok(!/Khalam/.test(m[1]),'elle ne doit plus nommer Khalam : '+m[1]);
+ assert.ok(!/passe sur/.test(m[1]),'elle ne doit plus promettre une bascule : '+m[1]);
+ assert.match(m[1],/Écris-moi ici/,'elle doit ouvrir la porte écrite : '+m[1]);
+ assert.ok(!/HTTP|404|GPU|RunPod|quota|Gemini|Google/i.test(m[1]),
+  'aucun mot technique dans ce qu’elle dit : '+m[1]);
 });
 
-test('un refus fait BASCULER, et la bascule est gardée sur le téléphone',()=>{
+/* ── UN REFUS NE BASCULE PLUS : IL COUPE, IL LE DIT, IL OUVRE L'ÉCRIT ────
+
+   Basculer vers Khalam était un filet tant qu'il y avait quelque chose
+   dessous. Son oreille répond HTTP 404 depuis la veille : la bascule menait
+   au silence complet — c'est exactement ce que Lamine a vécu à 16 h 30, le
+   mot « Khalam » sous le micro et aucune voix. */
+test('un refus coupe la session, le dit, et ne bascule plus',()=>{
  const page=lire('app/page.tsx');
  const bloc=page.slice(page.indexOf('indisponible:(message:string)=>{'));
- const corps=bloc.slice(0,bloc.indexOf('},'));
- /* La session rapide est arrêtée pour de bon… */
+ const corps=bloc.slice(0,bloc.indexOf('photo:()=>'));
  assert.match(corps,/liveMaitreRef\.current=null/);
  assert.match(corps,/sessionRapide\(false\)/,'sinon la page resterait muette');
- /* …le mode passe sur Khalam, et le refus est GARDÉ sur le téléphone :
-    sans ça, la prochaine ouverture redemanderait la connexion refusée, et il
-    verrait le même échec en boucle. */
- assert.match(corps,/poserMode\(false\)/,'le mode doit passer sur Khalam');
- assert.match(corps,/noterRefusRapide\(\)/,'le refus doit être gardé sur le téléphone');
- /* Et la phrase vient du client, pas d'une seconde écrite ici. */
  assert.match(corps,/setPanne\(message\)/);
+ assert.match(corps,/direParEcrit\("rapide", message\)/,'elle doit le dire et ouvrir l’écrit');
+ assert.ok(!/poserMode/.test(corps),'un refus ne doit plus changer de moteur : '+corps);
 });
 
-/* ── CE QUI EST GARDÉ EST UNE HEURE, PAS UN CHOIX ──────────────────────
-
-   Le 28 octobre 2026, le bouton de bascule quitte l'écran : « je veux que
-   rapide soit le moteur par défaut et que tu enlèves l'option de sélection de
-   Moteur sur l'écran ». Il n'y a donc plus rien à toucher pour revenir sur
-   Khalam Rapide quand le quota revient. Le filet ne peut plus garder un CHOIX
-   — il garderait l'utilisateur sur le chemin lent pour toujours. Il garde une
-   HEURE, qui périme au bout d'une heure. */
-test('le refus périme tout seul, et le choix à la main n’est plus lu',()=>{
+/* ── PLUS RIEN NE PEUT POSER UN TÉLÉPHONE SUR KHALAM, SAUF L'ADRESSE ───── */
+test('Khalam Rapide est le moteur unique, et `?mode=khalam` reste la seule porte',()=>{
  const page=lire('app/page.tsx');
- assert.match(page,/const REFUS_TIENT_MS=60\*60\*1000/,'le refus doit avoir une durée écrite');
- assert.match(page,/Date\.now\(\)-t<REFUS_TIENT_MS/,'et cette durée doit être vérifiée à la lecture');
- assert.match(page,/poserMode\(!refusRapideRecent\(\)\)/,'le défaut est rapide, sauf refus récent');
- /* Et l'ancienne préférence à la main n'est plus lue nulle part : un
-    téléphone qui avait gardé « khalam » y serait resté pour toujours. */
+ assert.match(page,/poserMode\(demande!=='khalam'\)/,'le défaut est rapide, sans condition');
  assert.ok(!/bia-mode-conversation/.test(page),'le choix gardé à la main ne doit plus être lu');
+ assert.ok(!/bia-rapide-refuse/.test(page),'la mémoire du refus n’a plus de raison d’être');
  assert.ok(!/bascule-mode/.test(page),'aucun bouton de sélection de moteur à l’écran');
+ assert.match(page,/searchParams\.get\('mode'\)/,'`?mode=khalam` reste, pour éprouver Khalam plus tard');
+ /* Et aucun personnage ne choisit son moteur : la règle du mode ne doit
+    connaître ni persona, ni tenue, ni habillage. */
+ const regle=page.slice(page.indexOf("const demande=new URL(window.location.href)"),
+                        page.indexOf("const utiliserLiveMaitre="));
+ assert.ok(!/persona|tenue|habillage/.test(regle),
+  'le moteur ne doit dépendre d’aucun personnage : '+regle);
+});
+
+/* ── ET AUCUN NOM DE PRODUIT QUAND SA VOIX NE SORT PAS ────────────────
+   Lamine, 28 octobre : « plus de message "KHALAM Voice n'a pas produit de
+   son" ». Un nom de produit et un ordre de réessayer ne disent rien à celui
+   qui attend une voix. */
+test('« KHALAM Voice n’a pas produit de son » n’est plus affiché nulle part',()=>{
+ const page=lire('app/page.tsx');
+ const affiches=[...page.matchAll(/setPanne\(([^)]*)\)/g)].map(m=>m[1]);
+ for(const a of affiches)
+  assert.ok(!/KHALAM Voice|essai vocal/i.test(a),'message de produit encore affiché : '+a);
 });
 
 /* ── « JAMAIS EN SILENCE » ────────────────────────────────────
@@ -99,6 +119,10 @@ test('une oreille morte et une voix muette parlent par écrit, et une seule fois
  assert.match(page,/setHistory\(items=>\[\.\.\.items,\{role:"bia",text:phrase\}\]\)/);
  assert.match(page,/dejaDitEnPanne\.current\[cause\]\)return/,'une seule fois par cause');
  assert.match(page,/dejaDitEnPanne\.current\.oreille = false/,'une réussite doit réarmer');
+ /* Et une seule explication à la fois : une oreille morte n'a rien entendu,
+    donc une plainte sur sa voix par-dessus ne serait que du bruit. */
+ assert.match(page,/cause!=="oreille"&&dejaDitEnPanne\.current\.oreille\)return/,
+  'l’oreille doit passer devant les autres causes');
  /* Et ce qu'elle DIT n'est pas un motif technique : celui-là part dans
     /api/etat et dans la ligne `panne`, qui sont pour moi, pas pour lui. */
  for(const nom of ['PHRASE_SOURDE','PHRASE_MUETTE']){
@@ -111,18 +135,11 @@ test('une oreille morte et une voix muette parlent par écrit, et une seule fois
  assert.match(sourde,/Écris-moi ici/,'elle doit proposer la porte écrite, qui ne dépend d’aucun GPU');
 });
 
-test('le refus du fournisseur s’affiche, se dit, et SE COMPTE',()=>{
- const page=lire('app/page.tsx');
- const bloc=page.slice(page.indexOf('indisponible:(message:string)=>{'));
- const corps=bloc.slice(0,bloc.indexOf('photo:()=>'));
- assert.match(corps,/setHistory\(items=>\[\.\.\.items,\{role:"bia",text:message\}\]\)/,
-  'la phrase de repli ne s’affichait nulle part');
- assert.match(corps,/setClavier\(true\)/,'et le panneau doit s’ouvrir');
- /* `basculements.vers_khalam` ne comptait que le bouton, qui n'existe plus
-    depuis ce matin : un refus de quota faisait basculer tout le monde sans
-    laisser UNE ligne dans /api/etat. */
- assert.match(corps,/etape:'bascule',vers:'khalam'/,'la bascule automatique doit être comptée');
-});
+/* Ce filet exigeait aussi que la bascule automatique soit COMPTÉE
+   (`basculements.vers_khalam`). Il n'y a plus de bascule à compter : le
+   refus est déjà lisible dans /api/etat → khalam_rapide.fermetures, avec son
+   code 1011 et son motif. Le compteur du serveur n'est pas touché : il reste
+   à zéro, et ce zéro est vrai. */
 
 /* ── COMBIEN DE SESSIONS, ET PAR QUI ─────────────────────────────────────── */
 test('les ouvertures sont comptées par origine, et un nom inventé n’entre pas',()=>{
