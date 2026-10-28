@@ -823,6 +823,78 @@ button { font: inherit; touch-action: manipulation; }
 .porte .saisie input { text-align: center; letter-spacing: .18em; text-transform: uppercase; }
 .porte-erreur { margin: 11px 0 0; color: #ff9db0; font-size: 14px; text-align: center; }
 
+/* ── DEMANDER UN CODE, DANS LA MÊME PORTE ──────────────────────────────────
+
+   Lamine, le 28 octobre 2026 : « PAS DE PAGES MULTIPLES. La demande de code
+   doit être SUR LA PAGE OFFICIELLE DE BIA, dans l'écran d'entrée où on saisit
+   numéro + code. Une seule page, toutes les options. »
+
+   Le formulaire remplace donc les deux champs à l'intérieur du MÊME panneau :
+   on ne change pas d'écran, on ne perd pas sa place, et il n'y a rien à
+   maintenir en double. Les champs sont à 16 px — en dessous, Safari zoome au
+   premier toucher et la porte part de travers. */
+.porte-essai {
+  display: block;
+  margin: 0 auto 12px;
+  width: fit-content;
+  padding: 4px 11px;
+  border: 1px solid rgba(199,216,189,.3);
+  border-radius: 99px;
+  color: #c7d8bd;
+  font-size: 10.5px;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.porte-lien {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #d4af37;
+  font: inherit; font-size: 14px;
+  text-align: center;
+  cursor: pointer;
+}
+.porte-lien:active { opacity: .6; }
+.porte-demande { display: grid; gap: 10px; }
+.porte-demande input[type="tel"], .porte-demande input[type="text"] {
+  width: 100%;
+  height: 46px;
+  padding: 0 15px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 23px;
+  background: rgba(255,255,255,.06);
+  color: #fff;
+  font: inherit; font-size: 16px;
+  text-align: left; letter-spacing: normal; text-transform: none;
+  outline: none;
+}
+.porte-demande input::placeholder { color: rgba(255,255,255,.38); }
+.porte-demande input:focus { border-color: rgba(212,175,55,.5); }
+.porte-accord {
+  display: flex; align-items: flex-start; gap: 11px;
+  color: rgba(255,255,255,.72); font-size: 13.5px; line-height: 1.45;
+  text-align: left; cursor: pointer;
+}
+.porte-accord input { flex: 0 0 auto; width: 22px; height: 22px; margin: 0; accent-color: #d4af37; }
+.porte-envoyer {
+  width: 100%; min-height: 46px;
+  border: 0; border-radius: 23px;
+  background: #d4af37; color: #17130a;
+  font: inherit; font-size: 15px; font-weight: 600;
+  cursor: pointer;
+}
+.porte-envoyer:disabled { opacity: .35; cursor: default; }
+/* Le champ piège : hors de l'écran et hors du clavier. Un robot qui remplit
+   tout le remplit ; un humain ne peut pas. */
+.porte-piege { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.porte-etat { margin: 2px 0 0; font-size: 13.5px; line-height: 1.45; text-align: center; color: rgba(255,255,255,.72); }
+.porte-etat[data-ton="erreur"] { color: #ff9db0; }
+.porte-etat[data-ton="bon"] { color: #c7d8bd; }
+
 /* ── Page d'écoute de la voix ───────────────────────────────────────────── */
 .reglage {
   max-width: 620px;

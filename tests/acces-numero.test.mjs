@@ -34,7 +34,13 @@ function charger(chemin, modules = {}) {
   return m.exports;
 }
 
-const numero = charger('lib/acces-numero.ts', { 'node:crypto': await import('node:crypto') });
+/* `normaliserNumero` vit désormais dans son propre fichier, sans dépendance :
+   l'écran d'entrée de BIA l'emploie aussi, et il ne peut pas embarquer
+   `node:crypto`. On charge les deux et on les réunit, comme le fait le
+   serveur. */
+const format = charger('lib/numero-format.ts', {});
+const numero = { ...format, ...charger('lib/acces-numero.ts',
+  { 'node:crypto': await import('node:crypto'), './numero-format': format }) };
 
 /* ── LA MISE EN FORME ─────────────────────────────────────────────────────
    Le même homme ne doit pas être refusé parce qu'il a tapé un espace de plus

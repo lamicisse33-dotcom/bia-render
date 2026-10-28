@@ -29,7 +29,9 @@ function charger(chemin, modules = {}) {
   return m.exports;
 }
 
-const numeros = charger('lib/acces-numero.ts', { 'node:crypto': crypto });
+const format = charger('lib/numero-format.ts', {});
+const numeros = { ...format, ...charger('lib/acces-numero.ts',
+  { 'node:crypto': crypto, './numero-format': format }) };
 
 function montrerLaTable({ actif = true, enPanne = false } = {}) {
   const lignes = new Map();

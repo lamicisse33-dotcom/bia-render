@@ -1,6 +1,6 @@
 import {resumeControleRapidite} from '@/lib/rapidite-controle-http';
 import {resumeAccesNumero} from '@/lib/acces-lien';
-import {resumeDemandesCode} from '@/lib/demandes-code';
+import {resumeDemandesCode,verifierLaTable} from '@/lib/demandes-code';
 import {resumeKhalamRapide} from '@/lib/khalam-rapide-etat';
 import {resumeEligibilite} from '@/lib/eligibilite-etat';
 import {resumeLecturesSupabase} from '@/lib/lectures-supabase';
@@ -330,7 +330,7 @@ export async function GET(request: Request) {
        que le rangement ne répondait pas. S'il monte, la liaison ne protège
        plus rien. */
     acces_numero: resumeAccesNumero(),
-    demandes_code: resumeDemandesCode(),
+    demandes_code: {...resumeDemandesCode(), table: await verifierLaTable().catch(()=>'injoignable')},
     cerveau_local: resumeCerveauLocal(),
     conversation: etatConversation(),
     anthropic: resumeAnthropic(),

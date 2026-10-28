@@ -10,6 +10,7 @@ import {brancherAnticipation} from "@/lib/anticipation-client";
 import {ecouterLongue} from "@/lib/ecoute-longue";
 import {envoyerEcoute} from "@/lib/envoi-ecoute";
 import {verifierAcces,restaurerAccesMemorise} from '@/lib/acces-client';
+import {normaliserNumero} from '@/lib/numero-format';
 import {sansSilence} from "@/lib/bords-audio";
 import {usePriseValidee} from "@/lib/use-prise-validee";
 import {wavPrise,ordreValiderPrise,type BlocPrise} from "@/lib/prise-validee-core";
@@ -616,6 +617,18 @@ export default function Home() {
   const [numeroSaisi,setNumeroSaisi]=useState('');
   const numeroRef=useRef('');
   const [codeLie,setCodeLie]=useState('');
+  /* ── DEMANDER UN CODE, SANS QUITTER LA PORTE ─────────────────────
+
+     Lamine, le 28 octobre 2026 : « PAS DE PAGES MULTIPLES ». Le formulaire
+     avait vécu quelques heures sur une page d'essai séparée ; il vit
+     maintenant DANS l'écran d'entrée, là où se tient celui qui n'a pas de
+     code — c'est le seul endroit où il se pose la question. */
+  const [porteDemande,setPorteDemande]=useState(false);
+  const [demandePrenom,setDemandePrenom]=useState('');
+  const [demandeAccord,setDemandeAccord]=useState(false);
+  const [demandePiege,setDemandePiege]=useState('');
+  const [demandeOccupe,setDemandeOccupe]=useState(false);
+  const [demandeEtat,setDemandeEtat]=useState<{texte:string;ton:string}>({texte:'',ton:''});
   const restaurationAccesRef=useRef(0);
   const [moteurs, setMoteurs] = useState<{ voix: string; ecoute: string } | null>(null);
   const [tenue, setTenue] = useState<string>("nouvelle");
@@ -8886,9 +8899,15 @@ export default function Home() {
     /* Le code déjà mémorisé gagne : c'est le cas de celui qui utilisait BIA
        avant le numéro, et à qui on ne redemande que son téléphone. */
     const propre = (codeLie || codeSaisi).toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const numero = numeroSaisi.trim();
+    /* ── LE NUMÉRO PART MIS EN FORME, PAS TEL QU'IL A ÉTÉ TAPÉ ─────────
+       « 77 123 45 67 » et « +221771234567 » sont le même téléphone. Le serveur
+       le sait, mais ce qui est gardé DANS CE TÉLÉPHONE doit l'être sous une
+       seule forme : sinon le même homme a deux écritures selon le jour où il
+       a tapé, et la moindre comparaison locale diverge. */
+    const numero = normaliserNumero(numeroSaisi) || "";
     if (!propre) { setCodeErreur("Saisis ton code d’accès."); return; }
-    if (!numero) { setCodeErreur("Saisis ton numéro de téléphone."); return; }
+    if (!numeroSaisi.trim()) { setCodeErreur("Saisis ton numéro de téléphone."); return; }
+    if (!numero) { setCodeErreur("Ce numéro n’est pas valide. Exemple : +221 77 123 45 67."); return; }
     verificationCodeRef.current=true;setVerificationCode(true);
     setCodeErreur("");
     try{
@@ -8902,6 +8921,32 @@ export default function Home() {
     }catch(e){
       setCodeErreur(e instanceof Error?e.message:'Connexion indisponible. Réessaie dans un instant.');
     }finally{verificationCodeRef.current=false;setVerificationCode(false);}
+  }
+
+  /* La demande part vers la MÊME origine que tout le reste : pas de CORS,
+     pas de seconde page à tenir. La réponse rend le lien WhatsApp, fabriqué
+     sur le serveur — le numéro de KHALAM n'est pas écrit dans cette page. */
+  async function demanderUnCode() {
+    if (demandeOccupe) return;
+    const brut = numeroSaisi.trim();
+    if (!brut) { setDemandeEtat({texte:"Saisis ton numéro de téléphone.",ton:'erreur'}); return; }
+    if (!normaliserNumero(brut)) { setDemandeEtat({texte:"Ce numéro n’est pas valide. Exemple : +221 77 123 45 67.",ton:'erreur'}); return; }
+    if (!demandeAccord) { setDemandeEtat({texte:"Coche la case pour que KHALAM puisse t’envoyer ton code.",ton:'erreur'}); return; }
+    setDemandeOccupe(true); setDemandeEtat({texte:'Envoi…',ton:''});
+    try {
+      const r = await fetch('/api/demande-code', {method:'POST',headers:{'content-type':'application/json'},
+        body: JSON.stringify({numero:brut,prenom:demandePrenom,accord:true,societe:demandePiege})});
+      const d = await r.json().catch(()=>null);
+      if (!d || d.ok !== true) {
+        setDemandeEtat({texte:(d&&d.message)||"La demande n’a pas pu être envoyée. Réessaie dans un instant.",ton:'erreur'});
+        return;
+      }
+      setDemandeEtat({texte:d.message,ton:'bon'});
+      /* WhatsApp s'ouvre APRÈS que la demande est rangée : si le rangement
+         échoue, on ne fait pas croire que KHALAM a reçu quelque chose. */
+      if (d.whatsapp) window.open(d.whatsapp,'_blank','noopener');
+    } catch { setDemandeEtat({texte:'Pas de connexion. Réessaie dans un instant.',ton:'erreur'}); }
+    finally { setDemandeOccupe(false); }
   }
 
   if (!code && restaurationAcces!=='terminee') {
@@ -8923,6 +8968,57 @@ export default function Home() {
         <div className="portrait" aria-hidden="true" data-tenue={tenue} data-persona={persona}><div className="avatar" data-face="yeux_ouverts" />{habillageBia.habillage && <PortraitTenue tenue={habillageBia.habillage} face="yeux_ouverts" />}</div>
         <section className="porte">
           <p className="porte-titre">BIA</p>
+          {/* ── « BIA EST EN PHASE DE TEST » ────────────────────────
+              Lamine, 28 octobre 2026. C'est ici qu'on décide d'essayer, donc
+              c'est ici que ça se dit. */}
+          <span className="porte-essai">BIA est en phase de test : accès sur invitation</span>
+          {porteDemande ? (
+            <>
+              <p className="porte-texte">Laisse ton numéro : KHALAM t’envoie ton code par WhatsApp.</p>
+              <div className="porte-demande">
+                <input
+                  type="tel" inputMode="tel" autoComplete="tel"
+                  disabled={demandeOccupe}
+                  value={numeroSaisi}
+                  onChange={(e) => setNumeroSaisi(e.target.value)}
+                  placeholder="+221 77 123 45 67"
+                  aria-label="Numéro de téléphone"
+                />
+                <input
+                  id="porte-prenom"
+                  type="text" autoComplete="given-name" maxLength={40}
+                  disabled={demandeOccupe}
+                  value={demandePrenom}
+                  onChange={(e) => setDemandePrenom(e.target.value)}
+                  placeholder="BIBA"
+                  aria-label="Prénom (facultatif)"
+                />
+                {/* Le champ piège : hors écran, hors clavier, muet pour un
+                    lecteur d'écran. Un robot qui remplit tout le remplit. */}
+                <div className="porte-piege" aria-hidden="true">
+                  <label htmlFor="porte-societe">Société</label>
+                  <input id="porte-societe" type="text" tabIndex={-1} autoComplete="off"
+                    value={demandePiege} onChange={(e) => setDemandePiege(e.target.value)} />
+                </div>
+                <label className="porte-accord" htmlFor="porte-accord">
+                  <input id="porte-accord" type="checkbox" checked={demandeAccord}
+                    onChange={(e) => setDemandeAccord(e.target.checked)} />
+                  <span>J’accepte que KHALAM garde mon numéro pour m’envoyer un code.</span>
+                </label>
+                <button type="button" className="porte-envoyer"
+                  disabled={demandeOccupe || !numeroSaisi.trim()}
+                  onClick={() => void demanderUnCode()}>
+                  {demandeOccupe ? 'Envoi…' : 'Demander mon code'}
+                </button>
+                {demandeEtat.texte ? <p className="porte-etat" role="status" data-ton={demandeEtat.ton}>{demandeEtat.texte}</p> : null}
+              </div>
+              <button type="button" className="porte-lien"
+                onClick={() => { setPorteDemande(false); setDemandeEtat({texte:'',ton:''}); }}>
+                ← J’ai déjà un code
+              </button>
+            </>
+          ) : (
+            <>
           {codeLie ? (
             /* ── CELUI QUI UTILISAIT DÉJÀ BIA ──────────────────────
                Son code est bon et reste mémorisé. On ne le met pas dehors, on
@@ -8970,6 +9066,16 @@ export default function Home() {
           </div>
           {verificationCode ? <p className="porte-texte" role="status">Vérification du code…</p> : null}
           {codeErreur ? <p className="porte-erreur" role="alert">{codeErreur}</p> : null}
+              {/* La seule porte vers le formulaire, et elle est là où se
+                  tient celui qui n'a pas de code. */}
+              {codeLie ? null : (
+                <button type="button" className="porte-lien"
+                  onClick={() => { setPorteDemande(true); setCodeErreur(''); }}>
+                  Je n’ai pas de code → Demander un code à KHALAM
+                </button>
+              )}
+            </>
+          )}
           {/* ── LA PORTE NE DIT PLUS OÙ EST LA SERRURE DU MAÎTRE ───────────
               Lamine, le 27 octobre 2026, copie d'écran à l'appui : « cette
               écriture ne doit pas apparaître sur l'écran. Il faut juste le

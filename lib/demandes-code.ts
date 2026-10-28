@@ -68,7 +68,36 @@ function noter(cle: string) {
 }
 
 const compte = { recues: 0, nouvelles: 0, deja_connues: 0, refusees: 0, robots: 0, sans_rangement: 0 };
-export function resumeDemandesCode() { return { ...compte }; }
+export function resumeDemandesCode() { return { ...compte, table: etatTable.valeur }; }
+
+/* ── LA TABLE EXISTE-T-ELLE ? ─────────────────────────────────
+
+   Lamine, 28 octobre 2026 : « trouve pourquoi par un appel réel, pas par le
+   code ». `sans_rangement` disait que l'écriture échouait, pas POURQUOI : une
+   table absente, un seau injoignable et un Supabase mal configuré donnaient
+   tous le même chiffre. On ne déduit plus, on demande.
+
+   PostgREST répond 404 avec le code 42P01 quand la table n'existe pas : c'est
+   la différence entre « il manque un bloc de SQL à coller » et « le serveur
+   ne répond pas », et ces deux pannes ne se réparent pas de la même façon.
+
+   Gardé une minute : /api/etat est appelé souvent, et deux allers-retours de
+   plus à chaque coup d'œil se paieraient. */
+const etatTable = { valeur: 'inconnue' as 'inconnue'|'ok'|'absente'|'injoignable'|'non_configure', jusqua: 0 };
+
+export async function verifierLaTable(): Promise<string> {
+  if (etatTable.jusqua > Date.now()) return etatTable.valeur;
+  etatTable.jusqua = Date.now() + 60_000;
+  if (!lexiqueConfig.actif) { etatTable.valeur = 'non_configure'; return etatTable.valeur; }
+  try {
+    const r = await fetch(lexiqueConfig.url + "/rest/v1/" + TABLE + "?select=numero&limit=1",
+      { headers: entetes(), cache: "no-store", signal: AbortSignal.timeout(6000) });
+    if (r.ok) { etatTable.valeur = 'ok'; return etatTable.valeur; }
+    const texte = await r.text();
+    etatTable.valeur = (r.status === 404 || /42P01|does not exist/i.test(texte)) ? 'absente' : 'injoignable';
+  } catch { etatTable.valeur = 'injoignable'; }
+  return etatTable.valeur;
+}
 
 /* ── LA LISTE, POUR LAMINE ET POUR LUI SEUL ────────────────────────────────
    Il lit tout depuis son téléphone, et l'interface de Supabase sur un
