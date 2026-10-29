@@ -20,40 +20,10 @@ export async function verifierAccesAvatar(){
  const [a,b]=await Promise.allSettled([runway('/organization'),salles().listRooms(['bia-diagnostic-sans-session'])]);
  return {runway:a.status==='fulfilled'?'accessible':String(a.reason?.message||'indisponible'),livekit:b.status==='fulfilled'?'accessible':'acces_refuse_ou_indisponible'};
 }
-// Variante visuelle indépendante : le personnage validé reste disponible.
-const NOM_PLAN_LARGE='Bia plan hanches — 2026-10-29';
-const partage=globalThis as typeof globalThis & {biaPlanLarge?:{etat:{statut:string;id:string;erreur:string};preparation:Promise<void>|null}};
-const plan=partage.biaPlanLarge??={etat:{statut:'non_prepare',id:'',erreur:''},preparation:null};
-export const cadrageAvatar=()=>({...plan.etat});
-export function preparerCadrageAvatar(){return plan.preparation??=(async()=>{
- if(!process.env.RUNWAYML_API_SECRET)return;
- try{
-  plan.etat.statut='recherche';
-  const liste=await (await runway('/avatars?limit=100')).json();
-  if(liste.hasMore)throw Error('liste_incomplete');
-  let avatar=liste.data?.find((a:{name:string})=>a.name===NOM_PLAN_LARGE);
-  if(!avatar){
-   // Publication autorisée par Lamine. Création bornée dans le temps ; aucun
-   // nouveau personnage automatique après cette mise à jour.
-   if(Date.now()>=Date.parse('2026-10-31T00:00:00Z'))return;
-   plan.etat.statut='creation';
-   avatar=await (await runway('/avatars','POST',{name:NOM_PLAN_LARGE,
-    referenceImage:'https://app.khalam.app/personnages/satin-anime-20261028/repos.webp',
-    imageProcessing:'none',voice:{type:'runway-live-preset',presetId:'clara'},
-    personality:'Bia, assistante sénégalaise chaleureuse et joyeuse. Gestes doux et naturels. Français et wolof.'})).json();
-  }
-  if(typeof avatar?.id!=='string')throw Error('avatar_sans_identifiant');
-  plan.etat={statut:String(avatar.status),id:'',erreur:''};
-  for(let i=0;i<18;i++){
-   if(/^(avatar)?ready$/i.test(String(avatar.status))){plan.etat={statut:'pret',id:avatar.id,erreur:''};return;}
-   if(/fail|error/i.test(String(avatar.status)))throw Error('preparation_refusee');
-   await new Promise(r=>setTimeout(r,5000));
-   avatar=await (await runway('/avatars/'+encodeURIComponent(avatar.id))).json();
-   plan.etat.statut=String(avatar.status);
-  }
-  throw Error('preparation_trop_longue');
- }catch(e){plan.etat={statut:'indisponible',id:'',erreur:e instanceof Error?e.message:'preparation_impossible'};}
-})();}
+// Restauration demandée par Lamine : conserver le personnage parlant validé.
+// Les variantes de cadrage restent dans Runway mais ne sont plus sélectionnées.
+export const cadrageAvatar=()=>({statut:'pret',id:AVATAR_BIA,erreur:''});
+export function preparerCadrageAvatar(){return Promise.resolve();}
 export async function ouvrirAvatar(proprietaire='essai',conversation=false){
  for(const [id,s] of sessions)if(s.expiration<Date.now())sessions.delete(id);
  if([...sessions.values()].some(s=>s.proprietaire===proprietaire)||sessions.size>=4)throw new Error('essai_deja_en_cours');
@@ -69,7 +39,7 @@ export async function ouvrirAvatar(proprietaire='essai',conversation=false){
   const avatar=new AccessToken(c.key,c.secret,{identity:AVATAR_IDENTITE,ttl:duree+60});
   avatar.kind='agent';avatar.attributes={'lk.publish_on_behalf':identity};
   avatar.addGrant({roomJoin:true,room});
-  const avatarId=plan.etat.id||AVATAR_BIA;
+  const avatarId=AVATAR_BIA;
   const r=await runway('/realtime_sessions','POST',{model:'gwm1_avatars',avatar:{type:'custom',avatarId},maxDuration:duree,livekit:{url:c.url,token:await avatar.toJwt(),roomName:room,agentIdentity:identity}});
   const data=await r.json();if(typeof data.id!=='string')throw new Error('session_sans_identifiant');
   sessions.set(data.id,{room,expiration:Date.now()+(duree+5)*1000,proprietaire});

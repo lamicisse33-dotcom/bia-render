@@ -27,7 +27,6 @@
 @media (prefers-reduced-motion:reduce) { .videoSatin { display:none; transition:none; } }
 
 .boucheSatin { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; opacity:0; pointer-events:none; }
-/* Même taille que le cadre satin validé sur la capture. Toute l'image
-   reçue reste visible : ni zoom de parole, ni remplissage qui coupe les bras. */
-.cadreRunway { position:relative; width:min(96cqw, 64cqh, 1024px); aspect-ratio:2 / 3; overflow:hidden; }
+/* Retour au lecteur du buste parlant, entièrement contenu sous les commandes. */
+.cadreRunway { position:relative; width:100%; height:100%; overflow:hidden; }
 .videoRunway { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; }

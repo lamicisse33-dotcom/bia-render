@@ -16,9 +16,9 @@ export function useHabillageBia() {
     const id = ++demande.current;
     try {
       const ancien = localStorage.getItem(CLE_APPARENCE_BIA);
-      const premiereMigration = !localStorage.getItem('bia-avatar-direct-20261029');
-      const garde = premiereMigration && (!ancien || ancien === SATIN_ID) ? 'runway-direct' : ancien;
-      localStorage.setItem('bia-avatar-direct-20261029','1');
+      const premiereMigration = !localStorage.getItem('bia-avatar-buste-restaure-20261029');
+      const garde = premiereMigration && (!ancien || ancien === SATIN_ID || ancien === 'original') ? 'runway-direct' : ancien;
+      localStorage.setItem('bia-avatar-buste-restaure-20261029','1');
       if(garde&&garde!==ancien)localStorage.setItem(CLE_APPARENCE_BIA,garde);
       if (estApparenceBia(garde)) {
         void chargerApparenceBia(garde).then(() => {
