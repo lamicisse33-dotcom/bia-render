@@ -63,7 +63,7 @@ const g = globalThis as typeof globalThis & { biaEssaiLive?: number; biaEssaisCo
    à part — mélanger deux changements dans un essai, c'est ne rien apprendre. */
 const CONSIGNE = "Tu es Bia. Réponds en français ou en wolof.";
 
-type Variante = { nom: string; setup: Record<string, unknown>; token?: string; verifierAudio?: boolean };
+type Variante = { nom: string; setup: Record<string, unknown>; token?: string; verifierAudio?: boolean; historiqueEssai?: boolean };
 
 /* ── ESSAYER UN AUTRE MODÈLE, SANS TOUCHER À LA PRODUCTION ────────────────
    Lamine : « vérifie si un autre modèle Live a un quota gratuit plus large
@@ -95,6 +95,7 @@ function variantes(modeleDemande = ""): Variante[] {
     /* On change UNE chose à la fois. Deux changements dans un essai, et on
        ne saurait pas lequel a parlé. */
     { nom: "nu", setup: base() },
+    ...[false,true].map(historiqueEssai=>({nom:historiqueEssai?"client_historique":"client_vide",historiqueEssai,verifierAudio:true,setup:{...base(),sessionResumption:{},historyConfig:{initialHistoryInClientContent:true},realtimeInputConfig:detection(silenceFinDeParoleMs(),prefixePartMs())}})),
     { nom: "silence_500", setup: { ...base(), realtimeInputConfig: detection(500, 150) } },
     { nom: "silence_1200", setup: { ...base(), realtimeInputConfig: detection(silenceFinDeParoleMs(), prefixePartMs()) } },
     { nom: "silence_1200_sans_prefixe", setup: { ...base(), realtimeInputConfig: detection(1200, 150) } },
@@ -154,7 +155,10 @@ async function essayer(v: Variante) {
         if (d.setupComplete) {
           setupAccepte = true;
           if (v.verifierAudio) {
-            ws.send(JSON.stringify({clientContent:{turns:[{role:"user",parts:[{text:"Bonjour Bia. Réponds simplement bonjour en français pour cet essai technique."}]}],turnComplete:true}}));
+            if(v.historiqueEssai!==undefined){
+              ws.send(JSON.stringify({clientContent:{turns:v.historiqueEssai?[{role:"user",parts:[{text:"Bonjour."}]},{role:"model",parts:[{text:"Bonjour, comment vas-tu ?"}]}]:[],turnComplete:true}}));
+              ws.send(JSON.stringify({realtimeInput:{text:"Bonjour Bia. Dis simplement bonjour en français."}}));
+            }else ws.send(JSON.stringify({clientContent:{turns:[{role:"user",parts:[{text:"Bonjour Bia. Réponds simplement bonjour en français pour cet essai technique."}]}],turnComplete:true}}));
           } else { clearTimeout(minuteur); try { ws.close(); } catch { /* ok */ } rendre({ etape: "setup", accepte: true }); }
           return;
         }
