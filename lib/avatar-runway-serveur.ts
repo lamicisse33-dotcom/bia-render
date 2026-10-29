@@ -22,13 +22,13 @@ export async function verifierAccesAvatar(){
 }
 // Variante visuelle indépendante : le personnage validé reste disponible.
 const NOM_PLAN_LARGE='Bia en pied — 2026-10-29';
-let planLarge={statut:'non_prepare',id:'',erreur:''};
-let preparationPlan:Promise<void>|null=null;
-export const cadrageAvatar=()=>({...planLarge});
-export function preparerCadrageAvatar(){return preparationPlan??=(async()=>{
+const partage=globalThis as typeof globalThis & {biaPlanLarge?:{etat:{statut:string;id:string;erreur:string};preparation:Promise<void>|null}};
+const plan=partage.biaPlanLarge??={etat:{statut:'non_prepare',id:'',erreur:''},preparation:null};
+export const cadrageAvatar=()=>({...plan.etat});
+export function preparerCadrageAvatar(){return plan.preparation??=(async()=>{
  if(!process.env.RUNWAYML_API_SECRET)return;
  try{
-  planLarge.statut='recherche';
+  plan.etat.statut='recherche';
   const liste=await (await runway('/avatars?limit=100')).json();
   if(liste.hasMore)throw Error('liste_incomplete');
   let avatar=liste.data?.find((a:{name:string})=>a.name===NOM_PLAN_LARGE);
@@ -36,23 +36,23 @@ export function preparerCadrageAvatar(){return preparationPlan??=(async()=>{
    // Publication autorisée par Lamine. Création bornée dans le temps ; aucun
    // nouveau personnage automatique après cette mise à jour.
    if(Date.now()>=Date.parse('2026-10-31T00:00:00Z'))return;
-   planLarge.statut='creation';
+   plan.etat.statut='creation';
    avatar=await (await runway('/avatars','POST',{name:NOM_PLAN_LARGE,
     referenceImage:'https://app.khalam.app/personnages/bia-en-pied-20261029.webp',
     imageProcessing:'none',voice:{type:'runway-live-preset',presetId:'clara'},
     personality:'Bia, assistante sénégalaise chaleureuse et joyeuse. Gestes doux et naturels. Français et wolof.'})).json();
   }
   if(typeof avatar?.id!=='string')throw Error('avatar_sans_identifiant');
-  planLarge={statut:String(avatar.status),id:'',erreur:''};
+  plan.etat={statut:String(avatar.status),id:'',erreur:''};
   for(let i=0;i<18;i++){
-   if(/^(avatar)?ready$/i.test(String(avatar.status))){planLarge={statut:'pret',id:avatar.id,erreur:''};return;}
+   if(/^(avatar)?ready$/i.test(String(avatar.status))){plan.etat={statut:'pret',id:avatar.id,erreur:''};return;}
    if(/fail|error/i.test(String(avatar.status)))throw Error('preparation_refusee');
    await new Promise(r=>setTimeout(r,5000));
    avatar=await (await runway('/avatars/'+encodeURIComponent(avatar.id))).json();
-   planLarge.statut=String(avatar.status);
+   plan.etat.statut=String(avatar.status);
   }
   throw Error('preparation_trop_longue');
- }catch(e){planLarge={statut:'indisponible',id:'',erreur:e instanceof Error?e.message:'preparation_impossible'};}
+ }catch(e){plan.etat={statut:'indisponible',id:'',erreur:e instanceof Error?e.message:'preparation_impossible'};}
 })();}
 export async function ouvrirAvatar(proprietaire='essai',conversation=false){
  for(const [id,s] of sessions)if(s.expiration<Date.now())sessions.delete(id);
@@ -69,10 +69,10 @@ export async function ouvrirAvatar(proprietaire='essai',conversation=false){
   const avatar=new AccessToken(c.key,c.secret,{identity:AVATAR_IDENTITE,ttl:duree+60});
   avatar.kind='agent';avatar.attributes={'lk.publish_on_behalf':identity};
   avatar.addGrant({roomJoin:true,room});
-  const r=await runway('/realtime_sessions','POST',{model:'gwm1_avatars',avatar:{type:'custom',avatarId:planLarge.id||AVATAR_BIA},maxDuration:duree,livekit:{url:c.url,token:await avatar.toJwt(),roomName:room,agentIdentity:identity}});
+  const r=await runway('/realtime_sessions','POST',{model:'gwm1_avatars',avatar:{type:'custom',avatarId:plan.etat.id||AVATAR_BIA},maxDuration:duree,livekit:{url:c.url,token:await avatar.toJwt(),roomName:room,agentIdentity:identity}});
   const data=await r.json();if(typeof data.id!=='string')throw new Error('session_sans_identifiant');
   sessions.set(data.id,{room,expiration:Date.now()+(duree+5)*1000,proprietaire});
-  return {session:data.id,url:c.url,token:await client.toJwt(),spectateur:await spectateur.toJwt(),destination:AVATAR_IDENTITE,duree_maximale_s:duree,cadrage:planLarge.id?'pied':'buste'};
+  return {session:data.id,url:c.url,token:await client.toJwt(),spectateur:await spectateur.toJwt(),destination:AVATAR_IDENTITE,duree_maximale_s:duree,cadrage:plan.etat.id?'pied':'buste'};
  }catch(e){await salles().deleteRoom(room).catch(()=>{});throw e;}
 }
 export async function fermerAvatar(id:string,proprietaire='essai'){

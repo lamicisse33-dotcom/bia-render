@@ -8,7 +8,7 @@ function charger(fetch){
  const m={exports:{}};let salles=0;
  const source=ts.transpileModule(fs.readFileSync('lib/avatar-runway-serveur.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  class Rooms{async createRoom(){salles++;}async deleteRoom(){salles--;}async listRooms(){return [];}}
- new Function('require','module','exports','process','fetch','Date',source)(n=>n==='node:crypto'?crypto:{...sdk,RoomServiceClient:Rooms},m,m.exports,{env:{RUNWAYML_API_SECRET:'test-secret-runway',LIVEKIT_URL:'wss://test.livekit.cloud',LIVEKIT_API_KEY:'test-key',LIVEKIT_API_SECRET:'test-secret-livekit-which-is-long-enough'}},fetch,class extends Date{static now(){return Date.parse('2026-10-29T12:00:00Z');}});
+ new Function('require','module','exports','process','fetch','Date','globalThis',source)(n=>n==='node:crypto'?crypto:{...sdk,RoomServiceClient:Rooms},m,m.exports,{env:{RUNWAYML_API_SECRET:'test-secret-runway',LIVEKIT_URL:'wss://test.livekit.cloud',LIVEKIT_API_KEY:'test-key',LIVEKIT_API_SECRET:'test-secret-livekit-which-is-long-enough'}},fetch,class extends Date{static now(){return Date.parse('2026-10-29T12:00:00Z');}},{});
  return {...m.exports,salles:()=>salles};
 }
 test('session uses custom Bia, limits duration, scopes JWTs to a unique room, and cancels once',async()=>{
