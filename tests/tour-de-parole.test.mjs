@@ -57,6 +57,7 @@ const makeSpeak=new Function('env',`with(env){${compile('const speak = '+arrow+'
 function environment(fetchPromise) {
   let played=0, decoded=0, processed=0;
   const env={
+    avatarPret:()=>false,contexteAvatar(){},preparerAvatarBia:async()=>{},brancherBoucheAudio(){},
     mesurerDemarrageVoix:async(_phase,action)=>action(),
     prisesValidees:{api:{lire:async()=>null,oublier(){},capturer(){}}},estMaitreRef:{current:false},audioAnticipeRef:{current:null},
     lireAudioMemoire:async()=>undefined,sonPourTexte:()=>undefined,sonsCourantsRef:{current:[]},cacheSons:{current:new Map()},

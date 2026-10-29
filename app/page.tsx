@@ -1,5 +1,6 @@
 "use client";
 import {BiaGeminiLive} from "@/lib/gemini-live-client";
+import {avatarPret,avatarParle,energieAvatar,contexteAvatar,preparerAvatarBia,maintenirAvatarBia,fermerAvatarBia,interrompreAvatarBia,parlerAvecAvatar} from '@/lib/avatar-runway-client';
 import {profilRapiditeNavigateur,entetesRapidite} from '@/lib/rapidite-core';
 import EssaiRapiditeBadge from '@/app/essai-rapidite/badge';
 import {maintenirEcranEveille} from '@/lib/veille-native';
@@ -1946,6 +1947,10 @@ export default function Home() {
     return contexteRef.current!;
   }, []);
 
+  useEffect(() => {
+    maintenirAvatarBia(habillageBia.habillage === 'runway-direct' && conversation);
+  }, [habillageBia.habillage, conversation]);
+
   /* ── LE HAUT-PARLEUR NE REVIENT PAS TOUT SEUL APRÈS UN ENREGISTREMENT ────
 
      Lamine, le 18 septembre 2026 : « quand elle rit pour la première fois le
@@ -1985,6 +1990,7 @@ export default function Home() {
   }, [contexte]);
 
   const couperSon = useCallback(() => {
+    interrompreAvatarBia();
     relectureRef.current?.abort();relectureRef.current=null;
     /* Le souffle d'attente tombe avec le reste : s'il survivait à sa réponse,
        elle ferait « mmm » par-dessus sa propre phrase. */
@@ -2174,7 +2180,7 @@ export default function Home() {
       const analyse=analyseRef.current;
       contexte=String(analyse?.context.state||'inconnu');
       // Do not mistake BIA's own audio for the user. Barge-in handles that case.
-      if(analyse&&!sourceRef.current&&!sourcesRef.current.size&&!voixDuTelephoneRef.current&&sonDelleRef.current===0){
+      if(analyse&&!avatarParle()&&!sourceRef.current&&!sourcesRef.current.size&&!voixDuTelephoneRef.current&&sonDelleRef.current===0){
         try{
           const signal=new Uint8Array(analyse.frequencyBinCount),spectre=new Uint8Array(analyse.frequencyBinCount);
           analyse.getByteTimeDomainData(signal);analyse.getByteFrequencyData(spectre);
@@ -2224,6 +2230,21 @@ export default function Home() {
          alors on étire le son ici, sans toucher à sa hauteur : c'est la voix
          de Kha, elle ne doit pas devenir plus grave. Voir lib/ralentir.ts. */
       const mémoire = garde?.exact ? brut : ralentir(ctx, sansSilence(ctx, brut), vitesseAudioBia(octets));
+      contexteAvatar(ctx);
+      await preparerAvatarBia(ctx);
+      if(!actif()||!await autoriserLaVoix(actif,'avatar_pret')){rendre(0);return;}
+      if (avatarPret()) {
+        setMode('speaking');
+        const ms = await parlerAvecAvatar(mémoire, date => {
+          if (!actif()) return;
+          garde?.commence?.();
+          if (estLaReponse) envoyerLeTour(date);
+        });
+        if (ms > 0 && actif()) garde?.termine?.(mémoire);
+        rendre(actif() ? ms : 0);
+        return;
+      }
+
       const { valeurs, pic, pas } = enveloppeDe(mémoire);
       const source = ctx.createBufferSource();
       source.buffer = mémoire;
@@ -2503,6 +2524,15 @@ export default function Home() {
       };
       ctx.decodeAudioData(octets.slice(0)).then(async (mémoire) => {
         if(!await autoriserLaVoix(()=>numeroDuTourRef.current===tourSon)){rendre(true);return;}
+        contexteAvatar(ctx);
+        await preparerAvatarBia(ctx);
+        if(!await autoriserLaVoix(()=>numeroDuTourRef.current===tourSon)){rendre(true);return;}
+        if (avatarPret()) {
+          setMode('speaking');
+          await parlerAvecAvatar(mémoire);
+          rendre();
+          return;
+        }
         const source = ctx.createBufferSource();
         source.buffer = mémoire;
         source.connect(ctx.destination);
@@ -3478,6 +3508,8 @@ export default function Home() {
       // Wait for playback to wake after microphone use, including Safari interrupted state.
       const ctx = await reveillerLeSon();
       if (perdu()) return;
+      await preparerAvatarBia(ctx);
+      if (perdu()) return;
       if (String(ctx.state) !== "running") throw new Error("Appuie sur le micro pour réactiver le son.");
       const priseBlocs:BlocPrise[]=[];
       let priseTropLongue=false;
@@ -3491,6 +3523,7 @@ export default function Home() {
          depuis ailleurs que le téléphone. */
       const coutures: number[] = [];
       const debutTotal = Date.now();
+      const lecturesAvatar: Promise<number>[] = [];
       let premiereSyllabeFaite = suite;   // la tête parle déjà : ce n'est plus la première
       let noteDansLEcho = false;
 
@@ -3509,6 +3542,27 @@ export default function Home() {
           const suivant=await Promise.race([enVol.get(1),new Promise<"delai">((resolve)=>setTimeout(()=>resolve("delai"),400))]);
           if(suivant!=="delai"&&!suivant?.audio)throw new Error("La voix n’a pas pu préparer la suite.");
           if(perdu()||!await peutParler('apres_amorcage')||perdu())return;
+        }
+        contexteAvatar(ctx);
+        if (avatarPret()) {
+          const debut = Math.max(ctx.currentTime, quand);
+          quand = debut + mémoire.duration;
+          const premier = !premiereSyllabeFaite;
+          if (premier) premiereSyllabeFaite = true;
+          setMode('speaking');
+          lecturesAvatar.push(parlerAvecAvatar(mémoire, date => {
+            if (perdu()) return;
+            if (!noteDansLEcho) {
+              noteDansLEcho = true;
+              ditsRef.current = [...ditsRef.current, {texte:answer,quand:date}].slice(-6);
+            }
+            if (premier) { lecture?.premierSon(); if (ou === 'réponse') envoyerLeTour(date); }
+          }));
+          if(estMaitreRef.current&&essaiChatterboxActif()&&!suite&&personaRef.current!=='rara'&&!priseTropLongue){
+            if(debut-(priseBlocs[0]?.debut??debut)+mémoire.duration>60){priseTropLongue=true;priseBlocs.length=0;}
+            else priseBlocs.push({debut,sampleRate:mémoire.sampleRate,canaux:Array.from({length:mémoire.numberOfChannels},(_,c)=>mémoire.getChannelData(c).slice())});
+          }
+          return;
         }
         const { valeurs, pic, pas } = enveloppeDe(mémoire);
         const source = ctx.createBufferSource();
@@ -3638,6 +3692,7 @@ export default function Home() {
         if (perdu()) return;
       }
 
+      if (lecturesAvatar.length) await Promise.all(lecturesAvatar);
       // Elle a fini de parler quand le dernier morceau s'est tu, pas avant.
       const reste = Math.max(0, (quand - ctx.currentTime) * 1000);
       await pause(reste + 120);
@@ -5125,6 +5180,7 @@ export default function Home() {
        passage, parce qu'on est ici dans un geste de la personne — c'est le
        seul moment où un téléphone accepte de débloquer le son. */
     const ctxParole = contexte();
+    await preparerAvatarBia(ctxParole);
     if (ctxParole.state === "suspended") { try { await ctxParole.resume(); } catch { } }
 
     /* ── ON ARME AUSSI LA VOIX DE SECOURS, ET C'EST ICI OU JAMAIS ──────────
@@ -5300,6 +5356,7 @@ export default function Home() {
      la page. On coupe le fil AVANT le micro, pour qu'aucune veille ne
      redémarre un tour sur un flux qu'on vient d'éteindre. */
   const fermerConversation = useCallback(() => {
+    void fermerAvatarBia();
     const live=liveMaitreRef.current;liveMaitreRef.current=null;sessionRapide(false);live?.arreter();
     focusLocuteurRef.current?.terminer();
     conversationRef.current = false;
@@ -5410,6 +5467,7 @@ export default function Home() {
       let boucheMesuree=false;
       let lectureBiaActive=false;
       const moteur=new BiaGeminiLive(codeRef.current,{
+        avatar:{pret:avatarPret,parle:avatarParle,contexte:contexteAvatar,preparer:preparerAvatarBia,fermer:fermerAvatarBia,interrompre:interrompreAvatarBia,lire:parlerAvecAvatar},
         etat:s=>{
           if(liveMaitreRef.current!==moteur)return;
           if(s.includes('terminée')||s.includes('pause')){terminer();return;}
@@ -7392,7 +7450,7 @@ export default function Home() {
       analyse.getByteTimeDomainData(tampon);
       let creux = 0;
       for (const v of tampon) creux = Math.max(creux, Math.abs(v - 128));
-      const elle = sonDelleRef.current;
+      const elle = Math.max(sonDelleRef.current, energieAvatar());
       const seuil = seuilRef.current || 8;
       /* L'écho ne se mesure que pendant qu'elle parle, et seulement sous la
          barre : ce qui passe au-dessus, c'est lui, pas elle. */

@@ -32,7 +32,7 @@ const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {
 function environment(){
  let now=10000,speech=false,plays=0;const events=[];
  const ctx={currentTime:0,destination:{},decodeAudioData:async()=>({duration:.01}),createBufferSource(){return {connect(){},start(){plays++;queueMicrotask(()=>this.onended?.());}};}};
- const env={silenceQuiSuffit,coupesTropTotRef:{current:0},Date:{now:()=>now},attendreSonTour,conversationRef:{current:true},enregistreurRef:{current:null},porteRef:{current:null},
+ const env={avatarParle:()=>false,avatarPret:()=>false,contexteAvatar(){},preparerAvatarBia:async()=>{},brancherBoucheAudio(){},silenceQuiSuffit,coupesTropTotRef:{current:0},Date:{now:()=>now},attendreSonTour,conversationRef:{current:true},enregistreurRef:{current:null},porteRef:{current:null},
   analyseRef:{current:{frequencyBinCount:128,context:{sampleRate:48000},getByteTimeDomainData:a=>a.fill(speech?150:128),getByteFrequencyData:a=>a.fill(speech?1:0)}},
   sourceRef:{current:null},sourcesRef:{current:new Set()},voixDuTelephoneRef:{current:false},sonDelleRef:{current:0},seuilRef:{current:8},dernierSignalParoleRef:{current:{quand:0,delai:1500}},
   partVocale:()=>speech?.6:0,fetch:async(_u,o)=>{events.push(JSON.parse(o.body));return {ok:true};},numeroDuTourRef:{current:1},

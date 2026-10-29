@@ -18,7 +18,7 @@ export function noterProtectionParole(d:Record<string,unknown>){
   const ms=Number(d.ms);if(!Number.isFinite(ms)||ms<0||ms>600000)return;
   if(d.etape==='retenue')etat.retenues++;else if(d.etape==='annulee')etat.annulees++;else return;
   etat.derniere={etape:d.etape,ms,quand:new Date().toISOString()};
-  const phase=['autre','avant_lecture','lecture_simple','apres_decodage','apres_amorcage'].includes(String(d.phase))?d.phase:'inconnue';
+  const phase=['autre','avant_lecture','lecture_simple','avatar_pret','apres_decodage','apres_amorcage'].includes(String(d.phase))?d.phase:'inconnue';
   const contexte=['running','suspended','interrupted','closed'].includes(String(d.contexte))?d.contexte:'inconnu';
   const raw=d.causes&&typeof d.causes==='object'?d.causes as Record<string,unknown>:{};
   const causes=Object.fromEntries(['micro','porte','signal','analyse_erreur'].map(k=>{const n=Number(raw[k]);return [k,Number.isFinite(n)?Math.max(0,Math.min(10000,Math.round(n))):0];}));

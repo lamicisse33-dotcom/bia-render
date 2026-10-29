@@ -7,7 +7,8 @@
    oubliait donc deux fois : pendant la conversation, et après.
 
    TOURS_GARDES vient du serveur (BIA_LIVE_HISTORIQUE) ; 40 est le repli. */
-export type LiveEvents={etat:(s:string)=>void;transcription:(role:'user'|'bia',texte:string,fin:boolean)=>void;parle:(v:boolean)=>void;latence:(ms:number,tour:{session:string;tour:number})=>void;erreur:(s:string)=>void;
+export type SortieAvatarLive={pret:()=>boolean;parle:()=>boolean;contexte:(ctx:AudioContext)=>void;preparer:(ctx?:AudioContext)=>Promise<void>;fermer:()=>Promise<void>;interrompre:()=>void;lire:(buffer:AudioBuffer,premier?:(date:number)=>void)=>Promise<number>};
+export type LiveEvents={avatar?:SortieAvatarLive;etat:(s:string)=>void;transcription:(role:'user'|'bia',texte:string,fin:boolean)=>void;parle:(v:boolean)=>void;latence:(ms:number,tour:{session:string;tour:number})=>void;erreur:(s:string)=>void;
  /* ── LA CARTE, ET L'ACCORD QUI LA PRÉCÈDE ────────────────────────────────
     `accordPosition` montre la question à l'écran et rend ce qu'elle répond.
     Jamais en silence : sans ces deux rappels, l'outil refuse de partir.
@@ -250,11 +251,13 @@ export class BiaGeminiLive{
     lue par la page. */
  private entetes(){return {'x-bia-code':this.code,...(this.numero?{'x-bia-numero':this.numero}:{}),...(this.personne&&this.personne!=='maitre'?{'x-bia-personne':this.personne}:{}),...(this.appareil?{'x-bia-appareil':this.appareil}:{})};}
  private send(data:unknown){if(this.socket?.readyState===WebSocket.OPEN)this.socket.send(JSON.stringify(data));}
- private viderSon(){for(const n of this.nodes){n.onended=null;try{n.stop();}catch{}}this.nodes.clear();this.next=0;this.finDuSon=performance.now();this.events.parle(false);}
+ private avatarGeneration=0;
+ private avatarEnVol=0;
+ private viderSon(){this.avatarGeneration++;this.avatarEnVol=0;this.events.avatar?.interrompre();for(const n of this.nodes){n.onended=null;try{n.stop();}catch{}}this.nodes.clear();this.next=0;this.finDuSon=performance.now();this.events.parle(false);}
  /* Elle parle, ou elle vient de finir. Les 300 ms de marge couvrent la queue
     d'écho du haut-parleur, qui ré-armait la mesure juste après sa dernière
     syllabe. */
- private elleParle(){return this.nodes.size>0||(this.finDuSon>0&&performance.now()-this.finDuSon<300);}
+ private elleParle(){return this.events.avatar?.parle()||this.avatarEnVol>0||this.nodes.size>0||(this.finDuSon>0&&performance.now()-this.finDuSon<300);}
  /* ── CE QU'IL ENTEND MAINTENANT A ÉTÉ CALCULÉ IL Y A UN INSTANT ──────────
     `currentTime` est l'horloge de CALCUL du son, pas celle de l'oreille : un
     échantillon programmé à T sort du haut-parleur à T + le retard matériel.
@@ -279,6 +282,7 @@ export class BiaGeminiLive{
   this.stoppe=false;this.events.etat('Connexion…');
   try{
    this.output=new AudioContext({latencyHint:'interactive'});await this.output.resume();
+   await this.events.avatar?.preparer(this.output);
    this.micro=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
    if(this.stoppe){this.micro.getTracks().forEach(t=>t.stop());return;}
    this.input=new AudioContext({latencyHint:'interactive'});
@@ -555,6 +559,23 @@ export class BiaGeminiLive{
   if(bytes.length%2)throw Error('PCM incomplet');
   const view=new DataView(bytes.buffer),rate=Number(mime?.match(/rate=(\d+)/)?.[1]||24000),buffer=ctx.createBuffer(1,bytes.length/2,rate),a=buffer.getChannelData(0);
   for(let i=0;i<a.length;i++)a[i]=view.getInt16(i*2,true)/32768;
+  this.events.avatar?.contexte(ctx);
+  if(this.events.avatar?.pret()){
+   const generation=this.avatarGeneration;
+   const finParole=this.mesurePrete?this.finParoleMesure:0;
+   if(finParole)this.mesurePrete=false;
+   this.avatarEnVol++;this.events.parle(true);this.events.etat('Bia te répond');
+   void this.events.avatar.lire(buffer,date=>{
+    if(this.stoppe||generation!==this.avatarGeneration||!finParole)return;
+    this.tourMesure++;
+    this.events.latence(Math.round(performance.now()-finParole),{session:this.sessionMesure,tour:this.tourMesure});
+   }).then(()=>{
+    if(this.stoppe||generation!==this.avatarGeneration)return;
+    this.avatarEnVol=Math.max(0,this.avatarEnVol-1);
+    if(!this.avatarEnVol){this.finDuSon=performance.now();this.events.parle(false);}
+   });
+   return;
+  }
   /* L'enveloppe : l'énergie moyenne par tranche de 40 ms. Même règle que
      `enveloppeDe` sur Khalam, en plus fin — les morceaux de la connexion
      rapide sont courts, et une tranche de 75 ms en aurait avalé certains
@@ -726,6 +747,7 @@ export class BiaGeminiLive{
   this.stoppe=true;this.ready=false;this.mesurePrete=false;clearInterval(this.idle);clearTimeout(this.timer);
   this.socket?.close();this.socket=undefined;this.capture?.disconnect();this.source?.disconnect();this.gain?.disconnect();
   this.micro?.getTracks().forEach(t=>t.stop());this.micro=undefined;this.viderSon();
+  void this.events.avatar?.fermer();
   void this.input?.close().catch(()=>{});void this.output?.close().catch(()=>{});this.input=undefined;this.output=undefined;
  }
 }

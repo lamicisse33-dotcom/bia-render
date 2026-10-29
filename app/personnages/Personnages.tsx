@@ -4,6 +4,7 @@ import { APPARENCES_BIA, CLE_APPARENCE_BIA, estApparenceBia, imagesTenueBia, vis
   positionVisage, programmerGestesBia, chargerApparenceBia, type ApparenceBia, type TenueBia } from "@/lib/apparences-bia";
 import {SATIN_ID, SATIN_POSTER} from '@/lib/animation-satin';
 import {PortraitSatin} from './PortraitSatin';
+import {PortraitRunway} from './PortraitRunway';
 import styles from "./personnages.module.css";
 
 export function useHabillageBia() {
@@ -14,7 +15,11 @@ export function useHabillageBia() {
   useEffect(() => {
     const id = ++demande.current;
     try {
-      const garde = localStorage.getItem(CLE_APPARENCE_BIA);
+      const ancien = localStorage.getItem(CLE_APPARENCE_BIA);
+      const premiereMigration = !localStorage.getItem('bia-avatar-direct-20261029');
+      const garde = premiereMigration && (!ancien || ancien === SATIN_ID) ? 'runway-direct' : ancien;
+      localStorage.setItem('bia-avatar-direct-20261029','1');
+      if(garde&&garde!==ancien)localStorage.setItem(CLE_APPARENCE_BIA,garde);
       if (estApparenceBia(garde)) {
         void chargerApparenceBia(garde).then(() => {
           if (id === demande.current) setHabillage(garde);
@@ -33,7 +38,7 @@ export function useHabillageBia() {
       setHabillage(valeur);
       try {
         if (valeur) localStorage.setItem(CLE_APPARENCE_BIA, valeur);
-        else localStorage.removeItem(CLE_APPARENCE_BIA);
+        else localStorage.setItem(CLE_APPARENCE_BIA,'original');
       } catch { /* Le changement reste utilisable pour cette visite. */ }
     } catch {
       if (id === demande.current) setErreur("La tenue n’a pas pu être chargée. Ton personnage est conservé ; réessaie.");
@@ -56,7 +61,7 @@ export function ChoixPersonnage({ habillage, choisir, chargement, erreur, person
             onClick={() => void choisir("", () => choisirPersona(id))}>{nom}</button>)}
         {APPARENCES_BIA.map(t => <button key={t.id} type="button" aria-pressed={habillage === t.id}
           onClick={() => void choisir(t.id)}>
-          <span className={styles.vignette} aria-hidden="true" style={{ backgroundImage: `url("${t.id === SATIN_ID ? SATIN_POSTER : imagesTenueBia(t.id).repos}")` }} />
+          <span className={styles.vignette} aria-hidden="true" style={{ backgroundImage: `url("${t.id === SATIN_ID || t.id === 'runway-direct' ? SATIN_POSTER : imagesTenueBia(t.id).repos}")` }} />
           <span>{t.nom}</span>
         </button>)}
       </div>
@@ -75,7 +80,7 @@ export function ChoixPersonnage({ habillage, choisir, chargement, erreur, person
 export function PortraitTenue({tenue, face, parle = false, ecoute = false, emotion = 'neutre'}: {
   tenue: ApparenceBia; face: string; parle?: boolean; ecoute?: boolean; emotion?: string;
 }) {
-  return tenue === SATIN_ID ? <PortraitSatin face={face} parle={parle} ecoute={ecoute} emotion={emotion} />
+  return tenue === 'runway-direct' ? <PortraitRunway face={face} parle={parle} ecoute={ecoute} emotion={emotion}/> : tenue === SATIN_ID ? <PortraitSatin face={face} parle={parle} ecoute={ecoute} emotion={emotion} />
     : <PortraitTenueFixe tenue={tenue} face={face} parle={parle} />;
 }
 function PortraitTenueFixe({ tenue, face, parle = false }: { tenue: TenueBia; face: string; parle?: boolean }) {
