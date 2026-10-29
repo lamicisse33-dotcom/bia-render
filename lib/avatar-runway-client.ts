@@ -4,8 +4,8 @@ import {pcmPourAvatar} from './avatar-runway-pcm';
 export const RUNWAY_DIRECT='runway-direct';
 const CLE='bia-habillage-20261027';
 type Groupe={generation:number;duree:number;premiers:((date:number)=>void)[];fins:((ms:number)=>void)[];date:number;commence:boolean;ferme:boolean;writer:Promise<ByteStreamWriter>;file:Promise<void>;timer?:ReturnType<typeof setTimeout>;limite?:ReturnType<typeof setTimeout>};
-type Etat={pret:boolean;connexion:boolean;message:string;video:MediaStream|null};
-let etat:Etat={pret:false,connexion:false,message:'',video:null};
+type Etat={large:boolean;pret:boolean;connexion:boolean;message:string;video:MediaStream|null};
+let etat:Etat={large:false,pret:false,connexion:false,message:'',video:null};
 const abonnes=new Set<(e:Etat)=>void>();
 const emettre=(patch:Partial<Etat>)=>{etat={...etat,...patch};for(const f of abonnes)f(etat);};
 let producteur:Room|null=null,spectateur:Room|null=null,session='',code='',numero='',ouverture:Promise<void>|null=null,epoch=0,connexionEpoch=0;
@@ -81,7 +81,7 @@ export async function preparerAvatarBia(ctx?:AudioContext){
   let attente:ReturnType<typeof setTimeout>|undefined;
   try{await Promise.race([pret,new Promise((_,reject)=>{attente=setTimeout(()=>reject(Error('Connexion du personnage trop longue')),45000);})]);}finally{if(attente)clearTimeout(attente);}
   if(connexionEpoch!==generation){await fermerAvatarBia();return;}
-  emettre({pret:true,connexion:false,message:''});mesure('video_recue');
+  emettre({pret:true,large:data.cadrage==='pied',connexion:false,message:''});mesure('video_recue');
   fermerSiRepos();
   const deadline=performance.now()+(data.duree_maximale_s-3)*1000;
   const renouveler=async()=>{

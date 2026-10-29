@@ -4,6 +4,7 @@ export async function register(){
   // bounded calls per process; no dependency in the user's conversation path.
   if(process.env.RENDER_GIT_COMMIT){
    if(Date.now()<Date.parse('2026-10-24T00:00:00Z'))setTimeout(()=>{void import('./lib/gemini-live-diagnostic').then(m=>m.verifierGeminiLive()).catch(()=>{});},60000).unref();
+   setTimeout(()=>{void import('./lib/avatar-runway-serveur').then(m=>m.preparerCadrageAvatar()).catch(()=>{});},8000).unref();
    setTimeout(()=>{void import('./lib/diagnostic-ports-gpu').then(m=>m.verifierPortsGpu()).catch(()=>{});},5000).unref();
    // Levier 2 : le wolof appris doit survivre à Haiku. Une seule série par
    // processus, lecture seule des devoirs, fenêtre fermée d'elle-même.
