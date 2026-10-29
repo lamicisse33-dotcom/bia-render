@@ -287,7 +287,7 @@ export async function POST(req:NextRequest){
   if(!r.ok){let motif='refus_google';
   /* 429 chez Google = quota. On le compte à part : c'est LE chiffre qui dit
      si le refus vient du quota ou d'autre chose. */
-  if(r.status===429)noterRefusQuota();try{const e=await r.json();motif=String(e.error?.message||e.error?.status||motif).split(cleChoisie).join('[cle masquee]').slice(0,180);}catch{}if(index+1<candidats.length&&(panneLiveRecuperable(r.status,motif)||[401,403].includes(r.status)))continue;return NextResponse.json({erreur:'Khalam Rapide est momentanément refusée par son fournisseur.',statut_fournisseur:r.status,motif},{status:502,headers});}
+  if(r.status===429)noterRefusQuota();try{const e=await r.json();motif=String(e.error?.message||e.error?.status||motif).split(cleChoisie).join('[cle masquee]').slice(0,180);}catch{}if(index+1<candidats.length&&(panneLiveRecuperable(r.status,motif)||[401,403].includes(r.status)||(connexion.cle==='secours'&&r.status===400)))continue;return NextResponse.json({erreur:'Khalam Rapide est momentanément refusée par son fournisseur.',statut_fournisseur:r.status,motif},{status:502,headers});}
   const data=await r.json();
   if(typeof data.name!=='string')throw Error('jeton absent');
   return NextResponse.json({token:data.name,setup:configuration,modele,connexion:connexion.id,secours_disponible:index+1<candidats.length,expireTime:new Date(now+10*60000).toISOString(),
