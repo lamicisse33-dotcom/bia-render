@@ -15,7 +15,7 @@ void main(){
  gl_FragColor=texture2D(image,vec2(src.x/size.x,1.-src.y/size.y));}`;
 /** Prototype isolé : le corps, les yeux et les mains proviennent du même
  * instant vidéo que les lèvres. Aucun atlas ni planche générée n'est utilisé. */
-export function LevresVideo({video,clip,niveau,parle,onErreur}:{video:React.RefObject<HTMLVideoElement|null>;clip:SequenceSatin;niveau:()=>number;parle:boolean;onErreur:()=>void}){
+export function LevresVideo({video,clip,niveau,parle,onErreur}:{video:React.RefObject<HTMLVideoElement|null>;clip:SequenceSatin;niveau:()=>number;parle:boolean;onErreur:(message:string)=>void}){
  const tempsVideo=useRef<number|null>(null);
  const canvas=useRef<HTMLCanvasElement>(null),courant=useRef({clip,niveau,parle,onErreur});courant.current={clip,niveau,parle,onErreur};
  useEffect(()=>{
@@ -26,9 +26,9 @@ export function LevresVideo({video,clip,niveau,parle,onErreur}:{video:React.RefO
   return()=>{stop=true;v.cancelVideoFrameCallback(id);tempsVideo.current=null;};
  },[video]);
  useEffect(()=>{
-  const c=canvas.current,gl=c?.getContext('webgl',{alpha:false,antialias:false});if(!c||!gl){courant.current.onErreur();return;}
+  const c=canvas.current,gl=c?.getContext('webgl',{alpha:false,antialias:false});if(!c||!gl){courant.current.onErreur('WebGL indisponible');return;}
   let stop=false,raf=0,avant=performance.now(),scale=1,textureFrame=-1;
-  const shader=(type:number,code:string)=>{const sh=gl.createShader(type)!;gl.shaderSource(sh,code);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error('shader');return sh;};
+  const shader=(type:number,code:string)=>{const sh=gl.createShader(type)!;gl.shaderSource(sh,code);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(sh)||'shader');return sh;};
   let programme:WebGLProgram|null=null,tex:WebGLTexture|null=null,buffer:WebGLBuffer|null=null,vs:WebGLShader|null=null,fs:WebGLShader|null=null;
   try{
    vs=shader(gl.VERTEX_SHADER,vertex);fs=shader(gl.FRAGMENT_SHADER,fragment);programme=gl.createProgram()!;gl.attachShader(programme,vs);gl.attachShader(programme,fs);gl.linkProgram(programme);
@@ -44,12 +44,12 @@ export function LevresVideo({video,clip,niveau,parle,onErreur}:{video:React.RefO
      if(c.width!==v.videoWidth||c.height!==v.videoHeight){c.width=v.videoWidth;c.height=v.videoHeight;gl.viewport(0,0,c.width,c.height);}
      const piste=mesures[e.clip],index=Math.min(piste.frames.length-1,Math.max(0,Math.floor((tempsVideo.current??v.currentTime)*piste.fps))),tr=piste.frames[index];
      scale=lisserLevres(scale,echelleLevres(e.niveau(),tr[4],e.parle),t-avant);
-     try{if(textureFrame!==index){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,v);textureFrame=index;}gl.uniform2f(u.size,c.width,c.height);gl.uniform2f(u.centre,tr[0],tr[1]);gl.uniform1f(u.largeur,tr[2]);gl.uniform1f(u.angle,tr[3]);gl.uniform1f(u.gap,tr[4]);gl.uniform1f(u.echelle,scale);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}catch{stop=true;e.onErreur();return;}
+     try{if(textureFrame!==index){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,v);textureFrame=index;}gl.uniform2f(u.size,c.width,c.height);gl.uniform2f(u.centre,tr[0],tr[1]);gl.uniform1f(u.largeur,tr[2]);gl.uniform1f(u.angle,tr[3]);gl.uniform1f(u.gap,tr[4]);gl.uniform1f(u.echelle,scale);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}catch(err){stop=true;e.onErreur(err instanceof Error?err.message:'Texture vidéo indisponible');return;}
     }
     avant=t;raf=requestAnimationFrame(peindre);
    };raf=requestAnimationFrame(peindre);
-  }catch{courant.current.onErreur();}
-  const perdu=(e:Event)=>{e.preventDefault();stop=true;courant.current.onErreur();};c.addEventListener('webglcontextlost',perdu);
+  }catch(err){courant.current.onErreur(err instanceof Error?err.message:'Initialisation graphique');}
+  const perdu=(e:Event)=>{e.preventDefault();stop=true;courant.current.onErreur('Contexte graphique perdu');};c.addEventListener('webglcontextlost',perdu);
   return()=>{stop=true;cancelAnimationFrame(raf);c.removeEventListener('webglcontextlost',perdu);if(tex)gl.deleteTexture(tex);if(buffer)gl.deleteBuffer(buffer);if(programme)gl.deleteProgram(programme);if(vs)gl.deleteShader(vs);if(fs)gl.deleteShader(fs);};
  },[video]);
  return <canvas ref={canvas} width={1176} height={1764} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',background:'#000'}} aria-label="Bia : essai des lèvres sur la vidéo originale"/>;

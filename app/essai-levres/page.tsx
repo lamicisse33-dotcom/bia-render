@@ -10,7 +10,7 @@ export default function EssaiLevres(){
   try{
    if(!ctx.current){const c=new AudioContext();ctx.current=c;const s=c.createMediaElementSource(audio.current!);analyse.current=c.createAnalyser();analyse.current.fftSize=512;s.connect(analyse.current);analyse.current.connect(c.destination);}
    await ctx.current.resume();video.current!.currentTime=3.65;audio.current!.currentTime=0;
-   await Promise.all([video.current!.play(),audio.current!.play()]);setActif(true);setErreur('');
+   await Promise.all([video.current!.play(),audio.current!.play()]);setActif(true);
   }catch{setErreur('Appuie de nouveau pour autoriser la lecture du son.');}
  }
  function arreter(){audio.current?.pause();video.current?.pause();setActif(false);}
@@ -19,7 +19,7 @@ export default function EssaiLevres(){
   <p>Vidéo originale et déformation légère des lèvres selon le son. Essai séparé de Bia.</p>
   <div style={{position:'relative',margin:'auto',height:'min(68dvh,900px)',aspectRatio:'2/3',maxWidth:'100%'}}>
    <video ref={video} src="/personnages/satin-anime-20261028/parole.mp4" muted playsInline preload="auto" style={{width:'100%',height:'100%',objectFit:'contain'}} onTimeUpdate={()=>{if(video.current&&video.current.currentTime>=8.35)video.current.currentTime=3.65;}}/>
-   {!original&&<LevresVideo video={video} clip="parole" niveau={niveau} parle={actif} onErreur={()=>{setOriginal(true);setErreur('Animation graphique indisponible : vidéo originale affichée.');}}/>}
+   {!original&&<LevresVideo video={video} clip="parole" niveau={niveau} parle={actif} onErreur={message=>{setOriginal(true);setErreur('Vidéo originale affichée. Diagnostic : '+message);}}/>}
   </div>
   <audio ref={audio} src="/voix-bia.wav" preload="none" onEnded={arreter}/>
   <div style={{display:'flex',justifyContent:'center',gap:12,flexWrap:'wrap',marginTop:12}}>
