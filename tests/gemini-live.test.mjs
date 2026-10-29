@@ -374,3 +374,18 @@ test('la recherche ne part que si BIA_LIVE_RECHERCHE vaut 1',()=>{
     variable laissée à « false » ou « 0 » ne la rallume pas. */
  assert.match(code,/BIA_LIVE_RECHERCHE\|\|''\)\.trim\(\)==='1'/);
 });
+
+test('legacy Live history initializes without generation and never sends an empty client turn',async()=>{
+ const module={exports:{}};new Function('module','exports',compile('lib/gemini-live-client.ts'))(module,module.exports);
+ const old={fetch:globalThis.fetch,WebSocket:globalThis.WebSocket,localStorage:globalThis.localStorage};
+ const sent=[];class Socket{static OPEN=1;readyState=1;constructor(){queueMicrotask(()=>this.onopen());}send(raw){const d=JSON.parse(raw);sent.push(d);if(d.setup)queueMicrotask(()=>this.onmessage({data:JSON.stringify({setupComplete:{}})}));}close(){}}
+ try{
+  globalThis.WebSocket=Socket;globalThis.localStorage={setItem(){}};
+  globalThis.fetch=async()=>Response.json({token:'synthetic',setup:{model:'models/gemini-2.5-flash-native-audio-preview-12-2025'}});
+  for(const history of [[],[{role:'user',parts:[{text:'Bonjour'}]},{role:'model',parts:[{text:'Bonjour !'}]}]]){
+   sent.length=0;const c=new module.exports.BiaGeminiLive('TEST',{etat(){},transcription(){},parle(){},latence(){},erreur(){}});c.stoppe=false;c.history=history;await c.connecter();
+   const content=sent.filter(s=>s.clientContent);assert.equal(content.length,history.length?1:0);
+   if(history.length){assert.deepEqual(content[0].clientContent.turns,history);assert.equal(content[0].clientContent.turnComplete,false);}
+  }
+ }finally{globalThis.fetch=old.fetch;globalThis.WebSocket=old.WebSocket;if(old.localStorage===undefined)delete globalThis.localStorage;else globalThis.localStorage=old.localStorage;}
+});

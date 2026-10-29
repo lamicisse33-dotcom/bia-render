@@ -362,7 +362,9 @@ export class BiaGeminiLive{
    ws.onmessage=async e=>{
     try{
      const d=JSON.parse(typeof e.data==='string'?e.data:await e.data.text());
-     if(d.setupComplete){clearTimeout(timeout);established=true;this.ready=true;this.send({clientContent:{turns:this.history,turnComplete:true}});this.events.etat('Je t’écoute');resolve();}
+     if(d.setupComplete){clearTimeout(timeout);established=true;this.ready=true;if(data.setup?.historyConfig?.initialHistoryInClientContent)this.send({clientContent:{turns:this.history,turnComplete:true}});
+      else if(this.history.length)this.send({clientContent:{turns:this.history,turnComplete:false}});
+      this.events.etat('Je t’écoute');resolve();}
      if(d.error){
       /* Le message de Google est la réponse à « pourquoi ». On le garde, on
          le remonte, et on le MONTRE : « a refusé la session » tout seul

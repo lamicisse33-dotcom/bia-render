@@ -155,7 +155,9 @@ export async function POST(req:NextRequest){
      souvenir faux, ce que lib/souvenirs.ts refuse depuis le début. On recule
      donc le déclencheur : BIA_LIVE_COMPRESSION le règle depuis Render. */
   contextWindowCompression:{triggerTokens:String(liveCompressionJetons()),slidingWindow:{targetTokens:String(liveCompressionCible())}},
-  sessionResumption:{},historyConfig:{initialHistoryInClientContent:true},
+  // 2.5 accepte le setup mais ferme en 1007 à la première trame si l'historique spécial est activé.
+  // Son historique standard reste envoyé par clientContent, sans déclencher de réponse.
+  sessionResumption:{},...((process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live').includes('gemini-2.5')?{}:{historyConfig:{initialHistoryInClientContent:true}}),
   /* ── LA RECHERCHE CASSAIT TOUTES LES SESSIONS, ET C'EST MA FAUTE ────────
 
      Le 24 octobre au soir, Lamine : « Khalam Rapide affiche "Khalam Rapide a

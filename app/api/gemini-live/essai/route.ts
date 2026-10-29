@@ -63,7 +63,7 @@ const g = globalThis as typeof globalThis & { biaEssaiLive?: number; biaEssaisCo
    à part — mélanger deux changements dans un essai, c'est ne rien apprendre. */
 const CONSIGNE = "Tu es Bia. Réponds en français ou en wolof.";
 
-type Variante = { nom: string; setup: Record<string, unknown>; token?: string; verifierAudio?: boolean; historiqueEssai?: boolean; ecouter?: boolean };
+type Variante = { nom: string; setup: Record<string, unknown>; token?: string; verifierAudio?: boolean; historiqueEssai?: boolean; ecouter?: boolean; historiqueCompatible?: boolean };
 
 /* ── ESSAYER UN AUTRE MODÈLE, SANS TOUCHER À LA PRODUCTION ────────────────
    Lamine : « vérifie si un autre modèle Live a un quota gratuit plus large
@@ -95,6 +95,7 @@ function variantes(modeleDemande = ""): Variante[] {
     /* On change UNE chose à la fois. Deux changements dans un essai, et on
        ne saurait pas lequel a parlé. */
     { nom: "nu", setup: base() },
+    ...[false,true].map(historiqueEssai=>({nom:historiqueEssai?"client_historique_compatible":"client_vide_compatible",historiqueEssai,historiqueCompatible:true,verifierAudio:true,setup:{...base(),sessionResumption:{},realtimeInputConfig:detection(silenceFinDeParoleMs(),prefixePartMs())}})),
     ...[false,true].map(historiqueEssai=>({nom:historiqueEssai?"client_historique":"client_vide",historiqueEssai,verifierAudio:true,setup:{...base(),sessionResumption:{},historyConfig:{initialHistoryInClientContent:true},realtimeInputConfig:detection(silenceFinDeParoleMs(),prefixePartMs())}})),
     { nom: "silence_500", setup: { ...base(), realtimeInputConfig: detection(500, 150) } },
     { nom: "silence_1200", setup: { ...base(), realtimeInputConfig: detection(silenceFinDeParoleMs(), prefixePartMs()) } },
@@ -157,7 +158,7 @@ async function essayer(v: Variante) {
           setupAccepte = true;
           if (v.verifierAudio) {
             if(v.historiqueEssai!==undefined){
-              ws.send(JSON.stringify({clientContent:{turns:v.historiqueEssai?[{role:"user",parts:[{text:"Bonjour."}]},{role:"model",parts:[{text:"Bonjour, comment vas-tu ?"}]}]:[],turnComplete:true}}));
+              if(!v.historiqueCompatible||v.historiqueEssai)ws.send(JSON.stringify({clientContent:{turns:v.historiqueEssai?[{role:"user",parts:[{text:"Bonjour."}]},{role:"model",parts:[{text:"Bonjour, comment vas-tu ?"}]}]:[],turnComplete:!v.historiqueCompatible}}));
               ws.send(JSON.stringify({realtimeInput:{text:"Bonjour Bia. Dis simplement bonjour en français."}}));
             }else ws.send(JSON.stringify({clientContent:{turns:[{role:"user",parts:[{text:"Bonjour Bia. Réponds simplement bonjour en français pour cet essai technique."}]}],turnComplete:true}}));
           } else { clearTimeout(minuteur); try { ws.close(); } catch { /* ok */ } rendre({ etape: "setup", accepte: true }); }
