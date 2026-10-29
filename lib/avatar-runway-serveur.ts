@@ -69,10 +69,11 @@ export async function ouvrirAvatar(proprietaire='essai',conversation=false){
   const avatar=new AccessToken(c.key,c.secret,{identity:AVATAR_IDENTITE,ttl:duree+60});
   avatar.kind='agent';avatar.attributes={'lk.publish_on_behalf':identity};
   avatar.addGrant({roomJoin:true,room});
-  const r=await runway('/realtime_sessions','POST',{model:'gwm1_avatars',avatar:{type:'custom',avatarId:plan.etat.id||AVATAR_BIA},maxDuration:duree,livekit:{url:c.url,token:await avatar.toJwt(),roomName:room,agentIdentity:identity}});
+  const avatarId=plan.etat.id||AVATAR_BIA;
+  const r=await runway('/realtime_sessions','POST',{model:'gwm1_avatars',avatar:{type:'custom',avatarId},maxDuration:duree,livekit:{url:c.url,token:await avatar.toJwt(),roomName:room,agentIdentity:identity}});
   const data=await r.json();if(typeof data.id!=='string')throw new Error('session_sans_identifiant');
   sessions.set(data.id,{room,expiration:Date.now()+(duree+5)*1000,proprietaire});
-  return {session:data.id,url:c.url,token:await client.toJwt(),spectateur:await spectateur.toJwt(),destination:AVATAR_IDENTITE,duree_maximale_s:duree,cadrage:plan.etat.id?'pied':'buste'};
+  return {session:data.id,url:c.url,token:await client.toJwt(),spectateur:await spectateur.toJwt(),destination:AVATAR_IDENTITE,duree_maximale_s:duree,cadrage:avatarId===AVATAR_BIA?'buste':'pied'};
  }catch(e){await salles().deleteRoom(room).catch(()=>{});throw e;}
 }
 export async function fermerAvatar(id:string,proprietaire='essai'){
