@@ -17,8 +17,28 @@ export type TenueBia = typeof TENUES_BIA[number]["id"];
 const ID_VISAGE_LOCAL = "visage-local";
 const TENUE_DU_VISAGE_LOCAL = "vert-or";
 
+/* ── L'ESSAI DE LA BOUCHE COMPOSÉE EST ARRÊTÉ ──────────────────────────────
+
+   Lamine, le 29 octobre 2026 au soir, après l'avoir regardée et écoutée :
+   « la bouche composée sur vidéo n'est pas naturelle et ne colle pas. On
+   arrête cette voie. »
+
+   Le code reste — il est écrit, éprouvé, et le verdict est consigné dans
+   docs/VISAGE-LOCAL-ESSAI-2026-10-29.md. Mais les deux personnages ne sont
+   plus proposés : ce drapeau à `false` les retire de la liste, et une
+   mémoire de téléphone qui en gardait un retombe sur le satin d'origine.
+   Le remettre à `true` les fait réapparaître sans rien d'autre à toucher. */
+export const ESSAI_BOUCHE_COMPOSEE = false;
+
 export type ApparenceBia = TenueBia | typeof SATIN_ID | typeof SATIN_LOCAL_ID | 'runway-direct' | typeof ID_VISAGE_LOCAL;
-export const APPARENCES_BIA = [...TENUES_BIA, {id: SATIN_ID, nom: 'Bia animée — satin bleu nuit'}, {id: SATIN_LOCAL_ID, nom: 'Bia satin bleu nuit — local (bouche sur le son)'}, {id:'runway-direct',nom:'Bia bleu nuit — synchronisée (crédits Runway)'}, {id: ID_VISAGE_LOCAL, nom: 'Bia — visage local (essai)'}] as const;
+const TOUTES_LES_APPARENCES = [...TENUES_BIA,
+  {id: SATIN_ID, nom: 'Bia animée — satin bleu nuit'},
+  {id: SATIN_LOCAL_ID, nom: 'Bia satin bleu nuit — local (bouche sur le son)'},
+  {id: 'runway-direct', nom: 'Bia bleu nuit — synchronisée (crédits Runway)'},
+  {id: ID_VISAGE_LOCAL, nom: 'Bia — visage local (essai)'}] as const;
+const ESSAIS_ARRETES: readonly string[] = [SATIN_LOCAL_ID, ID_VISAGE_LOCAL];
+export const APPARENCES_BIA = TOUTES_LES_APPARENCES
+  .filter(a => ESSAI_BOUCHE_COMPOSEE || !ESSAIS_ARRETES.includes(a.id));
 export function estApparenceBia(v: unknown): v is ApparenceBia { return v === 'runway-direct' || v === SATIN_ID || v === SATIN_LOCAL_ID || v === ID_VISAGE_LOCAL || estTenueBia(v); }
 export function chargerApparenceBia(id: ApparenceBia) {
   /* Le visage local ne lit ni la planche des expressions ni celle des mains :
@@ -28,6 +48,9 @@ export function chargerApparenceBia(id: ApparenceBia) {
   return id === 'runway-direct' || id === SATIN_ID || id === SATIN_LOCAL_ID ? chargerPosterSatin() : chargerTenueBia(id);
 }
 export function apparenceLocaleBia(ancienne: string | null, runwayChoisi = false) {
+  /* Un téléphone qui gardait un personnage d'essai ne doit pas rester coincé
+     dessus maintenant qu'il n'est plus proposé : il retombe sur le satin. */
+  if (!ESSAI_BOUCHE_COMPOSEE && ancienne && ESSAIS_ARRETES.includes(ancienne)) return SATIN_ID;
   return !ancienne || (ancienne === 'runway-direct' && !runwayChoisi) ? SATIN_ID : ancienne;
 }
 export const CLE_APPARENCE_BIA = "bia-habillage-20261027";

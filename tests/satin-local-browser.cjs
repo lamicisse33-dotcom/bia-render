@@ -16,6 +16,17 @@
    On ne se fie donc pas à l'intention : on exige que le canevas soit
    visible et opaque aux trois instants, on relève l'ouverture qu'il a
    peinte, et on garde trois images que Lamine peut regarder. */
+/* ── L'ESSAI EST ARRÊTÉ : CETTE ÉPREUVE ATTEND SON DRAPEAU ────────────────
+   Lamine a arrêté la voie de la bouche composée le 29 octobre 2026 au soir
+   (voir docs/VISAGE-LOCAL-ESSAI-2026-10-29.md). Les personnages ne sont
+   plus dans la liste, donc cette épreuve ne peut plus les choisir. Elle ne
+   devient pas rouge pour autant — un rouge permanent qu'on apprend à
+   ignorer est pire qu'une épreuve absente. Elle se rendort, et elle
+   repartira toute seule le jour où ESSAI_BOUCHE_COMPOSEE repassera à true. */
+if (!/ESSAI_BOUCHE_COMPOSEE\s*=\s*true/.test(require('fs').readFileSync('lib/apparences-bia.ts', 'utf8'))) {
+  console.log(JSON.stringify({ endormie: 'ESSAI_BOUCHE_COMPOSEE est à false — essai arrêté le 29 octobre 2026' }));
+  process.exit(0);
+}
 const { spawn } = require('child_process');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('assert/strict');

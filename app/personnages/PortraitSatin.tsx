@@ -111,7 +111,7 @@ export function PortraitSatin({face, parle, ecoute = false, emotion = 'neutre', 
   // reprise utilisateur, même avant que l'effet de changement soit exécuté.
   const autorise = anime && !panne && (!ecoute || clip === 'ecoute');
   return <div className={styles.presence} data-bia-habillage={bouche ? 'satin-local' : 'satin-anime'}
-    data-bouche-composee={bouche ? 'oui' : 'non'}
+    {...(bouche ? {'data-bouche-composee': 'oui'} : {})}
     data-parle={parle ? 'oui' : 'non'} data-ecoute={ecoute ? 'oui' : 'non'} aria-hidden="true">
     <div className={styles.cadre}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
