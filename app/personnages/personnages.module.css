@@ -33,6 +33,6 @@
 /* Le cadre reste sous les commandes. La caméra zoome uniformément, sans
    étirer la silhouette ni ajouter une autre bouche. Retour au plan en pied
    à la fin de la parole. */
-.zoomRunway { position:absolute; inset:0; transform-origin:50% 10%; transition:transform 1800ms cubic-bezier(.22,.61,.36,1); }
+.zoomRunway { position:absolute; inset:0; transform-origin:50% 0%; transition:transform 1800ms cubic-bezier(.22,.61,.36,1); }
 .planLargeRunway .videoRunway { left:50%; right:auto; width:auto; max-width:none; height:100%; transform:translateX(-50%); object-fit:contain; }
 @media (prefers-reduced-motion:reduce) { .zoomRunway { transform:none !important; transition:none; } }
