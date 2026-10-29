@@ -10,3 +10,11 @@ test('la transition converge sans saut ni dépassement même après une pause du
  let s=1;for(let i=0;i<60;i++){const n=a.lisserLevres(s,1.3,16);assert(n>=s&&n<=1.3);s=n;}assert(s>1.299);
  assert.equal(a.lisserLevres(1,1.3,-1),1);assert(a.lisserLevres(1,1.3,99999)<1.3);
 });
+
+test('les bords restent immobiles et la transformation ne replie pas la texture des lèvres',()=>{
+ for(const scale of [.76,1,1.3]){
+  for(const x of [-60,60])for(const y of [-50,0,50])assert(Math.abs(a.origineLevre(y,x,100,.1,scale)-y)<1e-8);
+  let prev=-Infinity;
+  for(let y=-65;y<=65;y+=.5){const v=a.origineLevre(y,0,100,.1,scale);assert(v>=prev);prev=v;}
+ }
+});

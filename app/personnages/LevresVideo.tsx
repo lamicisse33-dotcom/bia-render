@@ -2,6 +2,7 @@
 import {useEffect,useRef} from 'react';
 import mesures from '../../public/personnages/satin-anime-20261028/levres.json';
 import {echelleLevres,lisserLevres} from '@/lib/levres-video';
+import {dessinerLevresCompatibles} from '@/lib/levres-canvas';
 import type {SequenceSatin} from '@/lib/animation-satin';
 const vertex=`attribute vec2 p;varying vec2 uv;void main(){uv=(p+1.)*.5;gl_Position=vec4(p,0,1);}`;
 const fragment=`precision highp float;varying vec2 uv;uniform sampler2D image;uniform vec2 size,centre;uniform float largeur,angle,gap,echelle;
@@ -26,7 +27,14 @@ export function LevresVideo({video,clip,niveau,parle,onErreur}:{video:React.RefO
   return()=>{stop=true;v.cancelVideoFrameCallback(id);tempsVideo.current=null;};
  },[video]);
  useEffect(()=>{
-  const c=canvas.current,gl=c?.getContext('webgl',{alpha:false,antialias:false});if(!c||!gl){courant.current.onErreur('WebGL indisponible');return;}
+  const c=canvas.current;if(!c)return;
+  const gl=c.getContext('webgl',{alpha:false,antialias:false});
+  if(!gl)return dessinerLevresCompatibles(c,()=>{
+   const e=courant.current,v=video.current,p=mesures[e.clip];
+   const tr=v?p.frames[Math.min(p.frames.length-1,Math.max(0,Math.floor((tempsVideo.current??v.currentTime)*p.fps)))]:null;
+   return {video:v,tr,niveau:e.niveau(),parle:e.parle};
+  },()=>courant.current.onErreur('Rendu vidéo indisponible'));
+  c.dataset.rendu='webgl';
   let stop=false,raf=0,avant=performance.now(),scale=1,textureFrame=-1;
   const shader=(type:number,code:string)=>{const sh=gl.createShader(type)!;gl.shaderSource(sh,code);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(sh)||'shader');return sh;};
   let programme:WebGLProgram|null=null,tex:WebGLTexture|null=null,buffer:WebGLBuffer|null=null,vs:WebGLShader|null=null,fs:WebGLShader|null=null;
