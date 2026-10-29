@@ -8,6 +8,20 @@
 .repos { position:absolute; inset:0; background-size:100% 100%; background-repeat:no-repeat; background-color:#000; }
 .mains { position:absolute; inset:52.0833333333% 0 0; background-size:300% 100%; background-repeat:no-repeat; transition:opacity 180ms ease-in-out; mask-image:linear-gradient(transparent, #000 9%); -webkit-mask-image:linear-gradient(transparent, #000 9%); }
 .visage { position:absolute; inset:0 0 auto; height:26.0416666667%; background-size:300% 300%; background-repeat:no-repeat; mask-image:linear-gradient(#000 85%, transparent 100%); -webkit-mask-image:linear-gradient(#000 85%, transparent 100%); }
+/* ── LE VISAGE LOCAL (29 octobre 2026) ─────────────────────────────────────
+   La boucle couvre exactement le cadre, comme le portrait fixe qu'elle
+   recouvre : même boîte, même cadrage, donc la bouche posée en pour cent
+   tombe au même endroit que la vidéo soit là ou non. `object-fit:cover`
+   plutôt que `fill` : une boucle rendue carrée par Runway ne doit pas
+   étirer son visage pour entrer dans un portrait deux-tiers. */
+.boucle { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center top; background:#000; }
+/* La bouche est posée en pour cent du cadre : elle suit le portrait à 375 px
+   comme à 1024. `pointer-events:none` est déjà porté par .presence ; on ne
+   le répète pas. Aucune transition : une bouche qui fond dans la suivante
+   ferait une bouillie sur la parole — c'est la même règle que visageAvant
+   dans app/page.tsx. */
+.bouche { position:absolute; display:block; transition:none; }
+@media (prefers-reduced-motion:reduce) { .boucle { display:none; } }
 .choix { flex-basis:100%; min-width:0; }
 .options { margin:12px 0; padding:14px; border:1px solid #8c7549; border-radius:14px; min-width:0; }
 .options legend { padding:0 8px; color:#edcf82; }

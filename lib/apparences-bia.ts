@@ -7,10 +7,26 @@ export const TENUES_BIA = [
   { id: "ivoire", nom: "Ivoire et bordeaux" },
 ] as const;
 export type TenueBia = typeof TENUES_BIA[number]["id"];
-export type ApparenceBia = TenueBia | typeof SATIN_ID | 'runway-direct';
-export const APPARENCES_BIA = [...TENUES_BIA, {id: SATIN_ID, nom: 'Bia animée — satin bleu nuit'}, {id:'runway-direct',nom:'Bia bleu nuit — synchronisée (crédits Runway)'}] as const;
-export function estApparenceBia(v: unknown): v is ApparenceBia { return v === 'runway-direct' || v === SATIN_ID || estTenueBia(v); }
-export function chargerApparenceBia(id: ApparenceBia) { return id === 'runway-direct' || id === SATIN_ID ? chargerPosterSatin() : chargerTenueBia(id); }
+/* ── DEUX LITTÉRAUX RECOPIÉS, ET C'EST VOULU ───────────────────────────────
+   Ils vivent aussi dans lib/visage-local.ts (ID_VISAGE_LOCAL,
+   TENUE_DU_VISAGE_LOCAL). Les importer d'ici casserait
+   tests/apparences-bia.test.mjs, qui transpile CE fichier seul et ne sait
+   pas suivre un import relatif. Plutôt que de tordre leur épreuve, on
+   recopie deux chaînes — et tests/visage-local.test.mjs refuse qu'elles
+   divergent. */
+const ID_VISAGE_LOCAL = "visage-local";
+const TENUE_DU_VISAGE_LOCAL = "vert-or";
+
+export type ApparenceBia = TenueBia | typeof SATIN_ID | 'runway-direct' | typeof ID_VISAGE_LOCAL;
+export const APPARENCES_BIA = [...TENUES_BIA, {id: SATIN_ID, nom: 'Bia animée — satin bleu nuit'}, {id:'runway-direct',nom:'Bia bleu nuit — synchronisée (crédits Runway)'}, {id: ID_VISAGE_LOCAL, nom: 'Bia — visage local (essai)'}] as const;
+export function estApparenceBia(v: unknown): v is ApparenceBia { return v === 'runway-direct' || v === SATIN_ID || v === ID_VISAGE_LOCAL || estTenueBia(v); }
+export function chargerApparenceBia(id: ApparenceBia) {
+  /* Le visage local ne lit ni la planche des expressions ni celle des mains :
+     sa bouche vient de ses propres découpes et son fond d'une boucle. On ne
+     charge donc que le portrait de repos — mesuré : 1,9 Mo de moins. */
+  if (id === ID_VISAGE_LOCAL) return chargerTenueBia(TENUE_DU_VISAGE_LOCAL, true);
+  return id === 'runway-direct' || id === SATIN_ID ? chargerPosterSatin() : chargerTenueBia(id);
+}
 export function apparenceLocaleBia(ancienne: string | null, runwayChoisi = false) {
   return !ancienne || (ancienne === 'runway-direct' && !runwayChoisi) ? SATIN_ID : ancienne;
 }
@@ -80,11 +96,23 @@ export function programmerGestesBia({ emettre, planifier, annuler, alea = Math.r
   return () => { actif = false; annuler(timer); emettre(0); };
 }
 
-const chargements = new Map<TenueBia, Promise<void>>();
-export function chargerTenueBia(id: TenueBia): Promise<void> {
-  const deja = chargements.get(id);
+const chargements = new Map<string, Promise<void>>();
+/* ── NE PAS CHARGER CE QUI NE SERVIRA PAS ──────────────────────────────────
+
+   Mesuré le 29 octobre 2026 dans tests/visage-local-browser.cjs : choisir le
+   visage local téléchargeait 1,9 Mo de `visages.webp` — la planche des neuf
+   expressions — alors que ce personnage-là n'en lit pas un pixel : sa bouche
+   vient de ses propres découpes, et son fond d'une boucle vidéo.
+
+   `seulementLeFond` ne charge donc que le portrait de repos. Le personnage
+   existant, lui, continue de tout charger : il a besoin des trois planches,
+   et rien de ce qui le concerne ne change. */
+export function chargerTenueBia(id: TenueBia, seulementLeFond = false): Promise<void> {
+  const cle = seulementLeFond ? id + ":fond" : id;
+  const deja = chargements.get(cle);
   if (deja) return deja;
-  const promesse = Promise.all(Object.values(imagesTenueBia(id)).map(src => new Promise<void>((resolve, reject) => {
+  const sources = seulementLeFond ? [imagesTenueBia(id).repos] : Object.values(imagesTenueBia(id));
+  const promesse = Promise.all(sources.map(src => new Promise<void>((resolve, reject) => {
     const image = new Image();
     const limite = setTimeout(() => reject(new Error("Chargement de la tenue trop long")), 20000);
     image.onerror = () => { clearTimeout(limite); reject(new Error("Tenue indisponible")); };
@@ -94,7 +122,7 @@ export function chargerTenueBia(id: TenueBia): Promise<void> {
     };
     image.src = src;
   }))).then(() => undefined);
-  chargements.set(id, promesse);
-  void promesse.catch(() => { if (chargements.get(id) === promesse) chargements.delete(id); });
+  chargements.set(cle, promesse);
+  void promesse.catch(() => { if (chargements.get(cle) === promesse) chargements.delete(cle); });
   return promesse;
 }
