@@ -63,7 +63,7 @@ const g = globalThis as typeof globalThis & { biaEssaiLive?: number; biaEssaisCo
    à part — mélanger deux changements dans un essai, c'est ne rien apprendre. */
 const CONSIGNE = "Tu es Bia. Réponds en français ou en wolof.";
 
-type Variante = { nom: string; setup: Record<string, unknown>; token?: string; verifierAudio?: boolean; historiqueEssai?: boolean };
+type Variante = { nom: string; setup: Record<string, unknown>; token?: string; verifierAudio?: boolean; historiqueEssai?: boolean; ecouter?: boolean };
 
 /* ── ESSAYER UN AUTRE MODÈLE, SANS TOUCHER À LA PRODUCTION ────────────────
    Lamine : « vérifie si un autre modèle Live a un quota gratuit plus large
@@ -148,10 +148,11 @@ async function essayer(v: Variante) {
     const minuteur = setTimeout(() => { try { ws.close(); } catch { /* déjà fermé */ } rendre({ etape: "attente", accepte: false, motif: "aucune réponse en 12 s" }); }, 12000);
     ws.onopen = () => ws.send(JSON.stringify({ setup: v.setup }));
     let setupAccepte = false;
+    const morceaux: Buffer[]=[]; let premierAudioMs=0;
     ws.onmessage = async (e: MessageEvent) => {
       try {
         const brut = typeof e.data === "string" ? e.data : await (e.data as Blob).text();
-        const d = JSON.parse(brut) as { setupComplete?: unknown; error?: { message?: string; code?: number }; serverContent?: {modelTurn?: {parts?: {inlineData?: {data?: string}}[]}} };
+        const d = JSON.parse(brut) as { setupComplete?: unknown; error?: { message?: string; code?: number }; serverContent?: {turnComplete?:boolean; modelTurn?: {parts?: {inlineData?: {data?: string}}[]}} };
         if (d.setupComplete) {
           setupAccepte = true;
           if (v.verifierAudio) {
@@ -162,8 +163,17 @@ async function essayer(v: Variante) {
           } else { clearTimeout(minuteur); try { ws.close(); } catch { /* ok */ } rendre({ etape: "setup", accepte: true }); }
           return;
         }
-        if (v.verifierAudio && d.serverContent?.modelTurn?.parts?.some(p=>p.inlineData?.data)) {
-          clearTimeout(minuteur); rendre({etape:"premier_audio",accepte:true,setup_accepte:setupAccepte}); try {ws.close();} catch {} return;
+        if(v.verifierAudio){
+          for(const p of d.serverContent?.modelTurn?.parts||[]){if(p.inlineData?.data){
+            if(!premierAudioMs)premierAudioMs=Date.now()-debut;
+            morceaux.push(Buffer.from(p.inlineData.data,'base64'));
+          }}
+          if(morceaux.length&&(!v.ecouter||d.serverContent?.turnComplete||morceaux.reduce((s,b)=>s+b.length,0)>=24000*2*6)){
+            clearTimeout(minuteur);
+            const pcm=Buffer.concat(morceaux);
+            rendre({etape:"premier_audio",accepte:true,setup_accepte:setupAccepte,premier_audio_ms:premierAudioMs,...(v.ecouter?{pcm_base64:pcm.toString('base64'),frequence:24000,duree_s:pcm.length/48000}: {})});
+            try{ws.close();}catch{}return;
+          }
         }
         if (d.error) { clearTimeout(minuteur); try { ws.close(); } catch { /* ok */ } rendre({ etape: "setup", accepte: false, code_erreur: d.error.code, motif: sansCle(d.error.message || "erreur sans message") }); }
       } catch { /* message illisible : la fermeture dira le reste */ }
@@ -220,7 +230,7 @@ export async function GET(request: NextRequest) {
      cadence, et on les prendrait pour des refus de configuration. */
   const resultats = [];
   for (const v of liste) resultats.push(await essayer(audioCourt ? {
-    ...v,verifierAudio:true,setup:{...v.setup,generationConfig:{
+    ...v,verifierAudio:true,ecouter:url.searchParams.get("ecouter")==="1",setup:{...v.setup,generationConfig:{
       ...(v.setup.generationConfig as Record<string,unknown>),maxOutputTokens:512,
       speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:"Kore"}}},
     }},
