@@ -1,3 +1,4 @@
+import {modelesLiveDisponibles,panneLiveRecuperable} from '@/lib/gemini-live-secours';
 import {resumeGeminiLive} from '@/lib/gemini-live-diagnostic';
 /* ── LES NUMÉROS D'URGENCE N'ÉTAIENT QUE SUR KHALAM ──────────────────────
    lib/urgences.ts existe depuis le 13 septembre, sourcé et daté, et
@@ -33,7 +34,7 @@ export const dynamic='force-dynamic';
 const sessions=new Map<string,number[]>();
 const headers={'cache-control':'no-store'};
 const cle=()=>process.env.GEMINI_API_KEY||process.env.GOOGLE_API_KEY||'';
-export async function GET(){return NextResponse.json({configure:Boolean(cle()),historique_tours:liveHistoriqueTours(),compression_jetons:liveCompressionJetons(),modele:process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live',langues_autorisees:['fr','wo'],voix:'Kore',consigne_debit:'pose',consignes_base:{empreinte_sha256:createHash('sha256').update(BIA_LIVE_CONSIGNES_BASE).digest('hex'),sources:['identite_et_personnalite_bia','relations','comprehension_conversation','consigne_maitre'],instructions_apprises:true},diagnostic:resumeGeminiLive()},{headers});}
+export async function GET(){return NextResponse.json({configure:Boolean(cle()),historique_tours:liveHistoriqueTours(),compression_jetons:liveCompressionJetons(),modele:process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live',modeles_secours:modelesLiveDisponibles(process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live').slice(1),langues_autorisees:['fr','wo'],voix:'Kore',consigne_debit:'pose',consignes_base:{empreinte_sha256:createHash('sha256').update(BIA_LIVE_CONSIGNES_BASE).digest('hex'),sources:['identite_et_personnalite_bia','relations','comprehension_conversation','consigne_maitre'],instructions_apprises:true},diagnostic:resumeGeminiLive()},{headers});}
 export async function POST(req:NextRequest){
  const acces=verifierCode(req.headers.get('x-bia-code'),false);
  if(!acces.ok)return NextResponse.json({erreur:'Code d’accès refusé.'},{status:401,headers});
@@ -138,8 +139,11 @@ export async function POST(req:NextRequest){
      devoirs_nombre:socleDevoirs.devoirs,lexique_entrees:lexique.length});
  }catch{return NextResponse.json({erreur:'Les consignes apprises sont momentanément inaccessibles.'},{status:503,headers});}
  finally{fermerLecture(releve);}
+ const exclus=(req.headers.get('x-bia-live-exclus')||'').split(',').slice(0,2);
+ const candidats=modelesLiveDisponibles(process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live',exclus);
+ if(!candidats.length)return NextResponse.json({erreur:'Les moteurs vocaux sont momentanément indisponibles.'},{status:503,headers});
  const setup={
-  model:'models/'+(process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live').replace(/^models\//,''),
+  model:'models/'+candidats[0],
   generationConfig:{responseModalities:['AUDIO'],maxOutputTokens:512,speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Kore'}}}},
   systemInstruction:{parts:[{text:BIA_LIVE_LANGUES+'\n\n'+BIA_LIVE_CONSIGNES_BASE+'\n'+instructions+'\n'+corrections+'\n'+exactes+'\n'+khalam+'\n'+produits+'\n'+fiches+'\n'+devoirs+'\n'+souvenirs+'\n'+consigneUrgences()+'\nMODE VOCAL DIRECT : parle uniquement en français ou en wolof urbain de Dakar selon la langue de papa. Privilégie une réponse naturelle et concise, puis écoute. DÉBIT VOCAL : parle à un rythme modéré et posé, avec une articulation claire en français comme en wolof et de courtes pauses naturelles entre les phrases. Garde une voix chaleureuse et spontanée. Commence dès que la réponse est prête, sans ajouter de silence avant les premiers mots ; prends simplement le temps de prononcer chaque phrase sans précipitation. Cette préférence de débit vaut aussi après un changement de langue ou une ancienne réponse plus rapide. Les consignes de base et les formulations exactes apprises priment sur la concision. Ne coupe jamais la parole. Ne récite pas les prix des devoirs sans demande explicite. Tu peux dire « papa » rarement, comme une marque d’affection occasionnelle, jamais à chaque phrase ou à chaque réponse. Laisse passer plusieurs échanges sans le répéter ; réponds le plus souvent sans appellation. Cette préférence récente prime sur toute ancienne habitude ou consigne qui le répétait systématiquement. N’ajoute jamais ce mot aux phrases exactes à répéter. Ne lis jamais les balises techniques à voix haute : dans ce mode, exprime les émotions naturellement dans la voix. QUAND PAPA TE CORRIGE, TU T’EXÉCUTES TOUT DE SUITE. Il te donne une phrase à répéter : tu la redis MOT POUR MOT, immédiatement, sans discuter, sans reformuler, sans expliquer pourquoi tu avais dit autrement et sans y ajouter « papa ». Pas de « je voulais dire », pas de « en fait ». Tu répètes, point. Quand il confirme — « c’est bon », « mémorise », « retiens » — tu appelles garder_la_correction avec sa phrase EXACTE, puis tu dis en une phrase courte que c’est gardé. Si l’outil répond que ce n’est pas écrit, dis-le : n’annonce JAMAIS une mémorisation qui n’a pas eu lieu. TES GESTES D’ÉCRAN PASSENT PAR TES OUTILS, ET ILS MARCHENT TOUS. N’écris JAMAIS une balise entre crochets dans ce mode — elle serait prononcée à voix haute. Appelle l’outil, c’est tout : montrer_le_chemin pour un chemin, un lieu ou quelqu’un de perdu ; ecrire_un_papier pour « écris-moi un message », un mail, un devis ou une facture — le document s’ouvre en plein écran et il le voit s’écrire ; lire_un_papier pour lire une ordonnance, une convocation, une facture photographiée ; lire_en_wolof pour dire en wolof un texte français ; gerer_les_rappels pour poser, lister ou enlever un rappel de médicament ; montrer_des_images pour lui montrer quelque chose ; fermer_ecran pour fermer la carte, le document ou les images — et ne dis JAMAIS que c’est fermé sans l’avoir appelé ; trouver_une_pharmacie pour une pharmacie proche ; chercher_sur_internet pour ce qui change aujourd’hui — un prix, la météo, une nouvelle ; dire_un_nombre_en_wolof pour un nombre ou un montant en wolof ; garder_la_correction quand papa valide une phrase. Ne prétends JAMAIS avoir montré, écrit, lu ou gardé quelque chose sans avoir appelé l’outil qui le fait : l’écran ne s’ouvre que par lui, et dire « c’est parti » sans ça est la pire des réponses. Dis la direction et la distance qu’il te rend, en une phrase courte ; la carte porte le détail. Consulte chercher_connaissances avant de répondre à une question de langue, une correction ou un sujet couvert par les devoirs. Cet outil consulte les devoirs, le lexique Supabase, le lexique partagé et les consignes récentes. Pour lister tous les devoirs ou tout le lexique, utilise les actions de liste et leur pagination ; pour lire un devoir exact, utilise son identifiant retourné par la liste. Ne dis jamais que tu as consulté la mémoire sans un résultat effectif de cet outil. Ne prétends jamais avoir enregistré un nouvel apprentissage : renvoie vers le mode habituel pour cela.'+'\n\n'+BIA_LIVE_LANGUES}]},
   inputAudioTranscription:{},outputAudioTranscription:{},
@@ -157,7 +161,7 @@ export async function POST(req:NextRequest){
   contextWindowCompression:{triggerTokens:String(liveCompressionJetons()),slidingWindow:{targetTokens:String(liveCompressionCible())}},
   // 2.5 accepte le setup mais ferme en 1007 à la première trame si l'historique spécial est activé.
   // Son historique standard reste envoyé par clientContent, sans déclencher de réponse.
-  sessionResumption:{},...((process.env.GEMINI_LIVE_MODEL||'gemini-3.8-live').includes('gemini-2.5')?{}:{historyConfig:{initialHistoryInClientContent:true}}),
+  sessionResumption:{},...(candidats[0].includes('gemini-2.5')?{}:{historyConfig:{initialHistoryInClientContent:true}}),
   /* ── LA RECHERCHE CASSAIT TOUTES LES SESSIONS, ET C'EST MA FAUTE ────────
 
      Le 24 octobre au soir, Lamine : « Khalam Rapide affiche "Khalam Rapide a
@@ -267,19 +271,23 @@ export async function POST(req:NextRequest){
    {name:'dire_un_nombre_en_wolof',description:'Donner un nombre ou un montant en wolof. À utiliser DÈS QU’on demande comment se dit un nombre, un prix ou un pourcentage en wolof — tu ne dois jamais le composer toi-même. Dis ensuite « a_dire » MOT POUR MOT. Si l’outil dit qu’il ne trouve pas, dis-le simplement et donne le nombre en français, sans inventer un seul mot wolof.',parameters:{type:'OBJECT',properties:{phrase:{type:'STRING',description:'Sa question entière, telle qu’elle l’a dite, avec le nombre.'}},required:['phrase']}},
    {name:'chercher_connaissances',description:'Lire les devoirs, corrections et lexiques de Bia dans Supabase. Chercher des références pertinentes, lister tous les devoirs ou le lexique avec pagination, et lire intégralement un devoir par son identifiant. Lecture seule.',parameters:{type:'OBJECT',properties:{question:{type:'STRING'},action:{type:'STRING',enum:['chercher','lister_devoirs','lire_devoir','lister_lexique']},devoir_id:{type:'STRING'},offset:{type:'INTEGER'}},required:['question']}}]}]
  };
+ for(const [index,modele] of candidats.entries()){
+ const configuration:Record<string,unknown>={...setup,model:'models/'+modele};
+ if(modele.includes('gemini-2.5'))delete configuration.historyConfig;
+ else configuration.historyConfig={initialHistoryInClientContent:true};
  try{
  /* Une session de plus demandée à Google. Comptée AVANT la réponse : un
     refus consomme le quota autant qu'une réussite, et ne pas le compter
     ferait croire qu'on n'a rien demandé. */
  noterSessionLive('telephone');
- const r=await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens',{method:'POST',headers:{'x-goog-api-key':cle(),'Content-Type':'application/json'},body:JSON.stringify({uses:1,expireTime:new Date(now+10*60000).toISOString(),newSessionExpireTime:new Date(now+60000).toISOString(),bidiGenerateContentSetup:setup}),signal:AbortSignal.timeout(15000)});
+ const r=await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens',{method:'POST',headers:{'x-goog-api-key':cle(),'Content-Type':'application/json'},body:JSON.stringify({uses:1,expireTime:new Date(now+10*60000).toISOString(),newSessionExpireTime:new Date(now+60000).toISOString(),bidiGenerateContentSetup:configuration}),signal:AbortSignal.timeout(6000)});
   if(!r.ok){let motif='refus_google';
   /* 429 chez Google = quota. On le compte à part : c'est LE chiffre qui dit
      si le refus vient du quota ou d'autre chose. */
-  if(r.status===429)noterRefusQuota();try{const e=await r.json();motif=String(e.error?.message||e.error?.status||motif).split(cle()).join('[cle masquee]').slice(0,180);}catch{}return NextResponse.json({erreur:'Khalam Rapide est momentanément refusée par son fournisseur.',statut_fournisseur:r.status,motif},{status:502,headers});}
+  if(r.status===429)noterRefusQuota();try{const e=await r.json();motif=String(e.error?.message||e.error?.status||motif).split(cle()).join('[cle masquee]').slice(0,180);}catch{}if(index+1<candidats.length&&panneLiveRecuperable(r.status,motif))continue;return NextResponse.json({erreur:'Khalam Rapide est momentanément refusée par son fournisseur.',statut_fournisseur:r.status,motif},{status:502,headers});}
   const data=await r.json();
   if(typeof data.name!=='string')throw Error('jeton absent');
-  return NextResponse.json({token:data.name,setup,expireTime:new Date(now+10*60000).toISOString(),
+  return NextResponse.json({token:data.name,setup:configuration,modele,secours_disponible:index+1<candidats.length,expireTime:new Date(now+10*60000).toISOString(),
    /* Ce qui est VRAIMENT parti dans sa consigne, source par source. Des
       tailles et des comptes — aucun contenu. C'est ce qui permet de dire
       « elle a reçu les devoirs » au lieu de l'espérer. */
@@ -289,5 +297,7 @@ export async function POST(req:NextRequest){
       savoir si Google a bien pris le réglage. Un réglage qu'on n'a pas relu
       n'est pas un réglage. */
    fin_de_parole:reglagesFinDeParole()},{headers});
- }catch{return NextResponse.json({erreur:'La connexion à Khalam Rapide a échoué.'},{status:502,headers});}
+ }catch{if(index+1<candidats.length)continue;return NextResponse.json({erreur:'La connexion à Khalam Rapide a échoué.'},{status:502,headers});}
+ }
+ return NextResponse.json({erreur:'Aucun moteur vocal disponible.'},{status:503,headers});
 }

@@ -1,3 +1,7 @@
+// Reste autonome : aucun import chargé pendant la capture du micro.
+export function panneLiveRecuperable(code:number,motif:string){
+ return code===1006||[429,500,502,503,504].includes(code)||/quota|resource.exhausted|overload|unavailable|temporar|service error|internal error/i.test(motif);
+}
 
 /* ── CE QUE KHALAM RAPIDE NE FAISAIT PAS, ET QUI MANQUAIT ──────────────────
 
@@ -279,7 +283,7 @@ export class BiaGeminiLive{
   return ctx.currentTime-this.retardDuHautParleur();
  }
  async demarrer(){
-  this.stoppe=false;this.events.etat('Connexion…');
+  this.stoppe=false;this.modelesRefuses.clear();this.events.etat('Connexion…');
   try{
    this.output=new AudioContext({latencyHint:'interactive'});await this.output.resume();
    await this.events.avatar?.preparer(this.output);
@@ -340,8 +344,9 @@ export class BiaGeminiLive{
    this.idle=setInterval(()=>{if(!this.stoppe&&performance.now()-this.finParole>90000){this.arrets.veille=(this.arrets.veille||0)+1;this.declarerEcho();this.arreter();this.events.etat('En pause. Appuie sur Parler pour reprendre.');}},5000);
   }catch(e){this.arreter();this.events.erreur(e instanceof Error?e.message:'Connexion impossible.');}
  }
+ private modelesRefuses=new Set<string>();
  private async connecter(){
-  const response=await fetch('/api/gemini-live/session',{method:'POST',headers:this.entetes(),signal:AbortSignal.timeout(25000),cache:'no-store'});
+  const response=await fetch('/api/gemini-live/session',{method:'POST',headers:{...this.entetes(),'x-bia-live-exclus':[...this.modelesRefuses].join(',')},signal:AbortSignal.timeout(25000),cache:'no-store'});
   const data=await response.json();
   if(!response.ok){
    /* Le fournisseur refuse — quota, panne, surcharge. On bascule au lieu
@@ -356,7 +361,7 @@ export class BiaGeminiLive{
   if(this.stoppe)return;
   await new Promise<void>((resolve,reject)=>{
    const ws=new WebSocket('wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token='+encodeURIComponent(data.token));this.socket=ws;
-   let established=false;
+   let established=false,bascule=false;this.erreurGoogle="";
    const timeout=setTimeout(()=>{ws.close();reject(Error('Khalam Rapide ne répond pas.'));},12000);
    ws.onopen=()=>this.send({setup:data.setup});
    ws.onmessage=async e=>{
@@ -373,8 +378,6 @@ export class BiaGeminiLive{
       this.declarerFermeture(0,this.erreurGoogle,!established);
       /* Le motif va dans /api/etat, jamais à l'écran : c'est de l'anglais
          technique, et il ne dit rien à qui veut juste parler. */
-      if(this.events.indisponible)this.events.indisponible(INDISPONIBLE);
-      else this.events.erreur(INDISPONIBLE);
       ws.close();return;}
      const c=d.serverContent;
      if(c?.interrupted){
@@ -530,9 +533,16 @@ export class BiaGeminiLive{
    };
    ws.onerror=()=>{clearTimeout(timeout);if(!established)reject(Error('Connexion audio impossible.'));}
    ws.onclose=(e?:{code?:number;reason?:string})=>{
+    if(bascule||this.socket!==ws)return;
     clearTimeout(timeout);this.ready=false;
     const code=Number(e?.code)||0,motif=String(e?.reason||'').slice(0,300);
     this.dernierCode=code;this.motifFermeture=motif;
+    const modele=String(data.modele||data.setup?.model||'').replace(/^models\//,'');
+    if(!this.stoppe&&data.secours_disponible&&modele&&!this.modelesRefuses.has(modele)&&this.modelesRefuses.size<1&&panneLiveRecuperable(code,this.erreurGoogle||motif)){
+     bascule=true;this.declarerFermeture(code,this.erreurGoogle||motif,!established);
+     this.modelesRefuses.add(modele);this.viderSon();this.finirTour();this.events.etat('Reconnexion au moteur vocal de secours…');
+     void this.connecter().then(resolve,e=>{if(!established)reject(e);else if(!this.stoppe){this.arreter();this.events.erreur(INDISPONIBLE);}});return;
+    }
     if(!established){
      /* AVANT la poignée de main : c'est le setup qui est refusé. On remonte
         le code et le motif, et on les met dans la phrase — sans eux, il n'y

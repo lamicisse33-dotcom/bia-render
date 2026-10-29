@@ -62,6 +62,7 @@ test('session authentication precedes Google and returns only a constrained ephe
    prefixePartMs:()=>300,silenceFinDeParoleMs:()=>1200,
    reglagesFinDeParole:()=>({silence_fin_parole_ms:1200,prefixe_parole_ms:300})}
  };
+ const secours={exports:{}};new Function('module','exports',compile('lib/gemini-live-secours.ts'))(secours,secours.exports);dependencies['@/lib/gemini-live-secours']=secours.exports;
  const calls=[];globalThis.fetch=async(url,init)=>{calls.push({url,init});return Response.json({name:'auth_tokens/ephemeral-test'});};
  process.env.GEMINI_API_KEY='FAKE-SERVER-KEY';delete process.env.GOOGLE_API_KEY;
  try{
@@ -177,6 +178,12 @@ test('session authentication precedes Google and returns only a constrained ephe
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.startsWith('FR_WO_UNIQUEMENT'));
   assert(body.bidiGenerateContentSetup.systemInstruction.parts[0].text.endsWith('FR_WO_UNIQUEMENT'));assert.deepEqual(body.bidiGenerateContentSetup.generationConfig.responseModalities,['AUDIO']);
   assert(Date.parse(body.expireTime)-Date.now()<=600000);
+  const modeles=[];globalThis.fetch=async(_url,init)=>{modeles.push(JSON.parse(init.body).bidiGenerateContentSetup);return modeles.length===1?Response.json({error:{message:'quota exceeded'}},{status:429}):Response.json({name:'auth_tokens/backup'});};
+  const repli=await (await module.exports.POST(request('MASTER'))).json();
+  assert.equal(modeles.length,2);assert.notEqual(modeles[0].model,modeles[1].model);assert.equal(repli.token,'auth_tokens/backup');
+  assert.equal(modeles[1].systemInstruction.parts[0].text,modeles[0].systemInstruction.parts[0].text);
+  assert(!('historyConfig' in modeles.find(m=>m.model.includes('gemini-2.5'))));
+
  }finally{globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;if(oldGoogle===undefined)delete process.env.GOOGLE_API_KEY;else process.env.GOOGLE_API_KEY=oldGoogle;}
 });
 
