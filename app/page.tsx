@@ -30,6 +30,7 @@ import {ouvrirRepliques} from "@/lib/flux-repliques";
 import { ouvrirFluxVoix, type MorceauVoix } from "@/lib/flux-khalam";
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { brancherBoucheAudio, arreterBoucheAudio } from "@/lib/bouche-audio-satin";
 import { chargerPortrait } from "@/lib/portrait-images";
 import { useHabillageBia, ChoixPersonnage, PortraitTenue } from "./personnages/Personnages";
 import { lienMessage } from "@/lib/communication";
@@ -1846,6 +1847,7 @@ export default function Home() {
      vient de dire, puis revient au repos. Certaines émotions s'animent au
      lieu de rester figées — un rire, ça bouge. */
   const stopMouth = useCallback((_answer = "") => {
+    arreterBoucheAudio();
     if (mouthTimer.current) clearInterval(mouthTimer.current);
     mouthTimer.current = null;
     setMode("ready");
@@ -2076,6 +2078,7 @@ export default function Home() {
      retomber sur la minuterie aveugle — une bouche figée serait pire. */
   const boucheSurLeSon = useCallback((actif: boolean) => {
     if (!actif) {
+      arreterBoucheAudio();
       if (animationRapideRef.current !== null) cancelAnimationFrame(animationRapideRef.current);
       animationRapideRef.current = null;
       segmentsRapideRef.current = [];
@@ -2083,6 +2086,11 @@ export default function Home() {
       return false;
     }
     if (!segmentsRapideRef.current.length || !horlogeRapideRef.current) return false;
+    brancherBoucheAudio(()=>{
+      const t=horlogeRapideRef.current?.();if(typeof t!=="number")return 0;
+      const seg=segmentsRapideRef.current.find(s=>t>=s.debut&&t<s.fin);
+      return seg?(seg.valeurs[Math.floor((t-seg.debut)/seg.pas)]||0)/Math.max(picRapideRef.current,PIC_PLANCHER_RAPIDE):0;
+    });
     if (animationRapideRef.current !== null) return true;
     setMode("speaking");
     let precedente: Face | null = null;
@@ -2223,6 +2231,11 @@ export default function Home() {
       sourceRef.current = source;
 
       const depart = ctx.currentTime;
+      brancherBoucheAudio(()=>{
+        if(sourceRef.current!==source||ctx.state!=='running')return 0;
+        const t=ctx.currentTime-Number(ctx.outputLatency||ctx.baseLatency||0)-depart;
+        return t>=0?(valeurs[Math.floor(t/pas)]||0)/pic:0;
+      });
       let precedente: Face | null = null;
       /* Une bouche humaine ne change pas de forme dix fois par seconde. On
          impose un temps minimum entre deux images : sans lui, le visage
@@ -2812,6 +2825,11 @@ export default function Home() {
         volume.connect(ctx.destination);
 
         const depart = Math.max(ctx.currentTime + 0.03, quand);
+        brancherBoucheAudio(()=>{
+          if(attenteSonRef.current?.source!==source||ctx.state!=='running')return 0;
+          const t=ctx.currentTime-Number(ctx.outputLatency||ctx.baseLatency||0)-depart;
+          return t>=0?(valeurs[Math.floor(t/pas)]||0)/pic:0;
+        });
         let precedente: Face | null = null;
         let dernierChangement = -1e9;
         const suivre = () => {
@@ -2819,7 +2837,7 @@ export default function Home() {
           const ecoule = ctx.currentTime - depart;
           const i = Math.floor(ecoule / pas);
           const part = i >= 0 && i < valeurs.length ? valeurs[i] / pic : 0;
-          sonDelleRef.current = part;
+            sonDelleRef.current = part;
           segmentEnCoursRef.current = true;   // un seul morceau ici : jamais de blanc à couvrir
           const forme = formeBouche(part, i);
           if (forme !== precedente && ecoule - dernierChangement >= 0.13) {
@@ -3534,6 +3552,12 @@ export default function Home() {
         segments.push({ debut, fin: quand, valeurs, pic, pas });
       };
 
+      brancherBoucheAudio(()=>{
+        if(tourRef.current!==jeton||ctx.state!=='running')return 0;
+        const t=ctx.currentTime-Number(ctx.outputLatency||ctx.baseLatency||0);
+        const seg=segments.find(s=>t>=s.debut&&t<s.fin);
+        return seg?(seg.valeurs[Math.floor((t-seg.debut)/seg.pas)]||0)/seg.pic:0;
+      });
       /* Une seule animation pour toute la réponse : elle lit l'horloge du son
          et cherche dans quel morceau on se trouve. La bouche ne se remet donc
          pas à zéro entre deux morceaux. */
@@ -3549,7 +3573,7 @@ export default function Home() {
         if (seg) {
           const i = Math.floor((t - seg.debut) / seg.pas);
           const part = i >= 0 && i < seg.valeurs.length ? seg.valeurs[i] / seg.pic : 0;
-          sonDelleRef.current = part;
+            sonDelleRef.current = part;
           const forme = formeBouche(part, i);
           if (forme !== precedente && t - dernierChangement >= MINIMUM) {
             precedente = forme;

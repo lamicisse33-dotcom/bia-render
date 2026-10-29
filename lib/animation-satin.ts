@@ -28,7 +28,7 @@ export function sequenceSatin({parle, ecoute, emotion = 'neutre', face = '', ani
 let preparation: Promise<void> | undefined;
 export function chargerPosterSatin() {
   if (preparation) return preparation;
-  preparation = new Promise<void>((resolve, reject) => {
+  preparation = Promise.all([SATIN_POSTER,`${SATIN_BASE}/bouches.webp`].map(src=>new Promise<void>((resolve, reject) => {
     const img = new Image();
     const limite = setTimeout(() => reject(new Error('Chargement du personnage trop long')), 20000);
     img.onerror = () => { clearTimeout(limite); reject(new Error('Personnage indisponible')); };
@@ -36,8 +36,8 @@ export function chargerPosterSatin() {
       const p = typeof img.decode === 'function' ? img.decode() : Promise.resolve();
       p.then(() => { clearTimeout(limite); resolve(); }, e => { clearTimeout(limite); reject(e); });
     };
-    img.src = SATIN_POSTER;
-  });
+    img.src = src;
+  }))).then(()=>{});
   void preparation.catch(() => { preparation = undefined; });
   return preparation;
 }

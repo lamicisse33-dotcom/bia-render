@@ -1,6 +1,7 @@
 "use client";
-import {useEffect, useRef, useState} from 'react';
-import {SATIN_BASE, SATIN_POSTER, estSequenceSatin, reactionSatin, sequenceSatin, fenetreParoleSatin, type SequenceSatin} from '@/lib/animation-satin';
+import {useEffect, useLayoutEffect, useRef, useState} from 'react';
+import {SATIN_BASE, SATIN_POSTER, SEQUENCES_SATIN, estSequenceSatin, reactionSatin, sequenceSatin, fenetreParoleSatin, type SequenceSatin} from '@/lib/animation-satin';
+import {BoucheSatin} from './BoucheSatin';
 import styles from './personnages.module.css';
 
 /** Les pistes audio des clips sont retirées à la préparation ET le lecteur
@@ -13,6 +14,8 @@ export function PortraitSatin({face, parle, ecoute = false, emotion = 'neutre'}:
   const [visible, setVisible] = useState(false);
   const [panne, setPanne] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
+  const lecteurs = useRef<Partial<Record<SequenceSatin,HTMLVideoElement>>>({});
+  useLayoutEffect(()=>{video.current=lecteurs.current[clip]||null;},[clip]);
   const timer = useRef<number | undefined>(undefined);
   const reactionEnCours = useRef<SequenceSatin | null>(null);
   const dernierSignal = useRef<SequenceSatin | null>(null);
@@ -105,18 +108,19 @@ export function PortraitSatin({face, parle, ecoute = false, emotion = 'neutre'}:
     <div className={styles.cadre}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className={styles.posterSatin} src={SATIN_POSTER} alt="" />
-      <video key={clip} ref={video} className={styles.videoSatin}
-        data-sequence={clip} data-video-visible={autorise && visible ? 'oui' : 'non'}
-        src={`${SATIN_BASE}/${clip}.mp4`} poster={SATIN_POSTER}
-        muted playsInline preload="auto" disablePictureInPicture
-        onPlaying={() => setVisible(true)} onEnded={terminer}
+      {SEQUENCES_SATIN.map(n=><video key={n} ref={el=>{if(el)lecteurs.current[n]=el;else delete lecteurs.current[n];}} className={styles.videoSatin}
+        data-sequence={n} data-video-visible={n===clip && autorise && visible ? 'oui' : 'non'}
+        src={`${SATIN_BASE}/${n}.mp4`} poster={SATIN_POSTER}
+        muted playsInline preload={n==='ecoute'||n==='parole'||n==='joie'||n===clip?'auto':'none'} disablePictureInPicture
+        onPlaying={() => {if(video.current?.dataset.sequence===n)setVisible(true);}} onEnded={()=>{if(video.current?.dataset.sequence===n)terminer();}}
         onTimeUpdate={event => {
           const v = event.currentTarget, e = etat.current;
-          const fenetre = e.parle && !e.ecoute ? fenetreParoleSatin(clip) : null;
+          const fenetre = n===clip && e.parle && !e.ecoute ? fenetreParoleSatin(clip) : null;
           if (fenetre && v.currentTime >= fenetre.fin) v.currentTime = fenetre.debut;
         }}
-        onError={() => { setPanne(true); setVisible(false); }}
-        style={{opacity: autorise && visible ? 1 : 0}} />
+        onError={() => {if(n===clip){ setPanne(true); setVisible(false); }}}
+        style={{opacity: n===clip && autorise && visible ? 1 : 0}} />)}
+      <BoucheSatin video={video} clip={clip} active={anime && !ecoute && parle}/>
     </div>
   </div>;
 }

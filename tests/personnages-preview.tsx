@@ -1,10 +1,37 @@
 // Banc visuel local : monte les vrais composants sans compte, micro ni API.
 import React,{useEffect,useState} from 'react';
+import {publierBoucheAudio,brancherBoucheAudio,arreterBoucheAudio} from '../lib/bouche-audio-satin';
 import {createRoot} from 'react-dom/client';
 import {useHabillageBia,ChoixPersonnage,PortraitTenue} from '../app/personnages/Personnages';
 import '../app/globals.css';
 function Atelier(){
  const [ecoute,setEcoute]=useState(false);
+ const [mesure,setMesure]=useState('');
+ async function testerSon(){
+  const ctx=new AudioContext();await ctx.resume();
+  const b=await ctx.decodeAudioData(await (await fetch('/essai-levres.wav')).arrayBuffer());
+  const source=ctx.createBufferSource();source.buffer=b;source.connect(ctx.destination);
+  const debut=ctx.currentTime+.1,donnees=b.getChannelData(0);let raf=0;const traces:number[]=[];
+  const lire=()=>{
+   const t=ctx.currentTime-(ctx.outputLatency||ctx.baseLatency||0)-debut;
+   const index=Math.floor(t*b.sampleRate);if(index<0)return 0;
+   let somme=0,n=0;for(let j=index;j<Math.min(donnees.length,index+Math.floor(b.sampleRate*.015));j++){somme+=donnees[j]**2;n++;}
+   return Math.min(1,Math.sqrt(somme/(n||1))*6);
+  };
+  brancherBoucheAudio(lire);setParle(true);setEcoute(false);
+  const suivre=()=>{
+   const retard=ctx.outputLatency||ctx.baseLatency||0;const t=ctx.currentTime-retard-debut;
+   const index=Math.floor(t*b.sampleRate);let somme=0,n=0;
+   for(let j=Math.max(0,index);j<Math.min(donnees.length,index+Math.floor(b.sampleRate*.015));j++){somme+=donnees[j]**2;n++;}
+   const niveau=index<0?0:Math.min(1,Math.sqrt(somme/(n||1))*6);publierBoucheAudio(niveau);
+   const c=document.querySelector<HTMLCanvasElement>('[data-bia-bouche-audio]');
+   if(niveau>.15&&c?.style.opacity==='1'&&Number(c.dataset.ouverture)>.1)traces.push(performance.now());
+   raf=requestAnimationFrame(suivre);
+  };
+  source.onended=()=>{cancelAnimationFrame(raf);arreterBoucheAudio();setMesure('Lecture terminée — '+traces.length+' images de bouche mesurées sur le son');setParle(false);void ctx.close();};
+  source.start(debut);suivre();
+ }
+
  const [commande,setCommande]=useState('Aucune commande activée');
  const h=useHabillageBia();const [persona,setPersona]=useState('rara');const [parle,setParle]=useState(false);const [face,setFace]=useState('yeux_ouverts');
  useEffect(()=>{if(!parle)return;let i=0;const timer=setInterval(()=>setFace(['bouche_a','bouche_o','bouche_entr','bouche_fermee'][i++%4]),180);return()=>clearInterval(timer)},[parle]);
@@ -29,6 +56,7 @@ function Atelier(){
    <button onClick={()=>setParle(v=>!v)}>{parle?'Arrêter la parole simulée':'Simuler la parole'}</button>
    <button onClick={()=>setEcoute(v=>!v)}>{ecoute?'Terminer la reprise utilisateur':'Simuler la reprise utilisateur'}</button>
    <label>Expression<select value={face} onChange={e=>{setParle(false);setFace(e.target.value)}}>{['yeux_ouverts','yeux_fermes','joie','surprise','pensive','triste','salut_2','coeur_double_4','priere_2','compter_4','rire_main_4'].map(f=><option key={f}>{f}</option>)}</select></label>
+   <button onClick={()=>void testerSon()}>Tester la synchronisation audio</button><p role="status">{mesure}</p>
    <p>Identité vocale conservée : {persona}</p><p role="status">{commande}</p>
   </section>
  </main>
