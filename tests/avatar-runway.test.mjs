@@ -34,13 +34,13 @@ test('full figure is a separate unprocessed avatar; only ready variant becomes t
  const calls=[];
  const a=charger(async(url,o)=>{calls.push({url,...o});return {ok:true,json:async()=>url.endsWith('?limit=100')?{data:[],hasMore:false}:url.endsWith('/avatars')?{id:'wide-avatar',status:'READY'}:{id:'wide-session'}};});
  await a.preparerCadrageAvatar();assert.equal(a.cadrageAvatar().statut,'pret');
- const create=JSON.parse(calls.find(c=>c.method==='POST').body);assert.equal(create.imageProcessing,'none');assert(create.referenceImage.endsWith('bia-en-pied-20261029.webp'));
- const session=await a.ouvrirAvatar('owner',true);assert.equal(session.cadrage,'pied');
+ const create=JSON.parse(calls.find(c=>c.method==='POST').body);assert.equal(create.imageProcessing,'none');assert(create.referenceImage.endsWith('satin-anime-20261028/repos.webp'));
+ const session=await a.ouvrirAvatar('owner',true);assert.equal(session.cadrage,'hanches');
  assert.equal(JSON.parse(calls.at(-1).body).avatar.avatarId,'wide-avatar');
  assert(!calls.some(c=>c.method==='PATCH'||c.url.includes(a.AVATAR_BIA)));
 });
 test('restart finds existing full figure without creating another avatar',async()=>{
- const calls=[];const a=charger(async(url,o)=>{calls.push({url,...o});return {ok:true,json:async()=>({data:[{id:'existing-wide',name:'Bia en pied — 2026-10-29',status:'READY'}],hasMore:false})};});
+ const calls=[];const a=charger(async(url,o)=>{calls.push({url,...o});return {ok:true,json:async()=>({data:[{id:'existing-wide',name:'Bia plan hanches — 2026-10-29',status:'READY'}],hasMore:false})};});
  await a.preparerCadrageAvatar();assert.equal(a.cadrageAvatar().id,'existing-wide');assert.equal(calls.length,1);
 });
 test('failed wider source leaves the validated bust available',async()=>{

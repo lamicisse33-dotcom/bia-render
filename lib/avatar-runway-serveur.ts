@@ -21,7 +21,7 @@ export async function verifierAccesAvatar(){
  return {runway:a.status==='fulfilled'?'accessible':String(a.reason?.message||'indisponible'),livekit:b.status==='fulfilled'?'accessible':'acces_refuse_ou_indisponible'};
 }
 // Variante visuelle indépendante : le personnage validé reste disponible.
-const NOM_PLAN_LARGE='Bia en pied — 2026-10-29';
+const NOM_PLAN_LARGE='Bia plan hanches — 2026-10-29';
 const partage=globalThis as typeof globalThis & {biaPlanLarge?:{etat:{statut:string;id:string;erreur:string};preparation:Promise<void>|null}};
 const plan=partage.biaPlanLarge??={etat:{statut:'non_prepare',id:'',erreur:''},preparation:null};
 export const cadrageAvatar=()=>({...plan.etat});
@@ -38,7 +38,7 @@ export function preparerCadrageAvatar(){return plan.preparation??=(async()=>{
    if(Date.now()>=Date.parse('2026-10-31T00:00:00Z'))return;
    plan.etat.statut='creation';
    avatar=await (await runway('/avatars','POST',{name:NOM_PLAN_LARGE,
-    referenceImage:'https://app.khalam.app/personnages/bia-en-pied-20261029.webp',
+    referenceImage:'https://app.khalam.app/personnages/satin-anime-20261028/repos.webp',
     imageProcessing:'none',voice:{type:'runway-live-preset',presetId:'clara'},
     personality:'Bia, assistante sénégalaise chaleureuse et joyeuse. Gestes doux et naturels. Français et wolof.'})).json();
   }
@@ -73,7 +73,7 @@ export async function ouvrirAvatar(proprietaire='essai',conversation=false){
   const r=await runway('/realtime_sessions','POST',{model:'gwm1_avatars',avatar:{type:'custom',avatarId},maxDuration:duree,livekit:{url:c.url,token:await avatar.toJwt(),roomName:room,agentIdentity:identity}});
   const data=await r.json();if(typeof data.id!=='string')throw new Error('session_sans_identifiant');
   sessions.set(data.id,{room,expiration:Date.now()+(duree+5)*1000,proprietaire});
-  return {session:data.id,url:c.url,token:await client.toJwt(),spectateur:await spectateur.toJwt(),destination:AVATAR_IDENTITE,duree_maximale_s:duree,cadrage:avatarId===AVATAR_BIA?'buste':'pied'};
+  return {session:data.id,url:c.url,token:await client.toJwt(),spectateur:await spectateur.toJwt(),destination:AVATAR_IDENTITE,duree_maximale_s:duree,cadrage:avatarId===AVATAR_BIA?'buste':'hanches'};
  }catch(e){await salles().deleteRoom(room).catch(()=>{});throw e;}
 }
 export async function fermerAvatar(id:string,proprietaire='essai'){

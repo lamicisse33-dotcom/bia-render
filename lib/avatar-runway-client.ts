@@ -81,7 +81,7 @@ export async function preparerAvatarBia(ctx?:AudioContext){
   let attente:ReturnType<typeof setTimeout>|undefined;
   try{await Promise.race([pret,new Promise((_,reject)=>{attente=setTimeout(()=>reject(Error('Connexion du personnage trop longue')),45000);})]);}finally{if(attente)clearTimeout(attente);}
   if(connexionEpoch!==generation){await fermerAvatarBia();return;}
-  emettre({pret:true,large:data.cadrage==='pied',connexion:false,message:''});mesure('video_recue');
+  emettre({pret:true,large:data.cadrage==='pied'||data.cadrage==='hanches',connexion:false,message:''});mesure('video_recue');
   fermerSiRepos();
   const deadline=performance.now()+(data.duree_maximale_s-3)*1000;
   const renouveler=async()=>{

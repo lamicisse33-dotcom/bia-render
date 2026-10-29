@@ -4,7 +4,7 @@ import {suivreAvatarBia,fermerAvatarBia} from '@/lib/avatar-runway-client';
 import {PortraitSatin} from './PortraitSatin';
 import styles from './personnages.module.css';
 export function PortraitRunway(props:{face:string;parle:boolean;ecoute:boolean;emotion:string}){
- const video=useRef<HTMLVideoElement>(null),[pret,setPret]=useState(false),[large,setLarge]=useState(false),[proche,setProche]=useState(false);
+ const video=useRef<HTMLVideoElement>(null),[pret,setPret]=useState(false),[large,setLarge]=useState(false),[vertical,setVertical]=useState(false);
  useEffect(()=>{
   const off=suivreAvatarBia(e=>{
    setPret(e.pret);setLarge(e.large);
@@ -12,15 +12,7 @@ export function PortraitRunway(props:{face:string;parle:boolean;ecoute:boolean;e
   });
   return()=>{off();void fermerAvatarBia();};
  },[]);
- useEffect(()=>{
-  setProche(false);
-  let alternance:ReturnType<typeof setInterval>|undefined;
-  const depart=pret&&large&&props.parle?setTimeout(()=>{
-   setProche(true);alternance=setInterval(()=>setProche(v=>!v),8500);
-  },3500):undefined;
-  return()=>{if(depart)clearTimeout(depart);if(alternance)clearInterval(alternance);};
- },[pret,large,props.parle]);
- return <>{!pret&&<PortraitSatin {...props}/>}<div className={styles.presence} data-bia-avatar="runway" style={{visibility:pret?'visible':'hidden'}}><div className={`${styles.cadreRunway} ${large?styles.planLargeRunway:''}`} data-plan={large?(proche?'rapproche':'pied'):'buste'}><div className={styles.zoomRunway} style={{transform:`scale(${proche?1.65:1})`}}>
-  <video ref={video} className={styles.videoRunway} autoPlay playsInline muted style={{opacity:pret?1:0}}/>
+ return <>{!pret&&<PortraitSatin {...props}/>}<div className={styles.presence} data-bia-avatar="runway" style={{visibility:pret?'visible':'hidden'}}><div className={`${styles.cadreRunway} ${large&&vertical?styles.planLargeRunway:''}`} data-plan={large?'hanches':'buste'}><div className={styles.zoomRunway} style={{transform:`scale(${large&&props.parle?1.04:1})`}}>
+  <video ref={video} className={styles.videoRunway} autoPlay playsInline muted onLoadedMetadata={()=>{if(video.current)setVertical(video.current.videoHeight>=video.current.videoWidth);}} style={{opacity:pret?1:0}}/>
  </div></div></div></>;
 }
