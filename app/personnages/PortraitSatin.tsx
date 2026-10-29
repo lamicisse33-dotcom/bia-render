@@ -1,7 +1,6 @@
 "use client";
 import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {SATIN_BASE, SATIN_POSTER, SEQUENCES_SATIN, estSequenceSatin, reactionSatin, sequenceSatin, fenetreParoleSatin, type SequenceSatin} from '@/lib/animation-satin';
-import {BoucheSatin} from './BoucheSatin';
 import styles from './personnages.module.css';
 
 /** Les pistes audio des clips sont retirées à la préparation ET le lecteur
@@ -120,7 +119,6 @@ export function PortraitSatin({face, parle, ecoute = false, emotion = 'neutre'}:
         }}
         onError={() => {if(n===clip){ setPanne(true); setVisible(false); }}}
         style={{opacity: n===clip && autorise && visible ? 1 : 0}} />)}
-      <BoucheSatin video={video} clip={clip} active={anime && !ecoute && parle}/>
     </div>
   </div>;
 }
