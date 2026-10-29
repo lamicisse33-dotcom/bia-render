@@ -182,6 +182,7 @@ export async function GET(request: NextRequest) {
   const demande = url.searchParams.get("variante");
   const modele = url.searchParams.get("modele") || "";
   const toutes = url.searchParams.get("toutes") === "1";
+  const audioCourt = url.searchParams.get("audio") === "1" && demande !== "session_complete";
   // Deux essais complets au maximum par démarrage, inclus dans le plafond
   // global. La configuration et le jeton ne quittent jamais le serveur.
   if (demande === "session_complete") {
@@ -214,7 +215,12 @@ export async function GET(request: NextRequest) {
   /* En série : deux poignées de main simultanées donneraient des refus pour
      cadence, et on les prendrait pour des refus de configuration. */
   const resultats = [];
-  for (const v of liste) resultats.push(await essayer(v));
+  for (const v of liste) resultats.push(await essayer(audioCourt ? {
+    ...v,verifierAudio:true,setup:{...v.setup,generationConfig:{
+      ...(v.setup.generationConfig as Record<string,unknown>),maxOutputTokens:512,
+      speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:"Kore"}}},
+    }},
+  } : v));
 
   return NextResponse.json({
     revision: "essai-poignee-de-main-v1",
@@ -224,6 +230,6 @@ export async function GET(request: NextRequest) {
     sessions: resumeSessionsLive(),
     resultats,
     refusees: resultats.filter((r) => !r.accepte).map((r) => r.variante),
-    limite: "Consigne COURTE : cet essai mesure la poignée de main, pas la taille du socle. Aucun audio, aucune réponse produite.",
+    limite: audioCourt ? "Salutation synthétique courte uniquement. Aucun historique, devoir, lexique ou instruction privée. Premier paquet audio mesuré côté serveur, pas la lecture sur téléphone." : "Consigne COURTE : cet essai mesure la poignée de main, pas la taille du socle. Aucun audio, aucune réponse produite.",
   }, { headers: { "cache-control": "no-store" } });
 }
