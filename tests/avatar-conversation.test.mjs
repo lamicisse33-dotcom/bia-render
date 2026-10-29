@@ -13,7 +13,7 @@ test('PCM conversion keeps duration, silence, signed clipping and stereo average
  assert.equal(pcm.pcmPourAvatar([Float32Array.of(1),Float32Array.of(-1)],16000)[0],0);
  assert.throws(()=>pcm.pcmPourAvatar([],16000));
 });
-function relais(){
+function relais({refuserOuverture=false}={}){
  const rooms=[],timers=new Map(),calls=[],writes=[];let tid=0;
  class FakeRoom{
   handlers={};rpc={};
@@ -25,7 +25,7 @@ function relais(){
  }
  const a=charger('lib/avatar-runway-client.ts',{'./avatar-runway-pcm':pcm,'livekit-client':{Room:FakeRoom,RoomEvent:{TrackSubscribed:'track',Disconnected:'disconnect'},Track:{Kind:{Video:'video',Audio:'audio'}}}},{
   localStorage:{getItem:k=>k==='bia-habillage-20261027'?'runway-direct':k==='bia-code'?'TEST':null},
-  fetch:async(url,o)=>{const b=JSON.parse(o.body);calls.push(b);return {ok:true,json:async()=>({session:'session',token:'producteur',spectateur:'ecran',url:'wss://test',destination:'runway-avatar-agent',duree_maximale_s:600})};},
+  fetch:async(url,o)=>{const b=JSON.parse(o.body);calls.push(b);if(refuserOuverture&&b.action==='ouvrir')return {ok:false,json:async()=>({erreur:'indisponible'})};return {ok:true,json:async()=>({session:'session',token:'producteur',spectateur:'ecran',url:'wss://test',destination:'runway-avatar-agent',duree_maximale_s:600})};},
   MediaStream:class{},requestAnimationFrame:()=>1,cancelAnimationFrame:()=>{},setTimeout:(fn,ms)=>{const id=++tid;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),
  });
  const flush=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
@@ -56,4 +56,40 @@ test('Gemini routes the same PCM to avatar exclusively and ignores completion af
  moteur.stoppe=false;moteur.output={createBuffer:(_c,n,hz)=>({duration:n/hz,getChannelData:()=>new Float32Array(n)}),createBufferSource:()=>{local++;throw Error('Audio local interdit avec avatar actif');}};
  moteur.jouer(Buffer.from(new Int16Array(2400).buffer).toString('base64'),'audio/pcm;rate=24000');
  assert.equal(reads,1);assert.equal(local,0);moteur.viderSon();const avant=parle.length;done(100);await Promise.resolve();assert.equal(parle.length,avant);
+});
+
+test('a dropped active avatar reconnects once, while closing the conversation cancels retry',async()=>{
+ const r=relais();r.a.maintenirAvatarBia(true);await r.flush();
+ assert(r.a.avatarPret());
+ r.rooms[1].handlers.disconnect();await r.flush();
+ assert(!r.a.avatarPret());
+ const retry=[...r.timers.values()].find(t=>t.ms===1000);assert(retry);
+ retry.fn();await r.flush();assert(r.a.avatarPret());
+ assert.equal(r.calls.filter(c=>c.action==='ouvrir').length,2);
+ r.rooms[3].handlers.disconnect();await r.flush();
+ const late=[...r.timers.values()].find(t=>t.ms===1000);assert(late);
+ r.a.maintenirAvatarBia(false);await r.flush();
+ late.fn();await r.flush();
+ assert.equal(r.calls.filter(c=>c.action==='ouvrir').length,2);
+ assert(!r.a.avatarPret());
+});
+test('a missing remote finish releases the audio and recovers the active avatar',async()=>{
+ const r=relais();r.a.maintenirAvatarBia(true);await r.flush();
+ const p=r.a.parlerAvecAvatar(buffer());await r.flush();
+ const timeout=[...r.timers.values()].find(t=>t.ms===20100);assert(timeout);
+ timeout.fn();await r.flush();assert.equal(await p,0);
+ assert(r.calls.some(c=>c.evenement==='attente_fin_depassee'));
+ assert([...r.timers.values()].some(t=>t.ms===1000));
+ r.a.maintenirAvatarBia(false);await r.flush();
+});
+
+test('unavailable service retries at most five times instead of looping indefinitely',async()=>{
+ const r=relais({refuserOuverture:true});r.a.maintenirAvatarBia(true);await r.flush();
+ for(let i=0;i<5;i++){
+  const entry=[...r.timers].find(([,t])=>t.ms<=15000);assert(entry);
+  r.timers.delete(entry[0]);entry[1].fn();await r.flush();
+ }
+ assert.equal(r.calls.filter(c=>c.action==='ouvrir').length,6);
+ assert.equal(r.timers.size,0);assert(!r.a.avatarPret());
+ r.a.maintenirAvatarBia(false);await r.flush();
 });

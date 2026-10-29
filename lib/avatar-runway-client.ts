@@ -11,6 +11,13 @@ const emettre=(patch:Partial<Etat>)=>{etat={...etat,...patch};for(const f of abo
 let producteur:Room|null=null,spectateur:Room|null=null,session='',code='',numero='',ouverture:Promise<void>|null=null,epoch=0,connexionEpoch=0;
 let groupes:Groupe[]=[],groupe:Groupe|null=null,barriere:Promise<unknown>=Promise.resolve(),limiteSession:ReturnType<typeof setTimeout>|null=null;
 let maintenir=false;
+let reprise:ReturnType<typeof setTimeout>|null=null,tentatives=0;
+function annulerReprise(){if(reprise)clearTimeout(reprise);reprise=null;}
+function reprendreSiActif(){
+ if(!maintenir||!avatarSelectionne()||reprise||tentatives>=5)return;
+ const delai=Math.min(15000,1000*2**tentatives++);
+ reprise=setTimeout(()=>{reprise=null;if(maintenir&&avatarSelectionne()){mesure('reconnexion');void preparerAvatarBia();}},delai);
+}
 let repos:ReturnType<typeof setTimeout>|null=null;
 function fermerSiRepos(){if(repos)clearTimeout(repos);if(!maintenir)repos=setTimeout(()=>{if(!maintenir&&!avatarParle())void fermerAvatarBia();},15000);}
 let piste:MediaStream|null=null,contexte:AudioContext|null=null,source:MediaStreamAudioSourceNode|null=null,gain:GainNode|null=null,analyse:AnalyserNode|null=null,raf=0,energie=0,muet=false;
@@ -19,7 +26,7 @@ export function avatarSelectionne(){try{return localStorage.getItem(CLE)===RUNWA
 export function avatarPret(){return avatarSelectionne()&&etat.pret;}
 export function avatarParle(){return avatarPret()&&groupes.some(g=>g.generation===epoch&&g.fins.length>0);}
 export function energieAvatar(){return avatarPret()&&!muet?energie:0;}
-export function maintenirAvatarBia(actif:boolean){maintenir=actif;if(actif)void preparerAvatarBia();else void fermerAvatarBia();}
+export function maintenirAvatarBia(actif:boolean){maintenir=actif;if(actif){tentatives=0;void preparerAvatarBia();}else{annulerReprise();void fermerAvatarBia();}}
 function entetes(){return {'Content-Type':'application/json','x-bia-code':code,'x-bia-numero':numero};}
 function mesure(evenement:string,ms?:number){void fetch('/api/avatar-runway',{method:'POST',headers:entetes(),body:JSON.stringify({action:'mesure',evenement,ms}),keepalive:true}).catch(()=>{});}
 function premier(g:Groupe){if(g.commence||g.generation!==epoch)return;g.commence=true;const date=Date.now();mesure('lecture_signalee',performance.now()-g.date);for(const f of g.premiers.splice(0))f(date);}
@@ -75,22 +82,22 @@ export async function preparerAvatarBia(ctx?:AudioContext){
    if(d.callerIdentity!==data.destination)return 'reject';const g=groupes[0];
    if(g){let coupe=false;try{coupe=JSON.parse(d.payload).interrupted===true;}catch{}finir(g,coupe||g.generation!==epoch);mesure('lecture_terminee',performance.now()-g.date);}return 'ok';
   });
-  const deconnexion=()=>{if(etat.pret&&connexionEpoch===generation){emettre({pret:false,message:'Animation déconnectée. La voix habituelle reste disponible.'});void fermerAvatarBia();}};
+  const deconnexion=()=>{if(etat.pret&&connexionEpoch===generation){mesure('session_deconnectee');emettre({pret:false,message:'Animation déconnectée. La voix habituelle reste disponible.'});void fermerAvatarBia(true);}};
   ecran.on(RoomEvent.Disconnected,deconnexion);entree.on(RoomEvent.Disconnected,deconnexion);
   await ecran.connect(data.url,data.spectateur);await entree.connect(data.url,data.token);
   let attente:ReturnType<typeof setTimeout>|undefined;
   try{await Promise.race([pret,new Promise((_,reject)=>{attente=setTimeout(()=>reject(Error('Connexion du personnage trop longue')),45000);})]);}finally{if(attente)clearTimeout(attente);}
   if(connexionEpoch!==generation){await fermerAvatarBia();return;}
+  annulerReprise();tentatives=0;
   emettre({pret:true,large:data.cadrage==='pied'||data.cadrage==='hanches',connexion:false,message:''});mesure('video_recue');
   fermerSiRepos();
   const deadline=performance.now()+(data.duree_maximale_s-3)*1000;
   const renouveler=async()=>{
    if(avatarParle()&&performance.now()<deadline){limiteSession=setTimeout(()=>void renouveler(),2000);return;}
-   await fermerAvatarBia();
-   if(maintenir&&avatarSelectionne())void preparerAvatarBia();
+   await fermerAvatarBia(true);
   };
   limiteSession=setTimeout(()=>void renouveler(),Math.max(20000,(data.duree_maximale_s-30)*1000));
- })().catch(async()=>{await fermerAvatarBia();emettre({message:'Le personnage animé est indisponible. Bia conserve sa voix habituelle.'});}).finally(()=>{ouverture=null;});
+ })().catch(async()=>{await fermerAvatarBia(true);emettre({message:'Le personnage animé est indisponible. Bia conserve sa voix habituelle.'});}).finally(()=>{ouverture=null;});
  return ouverture;
 }
 export function interrompreAvatarBia(){
@@ -101,10 +108,11 @@ export function interrompreAvatarBia(){
  for(const g of groupes){if(g.timer)clearTimeout(g.timer);if(g.limite)clearTimeout(g.limite);for(const f of g.fins.splice(0))f(0);g.premiers=[];g.ferme=true;void g.writer.then(w=>w.close()).catch(()=>{});}
  groupe=null;
  const r=producteur;
- if(r&&avaitDuSon)barriere=barriere.catch(()=>{}).then(()=>r.localParticipant.performRpc({destinationIdentity:'runway-avatar-agent',method:'lk.clear_buffer',payload:'',responseTimeout:3})).catch(()=>{if(producteur===r)void fermerAvatarBia();});
+ if(r&&avaitDuSon)barriere=barriere.catch(()=>{}).then(()=>r.localParticipant.performRpc({destinationIdentity:'runway-avatar-agent',method:'lk.clear_buffer',payload:'',responseTimeout:3})).catch(()=>{if(producteur===r)void fermerAvatarBia(true);});
 }
-export async function fermerAvatarBia(){
- epoch++;connexionEpoch++;emettre({pret:false,connexion:false,video:null});muet=true;if(gain)gain.gain.value=0;
+export async function fermerAvatarBia(reprendre=false){
+ annulerReprise();
+ epoch++;connexionEpoch++;const fermetureGeneration=connexionEpoch;emettre({pret:false,connexion:false,video:null});muet=true;if(gain)gain.gain.value=0;
  if(limiteSession)clearTimeout(limiteSession);limiteSession=null;
  if(repos)clearTimeout(repos);repos=null;
  for(const g of [...groupes])finir(g,true);groupe=null;
@@ -114,6 +122,7 @@ export async function fermerAvatarBia(){
  const fermetureServeur=id?fetch('/api/avatar-runway',{method:'POST',headers:entetes(),body:JSON.stringify({action:'fermer',session:id}),keepalive:true,signal:AbortSignal.timeout(10000)}).catch(()=>{}):Promise.resolve();
  await p?.disconnect();await s?.disconnect();
  await fermetureServeur;
+ if(reprendre&&fermetureGeneration===connexionEpoch)reprendreSiActif();
 }
 /** La promesse se termine sur la notification de lecture distante, et non
  * sur l'envoi des octets. L'appelant peut donc garder son micro et ses tours. */
@@ -136,11 +145,11 @@ export function parlerAvecAvatar(buffer:AudioBuffer,premierSon?:(date:number)=>v
   const writer=await courant.writer;if(generation!==epoch)return;
   muet=false;if(gain)gain.gain.value=1;
   for(let i=0;i<octets.length;i+=6400){if(generation!==epoch)return;await writer.write(octets.slice(i,i+6400));}
- }).catch(()=>{if(generation===epoch){mesure('erreur_client');void fermerAvatarBia();}});
+ }).catch(()=>{if(generation===epoch){mesure('erreur_client');void fermerAvatarBia(true);}});
  courant.timer=setTimeout(()=>{
   courant.ferme=true;if(groupe===courant)groupe=null;
-  void courant.file.then(async()=>{if(generation===epoch)await (await courant.writer).close();}).catch(()=>{if(generation===epoch)void fermerAvatarBia();});
+  void courant.file.then(async()=>{if(generation===epoch)await (await courant.writer).close();}).catch(()=>{if(generation===epoch)void fermerAvatarBia(true);});
  },180);
- courant.limite=setTimeout(()=>{if(courant.fins.length){mesure('erreur_client');void fermerAvatarBia();}},courant.duree+20000);
+ courant.limite=setTimeout(()=>{if(courant.fins.length){mesure('attente_fin_depassee');mesure('erreur_client');void fermerAvatarBia(true);}},courant.duree+20000);
  return resultat;
 }

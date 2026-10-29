@@ -26,7 +26,7 @@ export async function POST(req:NextRequest){
  if(origin&&origin!==req.nextUrl.origin&&origin!=='https://app.khalam.app')return NextResponse.json({erreur:'Origine refusée.'},{status:403,headers});
  try{
   const b=await req.json();
-  if(b.action==='mesure'&&['video_recue','audio_envoye','lecture_signalee','lecture_terminee','erreur_client'].includes(b.evenement)){
+  if(b.action==='mesure'&&['video_recue','audio_envoye','lecture_signalee','lecture_terminee','erreur_client','session_deconnectee','reconnexion','attente_fin_depassee'].includes(b.evenement)){
    mesures.push({date:new Date().toISOString(),evenement:b.evenement,ms:typeof b.ms==='number'&&Number.isFinite(b.ms)?Math.max(0,Math.round(b.ms)):null});if(mesures.length>30)mesures.shift();
    return NextResponse.json({recu:true},{headers});
   }
