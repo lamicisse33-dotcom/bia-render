@@ -7,7 +7,8 @@ export default function EssaiSon(){
   setActif(true);
   try{
    const c=new AudioContext();ctx.current=c;await c.resume();setEtat('Génération de la salutation…');
-   const r=await fetch('/api/gemini-live/essai?variante=client_historique_compatible&audio=1&ecouter=1',{cache:'no-store'});const d=await r.json();const a=d.resultats?.[0];
+   const secours=new URLSearchParams(window.location.search).get('cle')==='secours';
+   const r=await fetch('/api/gemini-live/essai?variante='+(secours?'client_historique&modele=gemini-3.8-live':'client_historique_compatible')+'&audio=1&ecouter=1'+(secours?'&cle=secours':''),{cache:'no-store'});const d=await r.json();const a=d.resultats?.[0];
    if(!r.ok||!a?.accepte||!a.pcm_base64)throw Error(a?.motif||d.erreur||'Aucun audio');
    const raw=atob(a.pcm_base64),v=new DataView(new ArrayBuffer(raw.length));for(let i=0;i<raw.length;i++)v.setUint8(i,raw.charCodeAt(i));
    const b=c.createBuffer(1,raw.length/2,a.frequence),samples=b.getChannelData(0);let energie=0;for(let i=0;i<samples.length;i++){samples[i]=v.getInt16(i*2,true)/32768;energie+=samples[i]*samples[i];}

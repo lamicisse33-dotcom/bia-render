@@ -8,3 +8,12 @@ export function modelesLiveDisponibles(principal:string,exclus:string[]=[]){
 export function panneLiveRecuperable(code:number,motif:string){
  return code===1006||[429,500,502,503,504].includes(code)||/quota|resource.exhausted|overload|unavailable|temporar|service error|internal error/i.test(motif);
 }
+/** Les identifiants publics désignent un emplacement, jamais une clé. */
+export function connexionsLive(principal:string,secours:boolean,exclus:string[]=[]){
+ const modeles=modelesLiveDisponibles(principal);
+ const connexions=modeles.flatMap((modele,index)=>[
+  {id:'principale:'+modele,modele,cle:'principale' as const},
+  ...(index===0&&secours?[{id:'secours:'+modele,modele,cle:'secours' as const}]:[]),
+ ]);
+ return connexions.filter(c=>!exclus.includes(c.id)&&!exclus.includes(c.modele));
+}

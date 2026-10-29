@@ -537,8 +537,8 @@ export class BiaGeminiLive{
     clearTimeout(timeout);this.ready=false;
     const code=Number(e?.code)||0,motif=String(e?.reason||'').slice(0,300);
     this.dernierCode=code;this.motifFermeture=motif;
-    const modele=String(data.modele||data.setup?.model||'').replace(/^models\//,'');
-    if(!this.stoppe&&data.secours_disponible&&modele&&!this.modelesRefuses.has(modele)&&this.modelesRefuses.size<1&&panneLiveRecuperable(code,this.erreurGoogle||motif)){
+    const modele=String(data.connexion||data.modele||data.setup?.model||'').replace(/^models\//,'');
+    if(!this.stoppe&&data.secours_disponible&&modele&&!this.modelesRefuses.has(modele)&&this.modelesRefuses.size<2&&panneLiveRecuperable(code,this.erreurGoogle||motif)){
      bascule=true;this.declarerFermeture(code,this.erreurGoogle||motif,!established);
      this.modelesRefuses.add(modele);this.viderSon();this.finirTour();this.events.etat('Reconnexion au moteur vocal de secours…');
      void this.connecter().then(resolve,e=>{if(!established)reject(e);else if(!this.stoppe){this.arreter();this.events.erreur(INDISPONIBLE);}});return;

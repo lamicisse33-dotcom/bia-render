@@ -23,3 +23,21 @@ async function scenario({before=true,both=false,code=1011,reason='quota exceeded
 test('quota before setup automatically connects backup and receives audio, retaining history',async()=>{const d=await scenario();assert.equal(d.requests.length,2);assert.equal(d.requests[1].headers['x-bia-live-exclus'],aide.MODELE_LIVE_25);assert.equal(d.played,1);assert.equal(d.history[0].parts[0].text,'Bonjour');assert.equal(d.unavailable.length,0);});
 test('quota during established session recovers without restarting the microphone',async()=>{const d=await scenario({before:false});assert.equal(d.requests.length,2);assert.equal(d.played,1);});
 test('two refusals stop after backup; invalid arguments and explicit stop never retry',async()=>{assert.equal((await scenario({both:true})).requests.length,2);assert.equal((await scenario({code:1007,reason:'invalid argument'})).requests.length,1);assert.equal((await scenario({before:false,stop:true})).requests.length,1);});
+
+test('backup key retries the preferred model before changing model; no key material returned',()=>{
+ const c=aide.connexionsLive(aide.MODELE_LIVE_38,true);
+ assert.deepEqual(c.map(x=>[x.cle,x.modele]),[['principale',aide.MODELE_LIVE_38],['secours',aide.MODELE_LIVE_38],['principale',aide.MODELE_LIVE_25]]);
+ assert.deepEqual(aide.connexionsLive(aide.MODELE_LIVE_38,true,[c[0].id,c[1].id]),[c[2]]);
+ assert.equal(aide.connexionsLive(aide.MODELE_LIVE_38,false).length,2);
+ assert.equal(aide.connexionsLive(aide.MODELE_LIVE_38,true,c.map(x=>x.id)).length,0);
+});
+test('same-model backup key is not excluded with the primary key and all three attempts remain bounded',async()=>{
+ const old={fetch:globalThis.fetch,WebSocket:globalThis.WebSocket,localStorage:globalThis.localStorage};const demandes=[];let ouvertures=0;
+ class Socket{static OPEN=1;readyState=1;constructor(){queueMicrotask(()=>this.onopen());}send(raw){if(JSON.parse(raw).setup)queueMicrotask(()=>this.onclose({code:1011,reason:'quota exceeded'}));}close(){}}
+ try{
+  globalThis.WebSocket=Socket;globalThis.localStorage={setItem(){}};
+  globalThis.fetch=async(url,init)=>{if(url!=='/api/gemini-live/session')return Response.json({ok:true});demandes.push(init.headers['x-bia-live-exclus']);const c=aide.connexionsLive(aide.MODELE_LIVE_38,true,demandes.at(-1).split(','))[0];ouvertures++;return Response.json({token:'synthetic',connexion:c.id,modele:c.modele,secours_disponible:ouvertures<3,setup:{model:c.modele}});};
+  const c=new client.BiaGeminiLive('TEST',{etat(){},transcription(){},parle(){},latence(){},erreur(){},indisponible(){}});c.stoppe=false;c.viderSon=()=>{};c.finirTour=()=>{};
+  await c.connecter().catch(()=>{});assert.equal(ouvertures,3);assert.equal(demandes[1],'principale:'+aide.MODELE_LIVE_38);assert.equal(demandes[2],'principale:'+aide.MODELE_LIVE_38+',secours:'+aide.MODELE_LIVE_38);
+ }finally{globalThis.fetch=old.fetch;globalThis.WebSocket=old.WebSocket;if(old.localStorage===undefined)delete globalThis.localStorage;else globalThis.localStorage=old.localStorage;}
+});

@@ -63,7 +63,7 @@ const g = globalThis as typeof globalThis & { biaEssaiLive?: number; biaEssaisCo
    à part — mélanger deux changements dans un essai, c'est ne rien apprendre. */
 const CONSIGNE = "Tu es Bia. Réponds en français ou en wolof.";
 
-type Variante = { nom: string; setup: Record<string, unknown>; token?: string; verifierAudio?: boolean; historiqueEssai?: boolean; ecouter?: boolean; historiqueCompatible?: boolean };
+type Variante = { nom: string; setup: Record<string, unknown>; token?: string; verifierAudio?: boolean; historiqueEssai?: boolean; cleEssai?: string; ecouter?: boolean; historiqueCompatible?: boolean };
 
 /* ── ESSAYER UN AUTRE MODÈLE, SANS TOUCHER À LA PRODUCTION ────────────────
    Lamine : « vérifie si un autre modèle Live a un quota gratuit plus large
@@ -108,7 +108,7 @@ function variantes(modeleDemande = ""): Variante[] {
   ];
 }
 
-const sansCle = (t: string) => (cle() ? String(t).split(cle()).join("[clé masquée]") : String(t)).slice(0, 300);
+const sansCle = (t: string) => [cle(),process.env.GEMINI_API_KEY_SECOURS||''].filter(Boolean).reduce((texte,c)=>texte.split(c).join("[clé masquée]"),String(t)).slice(0,300);
 
 async function essayer(v: Variante) {
   const debut = Date.now();
@@ -118,7 +118,7 @@ async function essayer(v: Variante) {
   let jeton = v.token || "";
   if (!jeton) try {
     const r = await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens", {
-      method: "POST", headers: { "x-goog-api-key": cle(), "Content-Type": "application/json" },
+      method: "POST", headers: { "x-goog-api-key": v.cleEssai || cle(), "Content-Type": "application/json" },
       body: JSON.stringify({
         uses: 1,
         expireTime: new Date(Date.now() + 5 * 60000).toISOString(),
@@ -195,6 +195,10 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url);
   const demande = url.searchParams.get("variante");
+  const secours=url.searchParams.get("cle")==="secours";
+  const cleEssai=secours?(process.env.GEMINI_API_KEY_SECOURS?.trim()||''):cle();
+  if(!cleEssai)return NextResponse.json({erreur:"clé de secours absente"},{status:503});
+  if(secours&&demande==="session_complete")return NextResponse.json({erreur:"seul l’essai générique est permis avec la clé de secours"},{status:400});
   const modele = url.searchParams.get("modele") || "";
   const toutes = url.searchParams.get("toutes") === "1";
   const audioCourt = url.searchParams.get("audio") === "1" && demande !== "session_complete";
@@ -231,14 +235,14 @@ export async function GET(request: NextRequest) {
      cadence, et on les prendrait pour des refus de configuration. */
   const resultats = [];
   for (const v of liste) resultats.push(await essayer(audioCourt ? {
-    ...v,verifierAudio:true,ecouter:url.searchParams.get("ecouter")==="1",setup:{...v.setup,generationConfig:{
+    ...v,cleEssai,verifierAudio:true,ecouter:url.searchParams.get("ecouter")==="1",setup:{...v.setup,generationConfig:{
       ...(v.setup.generationConfig as Record<string,unknown>),maxOutputTokens:512,
       speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:"Kore"}}},
     }},
-  } : v));
+  } : {...v,cleEssai}));
 
   return NextResponse.json({
-    revision: "essai-poignee-de-main-v1",
+    revision: "essai-poignee-de-main-v1",emplacement_cle:secours?"secours":"principale",
     reglage_en_service: { silence_ms: silenceFinDeParoleMs(), prefixe_ms: prefixePartMs() },
     modele: modele || process.env.GEMINI_LIVE_MODEL || "gemini-3.8-live",
     modele_en_service: process.env.GEMINI_LIVE_MODEL || "gemini-3.8-live",

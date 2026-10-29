@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
-function fixture(refus=false){
+function fixture(refus=false,secours=''){
  const setup={model:'models/test',systemInstruction:{parts:[{text:'private lesson'}]}};
  let time=100000,opened=0,tokens=0,sent=[];
  const state={};
@@ -23,7 +23,7 @@ function fixture(refus=false){
  };
  const js=ts.transpileModule(fs.readFileSync('app/api/gemini-live/essai/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  const m={exports:{}};
- new Function('require','module','exports','globalThis','process','WebSocket','Date','fetch',js)(id=>{assert(id in deps,id);return deps[id];},m,m.exports,state,{env:{GEMINI_API_KEY:'test',BIA_CODE_MAITRE:'server-only'}},Socket,Clock,async()=>Response.json({name:'synthetic-token'}));
+ new Function('require','module','exports','globalThis','process','WebSocket','Date','fetch',js)(id=>{assert(id in deps,id);return deps[id];},m,m.exports,state,{env:{GEMINI_API_KEY:'test',BIA_CODE_MAITRE:'server-only',GEMINI_API_KEY_SECOURS:secours}},Socket,Clock,async(_url,init)=>{sent.push({cleUtilisee:init.headers['x-goog-api-key']});return Response.json({name:'synthetic-token'});});
  return {run:(query='variante=session_complete')=>m.exports.GET(new Request('https://bia.test/api/gemini-live/essai?'+query)),advance:()=>time+=16000,stats:()=>({opened,tokens,sent})};
 }
 test('full production setup reaches provider and audio without exposing credentials or lessons; bounded at two probes',async()=>{
@@ -42,6 +42,15 @@ test('short audio probe verifies sound without importing or transmitting Bia pri
  const f=fixture();const r=await f.run('variante=nu&audio=1&modele=gemini-2.5-flash-native-audio-preview-12-2025');
  const d=await r.json();assert.equal(d.resultats[0].etape,'premier_audio');assert.equal(d.resultats[0].accepte,true);
  assert.equal(f.stats().tokens,0);assert(!JSON.stringify(f.stats().sent).includes('private lesson'));
- assert.equal(f.stats().sent[0].setup.model,'models/gemini-2.5-flash-native-audio-preview-12-2025');
- assert.equal(f.stats().sent.length,2);
+ assert.equal(f.stats().sent.find(s=>s.setup).setup.model,'models/gemini-2.5-flash-native-audio-preview-12-2025');
+ assert.equal(f.stats().sent.filter(s=>!s.cleUtilisee).length,2);
+});
+
+test('backup probe uses only the backup credential and never imports private Bia data',async()=>{
+ const f=fixture(false,'synthetic-backup-secret');
+ const d=await (await f.run('variante=nu&audio=1&cle=secours&modele=gemini-3.8-live')).json();
+ assert.equal(d.emplacement_cle,'secours');assert.equal(d.resultats[0].accepte,true);
+ assert.equal(f.stats().sent[0].cleUtilisee,'synthetic-backup-secret');assert.equal(f.stats().tokens,0);
+ assert(!JSON.stringify(d).includes('synthetic-backup-secret'));assert(!JSON.stringify(f.stats().sent).includes('private lesson'));
+ const absent=fixture();assert.equal((await absent.run('variante=nu&audio=1&cle=secours')).status,503);
 });
