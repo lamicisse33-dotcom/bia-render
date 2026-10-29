@@ -91,5 +91,6 @@ test('les anciens choix Runway passent en vidéo locale et les autres personnage
  assert.equal(a.apparenceLocaleBia('runway-direct'),'satin-anime');
  assert.equal(a.apparenceLocaleBia(null),'satin-anime');
  for(const choix of ['original','vert-or','wax-bleu','ivoire','satin-anime'])assert.equal(a.apparenceLocaleBia(choix),choix);
- assert(!a.APPARENCES_BIA.some(v=>v.id==='runway-direct'));
+ assert(a.APPARENCES_BIA.some(v=>v.id==='runway-direct'));
+ assert.equal(a.apparenceLocaleBia('runway-direct',true),'runway-direct');
 });

@@ -24,7 +24,7 @@ function relais({refuserOuverture=false}={}){
   async disconnect(){}
  }
  const a=charger('lib/avatar-runway-client.ts',{'./avatar-runway-pcm':pcm,'livekit-client':{Room:FakeRoom,RoomEvent:{TrackSubscribed:'track',Disconnected:'disconnect'},Track:{Kind:{Video:'video',Audio:'audio'}}}},{
-  localStorage:{getItem:k=>k==='bia-habillage-20261027'?'runway-direct':k==='bia-code'?'TEST':null},
+  localStorage:{getItem:k=>k==='bia-runway-choisi-20261029'?'1':k==='bia-habillage-20261027'?'runway-direct':k==='bia-code'?'TEST':null},
   fetch:async(url,o)=>{const b=JSON.parse(o.body);calls.push(b);if(refuserOuverture&&b.action==='ouvrir')return {ok:false,json:async()=>({erreur:'indisponible'})};return {ok:true,json:async()=>({session:'session',token:'producteur',spectateur:'ecran',url:'wss://test',destination:'runway-avatar-agent',duree_maximale_s:600})};},
   MediaStream:class{},requestAnimationFrame:()=>1,cancelAnimationFrame:()=>{},setTimeout:(fn,ms)=>{const id=++tid;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),
  });

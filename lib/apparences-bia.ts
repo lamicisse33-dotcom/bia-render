@@ -8,11 +8,11 @@ export const TENUES_BIA = [
 ] as const;
 export type TenueBia = typeof TENUES_BIA[number]["id"];
 export type ApparenceBia = TenueBia | typeof SATIN_ID | 'runway-direct';
-export const APPARENCES_BIA = [...TENUES_BIA, {id: SATIN_ID, nom: 'Bia animée — satin bleu nuit'}] as const;
+export const APPARENCES_BIA = [...TENUES_BIA, {id: SATIN_ID, nom: 'Bia animée — satin bleu nuit'}, {id:'runway-direct',nom:'Bia bleu nuit — synchronisée (crédits Runway)'}] as const;
 export function estApparenceBia(v: unknown): v is ApparenceBia { return v === 'runway-direct' || v === SATIN_ID || estTenueBia(v); }
 export function chargerApparenceBia(id: ApparenceBia) { return id === 'runway-direct' || id === SATIN_ID ? chargerPosterSatin() : chargerTenueBia(id); }
-export function apparenceLocaleBia(ancienne: string | null) {
-  return !ancienne || ancienne === 'runway-direct' ? SATIN_ID : ancienne;
+export function apparenceLocaleBia(ancienne: string | null, runwayChoisi = false) {
+  return !ancienne || (ancienne === 'runway-direct' && !runwayChoisi) ? SATIN_ID : ancienne;
 }
 export const CLE_APPARENCE_BIA = "bia-habillage-20261027";
 export function estTenueBia(v: unknown): v is TenueBia {

@@ -22,7 +22,7 @@ let repos:ReturnType<typeof setTimeout>|null=null;
 function fermerSiRepos(){if(repos)clearTimeout(repos);if(!maintenir)repos=setTimeout(()=>{if(!maintenir&&!avatarParle())void fermerAvatarBia();},15000);}
 let piste:MediaStream|null=null,contexte:AudioContext|null=null,source:MediaStreamAudioSourceNode|null=null,gain:GainNode|null=null,analyse:AnalyserNode|null=null,raf=0,energie=0,muet=false;
 export function suivreAvatarBia(f:(e:Etat)=>void){abonnes.add(f);f(etat);return()=>{abonnes.delete(f);};}
-export function avatarSelectionne(){try{return localStorage.getItem(CLE)===RUNWAY_DIRECT;}catch{return false;}}
+export function avatarSelectionne(){try{return localStorage.getItem(CLE)===RUNWAY_DIRECT&&localStorage.getItem('bia-runway-choisi-20261029')==='1';}catch{return false;}}
 export function avatarPret(){return avatarSelectionne()&&etat.pret;}
 export function avatarParle(){return avatarPret()&&groupes.some(g=>g.generation===epoch&&g.fins.length>0);}
 export function energieAvatar(){return avatarPret()&&!muet?energie:0;}
@@ -63,7 +63,7 @@ export async function preparerAvatarBia(ctx?:AudioContext){
   if(!code)return;
   emettre({connexion:true,message:'Connexion du personnage…'});
   const {Room,RoomEvent,Track}=await import('livekit-client');
-  const response=await fetch('/api/avatar-runway',{method:'POST',headers:entetes(),body:JSON.stringify({action:'ouvrir',conversation:true}),signal:AbortSignal.timeout(30000)});
+  const response=await fetch('/api/avatar-runway',{method:'POST',headers:entetes(),body:JSON.stringify({action:'ouvrir',conversation:true,mode:'runway-explicite'}),signal:AbortSignal.timeout(30000)});
   const data=await response.json();if(!response.ok)throw Error(data.erreur||'Avatar indisponible');
   session=data.session;
   if(connexionEpoch!==generation){await fermerAvatarBia();return;}
