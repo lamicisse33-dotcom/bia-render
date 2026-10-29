@@ -79,7 +79,7 @@ export function PortraitSatin({face, parle, ecoute = false, emotion = 'neutre'}:
     if (v.readyState >= 1) lancer();
     else v.addEventListener('loadedmetadata', lancer, {once:true});
     return () => { v.removeEventListener('loadedmetadata', lancer); v.pause(); annulerAttente(); };
-  }, [clip, anime]);
+  }, [clip, anime, parle]);
 
   function terminer() {
     const e = etat.current;

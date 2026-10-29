@@ -1,10 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { APPARENCES_BIA, CLE_APPARENCE_BIA, estApparenceBia, imagesTenueBia, visagePourFace,
+import { APPARENCES_BIA, CLE_APPARENCE_BIA, apparenceLocaleBia, estApparenceBia, imagesTenueBia, visagePourFace,
   positionVisage, programmerGestesBia, chargerApparenceBia, type ApparenceBia, type TenueBia } from "@/lib/apparences-bia";
 import {SATIN_ID, SATIN_POSTER} from '@/lib/animation-satin';
 import {PortraitSatin} from './PortraitSatin';
-import {PortraitRunway} from './PortraitRunway';
 import styles from "./personnages.module.css";
 
 export function useHabillageBia() {
@@ -16,9 +15,7 @@ export function useHabillageBia() {
     const id = ++demande.current;
     try {
       const ancien = localStorage.getItem(CLE_APPARENCE_BIA);
-      const premiereMigration = !localStorage.getItem('bia-avatar-buste-restaure-20261029');
-      const garde = premiereMigration && (!ancien || ancien === SATIN_ID || ancien === 'original') ? 'runway-direct' : ancien;
-      localStorage.setItem('bia-avatar-buste-restaure-20261029','1');
+      const garde = apparenceLocaleBia(ancien);
       if(garde&&garde!==ancien)localStorage.setItem(CLE_APPARENCE_BIA,garde);
       if (estApparenceBia(garde)) {
         void chargerApparenceBia(garde).then(() => {
@@ -61,7 +58,7 @@ export function ChoixPersonnage({ habillage, choisir, chargement, erreur, person
             onClick={() => void choisir("", () => choisirPersona(id))}>{nom}</button>)}
         {APPARENCES_BIA.map(t => <button key={t.id} type="button" aria-pressed={habillage === t.id}
           onClick={() => void choisir(t.id)}>
-          <span className={styles.vignette} aria-hidden="true" style={{ backgroundImage: `url("${t.id === SATIN_ID || t.id === 'runway-direct' ? SATIN_POSTER : imagesTenueBia(t.id).repos}")` }} />
+          <span className={styles.vignette} aria-hidden="true" style={{ backgroundImage: `url("${t.id === SATIN_ID ? SATIN_POSTER : imagesTenueBia(t.id).repos}")` }} />
           <span>{t.nom}</span>
         </button>)}
       </div>
@@ -80,7 +77,7 @@ export function ChoixPersonnage({ habillage, choisir, chargement, erreur, person
 export function PortraitTenue({tenue, face, parle = false, ecoute = false, emotion = 'neutre'}: {
   tenue: ApparenceBia; face: string; parle?: boolean; ecoute?: boolean; emotion?: string;
 }) {
-  return tenue === 'runway-direct' ? <PortraitRunway face={face} parle={parle} ecoute={ecoute} emotion={emotion}/> : tenue === SATIN_ID ? <PortraitSatin face={face} parle={parle} ecoute={ecoute} emotion={emotion} />
+  return tenue === 'runway-direct' || tenue === SATIN_ID ? <PortraitSatin face={face} parle={parle} ecoute={ecoute} emotion={emotion} />
     : <PortraitTenueFixe tenue={tenue} face={face} parle={parle} />;
 }
 function PortraitTenueFixe({ tenue, face, parle = false }: { tenue: TenueBia; face: string; parle?: boolean }) {

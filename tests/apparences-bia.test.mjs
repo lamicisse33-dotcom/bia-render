@@ -86,3 +86,10 @@ test('la sélection de tenue ne touche pas aux identités, moteurs ni accès', (
   assert(!/fetch\(|speechSynthesis|AudioContext|bia-persona/.test(code));
   assert(!/setInterval/.test(composants));
 });
+
+test('les anciens choix Runway passent en vidéo locale et les autres personnages sont conservés',()=>{
+ assert.equal(a.apparenceLocaleBia('runway-direct'),'satin-anime');
+ assert.equal(a.apparenceLocaleBia(null),'satin-anime');
+ for(const choix of ['original','vert-or','wax-bleu','ivoire','satin-anime'])assert.equal(a.apparenceLocaleBia(choix),choix);
+ assert(!a.APPARENCES_BIA.some(v=>v.id==='runway-direct'));
+});
