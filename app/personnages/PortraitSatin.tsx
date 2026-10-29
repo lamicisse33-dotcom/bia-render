@@ -1,12 +1,18 @@
 "use client";
 import {useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {SATIN_BASE, SATIN_POSTER, SEQUENCES_SATIN, estSequenceSatin, reactionSatin, sequenceSatin, fenetreParoleSatin, type SequenceSatin} from '@/lib/animation-satin';
+import {SATIN_BASE, SATIN_POSTER, SEQUENCES_SATIN, estSequenceSatin, reactionSatin, sequenceSatin, fenetreParoleSatin, fenetreCalmeSatin, type SequenceSatin} from '@/lib/animation-satin';
+import {BoucheSatin} from './BoucheSatin';
 import styles from './personnages.module.css';
 
 /** Les pistes audio des clips sont retirées à la préparation ET le lecteur
  * est muet. Ce composant ne crée jamais de deuxième voix dans la conversation. */
-export function PortraitSatin({face, parle, ecoute = false, emotion = 'neutre'}: {
+export function PortraitSatin({face, parle, ecoute = false, emotion = 'neutre', bouche = false}: {
   face: string; parle: boolean; ecoute?: boolean; emotion?: string;
+  /** Vrai sur « satin bleu nuit — local » : la bouche filmee est entierement
+   *  recouverte par une bouche synchronisee sur le son joue, et la prise ne
+   *  joue que son passage le plus calme. Faux sur le personnage d'origine,
+   *  qui reste la reference et ne change en rien. */
+  bouche?: boolean;
 }) {
   const [anime, setAnime] = useState(false);
   const [clip, setClip] = useState<SequenceSatin>('ecoute');
@@ -72,21 +78,22 @@ export function PortraitSatin({face, parle, ecoute = false, emotion = 'neutre'}:
     v.muted = true;
     const lancer = () => {
       if (video.current !== v) return;
-      const fenetre = etat.current.parle ? fenetreParoleSatin(clip) : null;
+      const fenetre = bouche ? fenetreCalmeSatin(clip)
+        : etat.current.parle ? fenetreParoleSatin(clip) : null;
       if (fenetre) v.currentTime = fenetre.debut;
       void v.play().catch(() => { if (video.current === v) setVisible(false); });
     };
     if (v.readyState >= 1) lancer();
     else v.addEventListener('loadedmetadata', lancer, {once:true});
     return () => { v.removeEventListener('loadedmetadata', lancer); v.pause(); annulerAttente(); };
-  }, [clip, anime, parle]);
+  }, [clip, anime, parle, bouche]);
 
   function terminer() {
     const e = etat.current;
     if (!e.anime) return;
     if (e.parle && !e.ecoute) {
       const v = video.current;
-      if (v) { v.currentTime = fenetreParoleSatin(clip)?.debut || 0; void v.play().catch(() => setVisible(false)); }
+      if (v) { v.currentTime = (bouche ? fenetreCalmeSatin(clip) : fenetreParoleSatin(clip))?.debut || 0; void v.play().catch(() => setVisible(false)); }
       return;
     }
     reactionEnCours.current = null;
@@ -103,7 +110,9 @@ export function PortraitSatin({face, parle, ecoute = false, emotion = 'neutre'}:
   // Ne jamais laisser une dernière image de bisou ou de parole pendant une
   // reprise utilisateur, même avant que l'effet de changement soit exécuté.
   const autorise = anime && !panne && (!ecoute || clip === 'ecoute');
-  return <div className={styles.presence} data-bia-habillage="satin-anime" data-parle={parle ? 'oui' : 'non'} data-ecoute={ecoute ? 'oui' : 'non'} aria-hidden="true">
+  return <div className={styles.presence} data-bia-habillage={bouche ? 'satin-local' : 'satin-anime'}
+    data-bouche-composee={bouche ? 'oui' : 'non'}
+    data-parle={parle ? 'oui' : 'non'} data-ecoute={ecoute ? 'oui' : 'non'} aria-hidden="true">
     <div className={styles.cadre}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className={styles.posterSatin} src={SATIN_POSTER} alt="" />
@@ -114,11 +123,14 @@ export function PortraitSatin({face, parle, ecoute = false, emotion = 'neutre'}:
         onPlaying={() => {if(video.current?.dataset.sequence===n)setVisible(true);}} onEnded={()=>{if(video.current?.dataset.sequence===n)terminer();}}
         onTimeUpdate={event => {
           const v = event.currentTarget, e = etat.current;
-          const fenetre = n===clip && e.parle && !e.ecoute ? fenetreParoleSatin(clip) : null;
+          const fenetre = n!==clip ? null
+            : bouche ? fenetreCalmeSatin(clip)
+            : e.parle && !e.ecoute ? fenetreParoleSatin(clip) : null;
           if (fenetre && v.currentTime >= fenetre.fin) v.currentTime = fenetre.debut;
         }}
         onError={() => {if(n===clip){ setPanne(true); setVisible(false); }}}
         style={{opacity: n===clip && autorise && visible ? 1 : 0}} />)}
+      {bouche && <BoucheSatin video={video} clip={clip} active={autorise && visible} />}
     </div>
   </div>;
 }

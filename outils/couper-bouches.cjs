@@ -13,18 +13,38 @@ const FENTES=[
  ['repos',7,1],['fermee',0,1],['entr',1,1],['ou',2,1],
  ['o',8,1],['a',3,1],['i',4,1],['grand-a',8,1.08],
 ];
-/* Un bord franc ferait un rectangle visible par-dessus la vidéo. On adoucit
-   les quatre bords sur seize pixels : la peau se fond dans la peau, et la
-   bouche ne porte pas de cadre. */
-function masque(w,h,marge){
- const d=Buffer.alloc(w*h);
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-  const dx=Math.min(x,w-1-x)/marge, dy=Math.min(y,h-1-y)/marge;
-  const t=Math.min(1,dx)*Math.min(1,dy);
-  d[y*w+x]=Math.round(255*(t*t*(3-2*t)));
- }
- return sharp(d,{raw:{width:w,height:h,channels:1}}).png().toBuffer();
+/* ── LE DÉBORDEMENT QUE LAMINE A VU, ET POURQUOI ──────────────────────────
+
+   « La bouche composée dépasse légèrement de la mâchoire. »
+
+   Il a raison, et la cause n'est pas le fondu : c'est la FORME du masque.
+   Un masque rectangulaire adouci sur ses bords emporte, en bas de la
+   découpe, le CONTOUR DE LA MÂCHOIRE de la tuile d'où vient la bouche. Or
+   ce contour n'est pas le même d'une tuile à l'autre : quand la bouche
+   s'ouvre, la mâchoire descend. Coller ce bas-là par-dessus un portrait
+   dont la mâchoire est ailleurs fait une double arête — exactement ce
+   qu'il a vu.
+
+   Le masque est donc un OVALE serré sur les lèvres, qui s'arrête bien avant
+   le menton et bien avant les joues. Il ne transporte plus aucun contour :
+   seulement de la lèvre, et un peu de peau autour pour que la jointure ne
+   se voie pas. Le fondu est doux sur toute la bordure de l'ovale. */
+const OVALE = { cx: 120, cy: 58, rx: 76, ry: 33, fondu: 13 };
+function masque(w, h) {
+  const d = Buffer.alloc(w * h);
+  const lisser = (t) => { const u = Math.max(0, Math.min(1, t)); return u * u * (3 - 2 * u); };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    /* La distance à l'ovale, en « rayons » : 1 = sur le bord, 0 = au centre.
+       On la convertit en pixels le long du plus petit rayon, qui est celui
+       où un débordement se verrait le plus. */
+    const u = (x - OVALE.cx) / OVALE.rx, v = (y - OVALE.cy) / OVALE.ry;
+    const r = Math.hypot(u, v);
+    const px = (1 - r) * OVALE.ry;
+    d[y * w + x] = Math.round(255 * lisser(px / OVALE.fondu));
+  }
+  return sharp(d, { raw: { width: w, height: h, channels: 1 } }).png().toBuffer();
 }
+
 (async()=>{
  const m=await masque(BOITE.width,BOITE.height,16);
  const faites=[];

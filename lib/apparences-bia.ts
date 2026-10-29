@@ -1,4 +1,4 @@
-import {SATIN_ID, chargerPosterSatin} from './animation-satin';
+import {SATIN_ID, SATIN_LOCAL_ID, chargerPosterSatin} from './animation-satin';
 /** Habillages visuels uniquement : aucune de ces valeurs n'est une persona
  * envoyée au cerveau, au micro ou au moteur vocal. */
 export const TENUES_BIA = [
@@ -17,15 +17,15 @@ export type TenueBia = typeof TENUES_BIA[number]["id"];
 const ID_VISAGE_LOCAL = "visage-local";
 const TENUE_DU_VISAGE_LOCAL = "vert-or";
 
-export type ApparenceBia = TenueBia | typeof SATIN_ID | 'runway-direct' | typeof ID_VISAGE_LOCAL;
-export const APPARENCES_BIA = [...TENUES_BIA, {id: SATIN_ID, nom: 'Bia animée — satin bleu nuit'}, {id:'runway-direct',nom:'Bia bleu nuit — synchronisée (crédits Runway)'}, {id: ID_VISAGE_LOCAL, nom: 'Bia — visage local (essai)'}] as const;
-export function estApparenceBia(v: unknown): v is ApparenceBia { return v === 'runway-direct' || v === SATIN_ID || v === ID_VISAGE_LOCAL || estTenueBia(v); }
+export type ApparenceBia = TenueBia | typeof SATIN_ID | typeof SATIN_LOCAL_ID | 'runway-direct' | typeof ID_VISAGE_LOCAL;
+export const APPARENCES_BIA = [...TENUES_BIA, {id: SATIN_ID, nom: 'Bia animée — satin bleu nuit'}, {id: SATIN_LOCAL_ID, nom: 'Bia satin bleu nuit — local (bouche sur le son)'}, {id:'runway-direct',nom:'Bia bleu nuit — synchronisée (crédits Runway)'}, {id: ID_VISAGE_LOCAL, nom: 'Bia — visage local (essai)'}] as const;
+export function estApparenceBia(v: unknown): v is ApparenceBia { return v === 'runway-direct' || v === SATIN_ID || v === SATIN_LOCAL_ID || v === ID_VISAGE_LOCAL || estTenueBia(v); }
 export function chargerApparenceBia(id: ApparenceBia) {
   /* Le visage local ne lit ni la planche des expressions ni celle des mains :
      sa bouche vient de ses propres découpes et son fond d'une boucle. On ne
      charge donc que le portrait de repos — mesuré : 1,9 Mo de moins. */
   if (id === ID_VISAGE_LOCAL) return chargerTenueBia(TENUE_DU_VISAGE_LOCAL, true);
-  return id === 'runway-direct' || id === SATIN_ID ? chargerPosterSatin() : chargerTenueBia(id);
+  return id === 'runway-direct' || id === SATIN_ID || id === SATIN_LOCAL_ID ? chargerPosterSatin() : chargerTenueBia(id);
 }
 export function apparenceLocaleBia(ancienne: string | null, runwayChoisi = false) {
   return !ancienne || (ancienne === 'runway-direct' && !runwayChoisi) ? SATIN_ID : ancienne;

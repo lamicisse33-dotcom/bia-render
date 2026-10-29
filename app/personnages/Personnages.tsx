@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { APPARENCES_BIA, CLE_APPARENCE_BIA, apparenceLocaleBia, estApparenceBia, imagesTenueBia, visagePourFace,
   positionVisage, programmerGestesBia, chargerApparenceBia, type ApparenceBia, type TenueBia } from "@/lib/apparences-bia";
-import {SATIN_ID, SATIN_POSTER} from '@/lib/animation-satin';
+import {SATIN_ID, SATIN_LOCAL_ID, SATIN_POSTER} from '@/lib/animation-satin';
 import {PortraitSatin} from './PortraitSatin';
 import {PortraitRunway} from './PortraitRunway';
 import VisageLocal from './VisageLocal';
@@ -63,12 +63,13 @@ export function ChoixPersonnage({ habillage, choisir, chargement, erreur, person
             onClick={() => void choisir("", () => choisirPersona(id))}>{nom}</button>)}
         {APPARENCES_BIA.map(t => <button key={t.id} type="button" aria-pressed={habillage === t.id}
           onClick={() => void choisir(t.id)}>
-          <span className={styles.vignette} aria-hidden="true" style={{ backgroundImage: `url("${t.id === SATIN_ID || t.id === 'runway-direct' ? SATIN_POSTER : imagesTenueBia(t.id === ID_VISAGE_LOCAL ? TENUE_DU_VISAGE_LOCAL : t.id).repos}")` }} />
+          <span className={styles.vignette} aria-hidden="true" style={{ backgroundImage: `url("${t.id === SATIN_ID || t.id === SATIN_LOCAL_ID || t.id === 'runway-direct' ? SATIN_POSTER : imagesTenueBia(t.id === ID_VISAGE_LOCAL ? TENUE_DU_VISAGE_LOCAL : t.id).repos}")` }} />
           <span>{t.nom}</span>
         </button>)}
       </div>
       {habillage === 'runway-direct' && <p className={styles.note}>La bouche est synchronisée en direct. Cette option consomme des crédits Runway pendant la session.</p>}
       {habillage === ID_VISAGE_LOCAL && <p className={styles.note}>Même Bia, même voix : seule l’image est fabriquée sur le téléphone. Ne consomme aucun crédit.</p>}
+      {habillage === SATIN_LOCAL_ID && <p className={styles.note}>Ses vidéos, mais sa bouche filmée est entièrement recouverte par une bouche qui suit le son joué. Ne consomme aucun crédit.</p>}
       {habillage === SATIN_ID && <div className={styles.apercusSatin}>
         <span>Voir ses gestes</span>
         {([['parole','Parole'], ['joie','Joie'], ['rire','Rire'], ['coeurs','Cœur'], ['bisou','Bisou']] as const).map(([id, nom]) =>
@@ -88,6 +89,7 @@ export function PortraitTenue({tenue, face, parle = false, ecoute = false, emoti
      la même liste, rendue par son propre composant. Le personnage animé et
      l'avatar Runway ne sont touchés par rien. */
   return tenue === ID_VISAGE_LOCAL ? <VisageLocal face={face} parle={parle} etat={etatDuPortrait(parle, ecoute)} emotion={emotion} />
+    : tenue === SATIN_LOCAL_ID ? <PortraitSatin face={face} parle={parle} ecoute={ecoute} emotion={emotion} bouche />
     : tenue === 'runway-direct' ? <PortraitRunway face={face} parle={parle} ecoute={ecoute} emotion={emotion}/> : tenue === SATIN_ID ? <PortraitSatin face={face} parle={parle} ecoute={ecoute} emotion={emotion} />
     : <PortraitTenueFixe tenue={tenue} face={face} parle={parle} />;
 }
