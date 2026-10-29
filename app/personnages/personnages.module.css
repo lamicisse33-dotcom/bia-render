@@ -34,5 +34,6 @@
    étirer la silhouette ni ajouter une autre bouche. Rapprochement limité à 4 %, retour au cadrage normal
    à la fin de la parole. */
 .zoomRunway { position:absolute; inset:0; transform-origin:50% 0%; transition:transform 1800ms cubic-bezier(.22,.61,.36,1); }
+.planLargeRunway { width:min(96cqw, 64cqh, 1024px); height:auto; aspect-ratio:2 / 3; }
 .planLargeRunway .videoRunway { left:50%; right:auto; width:auto; max-width:none; height:100%; transform:translateX(-50%); object-fit:contain; }
 @media (prefers-reduced-motion:reduce) { .zoomRunway { transform:none !important; transition:none; } }
