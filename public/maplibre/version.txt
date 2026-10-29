@@ -1,1 +1,1 @@
-maplibre-gl 6.15.0
+maplibre-gl 6.9.0
