@@ -56,14 +56,14 @@ export const dynamic = "force-dynamic";
 const PLAFOND_JOUR = 20;
 
 const cle = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
-const g = globalThis as typeof globalThis & { biaEssaiLive?: number };
+const g = globalThis as typeof globalThis & { biaEssaiLive?: number; biaEssaisComplets?: number };
 
 /* Une consigne COURTE : on teste la poignée de main, pas la taille du socle.
    Si la variante « consigne entière » devient nécessaire, elle sera ajoutée
    à part — mélanger deux changements dans un essai, c'est ne rien apprendre. */
 const CONSIGNE = "Tu es Bia. Réponds en français ou en wolof.";
 
-type Variante = { nom: string; setup: Record<string, unknown> };
+type Variante = { nom: string; setup: Record<string, unknown>; token?: string; verifierAudio?: boolean };
 
 /* ── ESSAYER UN AUTRE MODÈLE, SANS TOUCHER À LA PRODUCTION ────────────────
    Lamine : « vérifie si un autre modèle Live a un quota gratuit plus large
@@ -112,9 +112,9 @@ async function essayer(v: Variante) {
   const debut = Date.now();
   /* Comptée AVANT la demande : un refus consomme le quota autant qu'une
      réussite. Ne compter que les réussites ferait croire à un essai gratuit. */
-  noterSessionLive("essai");
-  let jeton = "";
-  try {
+  if (!v.token) noterSessionLive("essai");
+  let jeton = v.token || "";
+  if (!jeton) try {
     const r = await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens", {
       method: "POST", headers: { "x-goog-api-key": cle(), "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -146,11 +146,21 @@ async function essayer(v: Variante) {
     } catch (e) { rendre({ etape: "websocket", accepte: false, motif: sansCle((e as Error).message) }); return; }
     const minuteur = setTimeout(() => { try { ws.close(); } catch { /* déjà fermé */ } rendre({ etape: "attente", accepte: false, motif: "aucune réponse en 12 s" }); }, 12000);
     ws.onopen = () => ws.send(JSON.stringify({ setup: v.setup }));
+    let setupAccepte = false;
     ws.onmessage = async (e: MessageEvent) => {
       try {
         const brut = typeof e.data === "string" ? e.data : await (e.data as Blob).text();
-        const d = JSON.parse(brut) as { setupComplete?: unknown; error?: { message?: string; code?: number } };
-        if (d.setupComplete) { clearTimeout(minuteur); try { ws.close(); } catch { /* ok */ } rendre({ etape: "setup", accepte: true }); return; }
+        const d = JSON.parse(brut) as { setupComplete?: unknown; error?: { message?: string; code?: number }; serverContent?: {modelTurn?: {parts?: {inlineData?: {data?: string}}[]}} };
+        if (d.setupComplete) {
+          setupAccepte = true;
+          if (v.verifierAudio) {
+            ws.send(JSON.stringify({clientContent:{turns:[{role:"user",parts:[{text:"Bonjour Bia. Réponds simplement bonjour en français pour cet essai technique."}]}],turnComplete:true}}));
+          } else { clearTimeout(minuteur); try { ws.close(); } catch { /* ok */ } rendre({ etape: "setup", accepte: true }); }
+          return;
+        }
+        if (v.verifierAudio && d.serverContent?.modelTurn?.parts?.some(p=>p.inlineData?.data)) {
+          clearTimeout(minuteur); rendre({etape:"premier_audio",accepte:true,setup_accepte:setupAccepte}); try {ws.close();} catch {} return;
+        }
         if (d.error) { clearTimeout(minuteur); try { ws.close(); } catch { /* ok */ } rendre({ etape: "setup", accepte: false, code_erreur: d.error.code, motif: sansCle(d.error.message || "erreur sans message") }); }
       } catch { /* message illisible : la fermeture dira le reste */ }
     };
@@ -172,6 +182,19 @@ export async function GET(request: NextRequest) {
   const demande = url.searchParams.get("variante");
   const modele = url.searchParams.get("modele") || "";
   const toutes = url.searchParams.get("toutes") === "1";
+  // Deux essais complets au maximum par démarrage, inclus dans le plafond
+  // global. La configuration et le jeton ne quittent jamais le serveur.
+  if (demande === "session_complete") {
+    if ((g.biaEssaisComplets || 0) >= 2 || sessionsDEssaiAujourdhui() + (g.biaEssaisComplets || 0) >= PLAFOND_JOUR)
+      return NextResponse.json({erreur:"plafond des essais complets atteint"},{status:429,headers:{"cache-control":"no-store"}});
+    g.biaEssaiLive = maintenant; g.biaEssaisComplets = (g.biaEssaisComplets || 0) + 1;
+    const {POST} = await import("../session/route");
+    const response = await POST(new NextRequest("https://app.khalam.app/api/gemini-live/session",{method:"POST",headers:{"x-bia-code":process.env.BIA_CODE_MAITRE || "",origin:"https://app.khalam.app"}}));
+    const data = await response.json();
+    if (!response.ok) return NextResponse.json({variante:demande,etape:"session",accepte:false,http:response.status,fournisseur_http:data.statut_fournisseur,motif:sansCle(data.motif || data.erreur || "refus_session")},{headers:{"cache-control":"no-store"}});
+    const resultat = await essayer({nom:demande,setup:data.setup,token:data.token,verifierAudio:true});
+    return NextResponse.json({...resultat,consigne_signes:data.consigne_signes,connaissances:data.connaissances,limite:"Configuration de production et salutation technique depuis Render. Hors historique, microphone et réseau du téléphone. Aucun son ni contenu privé renvoyé."},{headers:{"cache-control":"no-store"}});
+  }
   /* Par DÉFAUT une seule variante. Les neuf ne partent que si on le demande
      explicitement, et elles comptent dans le plafond comme les autres. */
   const liste = demande
