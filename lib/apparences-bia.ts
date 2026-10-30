@@ -30,8 +30,9 @@ const TENUE_DU_VISAGE_LOCAL = "vert-or";
    Le remettre à `true` les fait réapparaître sans rien d'autre à toucher. */
 export const ESSAI_BOUCHE_COMPOSEE = false;
 
-export type ApparenceBia = TenueBia | typeof SATIN_ID | typeof SATIN_LOCAL_ID | 'runway-direct' | typeof ID_VISAGE_LOCAL;
+export type ApparenceBia = 'bia-complete' | TenueBia | typeof SATIN_ID | typeof SATIN_LOCAL_ID | 'runway-direct' | typeof ID_VISAGE_LOCAL;
 const TOUTES_LES_APPARENCES = [...TENUES_BIA,
+  {id: 'bia-complete', nom: 'Bia bleu nuit — yeux ouverts (local)'},
   {id: SATIN_ID, nom: 'Bia animée — satin bleu nuit'},
   {id: SATIN_LOCAL_ID, nom: 'Bia satin bleu nuit — local (bouche sur le son)'},
   {id: 'runway-direct', nom: 'Bia bleu nuit — synchronisée (crédits Runway)'},
@@ -39,11 +40,12 @@ const TOUTES_LES_APPARENCES = [...TENUES_BIA,
 const ESSAIS_ARRETES: readonly string[] = [SATIN_LOCAL_ID, ID_VISAGE_LOCAL];
 export const APPARENCES_BIA = TOUTES_LES_APPARENCES
   .filter(a => ESSAI_BOUCHE_COMPOSEE || !ESSAIS_ARRETES.includes(a.id));
-export function estApparenceBia(v: unknown): v is ApparenceBia { return v === 'runway-direct' || v === SATIN_ID || v === SATIN_LOCAL_ID || v === ID_VISAGE_LOCAL || estTenueBia(v); }
+export function estApparenceBia(v: unknown): v is ApparenceBia { return v === 'bia-complete' || v === 'runway-direct' || v === SATIN_ID || v === SATIN_LOCAL_ID || v === ID_VISAGE_LOCAL || estTenueBia(v); }
 export function chargerApparenceBia(id: ApparenceBia) {
   /* Le visage local ne lit ni la planche des expressions ni celle des mains :
      sa bouche vient de ses propres découpes et son fond d'une boucle. On ne
      charge donc que le portrait de repos — mesuré : 1,9 Mo de moins. */
+  if (id === 'bia-complete') return chargerImagesBia(['/personnages/bia-complete-20261030/atlas-yeux-ouverts.png']);
   if (id === ID_VISAGE_LOCAL) return chargerTenueBia(TENUE_DU_VISAGE_LOCAL, true);
   return id === 'runway-direct' || id === SATIN_ID || id === SATIN_LOCAL_ID ? chargerPosterSatin() : chargerTenueBia(id);
 }
@@ -135,7 +137,13 @@ export function chargerTenueBia(id: TenueBia, seulementLeFond = false): Promise<
   const deja = chargements.get(cle);
   if (deja) return deja;
   const sources = seulementLeFond ? [imagesTenueBia(id).repos] : Object.values(imagesTenueBia(id));
-  const promesse = Promise.all(sources.map(src => new Promise<void>((resolve, reject) => {
+  const promesse = chargerImagesBia(sources);
+  chargements.set(cle, promesse);
+  void promesse.catch(() => { if (chargements.get(cle) === promesse) chargements.delete(cle); });
+  return promesse;
+}
+function chargerImagesBia(sources: string[]): Promise<void> {
+  return Promise.all(sources.map(src => new Promise<void>((resolve, reject) => {
     const image = new Image();
     const limite = setTimeout(() => reject(new Error("Chargement de la tenue trop long")), 20000);
     image.onerror = () => { clearTimeout(limite); reject(new Error("Tenue indisponible")); };
@@ -145,7 +153,4 @@ export function chargerTenueBia(id: TenueBia, seulementLeFond = false): Promise<
     };
     image.src = src;
   }))).then(() => undefined);
-  chargements.set(cle, promesse);
-  void promesse.catch(() => { if (chargements.get(cle) === promesse) chargements.delete(cle); });
-  return promesse;
 }

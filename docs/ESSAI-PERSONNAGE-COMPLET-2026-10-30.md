@@ -13,3 +13,6 @@ Limites : quatre images de 512×768, même pose fixe ; ce n'est pas encore la re
 ## Yeux ouverts
 
 Lamine juge la version précédente « pas mal » et demande d'ouvrir les yeux. La référence c7f4d721a440c338b77adb2c948bdda8651afb12 est conservée. Une variante complète atlas-yeux-ouverts.png corrige les paupières sur les quatre poses ; l'ancien atlas n'est pas écrasé. Les dimensions 1024×1536 et les décalages de recalage (23 pixels entre colonnes, 2 pixels entre lignes) ont été vérifiés inchangés. Seule l'adresse de l'image chargée par la page est modifiée ; aucun paramètre audio ou comportement de conversation changé.
+
+## Intégration locale — 30 octobre
+À la demande de Lamine, ajout du choix `bia-complete` : « Bia bleu nuit — yeux ouverts (local) » dans la conversation. Les quatre images entières suivent le signal audio déjà existant ; aucune nouvelle lecture, aucun appel fournisseur et aucune attente ajoutée au son. En écoute ou après arrêt de parole, retour à la bouche fermée. Pose fixe, articulation par volume, pas reconnaissance des phonèmes. Choix mémorisé comme les autres personnages ; aucune migration automatique depuis Runway. Les fichiers Runway, le personnage vidéo satin et les moteurs vocaux restent inchangés. Point de restauration avant intégration : `0bf8b302e6f0d3380c24e6eee570778e545dff8a`.

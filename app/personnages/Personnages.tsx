@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { APPARENCES_BIA, CLE_APPARENCE_BIA, apparenceLocaleBia, estApparenceBia, imagesTenueBia, visagePourFace,
   positionVisage, programmerGestesBia, chargerApparenceBia, type ApparenceBia, type TenueBia } from "@/lib/apparences-bia";
 import {SATIN_ID, SATIN_LOCAL_ID, SATIN_POSTER} from '@/lib/animation-satin';
+import {PortraitComplet} from './PortraitComplet';
 import {PortraitSatin} from './PortraitSatin';
 import {PortraitRunway} from './PortraitRunway';
 import VisageLocal from './VisageLocal';
@@ -63,10 +64,11 @@ export function ChoixPersonnage({ habillage, choisir, chargement, erreur, person
             onClick={() => void choisir("", () => choisirPersona(id))}>{nom}</button>)}
         {APPARENCES_BIA.map(t => <button key={t.id} type="button" aria-pressed={habillage === t.id}
           onClick={() => void choisir(t.id)}>
-          <span className={styles.vignette} aria-hidden="true" style={{ backgroundImage: `url("${t.id === SATIN_ID || t.id === SATIN_LOCAL_ID || t.id === 'runway-direct' ? SATIN_POSTER : imagesTenueBia(t.id === ID_VISAGE_LOCAL ? TENUE_DU_VISAGE_LOCAL : t.id).repos}")` }} />
+          <span className={styles.vignette} aria-hidden="true" style={{ backgroundImage: `url("${t.id === 'bia-complete' || t.id === SATIN_ID || t.id === SATIN_LOCAL_ID || t.id === 'runway-direct' ? SATIN_POSTER : imagesTenueBia(t.id === ID_VISAGE_LOCAL ? TENUE_DU_VISAGE_LOCAL : t.id).repos}")` }} />
           <span>{t.nom}</span>
         </button>)}
       </div>
+      {habillage === 'bia-complete' && <p className={styles.note}>Images complètes aux yeux ouverts. La bouche suit le volume de la voix ; les bras restent dans la pose de référence. Sans crédits d’animation.</p>}
       {habillage === 'runway-direct' && <p className={styles.note}>La bouche est synchronisée en direct. Cette option consomme des crédits Runway pendant la session.</p>}
       {habillage === ID_VISAGE_LOCAL && <p className={styles.note}>Même Bia, même voix : seule l’image est fabriquée sur le téléphone. Ne consomme aucun crédit.</p>}
       {habillage === SATIN_LOCAL_ID && <p className={styles.note}>Ses vidéos, mais sa bouche filmée est entièrement recouverte par une bouche qui suit le son joué. Ne consomme aucun crédit.</p>}
@@ -88,7 +90,8 @@ export function PortraitTenue({tenue, face, parle = false, ecoute = false, emoti
   /* Le visage local entre ici comme les autres : une apparence de plus dans
      la même liste, rendue par son propre composant. Le personnage animé et
      l'avatar Runway ne sont touchés par rien. */
-  return tenue === ID_VISAGE_LOCAL ? <VisageLocal face={face} parle={parle} etat={etatDuPortrait(parle, ecoute)} emotion={emotion} />
+  return tenue === 'bia-complete' ? <PortraitComplet parle={parle} ecoute={ecoute} face={face} />
+    : tenue === ID_VISAGE_LOCAL ? <VisageLocal face={face} parle={parle} etat={etatDuPortrait(parle, ecoute)} emotion={emotion} />
     : tenue === SATIN_LOCAL_ID ? <PortraitSatin face={face} parle={parle} ecoute={ecoute} emotion={emotion} bouche />
     : tenue === 'runway-direct' ? <PortraitRunway face={face} parle={parle} ecoute={ecoute} emotion={emotion}/> : tenue === SATIN_ID ? <PortraitSatin face={face} parle={parle} ecoute={ecoute} emotion={emotion} />
     : <PortraitTenueFixe tenue={tenue} face={face} parle={parle} />;

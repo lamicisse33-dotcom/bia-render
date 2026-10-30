@@ -94,3 +94,19 @@ test('les anciens choix Runway passent en vidéo locale et les autres personnage
  assert(a.APPARENCES_BIA.some(v=>v.id==='runway-direct'));
  assert.equal(a.apparenceLocaleBia('runway-direct',true),'runway-direct');
 });
+
+test('les images complètes se chargent seules et ne remplacent pas un choix Runway explicite', async () => {
+  assert(a.APPARENCES_BIA.some(v => v.id === 'bia-complete'));
+  assert(a.estApparenceBia('bia-complete'));
+  assert.equal(a.apparenceLocaleBia('runway-direct', true), 'runway-direct');
+  assert.equal(a.apparenceLocaleBia('bia-complete'), 'bia-complete');
+  const ancienne = globalThis.Image, demandes = [];
+  globalThis.Image = class {
+    decode() { return Promise.resolve(); }
+    set src(v) { demandes.push(v); queueMicrotask(() => this.onload()); }
+  };
+  try {
+    await a.chargerApparenceBia('bia-complete');
+    assert.deepEqual(demandes, ['/personnages/bia-complete-20261030/atlas-yeux-ouverts.png']);
+  } finally { globalThis.Image = ancienne; }
+});
