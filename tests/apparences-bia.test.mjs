@@ -87,19 +87,50 @@ test('la sélection de tenue ne touche pas aux identités, moteurs ni accès', (
   assert(!/setInterval/.test(composants));
 });
 
-test('les anciens choix Runway passent en vidéo locale et les autres personnages sont conservés',()=>{
- assert.equal(a.apparenceLocaleBia('runway-direct'),'satin-anime');
- assert.equal(a.apparenceLocaleBia(null),'satin-anime');
- for(const choix of ['original','vert-or','wax-bleu','ivoire','satin-anime'])assert.equal(a.apparenceLocaleBia(choix),choix);
+/* ── CE QUE LAMINE A BARRÉ EN ROUGE LE 30 OCTOBRE 2026 ─────────────────────
+   Quatre vignettes cochées sur une capture d'écran : « Vert et or »,
+   « Ivoire et bordeaux », « Bia bleu nuit — yeux ouverts (local) » et
+   « Bia animée — satin bleu nuit ». Cette épreuve disait l'inverse avant ce
+   jour-là, et c'était juste alors ; elle est corrigée, pas contournée. */
+test('les quatre personnages retirés ne sont plus proposés, et les deux autres restent',()=>{
+ const proposes=a.APPARENCES_BIA.map(v=>v.id);
+ assert.deepEqual(proposes,['wax-bleu','runway-direct'],'la liste montrée a changé sans qu\'on le dise');
+ for(const retire of ['vert-or','ivoire','bia-complete','satin-anime'])
+  assert(!proposes.includes(retire),retire+' est encore proposé');
+});
+
+test('un téléphone qui gardait un personnage retiré retombe tout seul sur le wax',()=>{
+ /* LE DÉFAUT A CHANGÉ, ET C'EST FORCÉ : le satin animé l'était, et il est
+    retiré. « runway-direct » ne peut pas prendre sa place — il se paie à la
+    session. Il ne reste que le wax. */
+ assert.equal(a.APPARENCE_PAR_DEFAUT,'wax-bleu');
+ assert.notEqual(a.APPARENCE_PAR_DEFAUT,'runway-direct','un défaut qui consomme des crédits s’imposerait à qui n’a rien demandé');
+ assert.equal(a.apparenceLocaleBia(null),'wax-bleu');
+ assert.equal(a.apparenceLocaleBia('runway-direct'),'wax-bleu');
+ for(const retire of ['vert-or','ivoire','bia-complete','satin-anime'])
+  assert.equal(a.apparenceLocaleBia(retire),'wax-bleu',retire+' laisse le téléphone coincé');
+ /* Ce qui reste choisi reste choisi. */
+ for(const choix of ['original','wax-bleu'])assert.equal(a.apparenceLocaleBia(choix),choix);
  assert(a.APPARENCES_BIA.some(v=>v.id==='runway-direct'));
  assert.equal(a.apparenceLocaleBia('runway-direct',true),'runway-direct');
 });
 
-test('les images complètes se chargent seules et ne remplacent pas un choix Runway explicite', async () => {
-  assert(a.APPARENCES_BIA.some(v => v.id === 'bia-complete'));
+test('rien n’est supprimé : le drapeau remis à false rendrait les quatre',()=>{
+ /* On ne peut pas changer la constante à l'exécution — alors on vérifie que
+    la liste complète les porte toujours, et que le code qui les affiche est
+    encore là. Sinon « désactivé » serait devenu « effacé » en silence. */
+ const source=fs.readFileSync('lib/apparences-bia.ts','utf8');
+ assert(/RETRAIT_DU_30_OCTOBRE = true/.test(source));
+ for(const retire of ['vert-or','ivoire','bia-complete','satin-anime'])
+  assert(source.includes(retire),retire+' a disparu du fichier');
+ for(const id of ['vert-or','ivoire','bia-complete','satin-anime'])assert(a.estApparenceBia(id),id);
+});
+
+test('les images complètes se chargent toujours seules, même retirées du choix', async () => {
+  /* Le personnage n'est plus proposé depuis le 30 octobre 2026, mais son
+     chargement reste juste : c'est ce qui permet de le remettre d'un mot. */
   assert(a.estApparenceBia('bia-complete'));
   assert.equal(a.apparenceLocaleBia('runway-direct', true), 'runway-direct');
-  assert.equal(a.apparenceLocaleBia('bia-complete'), 'bia-complete');
   const ancienne = globalThis.Image, demandes = [];
   globalThis.Image = class {
     decode() { return Promise.resolve(); }

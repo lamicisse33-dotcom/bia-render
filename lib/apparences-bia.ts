@@ -30,6 +30,29 @@ const TENUE_DU_VISAGE_LOCAL = "vert-or";
    Le remettre à `true` les fait réapparaître sans rien d'autre à toucher. */
 export const ESSAI_BOUCHE_COMPOSEE = false;
 
+/* ── QUATRE PERSONNAGES RETIRÉS DU CHOIX ───────────────────────────────────
+
+   Lamine, le 30 octobre 2026, capture d'écran à l'appui : il a barré en rouge
+   quatre vignettes et demandé qu'elles soient désactivées. Ce sont :
+
+       « Vert et or »                            vert-or
+       « Ivoire et bordeaux »                    ivoire
+       « Bia bleu nuit — yeux ouverts (local) »  bia-complete
+       « Bia animée — satin bleu nuit »          satin-anime
+
+   RIEN N'EST SUPPRIMÉ : ni le code, ni les images, ni les vidéos. Ce drapeau
+   à `false` les remet tous les quatre dans la liste, sans rien d'autre à
+   toucher.
+
+   POURQUOI LE PERSONNAGE PAR DÉFAUT CHANGE, ET POURQUOI C'EST FORCÉ. Le
+   satin animé était le défaut — c'est lui que voyait un téléphone qui n'a
+   jamais choisi, et c'est lui qu'on retire. Des deux qui restent, « Bia bleu
+   nuit — synchronisée » consomme des crédits Runway pendant toute la
+   session : elle ne peut pas s'imposer à quelqu'un qui n'a rien demandé.
+   Il ne reste donc que « Wax bleu et ocre ». */
+export const RETRAIT_DU_30_OCTOBRE = true;
+const RETIRES_LE_30_OCTOBRE: readonly string[] = ["vert-or", "ivoire", "bia-complete", SATIN_ID];
+
 export type ApparenceBia = 'bia-complete' | TenueBia | typeof SATIN_ID | typeof SATIN_LOCAL_ID | 'runway-direct' | typeof ID_VISAGE_LOCAL;
 const TOUTES_LES_APPARENCES = [...TENUES_BIA,
   {id: 'bia-complete', nom: 'Bia bleu nuit — yeux ouverts (local)'},
@@ -38,8 +61,16 @@ const TOUTES_LES_APPARENCES = [...TENUES_BIA,
   {id: 'runway-direct', nom: 'Bia bleu nuit — synchronisée (crédits Runway)'},
   {id: ID_VISAGE_LOCAL, nom: 'Bia — visage local (essai)'}] as const;
 const ESSAIS_ARRETES: readonly string[] = [SATIN_LOCAL_ID, ID_VISAGE_LOCAL];
-export const APPARENCES_BIA = TOUTES_LES_APPARENCES
-  .filter(a => ESSAI_BOUCHE_COMPOSEE || !ESSAIS_ARRETES.includes(a.id));
+/* Les deux retraits se cumulent ici, et nulle part ailleurs : une apparence
+   indisponible disparaît de la liste ET cesse d'être un choix mémorisable. */
+const INDISPONIBLES: readonly string[] = [
+  ...(ESSAI_BOUCHE_COMPOSEE ? [] : ESSAIS_ARRETES),
+  ...(RETRAIT_DU_30_OCTOBRE ? RETIRES_LE_30_OCTOBRE : []),
+];
+export const APPARENCES_BIA = TOUTES_LES_APPARENCES.filter(a => !INDISPONIBLES.includes(a.id));
+/** Le personnage d'un téléphone qui n'a rien choisi, ou dont le choix vient
+ *  d'être retiré. Jamais « runway-direct » : il se paie. */
+export const APPARENCE_PAR_DEFAUT: ApparenceBia = RETRAIT_DU_30_OCTOBRE ? "wax-bleu" : SATIN_ID;
 export function estApparenceBia(v: unknown): v is ApparenceBia { return v === 'bia-complete' || v === 'runway-direct' || v === SATIN_ID || v === SATIN_LOCAL_ID || v === ID_VISAGE_LOCAL || estTenueBia(v); }
 export function chargerApparenceBia(id: ApparenceBia) {
   /* Le visage local ne lit ni la planche des expressions ni celle des mains :
@@ -50,10 +81,10 @@ export function chargerApparenceBia(id: ApparenceBia) {
   return id === 'runway-direct' || id === SATIN_ID || id === SATIN_LOCAL_ID ? chargerPosterSatin() : chargerTenueBia(id);
 }
 export function apparenceLocaleBia(ancienne: string | null, runwayChoisi = false) {
-  /* Un téléphone qui gardait un personnage d'essai ne doit pas rester coincé
-     dessus maintenant qu'il n'est plus proposé : il retombe sur le satin. */
-  if (!ESSAI_BOUCHE_COMPOSEE && ancienne && ESSAIS_ARRETES.includes(ancienne)) return SATIN_ID;
-  return !ancienne || (ancienne === 'runway-direct' && !runwayChoisi) ? SATIN_ID : ancienne;
+  /* Un téléphone qui gardait un personnage retiré ne doit pas rester coincé
+     dessus maintenant qu'il n'est plus proposé : il retombe sur le défaut. */
+  if (ancienne && INDISPONIBLES.includes(ancienne)) return APPARENCE_PAR_DEFAUT;
+  return !ancienne || (ancienne === 'runway-direct' && !runwayChoisi) ? APPARENCE_PAR_DEFAUT : ancienne;
 }
 export const CLE_APPARENCE_BIA = "bia-habillage-20261027";
 export function estTenueBia(v: unknown): v is TenueBia {
