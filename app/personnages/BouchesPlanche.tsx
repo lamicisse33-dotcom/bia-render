@@ -13,10 +13,10 @@ export function BouchesPlanche({video,clip,actif,original,niveau,famille}:{video
   const base=document.createElement('canvas');base.width=224;base.height=112;const bc=base.getContext('2d',{willReadFrequently:true})!;
   const suivi=typeof v.requestVideoFrameCallback==='function';
   let annule=false,raf=0,frame=0,tempsImage=0,lisse=0,dernier=performance.now(),compte=0,debut=dernier;
-  const suivre:VideoFrameRequestCallback=(_t,m)=>{tempsImage=m.mediaTime;if(!annule)frame=v.requestVideoFrameCallback(suivre);};
+  const suivre:VideoFrameRequestCallback=(_t,m)=>{tempsImage=m.mediaTime;draw(false);if(!annule)frame=v.requestVideoFrameCallback(suivre);};
   if(v.requestVideoFrameCallback)frame=v.requestVideoFrameCallback(suivre);
-  const draw=()=>{
-   if(annule)return;const now=performance.now();if(now-dernier<30){raf=requestAnimationFrame(draw);return;}const p=params.current,dt=Math.min(80,now-dernier);dernier=now;
+  const draw=(replanifier=true)=>{
+   if(annule)return;const now=performance.now();if(now-dernier<30){if(replanifier)raf=requestAnimationFrame(()=>draw());return;}const p=params.current,dt=Math.min(80,now-dernier);dernier=now;
    if(v.readyState>=2){
     ctx.clearRect(0,0,1176,1764);
     const cible=p.actif?Math.min(1,Math.max(0,p.niveau())):0;lisse+=(cible-lisse)*(1-Math.exp(-dt/(cible>lisse?65:115)));
@@ -40,9 +40,9 @@ export function BouchesPlanche({video,clip,actif,original,niveau,famille}:{video
     }else c.dataset.bouche=p.original?'original':occlusion?'main-devant-bouche':'inactive';
     if(now-debut>1000){c.dataset.fps=String(Math.round(compte*1000/(now-debut)));compte=0;debut=now;}compte++;
    }
-   raf=requestAnimationFrame(draw);
-  };raf=requestAnimationFrame(draw);
+   if(replanifier)raf=requestAnimationFrame(()=>draw());
+  };raf=requestAnimationFrame(()=>draw());
   return()=>{annule=true;cancelAnimationFrame(raf);if(frame)v.cancelVideoFrameCallback(frame);};
  },[video]);
- return <canvas ref={canvas} width={1176} height={1764} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain'}} aria-label="Montage des bouches sur Bia"/>;
+ return <canvas ref={canvas} width={1176} height={1764} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',visibility:actif&&!original?'visible':'hidden'}} aria-label="Montage des bouches sur Bia"/>;
 }
