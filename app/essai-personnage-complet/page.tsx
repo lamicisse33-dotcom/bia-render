@@ -29,7 +29,7 @@ export default function PersonnageComplet(){
  <h1 style={{fontSize:22}}>Bia — animation par images complètes</h1>
  <p>Un visage entier par état. Aucun morceau de bouche superposé.</p>
  <div role="img" aria-label="Bia animée à partir de quatre images complètes" data-bia-complet="oui" data-position={position.toFixed(3)} data-actif={actif?'oui':'non'} style={{position:'relative',height:'min(67dvh,920px)',aspectRatio:'2/3',maxWidth:'100%',margin:'auto',overflow:'hidden',background:'#000'}}>
- {poids.map((p,i)=><div key={i} data-forme={i} data-poids={p.toFixed(3)} style={{position:'absolute',inset:0,backgroundImage:'url(/personnages/bia-complete-20261030/atlas.png)',backgroundSize:'200% 200%',backgroundPosition:`${i%2?100:0}% ${i>=2?100:0}%`,backgroundRepeat:'no-repeat',opacity:opacites[i],transition:'opacity 100ms linear',transform:`translate(${alignements[i][0]/512*100}%,${alignements[i][1]/768*100}%)`,willChange:'opacity'}}/>)}
+ {poids.map((p,i)=><div key={i} data-forme={i} data-poids={p.toFixed(3)} style={{position:'absolute',inset:0,backgroundImage:'url(/personnages/bia-complete-20261030/atlas-yeux-ouverts.png)',backgroundSize:'200% 200%',backgroundPosition:`${i%2?100:0}% ${i>=2?100:0}%`,backgroundRepeat:'no-repeat',opacity:opacites[i],transition:'opacity 100ms linear',transform:`translate(${alignements[i][0]/512*100}%,${alignements[i][1]/768*100}%)`,willChange:'opacity'}}/>)}
  </div>
  <audio ref={audio} src="/voix-bia.wav" preload="auto" onEnded={arreter}/>
  <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap',marginTop:12}}>

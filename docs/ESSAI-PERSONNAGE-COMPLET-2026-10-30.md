@@ -9,3 +9,7 @@ Source : planche générée de quatre images complètes de Bia, tenue satin bleu
 Contrôles : lecture du son public voix-bia.wav, arrêt, ouverture A/E ou O/OU selon le volume, quatre états manuels et retour automatique. L'analyse audio utilise une minuterie courte ; les fondus utilisent le compositeur CSS, sans canvas plein écran. La bouche revient au repos à l'arrêt.
 
 Limites : quatre images de 512×768, même pose fixe ; ce n'est pas encore la reproduction des gestes des six vidéos. La forme de bouche suit le volume et un choix A/O, pas les phonèmes. Le visage, la tenue et les mains générés peuvent encore varier entre états. Ce prototype sert à juger ces écarts avant toute intégration dans Bia. Ne pas annoncer une équivalence à l'animation Runway ni une synchronisation articulatoire exacte.
+
+## Yeux ouverts
+
+Lamine juge la version précédente « pas mal » et demande d'ouvrir les yeux. La référence c7f4d721a440c338b77adb2c948bdda8651afb12 est conservée. Une variante complète atlas-yeux-ouverts.png corrige les paupières sur les quatre poses ; l'ancien atlas n'est pas écrasé. Les dimensions 1024×1536 et les décalages de recalage (23 pixels entre colonnes, 2 pixels entre lignes) ont été vérifiés inchangés. Seule l'adresse de l'image chargée par la page est modifiée ; aucun paramètre audio ou comportement de conversation changé.
