@@ -7,7 +7,7 @@ const centres=[[144,136],[140,137],[130,138],[126,136],[120,134],[114,132],[142,
 export function BouchesPlanche({video,clip,actif,original,niveau,famille}:{video:React.RefObject<HTMLVideoElement|null>;clip:SequenceSatin;actif:boolean;original:boolean;niveau:()=>number;famille:'ouverte'|'arrondie'}){
  const canvas=useRef<HTMLCanvasElement>(null);const params=useRef({clip,actif,original,niveau,famille});params.current={clip,actif,original,niveau,famille};
  useEffect(()=>{
-  const c=canvas.current,v=video.current;if(!c||!v)return;const ctx=c.getContext('2d',{alpha:false});if(!ctx)return;
+  const c=canvas.current,v=video.current;if(!c||!v)return;const ctx=c.getContext('2d',{alpha:true});if(!ctx)return;
   const atlas=new Image();atlas.src='/personnages/bouches-essai-20261030/atlas.png';
   const patch=document.createElement('canvas');patch.width=224;patch.height=112;const pc=patch.getContext('2d',{willReadFrequently:true})!;
   const base=document.createElement('canvas');base.width=224;base.height=112;const bc=base.getContext('2d',{willReadFrequently:true})!;
@@ -18,7 +18,7 @@ export function BouchesPlanche({video,clip,actif,original,niveau,famille}:{video
   const draw=()=>{
    if(annule)return;const now=performance.now();if(now-dernier<30){raf=requestAnimationFrame(draw);return;}const p=params.current,dt=Math.min(80,now-dernier);dernier=now;
    if(v.readyState>=2){
-    ctx.drawImage(v,0,0,1176,1764);
+    ctx.clearRect(0,0,1176,1764);
     const cible=p.actif?Math.min(1,Math.max(0,p.niveau())):0;lisse+=(cible-lisse)*(1-Math.exp(-dt/(cible>lisse?65:115)));
     const piste=mesures[p.clip],t=suivi?tempsImage:v.currentTime,frames=piste.frames;
     const tr=frames[Math.min(frames.length-1,Math.max(0,Math.floor(t*piste.fps)))];
@@ -31,11 +31,11 @@ export function BouchesPlanche({video,clip,actif,original,niveau,famille}:{video
      const peindre=(index:number,alpha:number)=>{const k=a[index],xy=centres[k];pc.globalAlpha=alpha;pc.drawImage(atlas,(k%6)*256+xy[0]-112,Math.floor(k/6)*256+xy[1]-56,224,112,0,0,224,112);};
      peindre(i,1);if(f>.001&&i<a.length-1){pc.globalCompositeOperation='source-over';peindre(i+1,f);}pc.globalAlpha=1;
      const w=tr[2]*1.6,h=w*.5;
-     bc.save();bc.setTransform(224/w,0,0,112/h,112,56);bc.rotate(-tr[3]);bc.translate(-tr[0],-tr[1]);bc.drawImage(v,0,0,1176,1764);bc.restore();
+     bc.drawImage(v,tr[0]-w/2,tr[1]-h/2,w,h,0,0,224,112);
      const pixels=pc.getImageData(0,0,224,112),fond=bc.getImageData(0,0,224,112),s=[0,0,0],b=[0,0,0];let n=0;
      for(let y=0;y<112;y++)for(let x=0;x<224;x++){const r=Math.hypot((x-112)/112,(y-56)/56);if(r>.83&&r<.96){const k=(y*224+x)*4;for(let j=0;j<3;j++){s[j]+=pixels.data[k+j];b[j]+=fond.data[k+j];}n++;}}
      const delta=s.map((v,j)=>Math.max(-30,Math.min(30,(b[j]-v)/Math.max(1,n))));
-     for(let y=0;y<112;y++)for(let x=0;x<224;x++){const k=(y*224+x)*4,r=Math.hypot((x-112)/112,(y-56)/56),z=Math.max(0,Math.min(1,(1-r)/.28)),alpha=z*z*(3-2*z);for(let j=0;j<3;j++)pixels.data[k+j]=Math.max(0,Math.min(255,pixels.data[k+j]+delta[j]));pixels.data[k+3]=Math.round(255*alpha);}
+     for(let y=0;y<112;y++)for(let x=0;x<224;x++){const k=(y*224+x)*4,r=Math.hypot((x-112)/112,(y-56)/(y<56?40:56)),z=Math.max(0,Math.min(1,(1-r)/.28)),alpha=z*z*(3-2*z);for(let j=0;j<3;j++)pixels.data[k+j]=Math.max(0,Math.min(255,pixels.data[k+j]+delta[j]));pixels.data[k+3]=Math.round(255*alpha);}
      pc.putImageData(pixels,0,0);ctx.save();ctx.translate(tr[0],tr[1]);ctx.rotate(tr[3]);ctx.drawImage(patch,-w/2,-h/2,w,h);ctx.restore();c.dataset.bouche='planche';c.dataset.forme=String(a[i]);
     }else c.dataset.bouche=p.original?'original':occlusion?'main-devant-bouche':'inactive';
     if(now-debut>1000){c.dataset.fps=String(Math.round(compte*1000/(now-debut)));compte=0;debut=now;}compte++;
